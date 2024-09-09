@@ -36,6 +36,8 @@ A user runs the CLI with `min-withdrawal-amount 9.5` and `num-rounds 5`. The CLI
 
 </details>
 
+---
+
 ### Installation
 
 #### 1. Install Node.js & npm
