@@ -34,8 +34,6 @@ program.parse(process.argv);
 
 const options = program.opts();
 
-console.log("Options:", options);
-
 // Initialize ethers provider and wallet
 const provider = new ethers.JsonRpcProvider(options.citreaRpcUrl);
 const wallet = new ethers.Wallet(options.citreaPrivateKey, provider);
@@ -146,7 +144,6 @@ const handleWithdrawal = async () => {
     const withdrawalData = JSON.parse(
       fs.readFileSync(`withdrawal_data_${options.withdrawalIdx}.json`)
     );
-    console.log("Withdrawal data:", withdrawalData);
 
     await sendAnyoneCanPaySignatures(withdrawalData);
     return;
@@ -264,14 +261,21 @@ const sendAnyoneCanPaySignatures = async ({
         [{ txid, vout: 0 }],
         { [withdrawalAddress]: amount },
       ]);
-      const signedtx = (
+      const signedtxrequest = (
         await makeBitcoinRpcCall("signrawtransactionwithwallet", [
           rawtx,
           [],
           "SINGLE|ANYONECANPAY",
         ])
-      ).hex;
-
+      );
+      if (!signedtxrequest.complete) {
+        if (signedtxrequest.errors[0].error === "Input not found or already spent") {
+          console.log("Input not found or already spent, Withdrawal completed. Exiting...");
+          return;
+        }
+        throw new Error("Bitcoin Transaction signing failed");
+      }
+      const signedtx = signedtxrequest.hex;
       // Extract the txinwitness
       const txinwitness = (
         await makeBitcoinRpcCall("decoderawtransaction", [signedtx])
@@ -284,7 +288,7 @@ const sendAnyoneCanPaySignatures = async ({
       ).scriptPubKey;
 
       const payload = {
-        withdrawal_idx: withdrawal_idx,
+        idx: withdrawal_idx,
         user_sig: txinwitness,
         input_utxo: {
           outpoint: `${txid}:0`,
@@ -295,7 +299,7 @@ const sendAnyoneCanPaySignatures = async ({
         },
         output_txout: {
           script_pubkey: withdrawalAddressScriptPubKey,
-          value: amount * 1e8,
+          value:  parseInt(amount * 1e8),
         },
       };
 
