@@ -205,10 +205,6 @@ const handleWithdrawal = async () => {
         const logData = logs[0].data;
 
         console.log("Log data:", logData);
-        console.log(
-          "log data sliced:",
-          logData.slice(logData.length - 64, logData.length - 32)
-        );
 
         // extract the 5
         const withdrawal_idx = parseInt(
@@ -320,16 +316,16 @@ const sendAnyoneCanPaySignatures = async ({
       // make that at least one of the requests is successful
       let success = false;
       let paymentTxid = null;
-      Promise.all(
+      await Promise.all(
         operatorsEndpoints.map((endpoint) => {
           console.log(`Sending payload to endpoint: ${endpoint}, payload:`, payload);
-          axios
+          return axios
             .post(endpoint, payload)
             .then((response) => {
-              console.log("Response:", response.data);
-              if (response.data.success) {
+              console.log("Response:", response);
+              if (response.status === 200) {
                 success = true;
-                paymentTxid = response.data.txid;
+                paymentTxid = response.data;
               }
             })
             .catch((error) => {
@@ -341,7 +337,7 @@ const sendAnyoneCanPaySignatures = async ({
         console.log(
           `Round ${
             i + 1
-          }: Withdrawal of ${amount} BTC processed. Payment txid: ${paymentTxid}`
+          }: Withdrawal of ${amount} BTC processed. Payment txid: ${JSON.stringify(paymentTxid)}`
         );
         return;
       }
