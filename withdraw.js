@@ -16,7 +16,7 @@ let config = {
   bitcoinRpcPassword: "",
   citreaRpcUrl: "https://rpc.testnet.citrea.xyz/",
   citreaPrivateKey: "",
-  operatorsEndpoints: [""],
+  operatorEndpoints: [""],
 };
 
 const configFile = path.join(__dirname, "config.json");
@@ -203,16 +203,18 @@ const sendAnyoneCanPaySignatures = async (
   options,
   { dustUtxoDetails, withdrawalAddress, amounts }
 ) => {
-  const operatorsEndpoints = options.withdrawalSigEndpoints.split(",");
+  amounts = JSON.parse(amounts);
+  const operatorEndpoints = options.operatorEndpoints;
   // for each amount
   for (const amount of amounts) {
     try {
       // Step 4: Create a raw transaction to withdraw
-      const rawtx = await makeBitcoinRpcCall("createpsbt", [
-        [{ txid, vout: 0 }],
+      const rawtx = await makeBitcoinRpcCall(options, "createpsbt", [
+        [{ txid: dustUtxoDetails.txid, vout: dustUtxoDetails.vout }],
         { [withdrawalAddress]: amount },
       ]);
       const signedtxrequest = await makeBitcoinRpcCall(
+        options,
         "descriptorprocesspsbt",
         [rawtx, [dustUtxoDetails.descriptor], "SINGLE|ANYONECANPAY"]
       );
@@ -230,20 +232,20 @@ const sendAnyoneCanPaySignatures = async (
       const signedtx = signedtxrequest.hex;
       // Extract the txinwitness
       const txinwitness = (
-        await makeBitcoinRpcCall("decoderawtransaction", [signedtx])
+        await makeBitcoinRpcCall(options, "decoderawtransaction", [signedtx])
       ).vin[0].txinwitness[0].slice(0, -2);
       const inputAddressScriptPubKey = (
-        await makeBitcoinRpcCall("getaddressinfo", [address])
+        await makeBitcoinRpcCall(options, "getaddressinfo", [dustUtxoDetails.address])
       ).scriptPubKey;
       const withdrawalAddressScriptPubKey = (
-        await makeBitcoinRpcCall("getaddressinfo", [withdrawalAddress])
+        await makeBitcoinRpcCall(options, "getaddressinfo", [withdrawalAddress])
       ).scriptPubKey;
 
       const payload = {
         idx: dustUtxoDetails.withdrawal_idx,
         user_sig: txinwitness,
         input_utxo: {
-          outpoint: `${txid}:0`,
+          outpoint: `${dustUtxoDetails.txid}:0`,
           txout: {
             script_pubkey: inputAddressScriptPubKey,
             value: 546,
@@ -259,7 +261,7 @@ const sendAnyoneCanPaySignatures = async (
       let success = false;
       let paymentTxid = null;
       await Promise.all(
-        operatorsEndpoints.map((endpoint) => {
+        operatorEndpoints.map((endpoint) => {
           console.log(
             `Sending payload to endpoint: ${endpoint}, payload:`,
             payload
@@ -280,24 +282,16 @@ const sendAnyoneCanPaySignatures = async (
       );
       if (success) {
         console.log(
-          `Round ${
-            i + 1
-          }: Withdrawal of ${amount} BTC processed. Payment txid: ${JSON.stringify(
+          `Withdrawal of ${amount} BTC processed. Payment txid: ${JSON.stringify(
             paymentTxid
           )}`
         );
         return;
       }
-
-      const newAmount = amount - (10 - minWithdrawalAmount) / numRounds;
-      console.log(
-        `Round ${
-          i + 1
-        }: Withdrawal of ${amount} BTC failed, retrying with amount ${newAmount} BTC`
-      );
-      amount = newAmount;
+      console.log(`Withdrawal of ${amount} BTC failed`);
     } catch (error) {
-      console.error(`Error in round ${i + 1}:`, error.message);
+      console.error(`Error in round`, error.message);
+      throw error;
     }
   }
 };
@@ -386,16 +380,12 @@ program
 
     console.log("Creating burn transaction...");
     console.log("Dust UTXO details:", dustUtxoDetails);
-    const tx = createBurnTx(wallet, dustUtxoDetails);
+    const tx = await createBurnTx(wallet, dustUtxoDetails);
 
     // Sign and send the transaction
     const signedTx = await wallet.sendTransaction(tx);
     console.log("Transaction sent:", signedTx);
     const receipt = await signedTx.wait();
-
-    console.log("result =", await receipt.getResult());
-
-    console.log(`EVM transaction sent with hash: ${JSON.stringify(receipt)}`);
 
     const logs = receipt.logs;
     const logData = logs[0].data;
@@ -433,9 +423,20 @@ program
       process.exit(1);
     }
 
+    console.log("options:", { ...config, ...program.opts() });
+
     // read the dust utxo details from the file
     const dustUtxoDetails = JSON.parse(
       fs.readFileSync(dustUtxoDetailsFilePath, "utf-8")
+    );
+
+    await sendAnyoneCanPaySignatures(
+      { ...config, ...program.opts() },
+      {
+        dustUtxoDetails,
+        withdrawalAddress,
+        amounts,
+      }
     );
   });
 
@@ -445,7 +446,7 @@ program
   )
   .description("Automate withdrawal process")
   .action(
-    (withdrawalAddress, minAmount, numIteration, dustUtxoDetailsFilePath) => {
+    (withdrawalAddress, amounts) => {
       // Ensure required options are provided
       if (
         !program.opts().bitcoinRpcUrl ||
