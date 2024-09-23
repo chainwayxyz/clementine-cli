@@ -162,16 +162,18 @@ const createDustUtxo = async (options) => {
   await makeBitcoinRpcCall(options, "testmempoolaccept", [[signedtx]]);
 
   await makeBitcoinRpcCall(options, "sendrawtransaction", [signedtx]);
+
+  const dustUtxoDetailsFilePath = `${address}.json`;
   // update the file with the txid and vout
   fs.writeFileSync(
-    `${address}.json`,
+    dustUtxoDetailsFilePath,
     JSON.stringify({ descriptor, address, txid, vout })
   );
 
   // log the file name
   console.log(`Dust UTXO created for address: ${address}`);
   console.log(`Use the file ${address}.json to access the UTXO details`);
-  return { address, txid, vout, signedtx };
+  return { descriptor, address, txid, vout, dustUtxoDetailsFilePath };
 };
 
 const createBurnTx = (wallet, { txid, vout }) => {
@@ -235,7 +237,9 @@ const sendAnyoneCanPaySignatures = async (
         await makeBitcoinRpcCall(options, "decoderawtransaction", [signedtx])
       ).vin[0].txinwitness[0].slice(0, -2);
       const inputAddressScriptPubKey = (
-        await makeBitcoinRpcCall(options, "getaddressinfo", [dustUtxoDetails.address])
+        await makeBitcoinRpcCall(options, "getaddressinfo", [
+          dustUtxoDetails.address,
+        ])
       ).scriptPubKey;
       const withdrawalAddressScriptPubKey = (
         await makeBitcoinRpcCall(options, "getaddressinfo", [withdrawalAddress])
@@ -442,27 +446,77 @@ program
 
 program
   .command(
-    "autowithdraw <withdrawal_address> <min_amount> <num_iteration> <dust_utxo_details_file_path>"
+    "autowithdraw <withdrawal_address> <amounts>"
   )
   .description("Automate withdrawal process")
-  .action(
-    (withdrawalAddress, amounts) => {
-      // Ensure required options are provided
-      if (
-        !program.opts().bitcoinRpcUrl ||
-        !program.opts().bitcoinRpcUser ||
-        !program.opts().bitcoinRpcPassword ||
-        !program.opts().citreaRpcUrl ||
-        !program.opts().citreaPrivateKey
-      ) {
-        console.error(
-          "Error: --bitcoin-rpc-url, --bitcoin-rpc-user, --bitcoin-rpc-password, --citrea-rpc-url, and --citrea-private-key are required for this command."
-        );
-        process.exit(1);
-      }
-      // Method logic here
+  .action(async (withdrawalAddress, amounts) => {
+    // Ensure required options are provided
+    if (
+      !program.opts().bitcoinRpcUrl ||
+      !program.opts().bitcoinRpcUser ||
+      !program.opts().bitcoinRpcPassword ||
+      !program.opts().citreaRpcUrl ||
+      !program.opts().citreaPrivateKey
+    ) {
+      console.error(
+        "Error: --bitcoin-rpc-url, --bitcoin-rpc-user, --bitcoin-rpc-password, --citrea-rpc-url, and --citrea-private-key are required for this command."
+      );
+      process.exit(1);
     }
-  );
+    const dustUtxoDetails = await createDustUtxo(program.opts());
+    console.log("Dust UTXO details:", dustUtxoDetails);
+
+    // if file has receipt, then the transaction is already sent
+    if (dustUtxoDetails.receipt) {
+      console.log("Transaction already sent.");
+      return;
+    }
+
+    const provider = new ethers.JsonRpcProvider(program.opts().citreaRpcUrl);
+    const wallet = new ethers.Wallet(program.opts().citreaPrivateKey, provider);
+
+    console.log("Creating burn transaction...");
+    console.log("Dust UTXO details:", dustUtxoDetails);
+    const tx = await createBurnTx(wallet, dustUtxoDetails);
+
+    // Sign and send the transaction
+    const signedTx = await wallet.sendTransaction(tx);
+    console.log("Transaction sent:", signedTx);
+    const receipt = await signedTx.wait();
+    console.log("Receipt:", receipt);
+
+    const logs = receipt.logs;
+    const logData = logs[0].data;
+
+    console.log("Log data:", logData);
+
+    // extract the 5
+    const withdrawal_idx = parseInt(
+      logData.slice(logData.length - 128, logData.length - 64),
+      16
+    );
+    console.log("Withdrawal index:", withdrawal_idx);
+
+    let newDustUtxoDetails = { ...dustUtxoDetails, withdrawal_idx, receipt };
+    console.log("New Dust UTXO details:", newDustUtxoDetails);
+    // update the file with receipt
+    fs.writeFileSync(
+      dustUtxoDetails.dustUtxoDetailsFilePath,
+      JSON.stringify(newDustUtxoDetails)
+    );
+
+
+    await sendAnyoneCanPaySignatures(
+      { ...config, ...program.opts() },
+      {
+        dustUtxoDetails: newDustUtxoDetails,
+        withdrawalAddress,
+        amounts,
+      }
+    );
+
+
+  });
 
 program.parse(process.argv);
 

@@ -1,0 +1,10 @@
+{
+    "bitcoinRpcUrl": "http://localhost:48332/",
+    "bitcoinRpcUser": "",
+    "bitcoinRpcPassword": "",
+    "citreaRpcUrl": "https://rpc.testnet.citrea.xyz",
+    "citreaPrivateKey": "",
+    "operatorEndpoints": [
+        "https://api.testnet.citrea.xyz/withdrawals"
+    ]
+}
