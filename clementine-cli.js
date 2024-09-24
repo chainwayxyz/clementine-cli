@@ -133,7 +133,7 @@ const createDustUtxoFromWallet = async (options, address) => {
   return { txid, vout };
 };
 
-const createBurnTx = (wallet, { txid, vout }) => {
+const createBurnTx = async (wallet, { txid, vout }) => {
   if (!txid) {
     throw new Error("txid is required to create a burn transaction");
   }
@@ -151,8 +151,7 @@ const createBurnTx = (wallet, { txid, vout }) => {
     value: ethers.parseEther("10"),
     data: data,
   };
-  const populatedtx = wallet.populateTransaction(tx);
-
+  const populatedtx = await wallet.populateTransaction(tx);
   return populatedtx;
 };
 
@@ -219,7 +218,7 @@ const sendAnyoneCanPaySignature = async (
   let success = false;
   let paymentTxid = null;
   await Promise.all(
-    operatorEndpoints.map((endpoint) => {
+    operatorEndpoints.map(async (endpoint) => {
       return axios
         .post(endpoint, payload)
         .then((response) => {
@@ -325,7 +324,7 @@ const withdraw = async (
         );
         try {
           const balance = await provider.getBalance(wallet.address);
-          console.log(`Your citrea balance: ${balance} cBTC\n`);
+          console.log(`Your Citrea balance: ${ethers.formatEther(balance)} cBTC\n`);
         } catch (error) {
           console.error(`Error getting wallet balance: ${error.message}\n`);
         }
@@ -350,7 +349,7 @@ const withdraw = async (
       signedTx = await wallet.sendTransaction(tx);
     } catch (error) {
       fs.writeFileSync(
-        backupData,
+        backupFilePath,
         JSON.stringify({ ...backupData, burnTxHash: null })
       );
       throw new Error(`Error sending transaction: ${error.message}`);
@@ -531,7 +530,7 @@ program
     } catch (error) {
       console.log(`Error in withdrawal process: ${error.message}`);
       console.log(
-        "\Resume the withdrawal process using the following command:"
+        "\nResume the withdrawal process using the following command:"
       );
       console.log(
         `./clementine-cli.js resumewithdraw --backup-file-path ${backupFilePath}\n`
