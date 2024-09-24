@@ -1,2 +1,10 @@
 node_modules/
 withdrawal_data_*.json
+
+# Ignore all JSON files
+*.json
+
+# Except specific JSON files
+!config.example.json
+!package.json
+!package-lock.json
