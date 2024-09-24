@@ -21,9 +21,9 @@ let config = {
   bitcoinExplorerUrl: "https://mempool.space/testnet4/",
 };
 
-const configFile = path.join(__dirname, "config.json");
-if (fs.existsSync(configFile)) {
-  const fileConfig = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+const configFilePath = path.join(__dirname, "config.json");
+if (fs.existsSync(configFilePath)) {
+  const fileConfig = JSON.parse(fs.readFileSync(configFilePath, "utf-8"));
   config = { ...config, ...fileConfig };
 }
 
@@ -96,10 +96,13 @@ const makeBitcoinRpcCall = async (options, method, params = []) => {
       }
     );
 
+    if (response.data.error) {
+      throw new Error(response.data.error?.message || "Unknown error");
+    }
+
     return response.data.result;
   } catch (error) {
-    console.error(`Error in Bitcoin RPC call: ${error.message}`);
-    console.error("Response data:", options);
+    console.error(`Bitcoin RPC error: ${error.message}`);
     throw error;
   }
 };
@@ -127,8 +130,6 @@ const createDustUtxoFromWallet = async (options, address) => {
 
   const vout = 0;
 
-  // testmempoolaccept
-
   await makeBitcoinRpcCall(options, "testmempoolaccept", [[signedtx]]);
 
   await makeBitcoinRpcCall(options, "sendrawtransaction", [signedtx]);
@@ -136,7 +137,7 @@ const createDustUtxoFromWallet = async (options, address) => {
   return { txid, vout };
 };
 
-const createBurnTx = (wallet, { txid, vout }) => {
+const createBurnTx = async (wallet, { txid, vout }) => {
   if (!txid) {
     throw new Error("txid is required to create a burn transaction");
   }
@@ -154,8 +155,7 @@ const createBurnTx = (wallet, { txid, vout }) => {
     value: ethers.parseEther("10"),
     data: data,
   };
-  const populatedtx = wallet.populateTransaction(tx);
-
+  const populatedtx = await wallet.populateTransaction(tx);
   return populatedtx;
 };
 
@@ -221,6 +221,7 @@ const sendAnyoneCanPaySignature = async (
   // make that at least one of the requests is successful
   let success = false;
   let paymentTxid = null;
+  // TODO: Promise.allSettled
   await Promise.all(
     operatorEndpoints.map((endpoint) => {
       return axios
@@ -275,12 +276,10 @@ const withdraw = async (
     } catch (error) {
       console.error(`\nError creating dust UTXO`);
       console.error(`You need to have some funds in your wallet.`);
-      try {
-        const balance = await makeBitcoinRpcCall(config, "getbalance");
-        console.log(`\nYour wallet balance: ${balance}\n`);
-      } catch (error) {
-        console.error(`\nError getting wallet balance: ${error.message}\n`);
-      }
+
+      const balance = await makeBitcoinRpcCall(config, "getbalance");
+      console.log(`\nYour wallet balance: ${balance}\n`);
+
       throw new Error(`Error creating dust UTXO: ${error.message}`);
     }
   }
@@ -328,7 +327,7 @@ const withdraw = async (
         );
         try {
           const balance = await provider.getBalance(wallet.address);
-          console.log(`Your citrea balance: ${balance} cBTC\n`);
+          console.log(`Your Citrea balance: ${ethers.formatEther(balance)} cBTC\n`);
         } catch (error) {
           console.error(`Error getting wallet balance: ${error.message}\n`);
         }
@@ -353,7 +352,7 @@ const withdraw = async (
       signedTx = await wallet.sendTransaction(tx);
     } catch (error) {
       fs.writeFileSync(
-        backupData,
+        backupFilePath,
         JSON.stringify({ ...backupData, burnTxHash: null })
       );
       throw new Error(`Error sending transaction: ${error.message}`);
@@ -457,10 +456,10 @@ const withdraw = async (
 
 program
   .command("withdraw")
-  .description("Automate withdrawal process")
+  .description("Withdraw funds from Citrea to Bitcoin")
   .option(
     "-a, --withdrawal-address <address>",
-    "Specify the withdrawal address"
+    "Specify the withdrawal address on Bitcoin",
   )
   .option(
     "-m, --min-withdrawal-amount <amount>",
@@ -515,7 +514,7 @@ program
     const backupFilePath = path.join(backupFolderPath, `${address}.json`);
 
     console.log(
-      `\nTo be able to continue your withdrawal process, use this command:\n./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js continuewithdraw --help\nfor more information.\n\n`
+      `\nTo be able to resume your withdrawal process, use this command:\n./clementine-cli.js resumewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js resumewithdraw --help\nfor more information.\n\n`
     );
 
     fs.writeFileSync(
@@ -534,17 +533,17 @@ program
     } catch (error) {
       console.log(`Error in withdrawal process: ${error.message}`);
       console.log(
-        "\nContinue the withdrawal process using the following command:"
+        "\nResume the withdrawal process using the following command:"
       );
       console.log(
-        `./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n`
+        `./clementine-cli.js resumewithdraw --backup-file-path ${backupFilePath}\n`
       );
     }
   });
 
 program
-  .command("continuewithdraw")
-  .description("Continue withdrawal process")
+  .command("resumewithdraw")
+  .description("Resume withdrawal process from a backup file")
   .option("-b, --backup-file-path <path>", "Backup file path", "")
   .option(
     "-m, --min-withdrawal-amount <amount>",
