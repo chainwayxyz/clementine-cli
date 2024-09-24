@@ -515,7 +515,7 @@ program
     const backupFilePath = path.join(backupFolderPath, `${address}.json`);
 
     console.log(
-      `\nTo be able to continue your withdrawal process, use this command:\n./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js continuewithdraw help\nfor more information.\n\n`
+      `\nTo be able to continue your withdrawal process, use this command:\n./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js continuewithdraw --help\nfor more information.\n\n`
     );
 
     fs.writeFileSync(
