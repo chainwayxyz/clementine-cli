@@ -265,6 +265,7 @@ const withdraw = async (
 
   if (!backupData.txid) {
     try {
+      console.log("Creating dust UTXO...");
       const { txid, vout } = await createDustUtxoFromWallet(
         config,
         backupData.address
@@ -272,6 +273,14 @@ const withdraw = async (
       backupData = { ...backupData, txid, vout };
       fs.writeFileSync(backupFilePath, JSON.stringify(backupData));
     } catch (error) {
+      console.error(`\nError creating dust UTXO`);
+      console.error(`You need to have some funds in your wallet.`);
+      try {
+        const balance = await makeBitcoinRpcCall(config, "getbalance");
+        console.log(`\nYour wallet balance: ${balance}\n`);
+      } catch (error) {
+        console.error(`\nError getting wallet balance: ${error.message}\n`);
+      }
       throw new Error(`Error creating dust UTXO: ${error.message}`);
     }
   }
@@ -295,9 +304,12 @@ const withdraw = async (
   }
 
   if (!backupData.burnTxHash) {
+    console.log("Withdrawing 10 cBTC...");
+
     let wallet;
+    let provider;
     try {
-      const provider = new ethers.JsonRpcProvider(config.citreaRpcUrl);
+      provider = new ethers.JsonRpcProvider(config.citreaRpcUrl);
       wallet = new ethers.Wallet(config.citreaPrivateKey, provider);
     } catch (error) {
       throw new Error(`Error connecting to Citrea: ${error.message}`);
@@ -307,7 +319,21 @@ const withdraw = async (
     try {
       tx = await createBurnTx(wallet, backupData);
     } catch (error) {
-      throw new Error(`Error creating burn transaction: ${error.message}`);
+      if (error.message.startsWith("insufficient funds")) {
+        console.error(
+          "\nError creating withdraw transaction: Insufficient funds."
+        );
+        console.error(
+          "You need to have at least 10 cBTC in your Citrea wallet.\n"
+        );
+        try {
+          const balance = await provider.getBalance(wallet.address);
+          console.log(`Your citrea balance: ${balance} cBTC\n`);
+        } catch (error) {
+          console.error(`Error getting wallet balance: ${error.message}\n`);
+        }
+      }
+      throw new Error(`Error creating withdraw transaction: ${error.message}`);
     }
     let txhash;
     try {
@@ -338,8 +364,6 @@ const withdraw = async (
       const logs = receipt.logs;
       const logData = logs[0].data;
 
-      console.log("Log data:", logData);
-
       const withdrawalIdx = parseInt(
         logData.slice(logData.length - 128, logData.length - 64),
         16
@@ -350,6 +374,13 @@ const withdraw = async (
     } catch (error) {
       throw new Error(`Error getting receipt: ${error.message}`);
     }
+    // sleep 1 second
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+
+    console.log(
+      `\nWithdrawal tx on Citrea completed, see the tx on ${config.citreaExplorerUrl}tx/${txhash}\n`
+    );
+
   }
 
   if (!backupData.withdrawalIdx) {
@@ -394,23 +425,31 @@ const withdraw = async (
   // amounts is from 10 to minWithdrawalAmount in steps of precision
 
   for (let amount = 10; amount >= minWithdrawalAmount; amount -= precision) {
-    console.log(amount);
-    console.log(minWithdrawalAmount);
-    console.log(precision);
-    amount = Math.round(amount * 1e8) / 1e8;
+    amount = amount.toFixed(8);
+    console.log(`Trying to withdraw ${amount} BTC...`);
     try {
       const paymentTxid = await sendAnyoneCanPaySignature(config, {
         dustUtxoDetails: backupData,
         withdrawalAddress,
         amount,
       });
-      console.log(paymentTxid);
       console.log(
-        `Payment txid for ${amount} cBTC: ${JSON.stringify(paymentTxid)}`
+        `Withdrawal successful. You will receive ${amount} BTC soon.`
       );
+      console.log(`Here are the payment txids:`);
+      // iterate over paymentTxid.withdrawal_operator_payments
+      for (const payment of paymentTxid.withdrawal_operator_payments) {
+        console.log(`${config.bitcoinExplorerUrl}tx/${payment.txid}`);
+      }
+      // console.log(paymentTxid);
+      // console.log(
+      //   `Payment txid for ${amount} cBTC: ${JSON.stringify(paymentTxid)}`
+      // );
       return paymentTxid;
     } catch (error) {
-      console.log(`Error sending payment signature: ${error.message}`);
+      console.log(`Error sending withdrawal signature: ${error.message}`);
+      // sleep for 1 second
+      await new Promise((resolve) => setTimeout(resolve, 1000));
     }
   }
   throw new Error("Withdrawal failed.");
@@ -476,8 +515,7 @@ program
     const backupFilePath = path.join(backupFolderPath, `${address}.json`);
 
     console.log(
-      "./clementine-cli.js continuewithdraw --backup-file-path ",
-      backupFilePath
+      `\nTo be able to continue your withdrawal process, use this command:\n./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js continuewithdraw help\nfor more information.\n\n`
     );
 
     fs.writeFileSync(
@@ -496,11 +534,10 @@ program
     } catch (error) {
       console.log(`Error in withdrawal process: ${error.message}`);
       console.log(
-        "Continue the withdrawal process using the following command:"
+        "\nContinue the withdrawal process using the following command:"
       );
-      const scriptName = process.argv[1];
       console.log(
-        `${scriptName} continuewithdraw --backup-file-path ${backupFilePath}`
+        `./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n`
       );
     }
   });

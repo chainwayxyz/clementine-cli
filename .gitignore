@@ -5,6 +5,6 @@ withdrawal_data_*.json
 *.json
 
 # Except specific JSON files
-!config_example.json
+!config.example.json
 !package.json
 !package-lock.json
