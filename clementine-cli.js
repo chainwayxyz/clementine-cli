@@ -96,9 +96,13 @@ const makeBitcoinRpcCall = async (options, method, params = []) => {
       }
     );
 
+    if (response.data.error) {
+      throw new Error(response.data.error?.message || "Unknown error");
+    }
+
     return response.data.result;
   } catch (error) {
-    console.error(`Error in Bitcoin RPC call: ${error.message}`);
+    console.error(`Bitcoin RPC error: ${error.message}`);
     throw error;
   }
 };
@@ -217,8 +221,9 @@ const sendAnyoneCanPaySignature = async (
   // make that at least one of the requests is successful
   let success = false;
   let paymentTxid = null;
+  // TODO: Promise.allSettled
   await Promise.all(
-    operatorEndpoints.map(async (endpoint) => {
+    operatorEndpoints.map((endpoint) => {
       return axios
         .post(endpoint, payload)
         .then((response) => {
@@ -271,12 +276,10 @@ const withdraw = async (
     } catch (error) {
       console.error(`\nError creating dust UTXO`);
       console.error(`You need to have some funds in your wallet.`);
-      try {
-        const balance = await makeBitcoinRpcCall(config, "getbalance");
-        console.log(`\nYour wallet balance: ${balance}\n`);
-      } catch (error) {
-        console.error(`\nError getting wallet balance: ${error.message}\n`);
-      }
+
+      const balance = await makeBitcoinRpcCall(config, "getbalance");
+      console.log(`\nYour wallet balance: ${balance}\n`);
+
       throw new Error(`Error creating dust UTXO: ${error.message}`);
     }
   }
