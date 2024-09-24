@@ -21,9 +21,9 @@ let config = {
   bitcoinExplorerUrl: "https://mempool.space/testnet4/",
 };
 
-const configFile = path.join(__dirname, "config.json");
-if (fs.existsSync(configFile)) {
-  const fileConfig = JSON.parse(fs.readFileSync(configFile, "utf-8"));
+const configFilePath = path.join(__dirname, "config.json");
+if (fs.existsSync(configFilePath)) {
+  const fileConfig = JSON.parse(fs.readFileSync(configFilePath, "utf-8"));
   config = { ...config, ...fileConfig };
 }
 
@@ -99,7 +99,6 @@ const makeBitcoinRpcCall = async (options, method, params = []) => {
     return response.data.result;
   } catch (error) {
     console.error(`Error in Bitcoin RPC call: ${error.message}`);
-    console.error("Response data:", options);
     throw error;
   }
 };
@@ -126,8 +125,6 @@ const createDustUtxoFromWallet = async (options, address) => {
   ).txid;
 
   const vout = 0;
-
-  // testmempoolaccept
 
   await makeBitcoinRpcCall(options, "testmempoolaccept", [[signedtx]]);
 
@@ -457,10 +454,10 @@ const withdraw = async (
 
 program
   .command("withdraw")
-  .description("Automate withdrawal process")
+  .description("Withdraw funds from Citrea to Bitcoin")
   .option(
     "-a, --withdrawal-address <address>",
-    "Specify the withdrawal address"
+    "Specify the withdrawal address on Bitcoin",
   )
   .option(
     "-m, --min-withdrawal-amount <amount>",
@@ -515,7 +512,7 @@ program
     const backupFilePath = path.join(backupFolderPath, `${address}.json`);
 
     console.log(
-      `\nTo be able to continue your withdrawal process, use this command:\n./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js continuewithdraw --help\nfor more information.\n\n`
+      `\nTo be able to resume your withdrawal process, use this command:\n./clementine-cli.js resumewithdraw --backup-file-path ${backupFilePath}\n./clementine-cli.js resumewithdraw --help\nfor more information.\n\n`
     );
 
     fs.writeFileSync(
@@ -534,17 +531,17 @@ program
     } catch (error) {
       console.log(`Error in withdrawal process: ${error.message}`);
       console.log(
-        "\nContinue the withdrawal process using the following command:"
+        "\Resume the withdrawal process using the following command:"
       );
       console.log(
-        `./clementine-cli.js continuewithdraw --backup-file-path ${backupFilePath}\n`
+        `./clementine-cli.js resumewithdraw --backup-file-path ${backupFilePath}\n`
       );
     }
   });
 
 program
-  .command("continuewithdraw")
-  .description("Continue withdrawal process")
+  .command("resumewithdraw")
+  .description("Resume withdrawal process from a backup file")
   .option("-b, --backup-file-path <path>", "Backup file path", "")
   .option(
     "-m, --min-withdrawal-amount <amount>",
