@@ -72,14 +72,12 @@ cp config.example.json config.json
 ```
 
 Then, run the CLI with the following command:
-```bash
-
-To initiate a withdrawal, run the following command:
 
 ```bash
 ./clementine-cli.js withdraw \
   --withdrawal-address YOUR_BTC_ADDRESS
 ```
+
 This will use the default parameters as min-withdrawal-amount 9.99 and precision 0.001.
 
 To customize the withdrawal parameters, use the following command:
