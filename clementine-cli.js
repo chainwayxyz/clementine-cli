@@ -388,7 +388,7 @@ const withdraw = async (
     }
     const provider = new ethers.JsonRpcProvider(config.citreaRpcUrl);
 
-    const receipt = provider.getTransactionReceipt(backupData.burnTxHash);
+    const receipt = await provider.getTransactionReceipt(backupData.burnTxHash);
     const logs = receipt.logs;
     const logData = logs[0].data;
     const withdrawalIdx = parseInt(
