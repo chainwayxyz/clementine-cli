@@ -1,8 +1,11 @@
 {
   "dependencies": {
+    "@bitcoinerlab/secp256k1": "^1.1.1",
     "axios": "^1.7.7",
+    "bitcoinjs-lib": "^6.1.7",
     "bs58": "^6.0.0",
     "commander": "^12.1.0",
+    "ecpair": "^3.0.0-rc.0",
     "ethers": "^6.13.2"
   }
 }
