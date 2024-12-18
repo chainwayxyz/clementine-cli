@@ -2,10 +2,11 @@
 
 [Clementine](https://github.com/chainwayxyz/clementine) is Citrea's BitVM-based, trust-minimized two-way peg program. This repository includes a CLI tool to interact with Clementine. For detailed usage and documentation, refer to this [guide](https://docs.citrea.xyz).
 
-The current functionality of the CLI is divided into two main operations:
+The current functionality of the CLI includes:
 
 - **Deposit** (work in progress)
 - **Withdraw** (fully functional)
+- **Deposit Reclaim** (fully functional)
 
 <details>
   <summary><strong>Deposit</strong></summary>
@@ -37,6 +38,26 @@ A user runs the CLI with `min-amount 9.995` and `precision 0.001`. The CLI will 
 5. Request **9.996 BTC**, if no response:
 6. Request **9.995 BTC**, if no response:
 7. Cancel the operation if there is no response at **9.995** BTC.
+
+</details>
+
+<details>
+  <summary><strong>Deposit Reclaim</strong></summary>
+
+The transaction can be generated using the `deposit-reclaim` command. The program will generate the hex of the transaction to reclaim the deposit amount. This transaction then can be be broadcasted to the network. This operation does not require the Bitcoin Core to be running.
+
+Example:
+
+```bash
+node ./deposit-reclaim.js \
+  --private-key YOUR_PRIVATE_KEY \
+  --address YOUR_BTC_ADDRESS \
+  --evm-address YOUR_EVM_ADDRESS \
+  --txid DEPOSIT_TXID \
+  --vout DEPOSIT_TX_VOUT \
+  --amount DEPOSIT_TX_AMOUNT \
+  --fee FEE_AMOUNT (optional)
+```
 
 </details>
 
