@@ -223,18 +223,12 @@ pub async fn safe_withdraw(
     let tx_json = json!({
         "to": bridge_contract_addr,
         "data": calldata_hex,
-        // "data": format!("0x{}", calldata_hex),
         "value": "0x0",
         "chainId": chain_id,
-
-        /* TODO: placeholder gas params – adjust later */
-        "gas":      "0x7a120",            // 500000
-        "maxFeePerGas": "0x3b9aca00",
-        "maxPriorityFeePerGas": "0x3b9aca00",
     }).to_string();
     
     // Prompt user to open the withdrawal UI
-    let query = format!("tx={}&btc={}", encode(&tx_json), encode(&withdrawal_address.to_string()));
+    let query = format!("transaction_request={}&withdrawal_address={}", encode(&tx_json), encode(&withdrawal_address.to_string()));
     let withdrawal_ui_url = format!("{}{}", get_withdrawal_sign_url(network), query);
     println!("\n{} Press Enter to open the withdrawal UI in your default browser...", "INFO".yellow().bold());
     let mut input = String::new();
