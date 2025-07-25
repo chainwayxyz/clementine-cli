@@ -16,6 +16,26 @@ pub const BRIDGE_AMOUNT: Amount = Amount::from_sat(1_000_000_000);
 
 pub const USER_TAKES_AFTER: u64 = 200;
 
+pub const BRIDGE_CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
+
+pub fn get_chain_id(network: Network) -> u64 {
+    match network {
+        // Network::Bitcoin => TODO
+        Network::Testnet4 => 5115,
+        Network::Signet => 62298,
+        _ => unimplemented!(),
+    }
+}
+
+pub fn get_rpc_url(network: Network) -> &'static str {
+    match network {
+        // Network::Bitcoin => TODO
+        Network::Testnet4 => "https://rpc.testnet.citrea.xyz/",
+        Network::Signet => "https://rpc.devnet.citrea.xyz/",
+        _ => unimplemented!(),
+    }
+}
+
 /// Get backend endpoint for a specific network
 pub fn get_backend_endpoint(network: Network) -> &'static str {
     match network {
@@ -29,6 +49,15 @@ pub fn get_backend_endpoint(network: Network) -> &'static str {
             );
             "https://api.testnet.citrea.xyz/"
         }
+    }
+}
+
+pub fn get_withdrawal_sign_url(network: Network) -> &'static str {
+    match network {
+        // Network::Bitcoin => "https://citrea.xyz/withdrawal/sign/",
+        Network::Testnet4 => "https://citrea.xyz/withdrawal/sign/", // TODO: Change to testnet.citrea.xyz/withdrawal/sign/ in the future
+        Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign/",
+        _ => unimplemented!(),
     }
 }
 

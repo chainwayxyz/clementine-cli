@@ -31,6 +31,7 @@ secp256k1 = { version = "0.31.0", features = [
 ] }
 tokio = { version = "1.36", features = ["full"] }
 sha2 = "0.10.9"
+urlencoding = "2.1" 
 
 
 [patch.crates-io]
