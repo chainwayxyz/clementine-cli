@@ -356,7 +356,7 @@ pub fn verify_recovery_tx(
         &recovery_key,
     )
     .map_err(|_| -> Box<dyn std::error::Error> {
-        format!("Signature verification failed, you need to specify input amount if different than {} BTC", BRIDGE_AMOUNT.to_btc()).into()
+        "Signature verification failed. Possible causes include an incorrect input amount, an invalid signature, or a mismatched public key.".into()
     })?;
 
     let output_address = Address::from_script(
