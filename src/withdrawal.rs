@@ -148,7 +148,7 @@ pub async fn get_tx_details(
         } else {
             println!("{}", "ERROR".red().bold());
             println!("Failed to get tx details from RPC");
-            println!("Contining with mempool.space");
+            println!("Continuing with mempool.space");
         }
     }
     let tx_details = get_tx_details_from_mempool(prepare_txid, network).await;
