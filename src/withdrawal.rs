@@ -87,14 +87,14 @@ pub async fn get_tx_details_from_mempool(
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
     let mempool_api_url = get_mempool_api_url(network);
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
-    let response = reqwest::get(url).await.unwrap();
-    let tx_hex = response.text().await.unwrap();
+    let response = reqwest::get(url).await.map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
+    let tx_hex = response.text().await.map_err(|e| format!("Failed to read transaction hex response: {}", e))?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
     let url = format!("{mempool_api_url}tx/{prepare_txid}");
-    let response = reqwest::get(url).await.unwrap();
-    let tx_data: Value = response.json().await.unwrap();
+    let response = reqwest::get(url).await.map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
+    let tx_data: Value = response.json().await.map_err(|e| format!("Failed to parse transaction data: {}", e))?;
     debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
