@@ -23,11 +23,7 @@ pub fn get_backend_endpoint(network: Network) -> &'static str {
         Network::Testnet4 => "https://api.testnet.citrea.xyz/",
         Network::Signet => "https://api.devnet.citrea.xyz/",
         _ => {
-            eprintln!(
-                "Warning: No backend endpoint configured for network {:?}, using testnet",
-                network
-            );
-            "https://api.testnet.citrea.xyz/"
+            panic!("No backend endpoint configured for network {:?}", network);
         }
     }
 }

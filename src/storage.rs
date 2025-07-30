@@ -34,7 +34,16 @@ pub fn store_key(
         "public_key": keypair.public_key().to_string(),
         "stored_at": chrono::Utc::now().to_rfc3339()
     });
-    fs::write(key_file, serde_json::to_string_pretty(&key_data)?)?;
+    fs::write(&key_file, serde_json::to_string_pretty(&key_data)?)?;
+    
+    // Set file permissions to 700 (rwx------)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&key_file)?.permissions();
+        perms.set_mode(0o700);
+        fs::set_permissions(&key_file, perms)?;
+    }
 
     // Store address in plaintext for easy lookup
     let address_file = storage_dir.join("addresses.json");
