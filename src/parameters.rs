@@ -1,14 +1,17 @@
 //! # Parameter Builder For Citrea Requests
 
 use crate::bitcoin_merkle::BitcoinMerkleTree;
+use crate::types::encode_citrea_deposit_params;
 
 use bitcoin::OutPoint;
 use bitcoin::ScriptBuf;
 use bitcoin::Sequence;
 use bitcoin::TxIn;
+use bitcoin::TxOut;
 use bitcoin::Witness;
 use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
+use bitcoin::hashes::sha256;
 use bitcoin::{Block, Transaction, Txid};
 
 /// Returns merkle proof for a given transaction (via txid) in a block.
@@ -55,12 +58,12 @@ fn get_block_merkle_proof(
 
 #[derive(Clone)]
 pub struct CitreaTransaction {
-    version: [u8; 4],
-    flag: [u8; 2],
-    vin: Vec<u8>,
-    vout: Vec<u8>,
-    witness: Vec<u8>,
-    locktime: [u8; 4],
+    pub version: [u8; 4],
+    pub flag: [u8; 2],
+    pub vin: Vec<u8>,
+    pub vout: Vec<u8>,
+    pub witness: Vec<u8>,
+    pub locktime: [u8; 4],
 }
 
 // implement Debug for CitreaTransaction
@@ -142,9 +145,9 @@ fn get_transaction_details_for_citrea(
 
 #[derive(Clone)]
 pub struct CitreaMerkleProof {
-    intermediate_nodes: Vec<u8>,
-    block_height: u32,
-    index: usize,
+    pub intermediate_nodes: Vec<u8>,
+    pub block_height: u32,
+    pub index: usize,
 }
 
 // implement Debug for CitreaMerkleProof
@@ -174,6 +177,43 @@ fn get_transaction_merkle_proof_for_citrea(
         block_height,
         index,
     })
+}
+
+pub fn get_citrea_deposit_params(
+    prevout: TxOut,
+    move_to_vault_tx: &Transaction,
+    move_to_vault_block: &Block,
+    move_to_vault_block_height: u32,
+) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+    let move_to_vault_tx_struct = get_transaction_details_for_citrea(move_to_vault_tx)?;
+
+    let move_to_vault_tx_mp = get_transaction_merkle_proof_for_citrea(
+        move_to_vault_block_height,
+        move_to_vault_block,
+        move_to_vault_tx.compute_txid(),
+        true,
+    )?;
+
+    let mut enc_script_pubkeys = sha256::Hash::engine();
+
+    prevout
+        .script_pubkey
+        .consensus_encode(&mut enc_script_pubkeys)
+        .unwrap();
+    let sha_script_pubkeys = sha256::Hash::from_engine(enc_script_pubkeys);
+
+    let sha_script_pks: [u8; 32] = sha_script_pubkeys
+        .as_byte_array()
+        .to_vec()
+        .try_into()
+        .unwrap();
+
+    let data = encode_citrea_deposit_params(
+        &move_to_vault_tx_struct,
+        &move_to_vault_tx_mp,
+        sha_script_pks,
+    );
+    Ok(data)
 }
 
 pub fn get_citrea_safe_withdraw_params(

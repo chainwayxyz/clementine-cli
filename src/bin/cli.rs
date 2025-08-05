@@ -61,6 +61,12 @@ enum DepositCommands {
     DepositStatus {
         deposit_address: String,
     },
+    GetDepositParams {
+        move_to_vault_txid: String,
+        bitcoin_rpc_url: String,
+        bitcoin_rpc_user: String,
+        bitcoin_rpc_password: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -188,6 +194,25 @@ async fn main() {
             DepositCommands::DepositStatus { deposit_address } => {
                 println!("TODO: deposit.deposit_status: {}", deposit_address);
             }
+            DepositCommands::GetDepositParams {
+                move_to_vault_txid,
+                bitcoin_rpc_url,
+                bitcoin_rpc_user,
+                bitcoin_rpc_password,
+            } => {
+                if let Err(e) = deposit::get_deposit_params(
+                    &move_to_vault_txid,
+                    &bitcoin_rpc_url,
+                    &bitcoin_rpc_user,
+                    &bitcoin_rpc_password,
+                    network,
+                )
+                .await
+                {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateSignerAddress { y } => {
@@ -234,7 +259,8 @@ async fn main() {
                     bitcoind_rpc_password.as_deref(),
                     network,
                 )
-                .await {
+                .await
+                {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

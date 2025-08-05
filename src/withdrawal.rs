@@ -9,6 +9,7 @@ use crate::deposit::parse_taproot_address;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
+use bitcoincore_rpc::{Auth, Client, RpcApi};
 use colored::*;
 use serde_json::Value;
 use std::str::FromStr;
@@ -87,14 +88,24 @@ pub async fn get_tx_details_from_mempool(
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
     let mempool_api_url = get_mempool_api_url(network);
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
-    let response = reqwest::get(url).await.map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
-    let tx_hex = response.text().await.map_err(|e| format!("Failed to read transaction hex response: {}", e))?;
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
+    let tx_hex = response
+        .text()
+        .await
+        .map_err(|e| format!("Failed to read transaction hex response: {}", e))?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
     let url = format!("{mempool_api_url}tx/{prepare_txid}");
-    let response = reqwest::get(url).await.map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
-    let tx_data: Value = response.json().await.map_err(|e| format!("Failed to parse transaction data: {}", e))?;
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
+    let tx_data: Value = response
+        .json()
+        .await
+        .map_err(|e| format!("Failed to parse transaction data: {}", e))?;
     debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
@@ -115,12 +126,48 @@ pub async fn get_tx_details_from_mempool(
 }
 
 pub fn get_tx_details_from_rpc(
-    _bitcoind_rpc_url: &str,
-    _bitcoind_rpc_user: &str,
-    _bitcoind_rpc_password: &str,
-    _prepare_txid: &Txid,
+    bitcoind_rpc_url: &str,
+    bitcoind_rpc_user: &str,
+    bitcoind_rpc_password: &str,
+    prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    unimplemented!();
+    let auth = Auth::UserPass(
+        bitcoind_rpc_user.to_string(),
+        bitcoind_rpc_password.to_string(),
+    );
+    let rpc = Client::new(bitcoind_rpc_url, auth)?;
+
+    let tx = rpc.get_raw_transaction(prepare_txid, None)?;
+    let tx_info = rpc.get_raw_transaction_info(prepare_txid, None)?;
+    if tx_info.blockhash.is_none() {
+        return Err("Block hash not found, maybe not confirmed yet".into());
+    }
+    let block = rpc.get_block(&tx_info.blockhash.unwrap())?;
+    let block_height = rpc
+        .get_block_header_info(&tx_info.blockhash.unwrap())?
+        .height;
+    debug!("tx_info: {:?}", tx_info);
+    debug!("block: {:?}", block);
+    debug!("block_height: {:?}", block_height);
+
+    Ok((tx, block, block_height as u32))
+}
+
+pub fn get_txout_details_from_rpc(
+    bitcoind_rpc_url: &str,
+    bitcoind_rpc_user: &str,
+    bitcoind_rpc_password: &str,
+    txid: &Txid,
+    vout: u32,
+) -> Result<TxOut, Box<dyn std::error::Error>> {
+    let auth = Auth::UserPass(
+        bitcoind_rpc_user.to_string(),
+        bitcoind_rpc_password.to_string(),
+    );
+    let rpc = Client::new(bitcoind_rpc_url, auth)?;
+    let tx = rpc.get_raw_transaction(txid, None)?;
+    let txout = tx.output[vout as usize].clone();
+    Ok(txout)
 }
 
 pub async fn get_tx_details(
@@ -148,6 +195,7 @@ pub async fn get_tx_details(
         } else {
             println!("{}", "ERROR".red().bold());
             println!("Failed to get tx details from RPC");
+            println!("{}", tx_details.err().unwrap());
             println!("Continuing with mempool.space");
         }
     }
@@ -217,13 +265,23 @@ pub async fn safe_withdraw(
 
     // Prompt user to open the withdrawal UI
     let withdrawal_ui_url = "https://i-explorer.devnet.citrea.xyz/address/0x3100000000000000000000000000000000000002?tab=write_proxy#9072f747";
-    println!("\n{} Press Enter to open the withdrawal UI in your default browser...", "INFO".yellow().bold());
+    println!(
+        "\n{} Press Enter to open the withdrawal UI in your default browser...",
+        "INFO".yellow().bold()
+    );
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 
     if let Err(e) = open::that(withdrawal_ui_url) {
-        println!("{} Failed to open browser: {}", "WARNING".yellow().bold(), e);
-        println!("Please visit the following URL manually:\n{}", withdrawal_ui_url);
+        println!(
+            "{} Failed to open browser: {}",
+            "WARNING".yellow().bold(),
+            e
+        );
+        println!(
+            "Please visit the following URL manually:\n{}",
+            withdrawal_ui_url
+        );
     }
 
     Ok(())
