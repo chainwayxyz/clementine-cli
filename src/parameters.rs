@@ -216,6 +216,7 @@ pub fn get_citrea_deposit_params(
     Ok(data)
 }
 
+#[allow(clippy::type_complexity)]
 pub fn get_citrea_safe_withdraw_params(
     withdrawal_utxo: &OutPoint,
     payout_output: &bitcoin::TxOut,
@@ -223,7 +224,16 @@ pub fn get_citrea_safe_withdraw_params(
     prepare_tx: &Transaction,
     prepare_tx_block: &Block,
     prepare_tx_block_height: u32,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<
+    (
+        CitreaTransaction,
+        CitreaMerkleProof,
+        CitreaTransaction,
+        Vec<u8>,
+        Vec<u8>,
+    ),
+    Box<dyn std::error::Error>,
+> {
     let prepare_tx_struct = get_transaction_details_for_citrea(prepare_tx)?;
 
     let prepare_tx_mp = get_transaction_merkle_proof_for_citrea(
@@ -267,13 +277,19 @@ pub fn get_citrea_safe_withdraw_params(
     debug!(
         "{:#?}",
         (
-            prepare_tx_struct,
-            prepare_tx_mp,
-            payout_tx_params,
-            hex::encode(block_header_bytes),
-            hex::encode(output_script_pk_bytes),
+            prepare_tx_struct.clone(),
+            prepare_tx_mp.clone(),
+            payout_tx_params.clone(),
+            hex::encode(block_header_bytes.clone()),
+            hex::encode(output_script_pk_bytes.clone()),
         )
     );
 
-    Ok(())
+    Ok((
+        prepare_tx_struct,
+        prepare_tx_mp,
+        payout_tx_params,
+        block_header_bytes,
+        output_script_pk_bytes.to_vec(),
+    ))
 }
