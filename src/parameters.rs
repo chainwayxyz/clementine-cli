@@ -135,7 +135,7 @@ fn get_transaction_details_for_citrea(
     let locktime: [u8; 4] = locktime.try_into().unwrap();
     Ok(CitreaTransaction {
         version,
-        flag: flag.to_le_bytes(),
+        flag: flag.to_be_bytes(),
         vin,
         vout,
         witness,
