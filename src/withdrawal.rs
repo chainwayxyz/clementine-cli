@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::{BRIDGE_AMOUNT, get_mempool_api_url};
+use crate::config::{BRIDGE_AMOUNT, get_chain_id, get_mempool_api_url};
 use crate::deposit::parse_taproot_address;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
@@ -133,16 +133,16 @@ pub async fn get_tx_details_from_mempool(
 }
 
 pub async fn get_tx_details_from_rpc(
-    bitcoind_rpc_url: &str,
-    bitcoind_rpc_user: &str,
-    bitcoind_rpc_password: &str,
+    bitcoin_rpc_url: &str,
+    bitcoin_rpc_user: &str,
+    bitcoin_rpc_password: &str,
     prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
     let auth = Auth::UserPass(
-        bitcoind_rpc_user.to_string(),
-        bitcoind_rpc_password.to_string(),
+        bitcoin_rpc_user.to_string(),
+        bitcoin_rpc_password.to_string(),
     );
-    let rpc = Client::new(bitcoind_rpc_url, auth).await?;
+    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
 
     let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
     let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
@@ -162,17 +162,17 @@ pub async fn get_tx_details_from_rpc(
 }
 
 pub async fn get_txout_details_from_rpc(
-    bitcoind_rpc_url: &str,
-    bitcoind_rpc_user: &str,
-    bitcoind_rpc_password: &str,
+    bitcoin_rpc_url: &str,
+    bitcoin_rpc_user: &str,
+    bitcoin_rpc_password: &str,
     txid: &Txid,
     vout: u32,
 ) -> Result<TxOut, Box<dyn std::error::Error>> {
     let auth = Auth::UserPass(
-        bitcoind_rpc_user.to_string(),
-        bitcoind_rpc_password.to_string(),
+        bitcoin_rpc_user.to_string(),
+        bitcoin_rpc_password.to_string(),
     );
-    let rpc = Client::new(bitcoind_rpc_url, auth).await?;
+    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
     let tx = rpc.get_raw_transaction(txid, None).await?;
     let txout = tx.output[vout as usize].clone();
     Ok(txout)
@@ -180,21 +180,20 @@ pub async fn get_txout_details_from_rpc(
 
 pub async fn get_tx_details(
     prepare_txid: &Txid,
-    bitcoind_rpc_url: Option<&str>,
-    bitcoind_rpc_user: Option<&str>,
-    bitcoind_rpc_password: Option<&str>,
+    bitcoin_rpc_url: Option<&str>,
+    bitcoin_rpc_user: Option<&str>,
+    bitcoin_rpc_password: Option<&str>,
     network: Network,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    if bitcoind_rpc_url.is_some() && bitcoind_rpc_user.is_some() && bitcoind_rpc_password.is_some()
-    {
-        let bitcoind_rpc_url = bitcoind_rpc_url.unwrap();
-        let bitcoind_rpc_user = bitcoind_rpc_user.unwrap();
-        let bitcoind_rpc_password = bitcoind_rpc_password.unwrap();
+    if bitcoin_rpc_url.is_some() && bitcoin_rpc_user.is_some() && bitcoin_rpc_password.is_some() {
+        let bitcoin_rpc_url = bitcoin_rpc_url.unwrap();
+        let bitcoin_rpc_user = bitcoin_rpc_user.unwrap();
+        let bitcoin_rpc_password = bitcoin_rpc_password.unwrap();
 
         let tx_details = get_tx_details_from_rpc(
-            bitcoind_rpc_url,
-            bitcoind_rpc_user,
-            bitcoind_rpc_password,
+            bitcoin_rpc_url,
+            bitcoin_rpc_user,
+            bitcoin_rpc_password,
             prepare_txid,
         )
         .await?;
@@ -210,9 +209,9 @@ pub async fn safe_withdraw(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoind_rpc_url: Option<&str>,
-    bitcoind_rpc_user: Option<&str>,
-    bitcoind_rpc_password: Option<&str>,
+    bitcoin_rpc_url: Option<&str>,
+    bitcoin_rpc_user: Option<&str>,
+    bitcoin_rpc_password: Option<&str>,
     network: Network,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Get the block and tx details for withdrawal
@@ -240,9 +239,9 @@ pub async fn safe_withdraw(
     // 2. Get the prepare tx details
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
         &withdrawal_outpoint.txid,
-        bitcoind_rpc_url,
-        bitcoind_rpc_user,
-        bitcoind_rpc_password,
+        bitcoin_rpc_url,
+        bitcoin_rpc_user,
+        bitcoin_rpc_password,
         network,
     )
     .await?;
@@ -287,9 +286,9 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoind_rpc_url: Option<&str>,
-    bitcoind_rpc_user: Option<&str>,
-    bitcoind_rpc_password: Option<&str>,
+    bitcoin_rpc_url: Option<&str>,
+    bitcoin_rpc_user: Option<&str>,
+    bitcoin_rpc_password: Option<&str>,
     citrea_rpc_url: &str,
     network: Network,
 ) -> Result<(), Box<dyn std::error::Error>> {
@@ -297,7 +296,7 @@ pub async fn send_safe_withdrawal(
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").map_err(|_| "SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
     let signer: PrivateKeySigner = secret_key.parse()?;
-    let chain_id: u64 = 5655;
+    let chain_id: u64 = get_chain_id(network);
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
 
@@ -332,9 +331,9 @@ pub async fn send_safe_withdrawal(
     // 2. Get the prepare tx details
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
         &withdrawal_outpoint.txid,
-        bitcoind_rpc_url,
-        bitcoind_rpc_user,
-        bitcoind_rpc_password,
+        bitcoin_rpc_url,
+        bitcoin_rpc_user,
+        bitcoin_rpc_password,
         network,
     )
     .await?;
@@ -370,10 +369,9 @@ pub async fn send_safe_withdrawal(
         .safeWithdraw(params.0, params.1, params.2, params.3, params.4)
         .value(U256::from(BRIDGE_AMOUNT.to_sat() * SATS_TO_WEI_MULTIPLIER))
         .send()
-        .await
-        .unwrap();
+        .await?;
 
-    let receipt = citrea_withdrawal_tx.get_receipt().await.unwrap();
+    let receipt = citrea_withdrawal_tx.get_receipt().await?;
     println!("Citrea withdrawal tx receipt: {:?}", receipt);
 
     Ok(())
