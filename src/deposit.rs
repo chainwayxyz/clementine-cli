@@ -124,7 +124,8 @@ pub async fn get_deposit_params(
         bitcoin_rpc_password,
         &move_to_vault_tx.input[0].previous_output.txid,
         move_to_vault_tx.input[0].previous_output.vout,
-    )?;
+    )
+    .await?;
 
     let deposit_params = get_citrea_deposit_params(
         move_to_vault_txout,

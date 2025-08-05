@@ -125,7 +125,7 @@ pub async fn get_tx_details_from_mempool(
     Ok((tx, block, block_height as u32))
 }
 
-pub fn get_tx_details_from_rpc(
+pub async fn get_tx_details_from_rpc(
     bitcoind_rpc_url: &str,
     bitcoind_rpc_user: &str,
     bitcoind_rpc_password: &str,
@@ -135,16 +135,17 @@ pub fn get_tx_details_from_rpc(
         bitcoind_rpc_user.to_string(),
         bitcoind_rpc_password.to_string(),
     );
-    let rpc = Client::new(bitcoind_rpc_url, auth)?;
+    let rpc = Client::new(bitcoind_rpc_url, auth).await?;
 
-    let tx = rpc.get_raw_transaction(prepare_txid, None)?;
-    let tx_info = rpc.get_raw_transaction_info(prepare_txid, None)?;
+    let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
+    let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
     if tx_info.blockhash.is_none() {
         return Err("Block hash not found, maybe not confirmed yet".into());
     }
-    let block = rpc.get_block(&tx_info.blockhash.unwrap())?;
+    let block = rpc.get_block(&tx_info.blockhash.unwrap()).await?;
     let block_height = rpc
-        .get_block_header_info(&tx_info.blockhash.unwrap())?
+        .get_block_header_info(&tx_info.blockhash.unwrap())
+        .await?
         .height;
     debug!("tx_info: {:?}", tx_info);
     debug!("block: {:?}", block);
@@ -153,7 +154,7 @@ pub fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-pub fn get_txout_details_from_rpc(
+pub async fn get_txout_details_from_rpc(
     bitcoind_rpc_url: &str,
     bitcoind_rpc_user: &str,
     bitcoind_rpc_password: &str,
@@ -164,8 +165,8 @@ pub fn get_txout_details_from_rpc(
         bitcoind_rpc_user.to_string(),
         bitcoind_rpc_password.to_string(),
     );
-    let rpc = Client::new(bitcoind_rpc_url, auth)?;
-    let tx = rpc.get_raw_transaction(txid, None)?;
+    let rpc = Client::new(bitcoind_rpc_url, auth).await?;
+    let tx = rpc.get_raw_transaction(txid, None).await?;
     let txout = tx.output[vout as usize].clone();
     Ok(txout)
 }
@@ -188,26 +189,11 @@ pub async fn get_tx_details(
             bitcoind_rpc_user,
             bitcoind_rpc_password,
             prepare_txid,
-        );
-        if tx_details.is_ok() {
-            let (tx, block, block_height) = tx_details.unwrap();
-            return Ok((tx, block, block_height));
-        } else {
-            println!("{}", "ERROR".red().bold());
-            println!("Failed to get tx details from RPC");
-            println!("{}", tx_details.err().unwrap());
-            println!("Continuing with mempool.space");
-        }
+        )
+        .await?;
+        return Ok(tx_details);
     }
-    let tx_details = get_tx_details_from_mempool(prepare_txid, network).await;
-    if tx_details.is_ok() {
-        let (tx, block, block_height) = tx_details.unwrap();
-        Ok((tx, block, block_height))
-    } else {
-        println!("{}", "ERROR".red().bold());
-        println!("Failed to get tx details from mempool");
-        Err("Failed to get tx details from mempool".into())
-    }
+    get_tx_details_from_mempool(prepare_txid, network).await
 }
 
 #[allow(clippy::too_many_arguments)]
