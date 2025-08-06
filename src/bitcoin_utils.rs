@@ -435,7 +435,7 @@ pub fn verify_withdrawal_signature(
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
-        sequence: Sequence::default(),
+        sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
         witness: Witness::default(),
     };
 
