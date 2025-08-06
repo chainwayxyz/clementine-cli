@@ -20,17 +20,23 @@ use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
 use std::str::FromStr;
 
+pub fn parse_address(
+    address: &str,
+    network: Network,
+) -> Result<Address, Box<dyn std::error::Error>> {
+    let unchecked_address: Address<NetworkUnchecked> = address
+        .parse()
+        .map_err(|_| "Invalid Bitcoin address format")?;
+    let address = unchecked_address.require_network(network)?;
+    Ok(address)
+}
+
 /// Parse and validate taproot address for the specified network
 pub fn parse_taproot_address(
     address: &str,
     network: Network,
 ) -> Result<Address, Box<dyn std::error::Error>> {
-    // Parse the address
-    let unchecked_address: Address<NetworkUnchecked> = address
-        .parse()
-        .map_err(|_| "Invalid Bitcoin address format")?;
-
-    let address = unchecked_address.require_network(network)?;
+    let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {

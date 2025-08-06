@@ -5,7 +5,7 @@ use crate::bitcoin_utils::{
     verify_withdrawal_signature,
 };
 use crate::config::{BRIDGE_AMOUNT, get_chain_id, get_mempool_api_url};
-use crate::deposit::parse_taproot_address;
+use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
@@ -68,7 +68,7 @@ pub fn generate_withdrawal_signature(
     let keypair = load_key(signer_address, network, None)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
-    let claim_address = parse_taproot_address(claim_address, network)?;
+    let claim_address = parse_address(claim_address, network)?;
     let withdrawal_utxo = OutPoint::from_str(withdrawal_utxo)?;
     let amount = Amount::from_btc(amount)?;
 
