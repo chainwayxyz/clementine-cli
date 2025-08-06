@@ -220,7 +220,7 @@ pub async fn safe_withdraw(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
     let signer_address = parse_taproot_address(signer_address, network)?;
-    let withdrawal_address = parse_taproot_address(withdrawal_address, network)?;
+    let withdrawal_address = parse_address(withdrawal_address, network)?;
 
     let payout_output = TxOut {
         value: withdrawal_amount,
@@ -312,7 +312,7 @@ pub async fn send_safe_withdrawal(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
     let signer_address = parse_taproot_address(signer_address, network)?;
-    let withdrawal_address = parse_taproot_address(withdrawal_address, network)?;
+    let withdrawal_address = parse_address(withdrawal_address, network)?;
 
     let payout_output = TxOut {
         value: withdrawal_amount,
