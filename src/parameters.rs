@@ -246,7 +246,7 @@ pub fn get_citrea_safe_withdraw_params(
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
-        sequence: Sequence::default(),
+        sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
         witness: Witness::default(),
     };
 
