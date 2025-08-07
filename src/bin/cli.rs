@@ -61,6 +61,12 @@ enum DepositCommands {
     DepositStatus {
         deposit_address: String,
     },
+    GetDepositParams {
+        move_to_vault_txid: String,
+        bitcoin_rpc_url: String,
+        bitcoin_rpc_user: String,
+        bitcoin_rpc_password: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -82,11 +88,25 @@ enum WithdrawalCommands {
         amount: f64,
         signature: String,
         #[arg(long)]
-        bitcoind_rpc_url: Option<String>,
+        bitcoin_rpc_url: Option<String>,
         #[arg(long)]
-        bitcoind_rpc_user: Option<String>,
+        bitcoin_rpc_user: Option<String>,
         #[arg(long)]
-        bitcoind_rpc_password: Option<String>,
+        bitcoin_rpc_password: Option<String>,
+    },
+    SendSafeWithdrawal {
+        signer_address: String,
+        withdrawal_address: String,
+        withdrawal_utxo: String,
+        amount: f64,
+        signature: String,
+        #[arg(long)]
+        bitcoin_rpc_url: Option<String>,
+        #[arg(long)]
+        bitcoin_rpc_user: Option<String>,
+        #[arg(long)]
+        bitcoin_rpc_password: Option<String>,
+        citrea_rpc_url: String,
     },
     Status {
         withdrawal_index: u32,
@@ -188,6 +208,25 @@ async fn main() {
             DepositCommands::DepositStatus { deposit_address } => {
                 println!("TODO: deposit.deposit_status: {}", deposit_address);
             }
+            DepositCommands::GetDepositParams {
+                move_to_vault_txid,
+                bitcoin_rpc_url,
+                bitcoin_rpc_user,
+                bitcoin_rpc_password,
+            } => {
+                if let Err(e) = deposit::get_deposit_params(
+                    &move_to_vault_txid,
+                    &bitcoin_rpc_url,
+                    &bitcoin_rpc_user,
+                    &bitcoin_rpc_password,
+                    network,
+                )
+                .await
+                {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateSignerAddress { y } => {
@@ -219,9 +258,9 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
                 signature,
-                bitcoind_rpc_url,
-                bitcoind_rpc_user,
-                bitcoind_rpc_password,
+                bitcoin_rpc_url,
+                bitcoin_rpc_user,
+                bitcoin_rpc_password,
             } => {
                 if let Err(e) = withdrawal::safe_withdraw(
                     &signer_address,
@@ -229,12 +268,42 @@ async fn main() {
                     &withdrawal_utxo,
                     amount,
                     &signature,
-                    bitcoind_rpc_url.as_deref(),
-                    bitcoind_rpc_user.as_deref(),
-                    bitcoind_rpc_password.as_deref(),
+                    bitcoin_rpc_url.as_deref(),
+                    bitcoin_rpc_user.as_deref(),
+                    bitcoin_rpc_password.as_deref(),
                     network,
                 )
-                .await {
+                .await
+                {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            WithdrawalCommands::SendSafeWithdrawal {
+                signer_address,
+                withdrawal_address,
+                withdrawal_utxo,
+                amount,
+                signature,
+                bitcoin_rpc_url,
+                bitcoin_rpc_user,
+                bitcoin_rpc_password,
+                citrea_rpc_url,
+            } => {
+                if let Err(e) = withdrawal::send_safe_withdrawal(
+                    &signer_address,
+                    &withdrawal_address,
+                    &withdrawal_utxo,
+                    amount,
+                    &signature,
+                    bitcoin_rpc_url.as_deref(),
+                    bitcoin_rpc_user.as_deref(),
+                    bitcoin_rpc_password.as_deref(),
+                    &citrea_rpc_url,
+                    network,
+                )
+                .await
+                {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

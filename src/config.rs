@@ -70,6 +70,16 @@ pub fn get_mempool_api_url(network: Network) -> &'static str {
     }
 }
 
+pub fn get_chain_id(network: Network) -> u64 {
+    match network {
+        // Network::Bitcoin => 1,
+        // Network::Testnet4 => 4,
+        Network::Signet => 62298,
+        Network::Regtest => 5655,
+        _ => unimplemented!(),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -41,6 +41,7 @@ pub mod parameters;
 pub mod script;
 pub mod storage;
 pub mod withdrawal;
+pub mod types;
 
 /// EVM Address type - 20 bytes
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
