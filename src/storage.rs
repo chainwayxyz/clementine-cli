@@ -35,7 +35,7 @@ pub fn store_key(
         "stored_at": chrono::Utc::now().to_rfc3339()
     });
     fs::write(&key_file, serde_json::to_string_pretty(&key_data)?)?;
-    
+
     // Set file permissions to 700 (rwx------)
     #[cfg(unix)]
     {
