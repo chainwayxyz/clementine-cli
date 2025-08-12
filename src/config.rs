@@ -7,7 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use serde::{Deserialize, Serialize};
-use std::{str::FromStr, sync::LazyLock};
+use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51")
@@ -21,7 +21,7 @@ pub const USER_TAKES_AFTER: u64 = 200;
 pub struct CliConfig {
     network: Network,
     verifiers_pks: Vec<XOnlyPublicKey>,
-    mempool_api_url: &'static str,
+    mempool_api_url: String,
     citrea_chain_id: u64,
     user_takes_after: u64,
     bridge_amount: Amount,
@@ -31,6 +31,25 @@ impl CliConfig {
     pub fn new() -> Self {
         CliConfig::default()
     }
+
+    /// Read contents of a TOML file and generate a [`CliConfig`].
+    pub fn try_parse_file(path: PathBuf) -> Result<Self, std::io::Error> {
+        let mut contents = String::new();
+
+        let mut file = File::open(path.clone())?;
+        file.read_to_string(&mut contents)?;
+
+        Self::try_parse_from(contents)
+    }
+
+    /// Try to parse a [`CliConfig`] from given TOML formatted string and
+    /// generate a [`CliConfig`].
+    pub fn try_parse_from(input: String) -> Result<Self, std::io::Error> {
+        match toml::from_str::<Self>(&input) {
+            Ok(c) => Ok(c),
+            Err(e) => Err(std::io::Error::other(e)),
+        }
+    }
 }
 
 impl Default for CliConfig {
@@ -38,7 +57,7 @@ impl Default for CliConfig {
         Self {
             network: Network::Regtest,
             verifiers_pks: Vec::new(),
-            mempool_api_url: "https://127.0.0.1",
+            mempool_api_url: "https://127.0.0.1".to_string(),
             citrea_chain_id: 12345,
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
@@ -113,6 +132,7 @@ pub fn get_chain_id(network: Network) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::{fs, io::Write};
 
     #[test]
     fn test_get_backend_endpoint() {
@@ -171,5 +191,46 @@ mod tests {
             UNSPENDABLE_XONLY_PUBKEY.to_string(),
             "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"
         );
+    }
+
+    #[test]
+    fn parse_from_file() {
+        let file_name = "parse_from_file";
+
+        let invalid_content = "invalid file content";
+        let mut file = File::create(file_name).unwrap();
+        file.write_all(invalid_content.as_bytes()).unwrap();
+        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
+
+        // Read first example test file use for this test.
+        let base_path = env!("CARGO_MANIFEST_DIR");
+        let config_path = format!("{}/tests/data/cli_config.toml", base_path);
+        let content = fs::read_to_string(config_path).unwrap();
+        let mut file = File::create(file_name).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        CliConfig::try_parse_file(file_name.into()).unwrap();
+
+        fs::remove_file(file_name).unwrap();
+    }
+
+    #[test]
+    fn parse_from_file_with_invalid_headers() {
+        let file_name = "parse_from_file_with_invalid_headers";
+        let content = "[header1]
+        num_verifiers = 4
+
+        [header2]
+        confirmation_threshold = 1
+        network = \"regtest\"
+        bitcoin_rpc_url = \"http://localhost:18443\"
+        bitcoin_rpc_user = \"admin\"
+        bitcoin_rpc_password = \"admin\"\n";
+        let mut file = File::create(file_name).unwrap();
+        file.write_all(content.as_bytes()).unwrap();
+
+        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
+
+        fs::remove_file(file_name).unwrap();
     }
 }
