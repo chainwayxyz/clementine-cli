@@ -70,12 +70,11 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::
 pub fn calculate_deposit_address(
     evm_address: &EVMAddress,
     recovery_taproot_address: &Address,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Address, TaprootSpendInfo), Box<dyn std::error::Error>> {
-    let verifiers_public_keys = CliConfig::from_network(network).verifiers_pks;
-    let agg_pk = XOnlyPublicKey::from_musig2_pks(&verifiers_public_keys)?;
+    let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
+    debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
     debug!("agg_pk: {:?}", agg_pk.to_string());
-    debug!("verifiers_public_keys: {:?}", verifiers_public_keys);
     let deposit_script = deposit_script(*evm_address, agg_pk);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
@@ -93,7 +92,7 @@ pub fn calculate_deposit_address(
         &SECP,
         *UNSPENDABLE_XONLY_PUBKEY,
         taproot_spend_info.merkle_root(),
-        network,
+        config.network,
     );
     Ok((deposit_address, taproot_spend_info))
 }
@@ -135,10 +134,10 @@ pub fn sign_recovery_tx(
     deposit_amount: Option<Amount>,
     claim_address: &Address,
     fee_rate: Option<FeeRate>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<Transaction, Box<dyn std::error::Error>> {
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(evm_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(evm_address, recovery_taproot_address, config)?;
 
     let recovery_script = recover_script(
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
@@ -252,7 +251,7 @@ pub fn verify_recovery_tx(
     evm_address: &EVMAddress,
     recovery_taproot_address: &Address,
     input_amount: Option<Amount>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Txid, Address, Amount), Box<dyn std::error::Error>> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
@@ -275,7 +274,7 @@ pub fn verify_recovery_tx(
     }
 
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(evm_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(evm_address, recovery_taproot_address, config.clone())?;
 
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
@@ -361,7 +360,7 @@ pub fn verify_recovery_tx(
 
     let output_address = Address::from_script(
         &recovery_tx.output[0].script_pubkey,
-        network,
+        config.network,
     )
     .map_err(|_| -> Box<dyn std::error::Error> {
         "Recovery transaction output script pubkey is not a valid address, may be a different address".into()

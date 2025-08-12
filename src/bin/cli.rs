@@ -1,6 +1,6 @@
 use bitcoin::Network;
 use clap::{Parser, Subcommand};
-use clementine_cli::{deposit, withdrawal};
+use clementine_cli::{config::CliConfig, deposit, withdrawal};
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -143,6 +143,7 @@ async fn main() {
             std::process::exit(1);
         }
     };
+    let config = CliConfig::from_network(network);
 
     match cli.command {
         Commands::Deposit { command } => match command {
@@ -156,11 +157,9 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                if let Err(e) = deposit::get_deposit_address(
-                    &citrea_address,
-                    &recovery_taproot_address,
-                    network,
-                ) {
+                if let Err(e) =
+                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, config)
+                {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -182,7 +181,7 @@ async fn main() {
                     &claim_address,
                     fee_rate,
                     amount,
-                    network,
+                    config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -199,7 +198,7 @@ async fn main() {
                     &evm_address,
                     &recovery_taproot_address,
                     amount,
-                    network,
+                    config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);

@@ -9,6 +9,7 @@ use crate::bitcoin_utils::{
     generate_keypair_and_taproot_address_from_private_key,
     sign_recovery_tx as utils_sign_recovery_tx,
 };
+use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
@@ -82,19 +83,19 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let citrea_address = EVMAddress::try_from(citrea_address)?;
-    let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, network)?;
+    let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, config.network)?;
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address, network)?;
+        create_deposit_account(&citrea_address, &recovery_taproot_address, config.clone())?;
 
     println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
     let (calculated_deposit_address, _) =
-        calculate_deposit_address(&citrea_address, &recovery_taproot_address, network)?;
+        calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
@@ -155,17 +156,17 @@ pub fn sign_recovery_tx(
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let evm_addr = EVMAddress::try_from(evm_address)?;
-    let recovery_addr = parse_taproot_address(recovery_taproot_address, network)?;
-    let claim_addr = Address::from_str(claim_address)?.require_network(network)?;
+    let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
+    let claim_addr = Address::from_str(claim_address)?.require_network(config.network)?;
     let txid = Txid::from_str(deposit_txid)?;
     let outpoint = OutPoint {
         txid,
         vout: deposit_vout,
     };
-    let keypair = load_key(recovery_taproot_address, network, None)?;
+    let keypair = load_key(recovery_taproot_address, config.network, None)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -182,7 +183,7 @@ pub fn sign_recovery_tx(
         deposit_amount,
         &claim_addr,
         fee_rate_opt,
-        network,
+        config,
     )?;
     println!(
         "Signed Recovery Transaction: {}",
@@ -197,16 +198,16 @@ pub fn verify_recovery_tx(
     evm_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Txid, Address, Amount), Box<dyn std::error::Error>> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         &recovery_tx,
         &EVMAddress::try_from(evm_address)?,
-        &parse_taproot_address(recovery_taproot_address, network)?,
+        &parse_taproot_address(recovery_taproot_address, config.network)?,
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
-        network,
+        config,
     )?;
 
     println!(

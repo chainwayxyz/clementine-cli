@@ -2,7 +2,7 @@
 
 use crate::deposit::parse_taproot_address;
 use crate::{EVMAddress, config::CliConfig};
-use bitcoin::{Address, Network};
+use bitcoin::Address;
 use colored::*;
 use serde_json::json;
 
@@ -10,9 +10,9 @@ use serde_json::json;
 pub fn create_deposit_account(
     evm_address: &EVMAddress,
     recovery_taproot_address: &Address,
-    network: Network,
+    config: CliConfig,
 ) -> Result<Address, Box<dyn std::error::Error>> {
-    let backend_endpoint = CliConfig::from_network(network).citrea_backend_endpoint;
+    let backend_endpoint = config.citrea_backend_endpoint;
     let url = format!("{}deposit-accounts", backend_endpoint);
 
     // Prepare request body
@@ -49,7 +49,7 @@ pub fn create_deposit_account(
         );
         // parse the json and get the taproot_addr and parse it to an address
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
-        let taproot_addr = parse_taproot_address(taproot_addr, network)?;
+        let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
         Ok(taproot_addr)
     } else {
         let status = response.status();
