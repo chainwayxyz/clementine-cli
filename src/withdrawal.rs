@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::{BRIDGE_AMOUNT, CliConfig};
+use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
@@ -333,7 +333,7 @@ pub async fn send_safe_withdrawal(
         bitcoin_rpc_url,
         bitcoin_rpc_user,
         bitcoin_rpc_password,
-        config,
+        config.clone(),
     )
     .await?;
 
@@ -366,7 +366,9 @@ pub async fn send_safe_withdrawal(
 
     let citrea_withdrawal_tx = contract
         .safeWithdraw(params.0, params.1, params.2, params.3, params.4)
-        .value(U256::from(BRIDGE_AMOUNT.to_sat() * SATS_TO_WEI_MULTIPLIER))
+        .value(U256::from(
+            config.bridge_amount.to_sat() * SATS_TO_WEI_MULTIPLIER,
+        ))
         .send()
         .await?;
 

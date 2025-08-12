@@ -12,7 +12,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::EVMAddress;
-use crate::config::{BRIDGE_AMOUNT, CliConfig, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER};
+use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
 use bitcoin::hashes::Hash;
@@ -78,7 +78,7 @@ pub fn calculate_deposit_address(
     let deposit_script = deposit_script(*evm_address, agg_pk);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
-    let recover_script = recover_script(recovery_key, USER_TAKES_AFTER);
+    let recover_script = recover_script(recovery_key, config.user_takes_after);
 
     let taproot_spend_info = TaprootBuilder::new()
         .add_leaf(1, deposit_script)
@@ -137,19 +137,19 @@ pub fn sign_recovery_tx(
     config: CliConfig,
 ) -> Result<Transaction, Box<dyn std::error::Error>> {
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(evm_address, recovery_taproot_address, config)?;
+        calculate_deposit_address(evm_address, recovery_taproot_address, config.clone())?;
 
     let recovery_script = recover_script(
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
-        USER_TAKES_AFTER,
+        config.user_takes_after,
     );
 
-    let input_amount = deposit_amount.unwrap_or(BRIDGE_AMOUNT);
+    let input_amount = deposit_amount.unwrap_or(config.bridge_amount);
 
     let txin = TxIn {
         previous_output: *deposit_outpoint,
         script_sig: ScriptBuf::default(),
-        sequence: Sequence::from_height(USER_TAKES_AFTER as u16),
+        sequence: Sequence::from_height(config.user_takes_after as u16),
         witness: Witness::default(),
     };
 
@@ -279,7 +279,7 @@ pub fn verify_recovery_tx(
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
 
-    let recovery_script = recover_script(recovery_key, USER_TAKES_AFTER);
+    let recovery_script = recover_script(recovery_key, config.user_takes_after);
 
     // 1. check that the second element of the witness is the recovery script
     if recovery_tx.input[0].witness[1] != recovery_script.as_script().to_bytes() {
@@ -314,7 +314,7 @@ pub fn verify_recovery_tx(
             return Err("Signature type not supported".into());
         };
 
-    let input_amount = input_amount.unwrap_or(BRIDGE_AMOUNT);
+    let input_amount = input_amount.unwrap_or(config.bridge_amount);
 
     let prevout = TxOut {
         value: input_amount,

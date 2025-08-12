@@ -14,9 +14,6 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
         .unwrap()
 });
 
-pub const BRIDGE_AMOUNT: Amount = Amount::from_sat(1_000_000_000);
-pub const USER_TAKES_AFTER: u64 = 200;
-
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct CliConfig {
     pub network: Network,
@@ -131,8 +128,10 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        assert_eq!(BRIDGE_AMOUNT, Amount::from_sat(1_000_000_000));
-        assert_eq!(USER_TAKES_AFTER, 200);
+        let config = CliConfig::default();
+
+        assert_eq!(config.bridge_amount, Amount::from_sat(1_000_000_000));
+        assert_eq!(config.user_takes_after, 200);
         assert_eq!(
             UNSPENDABLE_XONLY_PUBKEY.to_string(),
             "93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51"
