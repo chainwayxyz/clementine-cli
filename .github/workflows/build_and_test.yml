@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - cli-rust-rewrite # TODO: remove when merged to main
+      - cli-rust-rewrite
       - "releases/*"
   pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
