@@ -218,7 +218,7 @@ async fn main() {
                     &bitcoin_rpc_url,
                     &bitcoin_rpc_user,
                     &bitcoin_rpc_password,
-                    network,
+                    config,
                 )
                 .await
                 {
@@ -270,7 +270,7 @@ async fn main() {
                     bitcoin_rpc_url.as_deref(),
                     bitcoin_rpc_user.as_deref(),
                     bitcoin_rpc_password.as_deref(),
-                    network,
+                    config,
                 )
                 .await
                 {
@@ -299,7 +299,7 @@ async fn main() {
                     bitcoin_rpc_user.as_deref(),
                     bitcoin_rpc_password.as_deref(),
                     &citrea_rpc_url,
-                    network,
+                    config,
                 )
                 .await
                 {

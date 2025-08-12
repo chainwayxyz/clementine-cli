@@ -112,7 +112,7 @@ pub async fn get_deposit_params(
     bitcoin_rpc_url: &str,
     bitcoin_rpc_user: &str,
     bitcoin_rpc_password: &str,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
@@ -121,7 +121,7 @@ pub async fn get_deposit_params(
         Some(bitcoin_rpc_url),
         Some(bitcoin_rpc_user),
         Some(bitcoin_rpc_password),
-        network,
+        config,
     )
     .await?;
 
