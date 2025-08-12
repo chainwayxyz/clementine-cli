@@ -34,6 +34,10 @@ enum DepositCommands {
         #[arg(long)]
         private_key: Option<String>,
     },
+    ExportPrivateKey {
+        taproot_address: String,
+    },
+    ListKeys,
     GetDepositAddress {
         citrea_address: String,
         recovery_taproot_address: String,
@@ -148,6 +152,19 @@ async fn main() {
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey { y, private_key } => {
                 if let Err(e) = deposit::generate_recovery_key(y, private_key, network) {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            DepositCommands::ExportPrivateKey { taproot_address } => {
+                println!("Network: {}", network);
+                if let Err(e) = deposit::export_private_key(&taproot_address, network) {
+                    eprintln!("Error: {}", e);
+                    std::process::exit(1);
+                }
+            }
+            DepositCommands::ListKeys => {
+                if let Err(e) = deposit::list_stored_keys() {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

@@ -117,6 +117,44 @@ pub fn load_key(
     Ok(keypair)
 }
 
+/// Export the private key for a given taproot address
+pub fn export_private_key(
+    taproot_address: &str,
+    network: Network,
+) -> Result<String, Box<dyn std::error::Error>> {
+    let unchecked_address: Address<bitcoin::address::NetworkUnchecked> = taproot_address.parse()?;
+    let address = unchecked_address.require_network(network)?;
+
+    let storage_dir = get_storage_dir()?;
+    let key_file = storage_dir.join(format!("key_{}.json", address));
+
+    if !key_file.exists() {
+        return Err(format!("No key found for address: {}", address).into());
+    }
+
+    let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
+    let private_key_str = key_data["private_key"]
+        .as_str()
+        .ok_or("Invalid key file format: missing private_key")?;
+
+    Ok(private_key_str.to_string())
+}
+
+/// List all stored keys with their addresses and metadata
+pub fn list_keys() -> Result<Vec<(String, serde_json::Value)>, Box<dyn std::error::Error>> {
+    let storage_dir = get_storage_dir()?;
+    let address_file = storage_dir.join("addresses.json");
+
+    if !address_file.exists() {
+        return Ok(Vec::new());
+    }
+
+    let addresses: HashMap<String, serde_json::Value> = 
+        serde_json::from_str(&fs::read_to_string(&address_file)?)?;
+
+    Ok(addresses.into_iter().collect())
+}
+
 /// Get the storage directory path
 fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;

@@ -226,6 +226,52 @@ pub fn verify_recovery_tx(
 
 // TODO: Implement deposit.deposit_status
 
+/// Export private key for a taproot address
+pub fn export_private_key(
+    taproot_address: &str,
+    network: Network,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let address = parse_taproot_address(taproot_address, network)?;
+    
+    let private_key = crate::storage::export_private_key(&address.to_string(), network)?;
+    
+    println!("{} {}", "ADDRESS".cyan().bold(), address);
+    println!("{} {}", "NETWORK".blue().bold(), network);
+    println!("{} {}", "PRIVATE_KEY".red().bold(), private_key);
+    println!(
+        "{} {}",
+        "WARNING".yellow().bold(),
+        "Keep this private key secure and never share it!"
+    );
+
+    Ok(())
+}
+
+/// List all stored keys
+pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
+    let keys = crate::storage::list_keys()?;
+    
+    if keys.is_empty() {
+        println!("{} No keys found in storage", "INFO".yellow().bold());
+        return Ok(());
+    }
+
+    println!("{} Stored keys:", "INFO".cyan().bold());
+    println!();
+    
+    for (address, metadata) in keys {
+        let network = metadata["network"].as_str().unwrap_or("unknown");
+        let stored_at = metadata["stored_at"].as_str().unwrap_or("unknown");
+        
+        println!("{} {}", "ADDRESS".cyan().bold(), address);
+        println!("{} {}", "NETWORK".blue().bold(), network);
+        println!("{} {}", "STORED_AT".green().bold(), stored_at);
+        println!();
+    }
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
