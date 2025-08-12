@@ -205,7 +205,7 @@ async fn main() {
                 }
             }
             DepositCommands::DepositStatus { deposit_address } => {
-                println!("TODO: deposit.deposit_status: {}", deposit_address);
+                unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams {
                 move_to_vault_txid,
@@ -308,7 +308,7 @@ async fn main() {
                 }
             }
             WithdrawalCommands::Status { withdrawal_index } => {
-                println!("TODO: withdrawal.status: {}", withdrawal_index);
+                unimplemented!("withdrawal.status: {}", withdrawal_index);
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
@@ -317,8 +317,8 @@ async fn main() {
                 withdrawal_utxo_vout,
                 withdrawal_amount,
             } => {
-                println!(
-                    "TODO: withdrawal.generate_operator_withdrawal_signatures: {} {} {} {} {}",
+                unimplemented!(
+                    "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {} {}",
                     withdrawal_address,
                     signer_address,
                     withdrawal_utxo_txid,
@@ -334,8 +334,8 @@ async fn main() {
                 withdrawal_index,
                 signature,
             } => {
-                println!(
-                    "TODO: withdrawal.send_withdrawal_signatures_to_operators: {} {} {} {} {} {}",
+                unimplemented!(
+                    "withdrawal.send_withdrawal_signatures_to_operators: {} {} {} {} {} {}",
                     withdrawal_address,
                     signer_address,
                     withdrawal_utxo_txid,
