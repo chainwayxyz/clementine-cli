@@ -26,7 +26,7 @@ pub fn deposit_script(evm_address: EVMAddress, nofn_xonly_pk: XOnlyPublicKey) ->
         .push_opcode(OP_IF)
         .push_slice(citrea)
         .push_slice(evm_address.0)
-        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap()) // TODO: Remove this.
+        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap()) // #22
         .push_opcode(OP_ENDIF)
         .into_script()
 }

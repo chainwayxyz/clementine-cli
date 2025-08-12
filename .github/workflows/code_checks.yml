@@ -1,0 +1,94 @@
+name: Code Checks
+
+on:
+  push:
+    branches:
+      - main
+      - "releases/*"
+      - cli-rust-rewrite
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  formatting:
+    name: Check formatting
+    runs-on: ubicloud-standard-2
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run Cargo fmt
+        run: cargo fmt --check
+
+  linting:
+    name: Check linting
+    runs-on: ubicloud-standard-2
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Clippy
+        run: rustup component add --toolchain 1.89-x86_64-unknown-linux-gnu clippy
+      - name: Run Cargo clippy
+        run: cargo clippy --no-deps --all-targets --all-features -- -Dwarnings
+
+  udeps:
+    name: Check unused dependencies
+    runs-on: ubicloud-standard-2
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: nightly-2025-03-09
+          override: true
+
+      - name: Run cargo-udeps
+        env:
+          RUSTFLAGS: -A warnings
+        uses: aig787/cargo-udeps-action@v1
+        with:
+          version: "latest"
+          args: "--workspace --all-features --all-targets"
+
+  codespell:
+    name: Check spelling
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - name: Install codespell
+        run: pip install codespell
+
+      - name: Run codespell
+        run: |
+          codespell --skip="*.lock,./target" -I="codespell_ignore.txt"
+
+  check_for_todos:
+    name: Check for TODOs
+    runs-on: ubicloud-standard-2
+    if: github.event.pull_request.draft == false
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for TODOs
+        run: |
+          if git grep -i "TODO" -- ':!docs' ':!*.md' ':!*.txt' ':!*.rst' ':!*.lock' ':!target' ':!scripts' ':!tests' ':!examples' ':!**/code_checks.yml'; then
+            echo "Found TODOs in code directories. Please address them before merging.";
+            exit 1;
+          else
+            echo "No TODOs found in code directories.";
+          fi
