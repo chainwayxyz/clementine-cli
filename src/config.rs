@@ -1,11 +1,13 @@
-// Configuration for Clementine CLI
-
-use std::{str::FromStr, sync::LazyLock};
+//! # Configuration Options
+//!
+//! Configuration options provided here are used to make a request to Clementine.
 
 use bitcoin::{
     Amount, Network, XOnlyPublicKey,
     secp256k1::{Parity, PublicKey},
 };
+use serde::{Deserialize, Serialize};
+use std::{str::FromStr, sync::LazyLock};
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51")
@@ -13,8 +15,36 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
 });
 
 pub const BRIDGE_AMOUNT: Amount = Amount::from_sat(1_000_000_000);
-
 pub const USER_TAKES_AFTER: u64 = 200;
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct CliConfig {
+    network: Network,
+    verifiers_pks: Vec<XOnlyPublicKey>,
+    mempool_api_url: &'static str,
+    citrea_chain_id: u64,
+    user_takes_after: u64,
+    bridge_amount: Amount,
+}
+
+impl CliConfig {
+    pub fn new() -> Self {
+        CliConfig::default()
+    }
+}
+
+impl Default for CliConfig {
+    fn default() -> Self {
+        Self {
+            network: Network::Regtest,
+            verifiers_pks: Vec::new(),
+            mempool_api_url: "https://127.0.0.1",
+            citrea_chain_id: 12345,
+            user_takes_after: 200,
+            bridge_amount: Amount::from_sat(1_000_000_000),
+        }
+    }
+}
 
 /// Get backend endpoint for a specific network
 pub fn get_backend_endpoint(network: Network) -> &'static str {
