@@ -32,6 +32,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Run Cargo version
+        run: cargo clippy --version && cargo --version && rustc --version
       - name: Run Cargo clippy
         run: cargo clippy --no-deps --all-targets --all-features -- -Dwarnings
 
