@@ -185,11 +185,9 @@ pub async fn get_tx_details(
     bitcoin_rpc_password: Option<&str>,
     network: Network,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    if bitcoin_rpc_url.is_some() && bitcoin_rpc_user.is_some() && bitcoin_rpc_password.is_some() {
-        let bitcoin_rpc_url = bitcoin_rpc_url.unwrap();
-        let bitcoin_rpc_user = bitcoin_rpc_user.unwrap();
-        let bitcoin_rpc_password = bitcoin_rpc_password.unwrap();
-
+    if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
+        (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
+    {
         let tx_details = get_tx_details_from_rpc(
             bitcoin_rpc_url,
             bitcoin_rpc_user,
@@ -199,6 +197,7 @@ pub async fn get_tx_details(
         .await?;
         return Ok(tx_details);
     }
+
     get_tx_details_from_mempool(prepare_txid, network).await
 }
 
