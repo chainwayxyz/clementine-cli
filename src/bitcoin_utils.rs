@@ -12,7 +12,7 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::EVMAddress;
-use crate::config::{BRIDGE_AMOUNT, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER, get_verifier_pks};
+use crate::config::{BRIDGE_AMOUNT, CliConfig, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
 use bitcoin::hashes::Hash;
@@ -72,7 +72,7 @@ pub fn calculate_deposit_address(
     recovery_taproot_address: &Address,
     network: Network,
 ) -> Result<(Address, TaprootSpendInfo), Box<dyn std::error::Error>> {
-    let verifiers_public_keys = get_verifier_pks(network);
+    let verifiers_public_keys = CliConfig::from_network(network).verifiers_pks;
     let agg_pk = XOnlyPublicKey::from_musig2_pks(&verifiers_public_keys)?;
     debug!("agg_pk: {:?}", agg_pk.to_string());
     debug!("verifiers_public_keys: {:?}", verifiers_public_keys);

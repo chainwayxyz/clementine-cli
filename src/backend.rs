@@ -1,8 +1,7 @@
 // Backend communication logic for Clementine CLI
 
-use crate::EVMAddress;
-use crate::config::get_backend_endpoint;
 use crate::deposit::parse_taproot_address;
+use crate::{EVMAddress, config::CliConfig};
 use bitcoin::{Address, Network};
 use colored::*;
 use serde_json::json;
@@ -13,7 +12,7 @@ pub fn create_deposit_account(
     recovery_taproot_address: &Address,
     network: Network,
 ) -> Result<Address, Box<dyn std::error::Error>> {
-    let backend_endpoint = get_backend_endpoint(network);
+    let backend_endpoint = CliConfig::from_network(network).citrea_backend_endpoint;
     let url = format!("{}deposit-accounts", backend_endpoint);
 
     // Prepare request body

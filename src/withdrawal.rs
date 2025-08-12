@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::{BRIDGE_AMOUNT, get_chain_id, get_mempool_api_url};
+use crate::config::{BRIDGE_AMOUNT, CliConfig};
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
@@ -93,7 +93,7 @@ pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     network: Network,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let mempool_api_url = get_mempool_api_url(network);
+    let mempool_api_url = CliConfig::from_network(network).mempool_api_url;
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
     let response = reqwest::get(url)
         .await
@@ -296,7 +296,7 @@ pub async fn send_safe_withdrawal(
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").map_err(|_| "SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
     let signer: PrivateKeySigner = secret_key.parse()?;
-    let chain_id: u64 = get_chain_id(network);
+    let chain_id: u64 = CliConfig::from_network(network).citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
 
