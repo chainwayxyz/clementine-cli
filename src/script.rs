@@ -4,7 +4,7 @@ use bitcoin::{
     script::{Builder, PushBytesBuf},
 };
 
-use crate::EVMAddress;
+use crate::CitreaAddress;
 
 pub fn recover_script(recovery_taproot_address: XOnlyPublicKey, timelock_amount: u64) -> ScriptBuf {
     Builder::new()
@@ -16,7 +16,7 @@ pub fn recover_script(recovery_taproot_address: XOnlyPublicKey, timelock_amount:
         .into_script()
 }
 
-pub fn deposit_script(evm_address: EVMAddress, nofn_xonly_pk: XOnlyPublicKey) -> ScriptBuf {
+pub fn deposit_script(citrea_address: CitreaAddress, nofn_xonly_pk: XOnlyPublicKey) -> ScriptBuf {
     let citrea: [u8; 6] = "citrea".as_bytes().try_into().expect("length == 6");
 
     Builder::new()
@@ -25,7 +25,7 @@ pub fn deposit_script(evm_address: EVMAddress, nofn_xonly_pk: XOnlyPublicKey) ->
         .push_opcode(OP_FALSE)
         .push_opcode(OP_IF)
         .push_slice(citrea)
-        .push_slice(evm_address.0)
+        .push_slice(*citrea_address.0)
         .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap()) // TODO: Remove this.
         .push_opcode(OP_ENDIF)
         .into_script()
