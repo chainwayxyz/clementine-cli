@@ -376,7 +376,3 @@ pub async fn send_safe_withdrawal(
 
     Ok(())
 }
-
-// TODO: Implement withdrawal.status
-// TODO: Implement withdrawal.generate_operator_withdrawal_signatures
-// TODO: Implement withdrawal.send_withdrawal_signatures_to_operators
