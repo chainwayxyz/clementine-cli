@@ -1,5 +1,3 @@
-use alloy::primitives::Address;
-use alloy::primitives::keccak256;
 use std::env;
 use std::str::FromStr;
 
