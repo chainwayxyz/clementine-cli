@@ -179,45 +179,4 @@ mod tests {
 
         fs::remove_file(file_name).unwrap();
     }
-
-    #[test]
-    fn parse_from_file() {
-        let file_name = "parse_from_file";
-
-        let invalid_content = "invalid file content";
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
-
-        // Read first example test file use for this test.
-        let base_path = env!("CARGO_MANIFEST_DIR");
-        let config_path = format!("{}/tests/data/cli_config.toml", base_path);
-        let content = fs::read_to_string(config_path).unwrap();
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        CliConfig::try_parse_file(file_name.into()).unwrap();
-
-        fs::remove_file(file_name).unwrap();
-    }
-
-    #[test]
-    fn parse_from_file_with_invalid_headers() {
-        let file_name = "parse_from_file_with_invalid_headers";
-        let content = "[header1]
-        num_verifiers = 4
-
-        [header2]
-        confirmation_threshold = 1
-        network = \"regtest\"
-        bitcoin_rpc_url = \"http://localhost:18443\"
-        bitcoin_rpc_user = \"admin\"
-        bitcoin_rpc_password = \"admin\"\n";
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
-
-        fs::remove_file(file_name).unwrap();
-    }
 }

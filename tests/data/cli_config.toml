@@ -4,3 +4,4 @@ mempool_api_url = "https://127.0.0.1"
 citrea_chain_id = 12345
 user_takes_after = 200
 bridge_amount = 1000000000
+citrea_backend_endpoint = "https://127.0.0.1"
