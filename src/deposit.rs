@@ -14,7 +14,6 @@ use crate::storage::load_key;
 use crate::storage::store_key;
 use crate::withdrawal::{get_tx_details, get_txout_details_from_rpc};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-use alloy::primitives::address;
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
@@ -86,8 +85,12 @@ pub fn get_deposit_address(
     recovery_taproot_address: &str,
     network: Network,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    // let citrea_address = EVMAddress::try_from(citrea_address)?;
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
+    println!(
+        "{} {}",
+        "CITREA_ADDRESS (checksummed)".green().bold(),
+        citrea_address.to_string(),
+    );
     let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, network)?;
 
     // Call backend to create deposit account
