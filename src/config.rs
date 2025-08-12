@@ -6,7 +6,8 @@ use bitcoin::{
     Amount, Network, XOnlyPublicKey,
     secp256k1::{Parity, PublicKey},
 };
-use serde::{Deserialize, Serialize};
+use secrecy::SecretString;
+use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
@@ -14,7 +15,7 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
         .unwrap()
 });
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize)]
 pub struct CliConfig {
     pub network: Network,
     pub verifiers_pks: Vec<PublicKey>,
@@ -23,6 +24,15 @@ pub struct CliConfig {
     pub citrea_backend_endpoint: String,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
+    pub bitcoin_config: Option<BitcoinConfig>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct BitcoinConfig {
+    pub url: String,
+    pub port: u32,
+    pub password: SecretString,
+    pub user: SecretString,
 }
 
 impl CliConfig {
@@ -117,6 +127,7 @@ impl Default for CliConfig {
             citrea_backend_endpoint: "https://127.0.0.1".to_string(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
+            bitcoin_config: None,
         }
     }
 }
