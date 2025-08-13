@@ -89,7 +89,7 @@ pub fn get_deposit_address(
     println!(
         "{} {}",
         "CITREA_ADDRESS (checksummed)".green().bold(),
-        citrea_address.to_string(),
+        citrea_address,
     );
     let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, network)?;
 
