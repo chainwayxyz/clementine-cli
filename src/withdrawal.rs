@@ -16,7 +16,7 @@ use alloy::providers::ProviderBuilder;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
-use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
 use eyre::Context;
 use reqwest::Url;
@@ -90,10 +90,9 @@ pub fn generate_withdrawal_signature(
 
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    let mempool_api_url = config.mempool_api_url;
-    let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
+    let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
         .wrap_err("Failed to fetch transaction hex: {}")?;
@@ -104,7 +103,7 @@ pub async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
-    let url = format!("{mempool_api_url}tx/{prepare_txid}");
+    let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
         .wrap_err("Failed to fetch transaction data: {}")?;
@@ -122,7 +121,7 @@ pub async fn get_tx_details_from_mempool(
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
-    let url = format!("{mempool_api_url}block/{block_hash}/raw");
+    let url = format!("{}block/{block_hash}/raw", config.mempool_api_url);
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
     debug!("block_raw: {:?}", block_raw);
@@ -132,17 +131,9 @@ pub async fn get_tx_details_from_mempool(
 }
 
 pub async fn get_tx_details_from_rpc(
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
+    rpc: &Client,
     prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    let auth = Auth::UserPass(
-        bitcoin_rpc_user.to_string(),
-        bitcoin_rpc_password.to_string(),
-    );
-    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
-
     let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
     let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
     if tx_info.blockhash.is_none() {
@@ -160,57 +151,40 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_txout_details_from_rpc(
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
+pub async fn get_txout_details(
+    config: &CliConfig,
     txid: &Txid,
     vout: u32,
 ) -> Result<TxOut, BridgeCliError> {
-    let auth = Auth::UserPass(
-        bitcoin_rpc_user.to_string(),
-        bitcoin_rpc_password.to_string(),
-    );
-    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
-    let tx = rpc.get_raw_transaction(txid, None).await?;
-    let txout = tx.output[vout as usize].clone();
-    Ok(txout)
+    let (tx, _, _) = get_tx_details(txid, config).await?;
+    let txout = tx
+        .output
+        .get(vout as usize)
+        .ok_or::<BridgeCliError>(eyre::eyre!("Txout not found").into())?;
+
+    Ok(txout.clone())
 }
 
 pub async fn get_tx_details(
     prepare_txid: &Txid,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
-        (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
-    {
-        let tx_details = get_tx_details_from_rpc(
-            bitcoin_rpc_url,
-            bitcoin_rpc_user,
-            bitcoin_rpc_password,
-            prepare_txid,
-        )
-        .await?;
-        return Ok(tx_details);
+    match config.bitcoin_config {
+        Some(_) => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            Ok(get_tx_details_from_rpc(&rpc, prepare_txid).await?)
+        }
+        None => get_tx_details_from_mempool(prepare_txid, config).await,
     }
-
-    get_tx_details_from_mempool(prepare_txid, config).await
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn safe_withdraw(
     signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), BridgeCliError> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
@@ -236,14 +210,8 @@ pub async fn safe_withdraw(
     )?;
 
     // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
-        &withdrawal_outpoint.txid,
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
-        config,
-    )
-    .await?;
+    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+        get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
@@ -287,11 +255,7 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    citrea_rpc_url: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
@@ -305,7 +269,7 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(citrea_rpc_url).wrap_err("Can't parse url")?);
+        .connect_http(Url::parse(&config.citrea_rpc_url).wrap_err("Can't parse url")?);
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
@@ -331,14 +295,8 @@ pub async fn send_safe_withdrawal(
     )?;
 
     // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
-        &withdrawal_outpoint.txid,
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
-        config.clone(),
-    )
-    .await?;
+    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+        get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,

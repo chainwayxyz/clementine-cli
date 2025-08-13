@@ -1,6 +1,7 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
 use clementine_cli::{config::CliConfig, debug, deposit, withdrawal};
-use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -65,9 +66,6 @@ enum DepositCommands {
     },
     GetDepositParams {
         move_to_vault_txid: String,
-        bitcoin_rpc_url: String,
-        bitcoin_rpc_user: String,
-        bitcoin_rpc_password: String,
     },
 }
 
@@ -89,12 +87,6 @@ enum WithdrawalCommands {
         withdrawal_utxo: String,
         amount: f64,
         signature: String,
-        #[arg(long)]
-        bitcoin_rpc_url: Option<String>,
-        #[arg(long)]
-        bitcoin_rpc_user: Option<String>,
-        #[arg(long)]
-        bitcoin_rpc_password: Option<String>,
     },
     SendSafeWithdrawal {
         signer_address: String,
@@ -102,13 +94,6 @@ enum WithdrawalCommands {
         withdrawal_utxo: String,
         amount: f64,
         signature: String,
-        #[arg(long)]
-        bitcoin_rpc_url: Option<String>,
-        #[arg(long)]
-        bitcoin_rpc_user: Option<String>,
-        #[arg(long)]
-        bitcoin_rpc_password: Option<String>,
-        citrea_rpc_url: String,
     },
     Status {
         withdrawal_index: u32,
@@ -156,9 +141,11 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                if let Err(e) =
-                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, config)
-                {
+                if let Err(e) = deposit::get_deposit_address(
+                    &citrea_address,
+                    &recovery_taproot_address,
+                    &config,
+                ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -180,7 +167,7 @@ async fn main() {
                     &claim_address,
                     fee_rate,
                     amount,
-                    config,
+                    &config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -197,7 +184,7 @@ async fn main() {
                     &evm_address,
                     &recovery_taproot_address,
                     amount,
-                    config,
+                    &config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -206,21 +193,8 @@ async fn main() {
             DepositCommands::DepositStatus { deposit_address } => {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
-            DepositCommands::GetDepositParams {
-                move_to_vault_txid,
-                bitcoin_rpc_url,
-                bitcoin_rpc_user,
-                bitcoin_rpc_password,
-            } => {
-                if let Err(e) = deposit::get_deposit_params(
-                    &move_to_vault_txid,
-                    &bitcoin_rpc_url,
-                    &bitcoin_rpc_user,
-                    &bitcoin_rpc_password,
-                    config,
-                )
-                .await
-                {
+            DepositCommands::GetDepositParams { move_to_vault_txid } => {
+                if let Err(e) = deposit::get_deposit_params(&move_to_vault_txid, &config).await {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -256,9 +230,6 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
                 signature,
-                bitcoin_rpc_url,
-                bitcoin_rpc_user,
-                bitcoin_rpc_password,
             } => {
                 if let Err(e) = withdrawal::safe_withdraw(
                     &signer_address,
@@ -266,10 +237,7 @@ async fn main() {
                     &withdrawal_utxo,
                     amount,
                     &signature,
-                    bitcoin_rpc_url.as_deref(),
-                    bitcoin_rpc_user.as_deref(),
-                    bitcoin_rpc_password.as_deref(),
-                    config,
+                    &config,
                 )
                 .await
                 {
@@ -283,10 +251,6 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
                 signature,
-                bitcoin_rpc_url,
-                bitcoin_rpc_user,
-                bitcoin_rpc_password,
-                citrea_rpc_url,
             } => {
                 if let Err(e) = withdrawal::send_safe_withdrawal(
                     &signer_address,
@@ -294,11 +258,7 @@ async fn main() {
                     &withdrawal_utxo,
                     amount,
                     &signature,
-                    bitcoin_rpc_url.as_deref(),
-                    bitcoin_rpc_user.as_deref(),
-                    bitcoin_rpc_password.as_deref(),
-                    &citrea_rpc_url,
-                    config,
+                    &config,
                 )
                 .await
                 {

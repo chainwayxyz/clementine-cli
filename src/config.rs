@@ -6,10 +6,13 @@ use bitcoin::{
     Amount, Network, XOnlyPublicKey,
     secp256k1::{Parity, PublicKey},
 };
-use secrecy::SecretString;
+use bitcoincore_rpc::{Auth, Client, RpcApi};
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 use thiserror::Error;
+
+use crate::errors::BridgeCliError;
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51")
@@ -33,6 +36,7 @@ pub struct CliConfig {
     pub verifiers_pks: Vec<PublicKey>,
     pub mempool_api_url: String,
     pub citrea_chain_id: u64,
+    pub citrea_rpc_url: String,
     pub citrea_backend_endpoint: String,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
@@ -68,6 +72,21 @@ impl CliConfig {
         Ok(toml::from_str::<Self>(&input)?)
     }
 
+    pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {
+        match self.bitcoin_config {
+            Some(ref config) => {
+                let auth = Auth::UserPass(
+                    config.user.expose_secret().into(),
+                    config.password.expose_secret().into(),
+                );
+                let rpc = Client::new(&config.url, auth).await?;
+                rpc.ping().await?;
+                Ok(rpc)
+            }
+            None => Err(eyre::eyre!("Bitcoin RPC configuration not found in config").into()),
+        }
+    }
+
     /// Creates a default configuration based on the network.
     pub fn from_network(network: Network) -> Self {
         let mut config = CliConfig {
@@ -76,16 +95,25 @@ impl CliConfig {
         };
 
         match network {
-            Network::Regtest => (),
+            Network::Regtest => {
+                config.bitcoin_config = Some(BitcoinConfig {
+                    url: "http://localhost".to_string(),
+                    port: 18443,
+                    password: SecretString::from("admin".to_string()),
+                    user: SecretString::from("admin".to_string()),
+                });
+            }
             Network::Bitcoin => {
                 config.citrea_chain_id = 1;
                 config.citrea_backend_endpoint = "https://api.citrea.xyz/".to_string();
+                config.citrea_rpc_url = "https://rpc.citrea.xyz/".to_string();
                 config.mempool_api_url = "https://mempool.space/api/".to_string();
                 config.verifiers_pks = vec![];
             }
-            Network::Testnet | Network::Testnet4 => {
+            Network::Testnet4 => {
                 config.citrea_chain_id = 1;
                 config.citrea_backend_endpoint = "https://api.testnet.citrea.xyz/".to_string();
+                config.citrea_rpc_url = "https://rpc.testnet.citrea.xyz/".to_string();
                 config.mempool_api_url = "https://mempool.space/testnet4/api/".to_string();
                 config.verifiers_pks = vec![
                     XOnlyPublicKey::from_str(
@@ -98,6 +126,7 @@ impl CliConfig {
             Network::Signet => {
                 config.citrea_chain_id = 62298;
                 config.citrea_backend_endpoint = "https://api.devnet.citrea.xyz/".to_string();
+                config.citrea_rpc_url = "https://rpc.devnet.citrea.xyz/".to_string();
                 config.mempool_api_url = "https://mempool.devnet.citrea.xyz/api/".to_string();
                 config.verifiers_pks = vec![
                     PublicKey::from_str(
@@ -130,10 +159,28 @@ impl Default for CliConfig {
     fn default() -> Self {
         Self {
             network: Network::Regtest,
-            verifiers_pks: Vec::new(),
+            verifiers_pks: vec![
+                PublicKey::from_str(
+                    "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+                )
+                .unwrap(),
+                PublicKey::from_str(
+                    "02466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+                )
+                .unwrap(),
+                PublicKey::from_str(
+                    "023c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
+                )
+                .unwrap(),
+                PublicKey::from_str(
+                    "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
+                )
+                .unwrap(),
+            ],
             mempool_api_url: "https://127.0.0.1".to_string(),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: "https://127.0.0.1".to_string(),
+            citrea_rpc_url: "https://127.0.0.1".to_string(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
             bitcoin_config: None,

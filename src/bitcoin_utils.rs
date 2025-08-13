@@ -73,7 +73,7 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliErro
 pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
     debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
@@ -137,10 +137,10 @@ pub fn sign_recovery_tx(
     deposit_amount: Option<Amount>,
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
     let recovery_script = recover_script(
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
@@ -254,7 +254,7 @@ pub fn verify_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
@@ -279,7 +279,7 @@ pub fn verify_recovery_tx(
     }
 
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
