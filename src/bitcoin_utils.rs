@@ -485,17 +485,17 @@ mod tests {
     fn test_calculate_taproot_address() {
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
-        let address = calculate_taproot_address(&keypair, Network::Testnet);
+        let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
     }
 
     #[test]
     fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet).unwrap();
+        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet4).unwrap();
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
         // Verify that the address matches the keypair
         assert_eq!(
-            calculate_taproot_address(&keypair, Network::Testnet),
+            calculate_taproot_address(&keypair, Network::Testnet4),
             address
         );
     }

@@ -249,19 +249,19 @@ mod tests {
     #[test]
     fn test_parse_taproot_address_invalid_type() {
         let non_taproot = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"; // P2WPKH
-        assert!(parse_taproot_address(non_taproot, Network::Testnet).is_err());
+        assert!(parse_taproot_address(non_taproot, Network::Testnet4).is_err());
     }
 
     #[test]
     fn test_parse_taproot_address_wrong_network() {
         let mainnet_addr = "bc1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c";
-        assert!(parse_taproot_address(mainnet_addr, Network::Testnet).is_err());
+        assert!(parse_taproot_address(mainnet_addr, Network::Testnet4).is_err());
     }
 
     #[test]
     fn test_parse_taproot_address_invalid_format() {
         let invalid = "invalid_address";
-        assert!(parse_taproot_address(invalid, Network::Testnet).is_err());
+        assert!(parse_taproot_address(invalid, Network::Testnet4).is_err());
     }
 
     // Integration tests for passphrase workflows
@@ -273,7 +273,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let passphrase = "test_recovery_passphrase";
 
         let recovery_address =
@@ -329,7 +329,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[2u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let passphrase = "integration_test_passphrase";
 
         // Store the key (this is what generate_recovery_key does internally)
@@ -361,7 +361,7 @@ mod tests {
         let base_dir = std::path::Path::new(".");
 
         let secp = Secp256k1::new();
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
 
         // Test multiple keys with different passphrases
         let test_cases = vec![
@@ -410,7 +410,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[6u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let passphrase = "security_test_passphrase";
 
         let address =
@@ -426,11 +426,17 @@ mod tests {
         let private_key_str = secret_key.display_secret().to_string();
         assert!(!file_content.contains(&private_key_str));
 
+        println!(
+            "{} Key stored securely at: {}",
+            "INFO".blue().bold(),
+            file_content
+        );
+
         // The file should contain encrypted metadata
-        assert!(file_content.contains("\"encrypted\":true"));
-        assert!(file_content.contains("\"version\":2"));
-        assert!(file_content.contains("\"kdf\":\"argon2id\""));
-        assert!(file_content.contains("\"cipher\":\"aes-256-gcm\""));
+        assert!(file_content.contains("\"encrypted\": true"));
+        assert!(file_content.contains("\"version\": 2"));
+        assert!(file_content.contains("\"kdf\": \"argon2id\""));
+        assert!(file_content.contains("\"cipher\": \"aes-256-gcm\""));
         assert!(file_content.contains("\"ciphertext\":"));
         assert!(file_content.contains("\"salt\":"));
         assert!(file_content.contains("\"nonce\":"));
@@ -456,7 +462,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[7u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let correct_passphrase = "timing_test_passphrase";
 
         let address = crate::storage::store_key_with_base_dir(

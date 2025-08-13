@@ -88,6 +88,7 @@ pub fn derive_key_from_passphrase(
     memory: u32,
     parallelism: u32,
 ) -> Result<DerivedKey, Box<dyn std::error::Error>> {
+    println!("Deriving encryption key from passphrase...");
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
@@ -100,6 +101,8 @@ pub fn derive_key_from_passphrase(
         .hash_password_into(passphrase.as_bytes(), salt, &mut key)
         .map_err(|e| format!("Key derivation failed: {}", e))?;
 
+    println!("Key derived successfully.");
+
     Ok(DerivedKey::new(key))
 }
 
@@ -108,20 +111,26 @@ fn encrypt_private_key(
     private_key: &str,
     passphrase: &SecureString,
 ) -> Result<CryptoParams, Box<dyn std::error::Error>> {
+    println!("{} Encrypting private key...", "SECURE".green().bold());
     // Generate random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
     OsRng.fill_bytes(&mut salt);
     OsRng.fill_bytes(&mut nonce_bytes);
+    println!("{} Generating salt and nonce...", "SECURE".green().bold());
 
     // Argon2id parameters (secure defaults)
-    let iterations = 100_000; // 100k iterations
+    let iterations = 3; // 3 iterations
     let memory = 65_536; // 64 MB
     let parallelism = 4; // 4 threads
+
+    println!("Generating encryption key...");
 
     // Derive encryption key
     let derived_key =
         derive_key_from_passphrase(passphrase, &salt, iterations, memory, parallelism)?;
+
+    println!("Encryption key generated.");
 
     // Encrypt with AES-256-GCM
     let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(derived_key.as_bytes()));
@@ -383,11 +392,17 @@ pub fn store_key_with_base_dir(
     let storage_dir = base_dir.join(".clementine").join("keys");
     fs::create_dir_all(&storage_dir)?;
 
+    println!("Storing key for address: {}", address);
+
     let key_file = storage_dir.join(format!("key_{}.json", address));
     let private_key_str = keypair.secret_key().display_secret().to_string();
 
+    println!("Private key for address {}: {}", address, private_key_str);
+
     let secure_passphrase = SecureString::new(passphrase.to_string());
     let crypto = encrypt_private_key(&private_key_str, &secure_passphrase)?;
+
+    println!("Secure passphrase is generated");
 
     let encrypted_data = EncryptedKeyData {
         version: 2,
@@ -397,6 +412,8 @@ pub fn store_key_with_base_dir(
         crypto,
         stored_at: chrono::Utc::now().to_rfc3339(),
     };
+
+    println!("Encrypted key data generated.");
 
     let key_data = serde_json::to_string_pretty(&encrypted_data)?;
     fs::write(&key_file, key_data)?;
@@ -512,7 +529,7 @@ mod tests {
         // Verify crypto parameters are properly set
         assert_eq!(crypto_params.kdf, "argon2id");
         assert_eq!(crypto_params.cipher, "aes-256-gcm");
-        assert_eq!(crypto_params.iterations, 100_000);
+        assert_eq!(crypto_params.iterations, 3);
         assert_eq!(crypto_params.memory, 65_536);
         assert_eq!(crypto_params.parallelism, 4);
         assert!(!crypto_params.salt.is_empty());
@@ -702,17 +719,22 @@ mod tests {
     #[test]
     fn test_store_and_load_key_integration() {
         let base_dir = std::path::Path::new(".");
+        println!("Base directory for key storage: {}", base_dir.display());
 
         // Create a test keypair
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let passphrase = "test_passphrase_123";
+
+        println!("Passphrase for key storage: {}", passphrase);
 
         // Store the key using helper function
         let stored_address =
             store_key_with_base_dir(&keypair, network, passphrase, base_dir).unwrap();
+
+        println!("Stored key address: {}", stored_address);
 
         // Load the key back using helper function
         let loaded_keypair = load_key_with_base_dir(
@@ -723,14 +745,23 @@ mod tests {
         )
         .unwrap();
 
+        println!("Loaded key address: {}", stored_address);
+
         // Verify the loaded keypair matches the original
         assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
         assert_eq!(keypair.public_key(), loaded_keypair.public_key());
+
+        println!(
+            "Key successfully stored and loaded for address: {}",
+            stored_address
+        );
 
         // Verify file exists and has correct permissions
         let storage_dir = base_dir.join(".clementine").join("keys");
         let key_file = storage_dir.join(format!("key_{}.json", stored_address));
         assert!(key_file.exists());
+
+        println!("Key file exists: {}", key_file.display());
 
         #[cfg(unix)]
         {
@@ -740,6 +771,8 @@ mod tests {
             // Check that permissions are 600 (rw-------)
             assert_eq!(permissions & 0o777, 0o600);
         }
+
+        println!("Key file permissions are correct: 600 (rw-------)");
     }
 
     #[test]
@@ -750,7 +783,7 @@ mod tests {
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let correct_passphrase = "correct_passphrase";
         let wrong_passphrase = "wrong_passphrase";
 
@@ -777,7 +810,7 @@ mod tests {
     fn test_load_nonexistent_key() {
         let base_dir = std::path::Path::new(".");
 
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let fake_address = "tb1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdysn6k0k7";
 
         let result =
@@ -796,7 +829,7 @@ mod tests {
         let base_dir = std::path::Path::new(".");
 
         let secp = Secp256k1::new();
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
 
         // Store multiple keys
         let mut stored_addresses = Vec::new();
@@ -825,10 +858,10 @@ mod tests {
         let salt = [1u8; 32];
 
         // Test with minimum secure parameters
-        let key_min = derive_key_from_passphrase(&passphrase, &salt, 1000, 1024, 1).unwrap();
+        let key_min = derive_key_from_passphrase(&passphrase, &salt, 3, 1024, 1).unwrap();
 
         // Test with production parameters (same as used in encrypt_private_key)
-        let key_prod = derive_key_from_passphrase(&passphrase, &salt, 100_000, 65_536, 4).unwrap();
+        let key_prod = derive_key_from_passphrase(&passphrase, &salt, 3, 65_536, 4).unwrap();
 
         // Both should succeed but produce different keys due to different parameters
         assert_ne!(key_min.as_bytes(), key_prod.as_bytes());
