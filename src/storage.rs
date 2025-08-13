@@ -1,18 +1,20 @@
 // Key storage functionality for Clementine CLI
 
+use bitcoin::Network;
 use bitcoin::secp256k1::Keypair;
-use bitcoin::{Address, Network};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use crate::BitcoinAddress;
 
 /// Store a keypair and its corresponding taproot address
 pub fn store_key(
     keypair: &Keypair,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<Address, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
         return Err("Passphrase encryption is not yet implemented".into());
@@ -86,7 +88,8 @@ pub fn load_key(
     }
 
     // Parse the address to validate it
-    let unchecked_address: Address<bitcoin::address::NetworkUnchecked> = taproot_address.parse()?;
+    let unchecked_address: BitcoinAddress<bitcoin::address::NetworkUnchecked> =
+        taproot_address.parse()?;
     let address = unchecked_address.assume_checked();
 
     // Load the keypair from storage

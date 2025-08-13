@@ -3,32 +3,32 @@
 use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
-    Address, Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash,
-    TapSighash, TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
+    Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
+    TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
 use colored::*;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crate::EVMAddress;
 use crate::config::{BRIDGE_AMOUNT, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER, get_verifier_pks};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
 /// Calculate taproot address from a keypair
-pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> Address {
+pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> BitcoinAddress {
     let (xonly_public_key, _parity) = keypair.public_key().x_only_public_key();
-    Address::p2tr(&SECP, xonly_public_key, None, network)
+    BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
 
 /// Generate a new random secret key and calculate its corresponding taproot address
 pub fn generate_key_and_taproot_address(
     network: Network,
-) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
+) -> Result<(Keypair, BitcoinAddress), Box<dyn std::error::Error>> {
     let keypair = Keypair::new(&SECP, &mut bitcoin::secp256k1::rand::thread_rng());
     let address = calculate_taproot_address(&keypair, network);
     Ok((keypair, address))
@@ -37,7 +37,7 @@ pub fn generate_key_and_taproot_address(
 pub fn generate_keypair_and_taproot_address_from_private_key(
     private_key: &str,
     network: Network,
-) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
+) -> Result<(Keypair, BitcoinAddress), Box<dyn std::error::Error>> {
     let sk = SecretKey::from_str(private_key)?;
     let keypair = Keypair::from_secret_key(&SECP, &sk);
     let address = calculate_taproot_address(&keypair, network);
@@ -66,17 +66,17 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::
     Ok(input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes")
 }
 
-/// Calculate the deposit address and taproot spend info for a given EVM address and recovery taproot address
+/// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
 pub fn calculate_deposit_address(
-    evm_address: &EVMAddress,
-    recovery_taproot_address: &Address,
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &BitcoinAddress,
     network: Network,
-) -> Result<(Address, TaprootSpendInfo), Box<dyn std::error::Error>> {
+) -> Result<(BitcoinAddress, TaprootSpendInfo), Box<dyn std::error::Error>> {
     let verifiers_public_keys = get_verifier_pks(network);
     let agg_pk = XOnlyPublicKey::from_musig2_pks(&verifiers_public_keys)?;
     debug!("agg_pk: {:?}", agg_pk.to_string());
     debug!("verifiers_public_keys: {:?}", verifiers_public_keys);
-    let deposit_script = deposit_script(*evm_address, agg_pk);
+    let deposit_script = deposit_script(*citrea_address, agg_pk);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
     let recover_script = recover_script(recovery_key, USER_TAKES_AFTER);
@@ -89,7 +89,7 @@ pub fn calculate_deposit_address(
         .finalize(&SECP, *UNSPENDABLE_XONLY_PUBKEY)
         .expect("finalized script is valid");
 
-    let deposit_address = Address::p2tr(
+    let deposit_address = BitcoinAddress::p2tr(
         &SECP,
         *UNSPENDABLE_XONLY_PUBKEY,
         taproot_spend_info.merkle_root(),
@@ -126,19 +126,19 @@ pub fn sign_with_tweak(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Sign a recovery transaction with a given keypair, EVM address, recovery taproot address, deposit outpoint, deposit amount, claim address, fee rate, and network
+/// Sign a recovery transaction with a given keypair, Citrea address, recovery taproot address, deposit outpoint, deposit amount, claim address, fee rate, and network
 pub fn sign_recovery_tx(
     keypair: &Keypair,
-    evm_address: &EVMAddress,
-    recovery_taproot_address: &Address,
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &BitcoinAddress,
     deposit_outpoint: &OutPoint,
     deposit_amount: Option<Amount>,
-    claim_address: &Address,
+    claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
     network: Network,
 ) -> Result<Transaction, Box<dyn std::error::Error>> {
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(evm_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, network)?;
 
     let recovery_script = recover_script(
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
@@ -249,11 +249,11 @@ pub fn sign_recovery_tx(
 
 pub fn verify_recovery_tx(
     recovery_tx: &Transaction,
-    evm_address: &EVMAddress,
-    recovery_taproot_address: &Address,
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
     network: Network,
-) -> Result<(Txid, Address, Amount), Box<dyn std::error::Error>> {
+) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
         return Err("Recovery transaction must have exactly one input".into());
@@ -275,7 +275,7 @@ pub fn verify_recovery_tx(
     }
 
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(evm_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, network)?;
 
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
@@ -359,7 +359,7 @@ pub fn verify_recovery_tx(
         "Signature verification failed. Possible causes include an incorrect input amount, an invalid signature, or a mismatched public key.".into()
     })?;
 
-    let output_address = Address::from_script(
+    let output_address = BitcoinAddress::from_script(
         &recovery_tx.output[0].script_pubkey,
         network,
     )
@@ -376,9 +376,9 @@ pub fn verify_recovery_tx(
 
 pub fn sign_withdrawal_signature(
     keypair: &Keypair,
-    signer_address: &Address,
+    signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    claim_address: &Address,
+    claim_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<bitcoin::taproot::Signature, Box<dyn std::error::Error>> {
     let txin = TxIn {
@@ -427,9 +427,9 @@ pub fn sign_withdrawal_signature(
 
 pub fn verify_withdrawal_signature(
     sig: &bitcoin::taproot::Signature,
-    signer_address: &Address,
+    signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    claim_address: &Address,
+    claim_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let txin = TxIn {
