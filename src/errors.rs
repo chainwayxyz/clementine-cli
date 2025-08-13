@@ -27,7 +27,7 @@ use thiserror::Error;
 /// Errors returned by the Clementine CLI.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum ClementineCliError {
+pub enum CliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
@@ -86,16 +86,16 @@ pub trait ResultExt: Sized {
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report>;
 }
 
-impl<T: Into<ClementineCliError>> ErrorExt for T {
+impl<T: Into<CliError>> ErrorExt for T {
     fn into_eyre(self) -> eyre::Report {
         match self.into() {
-            ClementineCliError::Eyre(report) => report,
+            CliError::Eyre(report) => report,
             other => eyre::eyre!(other),
         }
     }
 }
 
-impl<U: Sized, T: Into<ClementineCliError>> ResultExt for Result<U, T> {
+impl<U: Sized, T: Into<CliError>> ResultExt for Result<U, T> {
     type Output = U;
 
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report> {
@@ -110,15 +110,15 @@ mod tests {
     #[test]
     fn test_downcast() {
         assert_eq!(
-            ClementineCliError::UnsupportedNetwork
+            CliError::UnsupportedNetwork
                 .into_eyre()
                 .wrap_err("Some other error")
                 .into_eyre()
                 .wrap_err("some other")
-                .downcast_ref::<ClementineCliError>()
+                .downcast_ref::<CliError>()
                 .unwrap()
                 .to_string(),
-            ClementineCliError::UnsupportedNetwork.to_string()
+            CliError::UnsupportedNetwork.to_string()
         );
     }
 }
