@@ -1,24 +1,23 @@
 // Backend communication logic for Clementine CLI
 
-use crate::EVMAddress;
-use crate::config::get_backend_endpoint;
+use crate::config::CliConfig;
 use crate::deposit::parse_taproot_address;
-use bitcoin::{Address, Network};
+use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
 pub fn create_deposit_account(
-    evm_address: &EVMAddress,
-    recovery_taproot_address: &Address,
-    network: Network,
-) -> eyre::Result<Address> {
-    let backend_endpoint = get_backend_endpoint(network);
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &BitcoinAddress,
+    config: CliConfig,
+) -> eyre::Result<BitcoinAddress> {
+    let backend_endpoint = config.citrea_backend_endpoint;
     let url = format!("{}deposit-accounts", backend_endpoint);
 
     // Prepare request body
     let request_body = json!({
-        "evm_addr": evm_address.to_string(),
+        "citrea_addr": citrea_address.to_string(),
         "recovery_taproot_addr": recovery_taproot_address.to_string()
     });
 
@@ -50,7 +49,7 @@ pub fn create_deposit_account(
         );
         // parse the json and get the taproot_addr and parse it to an address
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
-        let taproot_addr = parse_taproot_address(taproot_addr, network)?;
+        let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
         Ok(taproot_addr)
     } else {
         let status = response.status();
