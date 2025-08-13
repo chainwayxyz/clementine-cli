@@ -1,5 +1,7 @@
+use std::path::PathBuf;
+
 use clap::{Parser, Subcommand};
-use clementine_cli::{config::CliConfig, deposit, withdrawal};
+use clementine_cli::{config::CliConfig, debug, deposit, withdrawal};
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -126,7 +128,6 @@ async fn main() {
         debug!("No config file given, looking for the current directory: {current_dir:?}...");
         CliConfig::try_parse_file(current_dir).unwrap()
     };
-    let config = CliConfig::from_network(network);
 
     match cli.command {
         Commands::Deposit { command } => match command {
@@ -141,7 +142,7 @@ async fn main() {
                 recovery_taproot_address,
             } => {
                 if let Err(e) =
-                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, config)
+                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config)
                 {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -164,7 +165,7 @@ async fn main() {
                     &claim_address,
                     fee_rate,
                     amount,
-                    config,
+                    &config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
@@ -181,7 +182,7 @@ async fn main() {
                     &evm_address,
                     &recovery_taproot_address,
                     amount,
-                    config,
+                    &config,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);

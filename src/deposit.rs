@@ -84,7 +84,7 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
@@ -96,7 +96,7 @@ pub fn get_deposit_address(
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address, config.clone())?;
+        create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
 
     println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
