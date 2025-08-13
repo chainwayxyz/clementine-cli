@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::{BRIDGE_AMOUNT, get_chain_id, get_mempool_api_url};
+use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
@@ -91,9 +91,9 @@ pub fn generate_withdrawal_signature(
 
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let mempool_api_url = get_mempool_api_url(network);
+    let mempool_api_url = config.mempool_api_url;
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
     let response = reqwest::get(url)
         .await
@@ -183,7 +183,7 @@ pub async fn get_tx_details(
     bitcoin_rpc_url: Option<&str>,
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
     if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
         (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
@@ -198,7 +198,7 @@ pub async fn get_tx_details(
         return Ok(tx_details);
     }
 
-    get_tx_details_from_mempool(prepare_txid, network).await
+    get_tx_details_from_mempool(prepare_txid, config).await
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -211,15 +211,15 @@ pub async fn safe_withdraw(
     bitcoin_rpc_url: Option<&str>,
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
-    let signer_address = parse_taproot_address(signer_address, network)?;
-    let withdrawal_address = parse_address(withdrawal_address, network)?;
+    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
         value: withdrawal_amount,
@@ -241,7 +241,7 @@ pub async fn safe_withdraw(
         bitcoin_rpc_url,
         bitcoin_rpc_user,
         bitcoin_rpc_password,
-        network,
+        config,
     )
     .await?;
 
@@ -289,13 +289,13 @@ pub async fn send_safe_withdrawal(
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
     citrea_rpc_url: &str,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // get the secret key from env
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").map_err(|_| "SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
     let signer: PrivateKeySigner = secret_key.parse()?;
-    let chain_id: u64 = get_chain_id(network);
+    let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
 
@@ -310,8 +310,8 @@ pub async fn send_safe_withdrawal(
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
-    let signer_address = parse_taproot_address(signer_address, network)?;
-    let withdrawal_address = parse_address(withdrawal_address, network)?;
+    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
         value: withdrawal_amount,
@@ -333,7 +333,7 @@ pub async fn send_safe_withdrawal(
         bitcoin_rpc_url,
         bitcoin_rpc_user,
         bitcoin_rpc_password,
-        network,
+        config.clone(),
     )
     .await?;
 
@@ -366,7 +366,9 @@ pub async fn send_safe_withdrawal(
 
     let citrea_withdrawal_tx = contract
         .safeWithdraw(params.0, params.1, params.2, params.3, params.4)
-        .value(U256::from(BRIDGE_AMOUNT.to_sat() * SATS_TO_WEI_MULTIPLIER))
+        .value(U256::from(
+            config.bridge_amount.to_sat() * SATS_TO_WEI_MULTIPLIER,
+        ))
         .send()
         .await?;
 

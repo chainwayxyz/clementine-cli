@@ -26,7 +26,7 @@ pub fn deposit_script(citrea_address: CitreaAddress, nofn_xonly_pk: XOnlyPublicK
         .push_opcode(OP_IF)
         .push_slice(citrea)
         .push_slice(*citrea_address.0)
-        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap()) // TODO: Remove this.
+        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap())
         .push_opcode(OP_ENDIF)
         .into_script()
 }
