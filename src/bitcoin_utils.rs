@@ -1,7 +1,7 @@
 // Bitcoin utility functions for Clementine CLI
 
 use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::errors::CliError;
+use crate::errors::BridgeCliError;
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
 use crate::{BitcoinAddress, CitreaAddress};
@@ -37,7 +37,7 @@ pub fn generate_keypair_and_taproot_address(network: Network) -> (Keypair, Bitco
 pub fn generate_keypair_and_taproot_address_from_private_key(
     private_key: &str,
     network: Network,
-) -> Result<(Keypair, BitcoinAddress), CliError> {
+) -> Result<(Keypair, BitcoinAddress), BridgeCliError> {
     let sk = SecretKey::from_str(private_key)?;
     let keypair = Keypair::from_secret_key(&SECP, &sk);
     let address = calculate_taproot_address(&keypair, network);
@@ -46,7 +46,7 @@ pub fn generate_keypair_and_taproot_address_from_private_key(
 }
 
 /// Prompt user for confirmation about storing private key
-pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, CliError> {
+pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliError> {
     if auto_yes {
         return Ok(true);
     }
@@ -74,7 +74,7 @@ pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: CliConfig,
-) -> Result<(BitcoinAddress, TaprootSpendInfo), CliError> {
+) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
     debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
     debug!("agg_pk: {:?}", agg_pk.to_string());
@@ -138,7 +138,7 @@ pub fn sign_recovery_tx(
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
     config: CliConfig,
-) -> Result<Transaction, CliError> {
+) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
 
@@ -255,7 +255,7 @@ pub fn verify_recovery_tx(
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
     config: CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), CliError> {
+) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
         return Err(eyre::eyre!("Recovery transaction must have exactly one input").into());
@@ -386,7 +386,7 @@ pub fn sign_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> Result<bitcoin::taproot::Signature, CliError> {
+) -> Result<bitcoin::taproot::Signature, BridgeCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -437,7 +437,7 @@ pub fn verify_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> Result<(), CliError> {
+) -> Result<(), BridgeCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),

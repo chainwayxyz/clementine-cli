@@ -6,7 +6,7 @@ use crate::bitcoin_utils::{
 };
 use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
-use crate::errors::CliError;
+use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
@@ -24,7 +24,7 @@ use serde_json::Value;
 use std::str::FromStr;
 
 /// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), CliError> {
+pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), BridgeCliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -63,7 +63,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> Result<(), CliError> {
+) -> Result<(), BridgeCliError> {
     let keypair = load_key(signer_address, network, None)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
@@ -91,7 +91,7 @@ pub fn generate_withdrawal_signature(
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: CliConfig,
-) -> Result<(Transaction, Block, u32), CliError> {
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let mempool_api_url = config.mempool_api_url;
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
     let response = reqwest::get(url)
@@ -136,7 +136,7 @@ pub async fn get_tx_details_from_rpc(
     bitcoin_rpc_user: &str,
     bitcoin_rpc_password: &str,
     prepare_txid: &Txid,
-) -> Result<(Transaction, Block, u32), CliError> {
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let auth = Auth::UserPass(
         bitcoin_rpc_user.to_string(),
         bitcoin_rpc_password.to_string(),
@@ -166,7 +166,7 @@ pub async fn get_txout_details_from_rpc(
     bitcoin_rpc_password: &str,
     txid: &Txid,
     vout: u32,
-) -> Result<TxOut, CliError> {
+) -> Result<TxOut, BridgeCliError> {
     let auth = Auth::UserPass(
         bitcoin_rpc_user.to_string(),
         bitcoin_rpc_password.to_string(),
@@ -183,7 +183,7 @@ pub async fn get_tx_details(
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
     config: CliConfig,
-) -> Result<(Transaction, Block, u32), CliError> {
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
         (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
     {
@@ -211,7 +211,7 @@ pub async fn safe_withdraw(
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
     config: CliConfig,
-) -> Result<(), CliError> {
+) -> Result<(), BridgeCliError> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
@@ -292,7 +292,7 @@ pub async fn send_safe_withdrawal(
     bitcoin_rpc_password: Option<&str>,
     citrea_rpc_url: &str,
     config: CliConfig,
-) -> Result<(), CliError> {
+) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").wrap_err("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;

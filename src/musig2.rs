@@ -2,7 +2,7 @@
 //!
 //! Helper functions for the MuSig2 signature scheme.
 
-use crate::errors::CliError;
+use crate::errors::BridgeCliError;
 use bitcoin::{XOnlyPublicKey, secp256k1::PublicKey};
 use secp256k1::{
     SECP256K1,
@@ -22,7 +22,7 @@ pub fn from_secp_pk(pk: secp256k1::PublicKey) -> PublicKey {
     PublicKey::from_slice(&pk.serialize()).expect("serialized pubkey is valid")
 }
 
-fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, CliError> {
+fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, BridgeCliError> {
     let mut public_keys = public_keys.to_vec();
     public_keys.sort();
     let secp_pubkeys: Vec<secp256k1::PublicKey> =
@@ -36,11 +36,11 @@ fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, CliErr
 }
 
 pub trait AggregateFromPublicKeys {
-    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, CliError>;
+    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, BridgeCliError>;
 }
 
 impl AggregateFromPublicKeys for XOnlyPublicKey {
-    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, CliError> {
+    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, BridgeCliError> {
         if pks.is_empty() {
             return Err(eyre::eyre!("No public keys provided").into());
         }

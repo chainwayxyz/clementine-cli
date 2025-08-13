@@ -27,7 +27,7 @@ use thiserror::Error;
 /// Errors returned by the Clementine CLI.
 #[derive(Debug, Error)]
 #[non_exhaustive]
-pub enum CliError {
+pub enum BridgeCliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
@@ -92,16 +92,16 @@ pub trait ResultExt: Sized {
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report>;
 }
 
-impl<T: Into<CliError>> ErrorExt for T {
+impl<T: Into<BridgeCliError>> ErrorExt for T {
     fn into_eyre(self) -> eyre::Report {
         match self.into() {
-            CliError::Eyre(report) => report,
+            BridgeCliError::Eyre(report) => report,
             other => eyre::eyre!(other),
         }
     }
 }
 
-impl<U: Sized, T: Into<CliError>> ResultExt for Result<U, T> {
+impl<U: Sized, T: Into<BridgeCliError>> ResultExt for Result<U, T> {
     type Output = U;
 
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report> {
@@ -116,15 +116,15 @@ mod tests {
     #[test]
     fn test_downcast() {
         assert_eq!(
-            CliError::UnsupportedNetwork
+            BridgeCliError::UnsupportedNetwork
                 .into_eyre()
                 .wrap_err("Some other error")
                 .into_eyre()
                 .wrap_err("some other")
-                .downcast_ref::<CliError>()
+                .downcast_ref::<BridgeCliError>()
                 .unwrap()
                 .to_string(),
-            CliError::UnsupportedNetwork.to_string()
+            BridgeCliError::UnsupportedNetwork.to_string()
         );
     }
 }
