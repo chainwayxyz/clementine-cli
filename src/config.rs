@@ -41,7 +41,7 @@ impl CliConfig {
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> Result<Self, std::io::Error> {
+    pub fn try_parse_file(path: PathBuf) -> eyre::Result<Self> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
@@ -52,10 +52,10 @@ impl CliConfig {
 
     /// Try to parse a [`CliConfig`] from given TOML formatted string and
     /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> Result<Self, std::io::Error> {
+    pub fn try_parse_from(input: String) -> eyre::Result<Self> {
         match toml::from_str::<Self>(&input) {
             Ok(c) => Ok(c),
-            Err(e) => Err(std::io::Error::other(e)),
+            Err(e) => Err(eyre::eyre!(e)),
         }
     }
 
