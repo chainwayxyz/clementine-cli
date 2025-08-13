@@ -10,10 +10,8 @@ use crate::bitcoin_utils::{
 };
 use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
-use crate::storage::load_key;
-use crate::storage::store_key;
+use crate::storage::{load_key, prompt_new_passphrase, prompt_unlock_passphrase, store_key};
 use crate::withdrawal::{get_tx_details, get_txout_details};
-
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
@@ -67,8 +65,11 @@ pub fn generate_recovery_key(
         generate_key_and_taproot_address(network, 0, word_count)
     }?;
 
+    // Prompt for passphrase to encrypt the key
+    let secure_passphrase = prompt_new_passphrase()?;
+
     // Store the key securely
-    let stored_address = store_key(&keypair, network, None)?;
+    let stored_address = store_key(&keypair, network, secure_passphrase.as_str())?;
 
     // Verify the stored address matches the generated one
     if stored_address != address {
@@ -162,7 +163,20 @@ pub fn sign_recovery_tx(
         txid,
         vout: deposit_vout,
     };
-    let keypair = load_key(recovery_taproot_address, config.network, None)?;
+    // Try loading key without passphrase first, if that fails, prompt for passphrase
+    let keypair = match load_key(recovery_taproot_address, config.network, None) {
+        Ok(keypair) => keypair,
+        Err(_) => {
+            // Key might be encrypted, prompt for passphrase
+            println!("Key appears to be encrypted. Please enter the passphrase:");
+            let secure_passphrase = prompt_unlock_passphrase()?;
+            load_key(
+                recovery_taproot_address,
+                config.network,
+                Some(secure_passphrase.as_str()),
+            )?
+        }
+    };
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -272,6 +286,7 @@ pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey};
 
     #[test]
     fn test_parse_taproot_address_valid() {
@@ -296,5 +311,233 @@ mod tests {
     fn test_parse_taproot_address_invalid_format() {
         let invalid = "invalid_address";
         assert!(parse_taproot_address(invalid, Network::Testnet).is_err());
+    }
+
+    // Integration tests for passphrase workflows
+    #[test]
+    fn test_sign_recovery_tx_with_encrypted_key() {
+        let base_dir = std::path::Path::new(".");
+
+        // Create and store an encrypted key
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let network = Network::Testnet;
+        let passphrase = "test_recovery_passphrase";
+
+        let recovery_address =
+            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+                .unwrap();
+
+        // Test that we can load the key with correct passphrase
+        let loaded_keypair = crate::storage::load_key_with_base_dir(
+            &recovery_address.to_string(),
+            network,
+            Some(passphrase),
+            base_dir,
+        )
+        .unwrap();
+        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
+
+        // Test that loading fails with wrong passphrase
+        let wrong_result = crate::storage::load_key_with_base_dir(
+            &recovery_address.to_string(),
+            network,
+            Some("wrong_passphrase"),
+            base_dir,
+        );
+        assert!(wrong_result.is_err());
+        assert!(
+            wrong_result
+                .unwrap_err()
+                .to_string()
+                .contains("Decryption failed")
+        );
+
+        // Test that loading fails without passphrase (encrypted key)
+        let no_pass_result = crate::storage::load_key_with_base_dir(
+            &recovery_address.to_string(),
+            network,
+            None,
+            base_dir,
+        );
+        assert!(no_pass_result.is_err());
+        assert!(
+            no_pass_result
+                .unwrap_err()
+                .to_string()
+                .contains("encrypted and requires a passphrase")
+        );
+    }
+
+    #[test]
+    fn test_recovery_key_generation_and_storage_integration() {
+        let base_dir = std::path::Path::new(".");
+
+        // Create a keypair manually (simulating what generate_recovery_key would do)
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[2u8; 32]).unwrap();
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let network = Network::Testnet;
+        let passphrase = "integration_test_passphrase";
+
+        // Store the key (this is what generate_recovery_key does internally)
+        let stored_address =
+            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+                .unwrap();
+
+        // Verify we can use this key in the recovery signing workflow
+        let loaded_keypair = crate::storage::load_key_with_base_dir(
+            &stored_address.to_string(),
+            network,
+            Some(passphrase),
+            base_dir,
+        )
+        .unwrap();
+        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
+
+        // Verify the address format is correct for taproot
+        let address_result = parse_taproot_address(&stored_address.to_string(), network);
+        assert!(address_result.is_ok());
+        assert_eq!(
+            address_result.unwrap().address_type(),
+            Some(AddressType::P2tr)
+        );
+    }
+
+    #[test]
+    fn test_key_storage_with_different_passphrases() {
+        let base_dir = std::path::Path::new(".");
+
+        let secp = Secp256k1::new();
+        let network = Network::Testnet;
+
+        // Test multiple keys with different passphrases
+        let test_cases = vec![
+            ("short_pass", [3u8; 32]),
+            (
+                "this_is_a_much_longer_passphrase_with_special_chars_!@#$%",
+                [4u8; 32],
+            ),
+            ("パスワード", [5u8; 32]), // Unicode passphrase
+        ];
+
+        for (passphrase, seed) in test_cases {
+            let secret_key = SecretKey::from_slice(&seed).unwrap();
+            let keypair = Keypair::from_secret_key(&secp, &secret_key);
+
+            // Store with the passphrase
+            let address =
+                crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+                    .unwrap();
+
+            // Verify we can load it back
+            let loaded_keypair = crate::storage::load_key_with_base_dir(
+                &address.to_string(),
+                network,
+                Some(passphrase),
+                base_dir,
+            )
+            .unwrap();
+            assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
+
+            // Verify wrong passphrase fails
+            let wrong_result = crate::storage::load_key_with_base_dir(
+                &address.to_string(),
+                network,
+                Some("definitely_wrong"),
+                base_dir,
+            );
+            assert!(wrong_result.is_err());
+        }
+    }
+
+    #[test]
+    fn test_key_encryption_security_properties() {
+        let base_dir = std::path::Path::new(".");
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[6u8; 32]).unwrap();
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let network = Network::Testnet;
+        let passphrase = "security_test_passphrase";
+
+        let address =
+            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+                .unwrap();
+
+        // Read the stored file and verify it's actually encrypted
+        let storage_dir = base_dir.join(".clementine").join("keys");
+        let key_file = storage_dir.join(format!("key_{}.json", address));
+        let file_content = std::fs::read_to_string(key_file).unwrap();
+
+        // The file should not contain the raw private key
+        let private_key_str = secret_key.display_secret().to_string();
+        assert!(!file_content.contains(&private_key_str));
+
+        // The file should contain encrypted metadata
+        assert!(file_content.contains("\"encrypted\":true"));
+        assert!(file_content.contains("\"version\":2"));
+        assert!(file_content.contains("\"kdf\":\"argon2id\""));
+        assert!(file_content.contains("\"cipher\":\"aes-256-gcm\""));
+        assert!(file_content.contains("\"ciphertext\":"));
+        assert!(file_content.contains("\"salt\":"));
+        assert!(file_content.contains("\"nonce\":"));
+
+        // Verify we can still load the key
+        let loaded_keypair = crate::storage::load_key_with_base_dir(
+            &address.to_string(),
+            network,
+            Some(passphrase),
+            base_dir,
+        )
+        .unwrap();
+        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
+    }
+
+    #[test]
+    fn test_passphrase_timing_resistance() {
+        // This test verifies that wrong passphrases still go through the full
+        // key derivation process (not just failing fast), which helps prevent
+        // timing attacks
+        let base_dir = std::path::Path::new(".");
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[7u8; 32]).unwrap();
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let network = Network::Testnet;
+        let correct_passphrase = "timing_test_passphrase";
+
+        let address = crate::storage::store_key_with_base_dir(
+            &keypair,
+            network,
+            correct_passphrase,
+            base_dir,
+        )
+        .unwrap();
+
+        // Test with wrong passphrase - should still take reasonable time
+        let start = std::time::Instant::now();
+        let wrong_result = crate::storage::load_key_with_base_dir(
+            &address.to_string(),
+            network,
+            Some("wrong_passphrase"),
+            base_dir,
+        );
+        let duration = start.elapsed();
+
+        // Should fail
+        assert!(wrong_result.is_err());
+        assert!(
+            wrong_result
+                .unwrap_err()
+                .to_string()
+                .contains("Decryption failed")
+        );
+
+        // Should take at least some time (indicating key derivation occurred)
+        // This is a rough test - in a real scenario, both correct and incorrect
+        // passphrases should take similar time for key derivation
+        assert!(duration.as_millis() > 10); // Very conservative threshold
     }
 }

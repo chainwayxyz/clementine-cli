@@ -7,7 +7,7 @@ use crate::bitcoin_utils::{
 use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::storage::{load_key, store_key};
+use crate::storage::{load_key, prompt_new_passphrase, prompt_unlock_passphrase, store_key};
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
@@ -35,8 +35,11 @@ pub fn generate_signer_address(
     // Generate the key and address
     let (keypair, address) = generate_key_and_taproot_address(network, 1, None)?;
 
+    // Prompt for passphrase to encrypt the key
+    let secure_passphrase = prompt_new_passphrase()?;
+
     // Store the key securely
-    let stored_address = store_key(&keypair, network, None)?;
+    let stored_address = store_key(&keypair, network, secure_passphrase.as_str())?;
 
     // Verify the stored address matches the generated one
     if stored_address != address {
@@ -65,7 +68,16 @@ pub fn generate_withdrawal_signature(
     amount: f64,
     network: Network,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let keypair = load_key(signer_address, network, None)?;
+    // Try loading key without passphrase first, if that fails, prompt for passphrase
+    let keypair = match load_key(signer_address, network, None) {
+        Ok(keypair) => keypair,
+        Err(_) => {
+            // Key might be encrypted, prompt for passphrase
+            println!("Key appears to be encrypted. Please enter the passphrase:");
+            let secure_passphrase = prompt_unlock_passphrase()?;
+            load_key(signer_address, network, Some(secure_passphrase.as_str()))?
+        }
+    };
 
     let signer_address = parse_taproot_address(signer_address, network)?;
     let claim_address = parse_address(claim_address, network)?;
