@@ -1,7 +1,11 @@
 // Key storage functionality for Clementine CLI
 
+use anyhow::Result;
+use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::secp256k1::Keypair;
+use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Address, Network};
+use bip39::Mnemonic;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -35,7 +39,7 @@ pub fn store_key(
         "stored_at": chrono::Utc::now().to_rfc3339()
     });
     fs::write(&key_file, serde_json::to_string_pretty(&key_data)?)?;
-    
+
     // Set file permissions to 700 (rwx------)
     #[cfg(unix)]
     {
@@ -149,14 +153,67 @@ pub fn list_keys() -> Result<Vec<(String, serde_json::Value)>, Box<dyn std::erro
         return Ok(Vec::new());
     }
 
-    let addresses: HashMap<String, serde_json::Value> = 
+    let addresses: HashMap<String, serde_json::Value> =
         serde_json::from_str(&fs::read_to_string(&address_file)?)?;
 
     Ok(addresses.into_iter().collect())
 }
 
 /// Get the storage directory path
-fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
+pub fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
     Ok(home_dir.join(".clementine").join("keys"))
+}
+
+/// Generate master seed from mnemonic phrase
+pub fn get_master_seed_from_mnemonic(
+    mnemonic_phrase: &str,
+) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+    let mnemonic = Mnemonic::parse(mnemonic_phrase)?;
+    
+    // Generate seed (64 bytes)
+    let seed = mnemonic.to_seed("");
+    
+    let mut master_seed = [0u8; 32];
+    master_seed.copy_from_slice(&seed[0..32]);
+    
+    Ok(master_seed)
+}
+
+pub fn derive_private_key(
+    master_seed: &[u8; 32],
+    derivation_path: &str,
+    network: Network,
+) -> Result<SecretKey, Box<dyn std::error::Error>> {
+    let master_xpriv = Xpriv::new_master(network, master_seed)?;
+
+    let path = DerivationPath::from_str(derivation_path)?;
+
+    let child_xpriv = master_xpriv.derive_priv(&crate::bitcoin_utils::SECP, &path)?;
+
+    Ok(child_xpriv.private_key)
+}
+
+pub fn derive_keypair_and_address(
+    master_seed: &[u8; 32],
+    derivation_path: &str,
+    network: Network,
+) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
+    let secret_key = derive_private_key(master_seed, derivation_path, network)?;
+    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
+    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+
+    Ok((keypair, address))
+}
+
+pub fn get_standard_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/44'/0'/{}'/{}/{}", account, change, address_index)
+}
+
+pub fn get_native_segwit_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/84'/0'/{}'/{}/{}", account, change, address_index)
+}
+
+pub fn get_taproot_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/86'/0'/{}'/{}/{}", account, change, address_index)
 }

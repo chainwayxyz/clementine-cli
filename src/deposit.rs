@@ -51,6 +51,7 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
+    word_count: Option<usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
@@ -61,7 +62,7 @@ pub fn generate_recovery_key(
     let (keypair, address) = if let Some(private_key) = private_key {
         generate_keypair_and_taproot_address_from_private_key(&private_key, network)
     } else {
-        generate_key_and_taproot_address(network)
+        generate_key_and_taproot_address(network, 0, word_count)
     }?;
 
     // Store the key securely
@@ -232,9 +233,9 @@ pub fn export_private_key(
     network: Network,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let address = parse_taproot_address(taproot_address, network)?;
-    
+
     let private_key = crate::storage::export_private_key(&address.to_string(), network)?;
-    
+
     println!("{} {}", "ADDRESS".cyan().bold(), address);
     println!("{} {}", "NETWORK".blue().bold(), network);
     println!("{} {}", "PRIVATE_KEY".red().bold(), private_key);
@@ -250,7 +251,7 @@ pub fn export_private_key(
 /// List all stored keys
 pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
     let keys = crate::storage::list_keys()?;
-    
+
     if keys.is_empty() {
         println!("{} No keys found in storage", "INFO".yellow().bold());
         return Ok(());
@@ -258,11 +259,11 @@ pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
 
     println!("{} Stored keys:", "INFO".cyan().bold());
     println!();
-    
+
     for (address, metadata) in keys {
         let network = metadata["network"].as_str().unwrap_or("unknown");
         let stored_at = metadata["stored_at"].as_str().unwrap_or("unknown");
-        
+
         println!("{} {}", "ADDRESS".cyan().bold(), address);
         println!("{} {}", "NETWORK".blue().bold(), network);
         println!("{} {}", "STORED_AT".green().bold(), stored_at);

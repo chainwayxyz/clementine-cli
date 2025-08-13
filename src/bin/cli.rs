@@ -33,6 +33,8 @@ enum DepositCommands {
         y: bool,
         #[arg(long)]
         private_key: Option<String>,
+        #[arg(long)]
+        word_count: Option<usize>,
     },
     ExportPrivateKey {
         taproot_address: String,
@@ -150,8 +152,8 @@ async fn main() {
 
     match cli.command {
         Commands::Deposit { command } => match command {
-            DepositCommands::GenerateRecoveryKey { y, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, network) {
+            DepositCommands::GenerateRecoveryKey { y, word_count, private_key } => {
+                if let Err(e) = deposit::generate_recovery_key(y, private_key, network, word_count) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

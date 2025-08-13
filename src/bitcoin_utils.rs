@@ -11,6 +11,8 @@ use std::io::{self, Write};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
+use crate::mnemonic::create_encrypted_wallet;
+use crate::storage::{derive_keypair_and_address, get_master_seed_from_mnemonic, get_taproot_derivation_path};
 use crate::EVMAddress;
 use crate::config::{BRIDGE_AMOUNT, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER, get_verifier_pks};
 use crate::musig2::AggregateFromPublicKeys;
@@ -25,13 +27,28 @@ pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> Address
     Address::p2tr(&SECP, xonly_public_key, None, network)
 }
 
-/// Generate a new random secret key and calculate its corresponding taproot address
 pub fn generate_key_and_taproot_address(
     network: Network,
+    account_index: u32,
+    word_count: Option<usize>,
 ) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
-    let keypair = Keypair::new(&SECP, &mut bitcoin::secp256k1::rand::thread_rng());
-    let address = calculate_taproot_address(&keypair, network);
-    Ok((keypair, address))
+
+    let word_count = word_count.unwrap_or(18);
+    let mnemonic = create_encrypted_wallet("recovery_wallet", word_count, network)?;
+
+    let master_seed = get_master_seed_from_mnemonic(&mnemonic.as_str())?;
+
+    let derivation_path = get_taproot_derivation_path(
+        account_index,
+        0,
+        0,
+    );
+
+    derive_keypair_and_address(
+        &master_seed,
+        &derivation_path.to_string(),
+        network,
+    )
 }
 
 pub fn generate_keypair_and_taproot_address_from_private_key(
@@ -492,9 +509,8 @@ mod tests {
 
     #[test]
     fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet).unwrap();
+        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet, 0, None).unwrap();
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
-        // Verify that the address matches the keypair
         assert_eq!(
             calculate_taproot_address(&keypair, Network::Testnet),
             address

@@ -36,12 +36,13 @@ pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
+pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
 pub mod script;
 pub mod storage;
-pub mod withdrawal;
 pub mod types;
+pub mod withdrawal;
 
 /// EVM Address type - 20 bytes
 #[derive(Copy, Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]

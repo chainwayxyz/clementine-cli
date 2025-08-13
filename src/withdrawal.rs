@@ -33,7 +33,7 @@ pub fn generate_signer_address(
     }
 
     // Generate the key and address
-    let (keypair, address) = generate_key_and_taproot_address(network)?;
+    let (keypair, address) = generate_key_and_taproot_address(network, 1, None)?;
 
     // Store the key securely
     let stored_address = store_key(&keypair, network, None)?;
