@@ -15,7 +15,7 @@ use alloy::providers::ProviderBuilder;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
-use bitcoincore_rpc::{Auth, Client, RpcApi};
+use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
 use reqwest::Url;
 use serde_json::Value;
@@ -91,10 +91,9 @@ pub fn generate_withdrawal_signature(
 
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let mempool_api_url = config.mempool_api_url;
-    let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
+    let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
@@ -105,7 +104,7 @@ pub async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
-    let url = format!("{mempool_api_url}tx/{prepare_txid}");
+    let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
@@ -123,7 +122,7 @@ pub async fn get_tx_details_from_mempool(
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
-    let url = format!("{mempool_api_url}block/{block_hash}/raw");
+    let url = format!("{}block/{block_hash}/raw", config.mempool_api_url);
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
     debug!("block_raw: {:?}", block_raw);
@@ -153,14 +152,14 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_txout_details_from_rpc(
-    rpc: &Client,
+pub async fn get_txout_details(
+    config: &CliConfig,
     txid: &Txid,
     vout: u32,
 ) -> Result<TxOut, Box<dyn std::error::Error>> {
-    let tx = rpc.get_raw_transaction(txid, None).await?;
-    let txout = tx.output[vout as usize].clone();
-    Ok(txout)
+    let (tx, _, _) = get_tx_details(txid, config).await?;
+    let txout = tx.output.get(vout as usize).ok_or("Txout not found")?;
+    Ok(txout.clone())
 }
 
 pub async fn get_tx_details(
@@ -170,7 +169,7 @@ pub async fn get_tx_details(
     match config.bitcoin_config {
         Some(_) => {
             let rpc = config.connect_to_bitcoin_rpc().await?;
-            Ok(get_tx_details_from_rpc(prepare_txid, rpc).await?)
+            Ok(get_tx_details_from_rpc(&rpc, prepare_txid).await?)
         }
         None => get_tx_details_from_mempool(prepare_txid, config).await,
     }

@@ -7,7 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use secrecy::SecretString;
+use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
 
@@ -64,8 +64,11 @@ impl CliConfig {
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, Box<dyn std::error::Error>> {
         match self.bitcoin_config {
             Some(ref config) => {
-                let auth = Auth::UserPass(config.user.to_string(), config.password.to_string());
-                let rpc = Client::new(config.url, auth).await?;
+                let auth = Auth::UserPass(
+                    config.user.expose_secret().into(),
+                    config.password.expose_secret().into(),
+                );
+                let rpc = Client::new(&config.url, auth).await?;
                 rpc.ping().await?;
                 Ok(rpc)
             }
@@ -85,8 +88,8 @@ impl CliConfig {
                 config.bitcoin_config = Some(BitcoinConfig {
                     url: "http://localhost".to_string(),
                     port: 18443,
-                    password: SecretString::new("admin".to_string()),
-                    user: SecretString::new("admin".to_string()),
+                    password: SecretString::from("admin".to_string()),
+                    user: SecretString::from("admin".to_string()),
                 });
             }
             Network::Bitcoin => {

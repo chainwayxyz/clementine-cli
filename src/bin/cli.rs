@@ -191,18 +191,8 @@ async fn main() {
             DepositCommands::DepositStatus { deposit_address } => {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
-            DepositCommands::GetDepositParams {
-                move_to_vault_txid,
-            } => {
-                if let Err(e) = deposit::get_deposit_params(
-                    &move_to_vault_txid,
-                    &bitcoin_rpc_url,
-                    &bitcoin_rpc_user,
-                    &bitcoin_rpc_password,
-                    config,
-                )
-                .await
-                {
+            DepositCommands::GetDepositParams { move_to_vault_txid } => {
+                if let Err(e) = deposit::get_deposit_params(&move_to_vault_txid, &config).await {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -245,7 +235,7 @@ async fn main() {
                     &withdrawal_utxo,
                     amount,
                     &signature,
-                    config,
+                    &config,
                 )
                 .await
                 {

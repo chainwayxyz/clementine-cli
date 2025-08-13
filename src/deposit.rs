@@ -13,7 +13,7 @@ use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
-use crate::withdrawal::{get_tx_details, get_txout_details_from_rpc};
+use crate::withdrawal::{get_tx_details, get_txout_details};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Address, Network, address::NetworkUnchecked};
@@ -109,26 +109,15 @@ pub fn get_deposit_address(
 
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
-    let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) = get_tx_details(
-        &move_to_vault_txid,
-        Some(bitcoin_rpc_url),
-        Some(bitcoin_rpc_user),
-        Some(bitcoin_rpc_password),
-        config,
-    )
-    .await?;
+    let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
+        get_tx_details(&move_to_vault_txid, config).await?;
 
-    let move_to_vault_txout = get_txout_details_from_rpc(
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
+    let move_to_vault_txout = get_txout_details(
+        config,
         &move_to_vault_tx.input[0].previous_output.txid,
         move_to_vault_tx.input[0].previous_output.vout,
     )
