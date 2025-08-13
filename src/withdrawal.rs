@@ -133,17 +133,9 @@ pub async fn get_tx_details_from_mempool(
 }
 
 pub async fn get_tx_details_from_rpc(
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
+    rpc: &Client,
     prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let auth = Auth::UserPass(
-        bitcoin_rpc_user.to_string(),
-        bitcoin_rpc_password.to_string(),
-    );
-    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
-
     let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
     let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
     if tx_info.blockhash.is_none() {
@@ -162,17 +154,10 @@ pub async fn get_tx_details_from_rpc(
 }
 
 pub async fn get_txout_details_from_rpc(
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
+    rpc: &Client,
     txid: &Txid,
     vout: u32,
 ) -> Result<TxOut, Box<dyn std::error::Error>> {
-    let auth = Auth::UserPass(
-        bitcoin_rpc_user.to_string(),
-        bitcoin_rpc_password.to_string(),
-    );
-    let rpc = Client::new(bitcoin_rpc_url, auth).await?;
     let tx = rpc.get_raw_transaction(txid, None).await?;
     let txout = tx.output[vout as usize].clone();
     Ok(txout)
@@ -180,38 +165,24 @@ pub async fn get_txout_details_from_rpc(
 
 pub async fn get_tx_details(
     prepare_txid: &Txid,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
-        (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
-    {
-        let tx_details = get_tx_details_from_rpc(
-            bitcoin_rpc_url,
-            bitcoin_rpc_user,
-            bitcoin_rpc_password,
-            prepare_txid,
-        )
-        .await?;
-        return Ok(tx_details);
+    match config.bitcoin_config {
+        Some(_) => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            Ok(get_tx_details_from_rpc(prepare_txid, rpc).await?)
+        }
+        None => get_tx_details_from_mempool(prepare_txid, config).await,
     }
-
-    get_tx_details_from_mempool(prepare_txid, config).await
 }
 
-#[allow(clippy::too_many_arguments)]
 pub async fn safe_withdraw(
     signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
@@ -236,14 +207,8 @@ pub async fn safe_withdraw(
     )?;
 
     // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
-        &withdrawal_outpoint.txid,
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
-        config,
-    )
-    .await?;
+    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+        get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
@@ -285,10 +250,6 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    bitcoin_rpc_url: Option<&str>,
-    bitcoin_rpc_user: Option<&str>,
-    bitcoin_rpc_password: Option<&str>,
-    citrea_rpc_url: &str,
     config: CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // get the secret key from env
@@ -303,7 +264,7 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(citrea_rpc_url)?);
+        .connect_http(Url::parse(&config.citrea_rpc_url)?);
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
@@ -328,14 +289,8 @@ pub async fn send_safe_withdrawal(
     )?;
 
     // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) = get_tx_details(
-        &withdrawal_outpoint.txid,
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
-        config.clone(),
-    )
-    .await?;
+    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+        get_tx_details(&withdrawal_outpoint.txid, &config).await?;
 
     let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
