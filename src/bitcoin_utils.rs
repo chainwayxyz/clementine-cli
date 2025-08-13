@@ -502,7 +502,7 @@ mod tests {
     fn test_calculate_taproot_address() {
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
-        let address = calculate_taproot_address(&keypair, Network::Testnet);
+        let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
     }
 
@@ -511,7 +511,7 @@ mod tests {
         let (keypair, address) = generate_key_and_taproot_address(Network::Testnet, 0, None).unwrap();
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
         assert_eq!(
-            calculate_taproot_address(&keypair, Network::Testnet),
+            calculate_taproot_address(&keypair, Network::Testnet4),
             address
         );
     }
