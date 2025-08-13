@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_keypair_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
@@ -90,7 +90,7 @@ pub fn generate_withdrawal_signature(
 
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
@@ -152,7 +152,7 @@ pub async fn get_tx_details_from_rpc(
 }
 
 pub async fn get_txout_details(
-    config: &CliConfig,
+    config: &BridgeCliConfig,
     txid: &Txid,
     vout: u32,
 ) -> Result<TxOut, BridgeCliError> {
@@ -167,7 +167,7 @@ pub async fn get_txout_details(
 
 pub async fn get_tx_details(
     prepare_txid: &Txid,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
     match config.bitcoin_config {
         Some(_) => {
@@ -184,7 +184,7 @@ pub async fn safe_withdraw(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
@@ -255,7 +255,7 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found

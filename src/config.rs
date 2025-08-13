@@ -31,7 +31,7 @@ pub enum ConfigErrors {
 }
 
 #[derive(Debug, Clone, Deserialize)]
-pub struct CliConfig {
+pub struct BridgeCliConfig {
     pub network: Network,
     pub verifiers_pks: Vec<PublicKey>,
     pub mempool_api_url: String,
@@ -51,9 +51,9 @@ pub struct BitcoinConfig {
     pub user: SecretString,
 }
 
-impl CliConfig {
+impl BridgeCliConfig {
     pub fn new() -> Self {
-        CliConfig::default()
+        BridgeCliConfig::default()
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
@@ -89,9 +89,9 @@ impl CliConfig {
 
     /// Creates a default configuration based on the network.
     pub fn from_network(network: Network) -> Self {
-        let mut config = CliConfig {
+        let mut config = BridgeCliConfig {
             network,
-            ..CliConfig::default()
+            ..BridgeCliConfig::default()
         };
 
         match network {
@@ -154,7 +154,7 @@ impl CliConfig {
     }
 }
 
-impl Default for CliConfig {
+impl Default for BridgeCliConfig {
     /// Defaults to regtest, which will only be used in tests.
     fn default() -> Self {
         Self {
@@ -195,7 +195,7 @@ mod tests {
 
     #[test]
     fn test_constants() {
-        let config = CliConfig::default();
+        let config = BridgeCliConfig::default();
 
         assert_eq!(config.bridge_amount, Amount::from_sat(1_000_000_000));
         assert_eq!(config.user_takes_after, 200);
@@ -212,16 +212,16 @@ mod tests {
         let invalid_content = "invalid file content";
         let mut file = File::create(file_name).unwrap();
         file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
 
         // Read first example test file use for this test.
         let base_path = env!("CARGO_MANIFEST_DIR");
-        let config_path = format!("{}/tests/data/cli_config.toml", base_path);
+        let config_path = format!("{}/tests/data/bridge_cli_config.toml", base_path);
         let content = fs::read_to_string(config_path).unwrap();
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let read_config = CliConfig::try_parse_file(file_name.into()).unwrap();
+        let read_config = BridgeCliConfig::try_parse_file(file_name.into()).unwrap();
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
@@ -246,7 +246,7 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        assert!(CliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
 
         fs::remove_file(file_name).unwrap();
     }

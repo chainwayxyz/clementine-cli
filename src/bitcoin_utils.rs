@@ -1,6 +1,6 @@
 // Bitcoin utility functions for Clementine CLI
 
-use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::errors::BridgeCliError;
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
@@ -73,7 +73,7 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliErro
 pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
     debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
@@ -137,7 +137,7 @@ pub fn sign_recovery_tx(
     deposit_amount: Option<Amount>,
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
@@ -254,7 +254,7 @@ pub fn verify_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
