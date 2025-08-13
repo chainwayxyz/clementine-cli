@@ -27,7 +27,7 @@ pub fn store_key(
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    // Store the keypair in plaintext (TODO: implement encryption)
+    // Store the keypair in plaintext (see #12)
     let key_file = storage_dir.join(format!("key_{}.json", address));
     let key_data = serde_json::json!({
         "network": network.to_string(),

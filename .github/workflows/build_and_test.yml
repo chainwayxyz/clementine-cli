@@ -1,0 +1,85 @@
+name: Build And Test
+
+on:
+  push:
+    branches:
+      - main
+      - cli-rust-rewrite
+      - "releases/*"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+  CARGOFLAGS: --workspace --all-targets
+  CARGOFLAGS_ALL_FEATURES: --workspace --all-targets --all-features
+
+jobs:
+  debug_tests_all_features:
+    name: Debug | All features | Test
+    runs-on: ubicloud-standard-16
+
+    env:
+      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
+      - uses: actions/checkout@v4
+
+      - name: Create test log directories
+        run: mkdir -p test-logs/debug
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          cargo test $CARGOFLAGS_ALL_FEATURES
+
+      - name: Upload deposit state artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deposit-state-debug
+          path: core/src/test/data/deposit_state_debug.bincode
+          if-no-files-found: ignore
+          retention-days: 1
+
+  release_tests_all_features:
+    name: Release | All features | Test
+    runs-on: ubicloud-standard-16
+
+    env:
+      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
+      - uses: actions/checkout@v4
+
+      - name: Create test log directories
+        run: mkdir -p test-logs/debug
+
+      - name: Run tests
+        run: |
+          set -o pipefail
+          cargo test --release $CARGOFLAGS_ALL_FEATURES
+
+      - name: Upload deposit state artifact
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: deposit-state-debug
+          path: core/src/test/data/deposit_state_debug.bincode
+          if-no-files-found: ignore
+          retention-days: 1

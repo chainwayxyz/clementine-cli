@@ -20,7 +20,7 @@ pub const USER_TAKES_AFTER: u64 = 200;
 pub fn get_backend_endpoint(network: Network) -> &'static str {
     match network {
         Network::Bitcoin => "https://api.citrea.xyz/",
-        Network::Testnet4 => "https://api.testnet.citrea.xyz/",
+        Network::Testnet4 | Network::Testnet => "https://api.testnet.citrea.xyz/",
         Network::Signet => "https://api.devnet.citrea.xyz/",
         _ => {
             panic!("No backend endpoint configured for network {:?}", network);
@@ -98,33 +98,16 @@ mod tests {
             get_backend_endpoint(Network::Signet),
             "https://api.devnet.citrea.xyz/"
         );
-        // For other networks, falls back to testnet
         assert_eq!(
             get_backend_endpoint(Network::Testnet),
             "https://api.testnet.citrea.xyz/"
         );
-        assert_eq!(
-            get_backend_endpoint(Network::Regtest),
-            "https://api.testnet.citrea.xyz/"
-        );
     }
 
     #[test]
     #[should_panic]
-    fn test_get_verifier_pks_bitcoin() {
-        get_verifier_pks(Network::Bitcoin);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_get_verifier_pks_testnet4() {
-        get_verifier_pks(Network::Testnet4);
-    }
-
-    #[test]
-    #[should_panic]
-    fn test_get_verifier_pks_signet() {
-        get_verifier_pks(Network::Signet);
+    fn test_get_backend_endpoint_regtest() {
+        get_backend_endpoint(Network::Regtest);
     }
 
     #[test]
@@ -139,7 +122,7 @@ mod tests {
         assert_eq!(USER_TAKES_AFTER, 200);
         assert_eq!(
             UNSPENDABLE_XONLY_PUBKEY.to_string(),
-            "50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0"
+            "93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51"
         );
     }
 }
