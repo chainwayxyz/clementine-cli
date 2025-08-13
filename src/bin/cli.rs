@@ -141,9 +141,11 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                if let Err(e) =
-                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config)
-                {
+                if let Err(e) = deposit::get_deposit_address(
+                    &citrea_address,
+                    &recovery_taproot_address,
+                    &config,
+                ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -256,7 +258,7 @@ async fn main() {
                     &withdrawal_utxo,
                     amount,
                     &signature,
-                    config,
+                    &config,
                 )
                 .await
                 {

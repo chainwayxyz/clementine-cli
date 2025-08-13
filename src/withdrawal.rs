@@ -249,7 +249,7 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // get the secret key from env
     // raise error if not found
@@ -289,7 +289,7 @@ pub async fn send_safe_withdrawal(
 
     // 2. Get the prepare tx details
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
-        get_tx_details(&withdrawal_outpoint.txid, &config).await?;
+        get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
