@@ -13,9 +13,10 @@ use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
+use crate::utils::parse_citrea_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 
-use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};

@@ -1,7 +1,8 @@
-use std::path::PathBuf;
-
 use clap::{Parser, Subcommand};
-use clementine_cli::{config::BridgeCliConfig, debug, deposit, withdrawal};
+use clementine_cli::{
+    config::BridgeCliConfig, debug, deposit, utils::initialize_logger, withdrawal,
+};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -118,6 +119,8 @@ enum WithdrawalCommands {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    initialize_logger(None).unwrap();
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
