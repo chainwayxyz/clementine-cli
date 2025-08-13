@@ -31,12 +31,18 @@ pub enum ClementineCliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
+    // #[error("Missing environment variable {1}: {0}")]
+    // EnvVarNotSet(std::env::VarError, &'static str),
+    // #[error("Environment variable {0} is malformed: {1}")]
+    // EnvVarMalformed(&'static str, String),
+    // #[error("Arithmetic overflow occurred: {0}")]
+    // ArithmeticOverflow(&'static str),
+    // #[error("Insufficient funds: {0}")]
+    // InsufficientFunds(&'static str),
+
+    // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),
-    #[error("Missing environment variable {1}: {0}")]
-    EnvVarNotSet(std::env::VarError, &'static str),
-    #[error("Environment variable {0} is malformed: {1}")]
-    EnvVarMalformed(&'static str, String),
 
     // External crate error wrappers
     #[error("Failed to convert hex string: {0}")]
@@ -51,11 +57,10 @@ pub enum ClementineCliError {
     AlloySolTypes(#[from] alloy::sol_types::Error),
     #[error("{0}")]
     CLIDisplayAndExit(StyledStr),
-
-    #[error("Arithmetic overflow occurred: {0}")]
-    ArithmeticOverflow(&'static str),
-    #[error("Insufficient funds: {0}")]
-    InsufficientFunds(&'static str),
+    #[error("Can't make a request: {0}")]
+    ReqwestError(#[from] reqwest::Error),
+    #[error("Can't serialize/deserialize data: {0}")]
+    SerializationError(#[from] serde_json::Error),
 
     // Base wrapper for eyre
     #[error(transparent)]

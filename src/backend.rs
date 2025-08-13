@@ -2,6 +2,7 @@
 
 use crate::config::CliConfig;
 use crate::deposit::parse_taproot_address;
+use crate::errors::ClementineCliError;
 use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
 use serde_json::json;
@@ -11,7 +12,7 @@ pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: CliConfig,
-) -> eyre::Result<BitcoinAddress> {
+) -> Result<BitcoinAddress, ClementineCliError> {
     let backend_endpoint = config.citrea_backend_endpoint;
     let url = format!("{}deposit-accounts", backend_endpoint);
 
@@ -50,6 +51,7 @@ pub fn create_deposit_account(
         // parse the json and get the taproot_addr and parse it to an address
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
         let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
+
         Ok(taproot_addr)
     } else {
         let status = response.status();
@@ -62,6 +64,7 @@ pub fn create_deposit_account(
             "Backend request failed with status: {} {}",
             status,
             error_text
-        ))
+        )
+        .into())
     }
 }
