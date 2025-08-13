@@ -43,6 +43,7 @@ pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
+pub mod errors;
 pub mod musig2;
 pub mod parameters;
 pub mod script;
