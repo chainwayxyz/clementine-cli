@@ -4,18 +4,21 @@
 //! wrapper and extension traits for error/results. Our error paradigm is as
 //! follows:
 //!
-//! 1. The crate-level error wrapper (ClementineCliError) is used to wrap errors
+//! 1. Modules define their own error types when they need shared error messages.
+//!    Module-level errors can wrap eyre::Report to capture arbitrary errors.
+//! 2. The crate-level error wrapper (ClementineCliError) is used to wrap errors
 //!    from modules and attach extra context (ie. which module caused the error).
-//! 2. External crate errors are always wrapped by the ClementineCliError and
+//! 3. External crate errors are always wrapped by the ClementineCliError and
 //!    never by module-level errors.
-//! 3. When using external crates inside modules, extension traits are used to
+//! 4. When using external crates inside modules, extension traits are used to
 //!    convert external-crate errors into ClementineCliError. This is further
 //!    wrapped in an eyre::Report to avoid a circular dependency.
-//! 4. ClementineCliError can be used to share error messages across modules.
-//! 5. When the error cause is not sufficiently explained by the error messages,
+//! 5. ClementineCliError can be used to share error messages across modules.
+//! 6. When the error cause is not sufficiently explained by the error messages,
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
+use crate::config::ConfigErrors;
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -28,8 +31,8 @@ pub enum ClementineCliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
-    #[error("Invalid configuration: {0}")]
-    ConfigError(String),
+    #[error("Can't get configuration: {0}")]
+    ConfigError(ConfigErrors),
     #[error("Missing environment variable {1}: {0}")]
     EnvVarNotSet(std::env::VarError, &'static str),
     #[error("Environment variable {0} is malformed: {1}")]

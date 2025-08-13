@@ -9,11 +9,23 @@ use bitcoin::{
 use secrecy::SecretString;
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
+use thiserror::Error;
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51")
         .unwrap()
 });
+
+#[derive(Debug, Error)]
+pub enum ConfigErrors {
+    #[error("Can't read configuration file: {0}")]
+    FileReadFailure(#[from] std::io::Error),
+    #[error("Can't parse TOML file: {0}")]
+    TomlError(#[from] toml::de::Error),
+
+    #[error(transparent)]
+    Other(#[from] eyre::Report),
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct CliConfig {
@@ -41,7 +53,7 @@ impl CliConfig {
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> eyre::Result<Self> {
+    pub fn try_parse_file(path: PathBuf) -> Result<Self, ConfigErrors> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
@@ -52,11 +64,8 @@ impl CliConfig {
 
     /// Try to parse a [`CliConfig`] from given TOML formatted string and
     /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> eyre::Result<Self> {
-        match toml::from_str::<Self>(&input) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(eyre::eyre!(e)),
-        }
+    pub fn try_parse_from(input: String) -> Result<Self, ConfigErrors> {
+        Ok(toml::from_str::<Self>(&input)?)
     }
 
     /// Creates a default configuration based on the network.
