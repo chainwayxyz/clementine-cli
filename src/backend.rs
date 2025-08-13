@@ -10,10 +10,9 @@ use serde_json::json;
 pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
-    let backend_endpoint = config.citrea_backend_endpoint;
-    let url = format!("{}deposit-accounts", backend_endpoint);
+    let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
 
     // Prepare request body
     let request_body = json!({
