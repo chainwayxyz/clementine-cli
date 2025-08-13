@@ -40,6 +40,8 @@ alloy = { version = "1.0.23", features = ["full"] }
 alloy-sol-types = { version = "1.0.23", default-features = false, features = ["json"] }
 alloy-contract = "1.0.23"
 alloy-transport = "1.0.23"
+eyre = "0.6.12"
+color-eyre = "0.6.5"
 
 
 [patch.crates-io]

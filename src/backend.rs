@@ -12,7 +12,7 @@ pub fn create_deposit_account(
     evm_address: &EVMAddress,
     recovery_taproot_address: &Address,
     network: Network,
-) -> Result<Address, Box<dyn std::error::Error>> {
+) -> eyre::Result<Address> {
     let backend_endpoint = get_backend_endpoint(network);
     let url = format!("{}deposit-accounts", backend_endpoint);
 
@@ -58,10 +58,11 @@ pub fn create_deposit_account(
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
-        Err(format!(
+
+        Err(eyre::eyre!(
             "Backend request failed with status: {} {}",
-            status, error_text
-        )
-        .into())
+            status,
+            error_text
+        ))
     }
 }

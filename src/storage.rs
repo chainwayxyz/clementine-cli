@@ -12,10 +12,10 @@ pub fn store_key(
     keypair: &Keypair,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<Address, Box<dyn std::error::Error>> {
+) -> eyre::Result<Address> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
-        return Err("Passphrase encryption is not yet implemented".into());
+        return Err(eyre::eyre!("Passphrase encryption is not yet implemented"));
     }
 
     // Calculate the taproot address for this keypair
@@ -79,10 +79,10 @@ pub fn load_key(
     taproot_address: &str,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<Keypair, Box<dyn std::error::Error>> {
+) -> eyre::Result<Keypair> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
-        return Err("Passphrase encryption is not yet implemented".into());
+        return Err(eyre::eyre!("Passphrase encryption is not yet implemented"));
     }
 
     // Parse the address to validate it
@@ -94,13 +94,13 @@ pub fn load_key(
     let key_file = storage_dir.join(format!("key_{}.json", address));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {}", address).into());
+        return Err(eyre::eyre!("No key found for address: {}", address));
     }
 
     let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
     let private_key_str = key_data["private_key"]
         .as_str()
-        .ok_or("Invalid key file format: missing private_key")?;
+        .ok_or(eyre::eyre!("Invalid key file format: missing private_key"))?;
 
     // Parse the private key
     let secret_key = bitcoin::secp256k1::SecretKey::from_str(private_key_str)?;
@@ -118,7 +118,7 @@ pub fn load_key(
 }
 
 /// Get the storage directory path
-fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
+fn get_storage_dir() -> eyre::Result<PathBuf> {
+    let home_dir = dirs::home_dir().ok_or(eyre::eyre!("Could not determine home directory"))?;
     Ok(home_dir.join(".clementine").join("keys"))
 }

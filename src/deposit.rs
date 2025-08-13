@@ -20,27 +20,21 @@ use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
 use std::str::FromStr;
 
-pub fn parse_address(
-    address: &str,
-    network: Network,
-) -> Result<Address, Box<dyn std::error::Error>> {
+pub fn parse_address(address: &str, network: Network) -> eyre::Result<Address> {
     let unchecked_address: Address<NetworkUnchecked> = address
         .parse()
-        .map_err(|_| "Invalid Bitcoin address format")?;
+        .map_err(|_| eyre::eyre!("Invalid Bitcoin address format"))?;
     let address = unchecked_address.require_network(network)?;
     Ok(address)
 }
 
 /// Parse and validate taproot address for the specified network
-pub fn parse_taproot_address(
-    address: &str,
-    network: Network,
-) -> Result<Address, Box<dyn std::error::Error>> {
+pub fn parse_taproot_address(address: &str, network: Network) -> eyre::Result<Address> {
     let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err("Address is not a taproot (P2TR) address".into());
+        return Err(eyre::eyre!("Address is not a taproot (P2TR) address"));
     }
 
     Ok(address)
@@ -51,7 +45,7 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> eyre::Result<()> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -69,7 +63,7 @@ pub fn generate_recovery_key(
 
     // Verify the stored address matches the generated one
     if stored_address != address {
-        return Err("Address mismatch after storage".into());
+        return Err(eyre::eyre!("Address mismatch after storage"));
     }
 
     println!("{} {}", "ADDRESS".cyan().bold(), address);
