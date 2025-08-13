@@ -9,11 +9,11 @@ use crate::bitcoin_utils::{
     sign_recovery_tx as utils_sign_recovery_tx,
 };
 use crate::config::CliConfig;
-
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
-use crate::withdrawal::{get_tx_details, get_txout_details_from_rpc};
+use crate::withdrawal::{get_tx_details, get_txout_details};
+
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
@@ -84,7 +84,7 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
@@ -96,7 +96,7 @@ pub fn get_deposit_address(
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address, config.clone())?;
+        create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
 
     println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
@@ -115,26 +115,15 @@ pub fn get_deposit_address(
 
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
-    bitcoin_rpc_url: &str,
-    bitcoin_rpc_user: &str,
-    bitcoin_rpc_password: &str,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
-    let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) = get_tx_details(
-        &move_to_vault_txid,
-        Some(bitcoin_rpc_url),
-        Some(bitcoin_rpc_user),
-        Some(bitcoin_rpc_password),
-        config,
-    )
-    .await?;
+    let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
+        get_tx_details(&move_to_vault_txid, config).await?;
 
-    let move_to_vault_txout = get_txout_details_from_rpc(
-        bitcoin_rpc_url,
-        bitcoin_rpc_user,
-        bitcoin_rpc_password,
+    let move_to_vault_txout = get_txout_details(
+        config,
         &move_to_vault_tx.input[0].previous_output.txid,
         move_to_vault_tx.input[0].previous_output.vout,
     )
@@ -162,7 +151,7 @@ pub fn sign_recovery_tx(
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
@@ -204,7 +193,7 @@ pub fn verify_recovery_tx(
     citrea_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    config: CliConfig,
+    config: &CliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
