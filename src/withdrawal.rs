@@ -6,6 +6,7 @@ use crate::bitcoin_utils::{
 };
 use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
+use crate::errors::CliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
@@ -23,7 +24,7 @@ use serde_json::Value;
 use std::str::FromStr;
 
 /// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> eyre::Result<()> {
+pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), CliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -38,7 +39,7 @@ pub fn generate_signer_address(auto_yes: bool, network: Network) -> eyre::Result
 
     // Verify the stored address matches the generated one
     if stored_address != address {
-        return Err(eyre::eyre!("Address mismatch after storage"));
+        return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
     // println!(
@@ -62,7 +63,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     let keypair = load_key(signer_address, network, None)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
@@ -90,7 +91,7 @@ pub fn generate_withdrawal_signature(
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: CliConfig,
-) -> eyre::Result<(Transaction, Block, u32)> {
+) -> Result<(Transaction, Block, u32), CliError> {
     let mempool_api_url = config.mempool_api_url;
     let url = format!("{mempool_api_url}tx/{prepare_txid}/hex");
     let response = reqwest::get(url)
@@ -135,7 +136,7 @@ pub async fn get_tx_details_from_rpc(
     bitcoin_rpc_user: &str,
     bitcoin_rpc_password: &str,
     prepare_txid: &Txid,
-) -> eyre::Result<(Transaction, Block, u32)> {
+) -> Result<(Transaction, Block, u32), CliError> {
     let auth = Auth::UserPass(
         bitcoin_rpc_user.to_string(),
         bitcoin_rpc_password.to_string(),
@@ -145,7 +146,7 @@ pub async fn get_tx_details_from_rpc(
     let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
     let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
     if tx_info.blockhash.is_none() {
-        return Err(eyre::eyre!("Block hash not found, maybe not confirmed yet"));
+        return Err(eyre::eyre!("Block hash not found, maybe not confirmed yet").into());
     }
     let block = rpc.get_block(&tx_info.blockhash.unwrap()).await?;
     let block_height = rpc
@@ -165,7 +166,7 @@ pub async fn get_txout_details_from_rpc(
     bitcoin_rpc_password: &str,
     txid: &Txid,
     vout: u32,
-) -> eyre::Result<TxOut> {
+) -> Result<TxOut, CliError> {
     let auth = Auth::UserPass(
         bitcoin_rpc_user.to_string(),
         bitcoin_rpc_password.to_string(),
@@ -182,7 +183,7 @@ pub async fn get_tx_details(
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
     config: CliConfig,
-) -> eyre::Result<(Transaction, Block, u32)> {
+) -> Result<(Transaction, Block, u32), CliError> {
     if let (Some(bitcoin_rpc_url), Some(bitcoin_rpc_user), Some(bitcoin_rpc_password)) =
         (bitcoin_rpc_url, bitcoin_rpc_user, bitcoin_rpc_password)
     {
@@ -210,12 +211,13 @@ pub async fn safe_withdraw(
     bitcoin_rpc_user: Option<&str>,
     bitcoin_rpc_password: Option<&str>,
     config: CliConfig,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
+    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
+        .wrap_err("Can't parse taproot signature")?;
     let signer_address = parse_taproot_address(signer_address, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
@@ -259,7 +261,9 @@ pub async fn safe_withdraw(
         "INFO".yellow().bold()
     );
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
+    std::io::stdin()
+        .read_line(&mut input)
+        .wrap_err("Can't read key stroke")?;
 
     if let Err(e) = open::that(withdrawal_ui_url) {
         println!(
@@ -288,11 +292,11 @@ pub async fn send_safe_withdrawal(
     bitcoin_rpc_password: Option<&str>,
     citrea_rpc_url: &str,
     config: CliConfig,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     // get the secret key from env
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").wrap_err("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
-    let signer: PrivateKeySigner = secret_key.parse()?;
+    let signer: PrivateKeySigner = secret_key.parse().wrap_err("Can't parse secret key")?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
@@ -301,13 +305,14 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(citrea_rpc_url)?);
+        .connect_http(Url::parse(citrea_rpc_url).wrap_err("Can't parse url")?);
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
+    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
+        .wrap_err("Can't parse signature")?;
     let signer_address = parse_taproot_address(signer_address, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
@@ -370,7 +375,10 @@ pub async fn send_safe_withdrawal(
         .send()
         .await?;
 
-    let receipt = citrea_withdrawal_tx.get_receipt().await?;
+    let receipt = citrea_withdrawal_tx
+        .get_receipt()
+        .await
+        .wrap_err("Can't get receipt")?;
     println!("Citrea withdrawal tx receipt: {:?}", receipt);
 
     Ok(())

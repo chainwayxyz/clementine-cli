@@ -9,7 +9,7 @@ use crate::bitcoin_utils::{
     sign_recovery_tx as utils_sign_recovery_tx,
 };
 use crate::config::CliConfig;
-
+use crate::errors::CliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
@@ -22,7 +22,7 @@ use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
 use std::str::FromStr;
 
-pub fn parse_address(address: &str, network: Network) -> eyre::Result<BitcoinAddress> {
+pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, CliError> {
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
         .map_err(|_| eyre::eyre!("Invalid Bitcoin address format"))?;
@@ -31,12 +31,12 @@ pub fn parse_address(address: &str, network: Network) -> eyre::Result<BitcoinAdd
 }
 
 /// Parse and validate taproot address for the specified network
-pub fn parse_taproot_address(address: &str, network: Network) -> eyre::Result<BitcoinAddress> {
+pub fn parse_taproot_address(address: &str, network: Network) -> Result<BitcoinAddress, CliError> {
     let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err(eyre::eyre!("Address is not a taproot (P2TR) address"));
+        return Err(eyre::eyre!("Address is not a taproot (P2TR) address").into());
     }
 
     Ok(address)
@@ -47,7 +47,7 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -65,7 +65,7 @@ pub fn generate_recovery_key(
 
     // Verify the stored address matches the generated one
     if stored_address != address {
-        return Err(eyre::eyre!("Address mismatch after storage"));
+        return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
     println!("{} {}", "ADDRESS".cyan().bold(), address);
@@ -79,7 +79,7 @@ pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: CliConfig,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
         "{} {}",
@@ -114,7 +114,7 @@ pub async fn get_deposit_params(
     bitcoin_rpc_user: &str,
     bitcoin_rpc_password: &str,
     config: CliConfig,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) = get_tx_details(
@@ -158,7 +158,7 @@ pub fn sign_recovery_tx(
     fee_rate: Option<u64>,
     amount: Option<f64>,
     config: CliConfig,
-) -> eyre::Result<()> {
+) -> Result<(), CliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -200,7 +200,7 @@ pub fn verify_recovery_tx(
     recovery_taproot_address: &str,
     amount: Option<f64>,
     config: CliConfig,
-) -> eyre::Result<(Txid, BitcoinAddress, Amount)> {
+) -> Result<(Txid, BitcoinAddress, Amount), CliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(

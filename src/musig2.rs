@@ -2,8 +2,8 @@
 //!
 //! Helper functions for the MuSig2 signature scheme.
 
+use crate::errors::CliError;
 use bitcoin::{XOnlyPublicKey, secp256k1::PublicKey};
-use eyre::Context;
 use secp256k1::{
     SECP256K1,
     musig::{KeyAggCache, PublicNonce, SecretNonce},
@@ -22,7 +22,7 @@ pub fn from_secp_pk(pk: secp256k1::PublicKey) -> PublicKey {
     PublicKey::from_slice(&pk.serialize()).expect("serialized pubkey is valid")
 }
 
-fn create_key_agg_cache(public_keys: &[PublicKey]) -> eyre::Result<KeyAggCache> {
+fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, CliError> {
     let mut public_keys = public_keys.to_vec();
     public_keys.sort();
     let secp_pubkeys: Vec<secp256k1::PublicKey> =
@@ -36,20 +36,21 @@ fn create_key_agg_cache(public_keys: &[PublicKey]) -> eyre::Result<KeyAggCache> 
 }
 
 pub trait AggregateFromPublicKeys {
-    fn from_musig2_pks(pks: &[PublicKey]) -> eyre::Result<XOnlyPublicKey>;
+    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, CliError>;
 }
 
 impl AggregateFromPublicKeys for XOnlyPublicKey {
-    fn from_musig2_pks(pks: &[PublicKey]) -> eyre::Result<XOnlyPublicKey> {
+    fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, CliError> {
         if pks.is_empty() {
-            return Err(eyre::eyre!("No public keys provided"));
+            return Err(eyre::eyre!("No public keys provided").into());
         }
         if pks.len() == 1 {
             return Ok(pks[0].x_only_public_key().0);
         }
         let musig_key_agg_cache = create_key_agg_cache(pks)?;
 
-        XOnlyPublicKey::from_slice(&musig_key_agg_cache.agg_pk().serialize())
-            .wrap_err("Failed to create XOnlyPublicKey from aggregated public key")
+        Ok(XOnlyPublicKey::from_slice(
+            &musig_key_agg_cache.agg_pk().serialize(),
+        )?)
     }
 }

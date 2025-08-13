@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::config::ConfigErrors;
+use crate::{config::ConfigErrors, storage::StorageError};
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -31,18 +31,12 @@ pub enum CliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
-    // #[error("Missing environment variable {1}: {0}")]
-    // EnvVarNotSet(std::env::VarError, &'static str),
-    // #[error("Environment variable {0} is malformed: {1}")]
-    // EnvVarMalformed(&'static str, String),
-    // #[error("Arithmetic overflow occurred: {0}")]
-    // ArithmeticOverflow(&'static str),
-    // #[error("Insufficient funds: {0}")]
-    // InsufficientFunds(&'static str),
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),
+    #[error("Can't store/restore secret: {0}")]
+    StorageError(#[from] StorageError),
 
     // External crate error wrappers
     #[error("Failed to convert hex string: {0}")]
@@ -62,7 +56,19 @@ pub enum CliError {
     #[error("Can't serialize/deserialize data: {0}")]
     SerializationError(#[from] serde_json::Error),
     #[error("{0}")]
-    SecpError(#[from] bitcoin::secp256k1::Error),
+    BitcoinRpcError(#[from] bitcoincore_rpc::Error),
+    #[error("{0}")]
+    BitcoinSecp256k1Error(#[from] bitcoin::secp256k1::Error),
+    #[error("{0}")]
+    BitcoinParseError(#[from] bitcoin::address::ParseError),
+    #[error("{0}")]
+    BitcoinHexParseError(#[from] bitcoin::hex::HexToArrayError),
+    #[error("{0}")]
+    BitcoinAmountParseError(#[from] bitcoin::amount::ParseAmountError),
+    #[error("{0}")]
+    BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
+    #[error("{0}")]
+    BitcoinParseOutpiontError(#[from] bitcoin::transaction::ParseOutPointError),
 
     // Base wrapper for eyre
     #[error(transparent)]

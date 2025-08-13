@@ -5,6 +5,8 @@ pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 use eyre::Context;
 
+use crate::errors::CliError;
+
 pub type CitreaAddress = alloy::primitives::Address;
 
 /// Check if debug mode is enabled via CLEMENTINE_DEBUG environment variable
@@ -51,6 +53,6 @@ pub mod storage;
 pub mod types;
 pub mod withdrawal;
 
-pub fn parse_citrea_address(citrea_address: &str) -> eyre::Result<CitreaAddress> {
-    CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")
+pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, CliError> {
+    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
 }
