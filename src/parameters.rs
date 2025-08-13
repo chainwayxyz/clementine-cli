@@ -13,13 +13,14 @@ use bitcoin::consensus::Encodable;
 use bitcoin::hashes::Hash;
 use bitcoin::hashes::sha256;
 use bitcoin::{Block, Transaction, Txid};
+use eyre::Context;
 
 /// Returns merkle proof for a given transaction (via txid) in a block.
 fn get_block_merkle_proof(
     block: &Block,
     target_txid: Txid,
     is_witness_merkle_proof: bool,
-) -> Result<(usize, Vec<u8>), Box<dyn std::error::Error>> {
+) -> eyre::Result<(usize, Vec<u8>)> {
     let mut txid_index = 0;
     let txids = block
         .txdata
@@ -84,7 +85,7 @@ impl std::fmt::Debug for CitreaTransaction {
 
 fn get_transaction_details_for_citrea(
     transaction: &Transaction,
-) -> Result<CitreaTransaction, Box<dyn std::error::Error>> {
+) -> eyre::Result<CitreaTransaction> {
     let version = (transaction.version.0 as u32).to_le_bytes();
     let flag: u16 = 1;
 
@@ -122,9 +123,9 @@ fn get_transaction_details_for_citrea(
             param
                 .witness
                 .consensus_encode(&mut raw)
-                .map_err(|e| format!("Can't encode param: {}", e))?;
+                .wrap_err("Can't encode param")?;
 
-            Ok::<Vec<u8>, Box<dyn std::error::Error>>(raw)
+            Ok::<Vec<u8>, eyre::Error>(raw)
         })
         .collect::<Result<Vec<_>, _>>()?
         .into_iter()
@@ -169,7 +170,7 @@ fn get_transaction_merkle_proof_for_citrea(
     block: &Block,
     txid: Txid,
     is_witness_merkle_proof: bool,
-) -> Result<CitreaMerkleProof, Box<dyn std::error::Error>> {
+) -> eyre::Result<CitreaMerkleProof> {
     let (index, merkle_proof) = get_block_merkle_proof(block, txid, is_witness_merkle_proof)?;
 
     Ok(CitreaMerkleProof {
@@ -184,7 +185,7 @@ pub fn get_citrea_deposit_params(
     move_to_vault_tx: &Transaction,
     move_to_vault_block: &Block,
     move_to_vault_block_height: u32,
-) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
+) -> eyre::Result<Vec<u8>> {
     let move_to_vault_tx_struct = get_transaction_details_for_citrea(move_to_vault_tx)?;
 
     let move_to_vault_tx_mp = get_transaction_merkle_proof_for_citrea(
@@ -224,16 +225,13 @@ pub fn get_citrea_safe_withdraw_params(
     prepare_tx: &Transaction,
     prepare_tx_block: &Block,
     prepare_tx_block_height: u32,
-) -> Result<
-    (
-        CitreaTransaction,
-        CitreaMerkleProof,
-        CitreaTransaction,
-        Vec<u8>,
-        Vec<u8>,
-    ),
-    Box<dyn std::error::Error>,
-> {
+) -> eyre::Result<(
+    CitreaTransaction,
+    CitreaMerkleProof,
+    CitreaTransaction,
+    Vec<u8>,
+    Vec<u8>,
+)> {
     let prepare_tx_struct = get_transaction_details_for_citrea(prepare_tx)?;
 
     let prepare_tx_mp = get_transaction_merkle_proof_for_citrea(

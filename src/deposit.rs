@@ -79,7 +79,7 @@ pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> eyre::Result<()> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
         "{} {}",
@@ -104,6 +104,7 @@ pub fn get_deposit_address(
         "Deposit address:".blue().bold(),
         calculated_deposit_address
     );
+
     Ok(())
 }
 
@@ -113,7 +114,7 @@ pub async fn get_deposit_params(
     bitcoin_rpc_user: &str,
     bitcoin_rpc_password: &str,
     config: CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> eyre::Result<()> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) = get_tx_details(
@@ -157,7 +158,7 @@ pub fn sign_recovery_tx(
     fee_rate: Option<u64>,
     amount: Option<f64>,
     config: CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> eyre::Result<()> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -199,7 +200,7 @@ pub fn verify_recovery_tx(
     recovery_taproot_address: &str,
     amount: Option<f64>,
     config: CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
+) -> eyre::Result<(Txid, BitcoinAddress, Amount)> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(

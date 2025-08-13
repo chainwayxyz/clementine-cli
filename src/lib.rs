@@ -3,6 +3,7 @@ use std::str::FromStr;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
+use eyre::Context;
 
 pub type CitreaAddress = alloy::primitives::Address;
 
@@ -49,10 +50,6 @@ pub mod storage;
 pub mod types;
 pub mod withdrawal;
 
-pub fn parse_citrea_address(
-    citrea_address: &str,
-) -> Result<CitreaAddress, Box<dyn std::error::Error>> {
-    let citrea_address: CitreaAddress =
-        CitreaAddress::from_str(citrea_address).map_err(|_| "Invalid Citrea address format")?;
-    Ok(citrea_address)
+pub fn parse_citrea_address(citrea_address: &str) -> eyre::Result<CitreaAddress> {
+    CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")
 }
