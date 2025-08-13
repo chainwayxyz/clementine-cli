@@ -1,14 +1,14 @@
-use bitcoin::Network;
 use clap::{Parser, Subcommand};
-use clementine_cli::{config::CliConfig, deposit, withdrawal};
+use clementine_cli::{config::CliConfig, debug, deposit, withdrawal};
+use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
 struct Cli {
-    /// Bitcoin network to use (bitcoin, testnet, testnet4)
-    #[arg(long, default_value = "bitcoin")]
-    network: String,
+    /// Path to config file. If not given, current directory will be searched for the cli_config.toml file
+    #[arg(long)]
+    config_file: Option<PathBuf>,
 
     #[command(subcommand)]
     command: Commands,
@@ -16,10 +16,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Deposit related operations.
     Deposit {
         #[command(subcommand)]
         command: DepositCommands,
     },
+    /// Withdrawal related operations.
     Withdrawal {
         #[command(subcommand)]
         command: WithdrawalCommands,
@@ -132,23 +134,20 @@ enum WithdrawalCommands {
 async fn main() {
     let cli = Cli::parse();
 
-    // Parse network string using bitcoin crate's parsing
-    let network = match cli.network.parse::<Network>() {
-        Ok(network) => network,
-        Err(_) => {
-            eprintln!(
-                "Error: Invalid network '{}'. Use: bitcoin, testnet, signet, regtest or testnet4",
-                cli.network
-            );
-            std::process::exit(1);
-        }
+    let config = if let Some(config_file_path) = cli.config_file {
+        debug!("Config file {config_file_path:?} is going to be used...");
+        CliConfig::try_parse_file(config_file_path).unwrap()
+    } else {
+        let mut current_dir = std::env::current_dir().unwrap();
+        current_dir.push("cli_config.toml");
+        debug!("No config file given, looking for the current directory: {current_dir:?}...");
+        CliConfig::try_parse_file(current_dir).unwrap()
     };
-    let config = CliConfig::from_network(network);
 
     match cli.command {
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey { y, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, network) {
+                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -229,7 +228,7 @@ async fn main() {
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateSignerAddress { y } => {
-                if let Err(e) = withdrawal::generate_signer_address(y, network) {
+                if let Err(e) = withdrawal::generate_signer_address(y, config.network) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
@@ -245,7 +244,7 @@ async fn main() {
                     &withdrawal_address,
                     &withdrawal_utxo,
                     amount,
-                    network,
+                    config.network,
                 ) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
