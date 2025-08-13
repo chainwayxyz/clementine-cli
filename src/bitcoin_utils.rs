@@ -1,6 +1,7 @@
 // Bitcoin utility functions for Clementine CLI
 
 use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::errors::ClementineCliError;
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
 use crate::{BitcoinAddress, CitreaAddress};
@@ -26,26 +27,26 @@ pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> Bitcoin
 }
 
 /// Generate a new random secret key and calculate its corresponding taproot address
-pub fn generate_key_and_taproot_address(
-    network: Network,
-) -> eyre::Result<(Keypair, BitcoinAddress)> {
+pub fn generate_keypair_and_taproot_address(network: Network) -> (Keypair, BitcoinAddress) {
     let keypair = Keypair::new(&SECP, &mut bitcoin::secp256k1::rand::thread_rng());
     let address = calculate_taproot_address(&keypair, network);
-    Ok((keypair, address))
+
+    (keypair, address)
 }
 
 pub fn generate_keypair_and_taproot_address_from_private_key(
     private_key: &str,
     network: Network,
-) -> eyre::Result<(Keypair, BitcoinAddress)> {
+) -> Result<(Keypair, BitcoinAddress), ClementineCliError> {
     let sk = SecretKey::from_str(private_key)?;
     let keypair = Keypair::from_secret_key(&SECP, &sk);
     let address = calculate_taproot_address(&keypair, network);
+
     Ok((keypair, address))
 }
 
 /// Prompt user for confirmation about storing private key
-pub fn confirm_private_key_storage(auto_yes: bool) -> eyre::Result<bool> {
+pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, ClementineCliError> {
     if auto_yes {
         return Ok(true);
     }
@@ -58,10 +59,12 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> eyre::Result<bool> {
     println!("   Make sure you're running this in a secure environment.");
     println!();
     print!("Are you sure you want to continue? (y/N): ");
-    io::stdout().flush()?;
+    io::stdout().flush().wrap_err("Can flush stdout")?;
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    io::stdin()
+        .read_line(&mut input)
+        .wrap_err("Can't read private key")?;
 
     Ok(input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes")
 }
@@ -71,7 +74,7 @@ pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: CliConfig,
-) -> eyre::Result<(BitcoinAddress, TaprootSpendInfo)> {
+) -> Result<(BitcoinAddress, TaprootSpendInfo), ClementineCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
     debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
     debug!("agg_pk: {:?}", agg_pk.to_string());
@@ -135,7 +138,7 @@ pub fn sign_recovery_tx(
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
     config: CliConfig,
-) -> eyre::Result<Transaction> {
+) -> Result<Transaction, ClementineCliError> {
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
 
@@ -175,10 +178,10 @@ pub fn sign_recovery_tx(
         let fee = fee_rate.fee_wu(weight).expect("fee is valid");
         let output_amount: Amount = match input_amount.checked_sub(fee) {
             Some(amt) => amt,
-            None => return Err(eyre::eyre!("Insufficient funds for fee")),
+            None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
         };
         if output_amount < Amount::from_sat(546) {
-            return Err(eyre::eyre!("Output amount below dust threshold"));
+            return Err(eyre::eyre!("Output amount below dust threshold").into());
         }
         recovery_tx.output[0].value = output_amount;
     }
@@ -252,33 +255,27 @@ pub fn verify_recovery_tx(
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
     config: CliConfig,
-) -> eyre::Result<(Txid, BitcoinAddress, Amount)> {
+) -> Result<(Txid, BitcoinAddress, Amount), ClementineCliError> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
-        return Err(eyre::eyre!(
-            "Recovery transaction must have exactly one input"
-        ));
+        return Err(eyre::eyre!("Recovery transaction must have exactly one input").into());
     }
 
     // sanity check output count
     if recovery_tx.output.len() != 1 {
-        return Err(eyre::eyre!(
-            "Recovery transaction must have exactly one output"
-        ));
+        return Err(eyre::eyre!("Recovery transaction must have exactly one output").into());
     }
 
     // sanity check that the input has a witness
     if recovery_tx.input[0].witness.is_empty() {
-        return Err(eyre::eyre!(
-            "Recovery transaction input must have a witness"
-        ));
+        return Err(eyre::eyre!("Recovery transaction input must have a witness").into());
     }
 
     // sanity check that the witness has 3 items
     if recovery_tx.input[0].witness.len() != 3 {
-        return Err(eyre::eyre!(
-            "Recovery transaction input witness must have exactly 3 items"
-        ));
+        return Err(
+            eyre::eyre!("Recovery transaction input witness must have exactly 3 items").into(),
+        );
     }
 
     let (deposit_address, taproot_spend_info) =
@@ -293,7 +290,7 @@ pub fn verify_recovery_tx(
     if recovery_tx.input[0].witness[1] != recovery_script.as_script().to_bytes() {
         return Err(eyre::eyre!(
             "Recovery transaction input witness second element is not the correct recovery script, may be a different recovery script"
-        ));
+        ).into());
     }
 
     // 2. check that the third element of the witness is the spend control block
@@ -305,7 +302,7 @@ pub fn verify_recovery_tx(
     {
         return Err(eyre::eyre!(
             "Recovery transaction input witness third element is not the correct spend control block, may be a different spend control block"
-        ));
+        ).into());
     }
 
     let taproot_signature =
@@ -321,7 +318,7 @@ pub fn verify_recovery_tx(
         {
             bitcoin::TapSighashType::Default
         } else {
-            return Err(eyre::eyre!("Signature type not supported"));
+            return Err(eyre::eyre!("Signature type not supported").into());
         };
 
     let input_amount = input_amount.unwrap_or(config.bridge_amount);
@@ -389,7 +386,7 @@ pub fn sign_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> eyre::Result<bitcoin::taproot::Signature> {
+) -> Result<bitcoin::taproot::Signature, ClementineCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -440,7 +437,7 @@ pub fn verify_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> eyre::Result<()> {
+) -> Result<(), ClementineCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -501,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet).unwrap();
+        let (keypair, address) = generate_keypair_and_taproot_address(Network::Testnet);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
         // Verify that the address matches the keypair
         assert_eq!(

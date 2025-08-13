@@ -2,7 +2,7 @@
 
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{
-    calculate_deposit_address, confirm_private_key_storage, generate_key_and_taproot_address,
+    calculate_deposit_address, confirm_private_key_storage, generate_keypair_and_taproot_address,
 };
 use crate::bitcoin_utils::{
     generate_keypair_and_taproot_address_from_private_key,
@@ -57,7 +57,7 @@ pub fn generate_recovery_key(
     let (keypair, address) = if let Some(private_key) = private_key {
         generate_keypair_and_taproot_address_from_private_key(&private_key, network)
     } else {
-        generate_key_and_taproot_address(network)
+        Ok(generate_keypair_and_taproot_address(network))
     }?;
 
     // Store the key securely

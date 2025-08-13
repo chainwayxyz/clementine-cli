@@ -1,7 +1,7 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
 use crate::bitcoin_utils::{
-    confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
+    confirm_private_key_storage, generate_keypair_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
 use crate::config::CliConfig;
@@ -31,7 +31,7 @@ pub fn generate_signer_address(auto_yes: bool, network: Network) -> eyre::Result
     }
 
     // Generate the key and address
-    let (keypair, address) = generate_key_and_taproot_address(network)?;
+    let (keypair, address) = generate_keypair_and_taproot_address(network);
 
     // Store the key securely
     let stored_address = store_key(&keypair, network, None)?;

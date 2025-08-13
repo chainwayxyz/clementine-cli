@@ -61,6 +61,8 @@ pub enum ClementineCliError {
     ReqwestError(#[from] reqwest::Error),
     #[error("Can't serialize/deserialize data: {0}")]
     SerializationError(#[from] serde_json::Error),
+    #[error("{0}")]
+    SecpError(#[from] bitcoin::secp256k1::Error),
 
     // Base wrapper for eyre
     #[error(transparent)]
