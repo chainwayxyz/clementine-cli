@@ -8,7 +8,7 @@ use crate::bitcoin_utils::{
     generate_keypair_and_taproot_address_from_private_key,
     sign_recovery_tx as utils_sign_recovery_tx,
 };
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
@@ -82,7 +82,7 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
@@ -114,7 +114,7 @@ pub fn get_deposit_address(
 
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
@@ -150,7 +150,7 @@ pub fn sign_recovery_tx(
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
@@ -192,7 +192,7 @@ pub fn verify_recovery_tx(
     citrea_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 

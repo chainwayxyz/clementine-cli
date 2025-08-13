@@ -1,6 +1,6 @@
 // Backend communication logic for Clementine CLI
 
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
 use crate::deposit::parse_taproot_address;
 use crate::errors::BridgeCliError;
 use crate::{BitcoinAddress, CitreaAddress};
@@ -11,7 +11,7 @@ use serde_json::json;
 pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: &CliConfig,
+    config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
 
