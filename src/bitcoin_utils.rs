@@ -11,7 +11,7 @@ use std::io::{self, Write};
 use std::str::FromStr;
 use std::sync::LazyLock;
 
-use crate::config::{BRIDGE_AMOUNT, UNSPENDABLE_XONLY_PUBKEY, USER_TAKES_AFTER, get_verifier_pks};
+use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
 use crate::{BitcoinAddress, CitreaAddress};
@@ -70,16 +70,15 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::
 pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), Box<dyn std::error::Error>> {
-    let verifiers_public_keys = get_verifier_pks(network);
-    let agg_pk = XOnlyPublicKey::from_musig2_pks(&verifiers_public_keys)?;
+    let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
+    debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
     debug!("agg_pk: {:?}", agg_pk.to_string());
-    debug!("verifiers_public_keys: {:?}", verifiers_public_keys);
     let deposit_script = deposit_script(*citrea_address, agg_pk);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
-    let recover_script = recover_script(recovery_key, USER_TAKES_AFTER);
+    let recover_script = recover_script(recovery_key, config.user_takes_after);
 
     let taproot_spend_info = TaprootBuilder::new()
         .add_leaf(1, deposit_script)
@@ -93,7 +92,7 @@ pub fn calculate_deposit_address(
         &SECP,
         *UNSPENDABLE_XONLY_PUBKEY,
         taproot_spend_info.merkle_root(),
-        network,
+        config.network,
     );
     Ok((deposit_address, taproot_spend_info))
 }
@@ -135,22 +134,22 @@ pub fn sign_recovery_tx(
     deposit_amount: Option<Amount>,
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<Transaction, Box<dyn std::error::Error>> {
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(citrea_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
 
     let recovery_script = recover_script(
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
-        USER_TAKES_AFTER,
+        config.user_takes_after,
     );
 
-    let input_amount = deposit_amount.unwrap_or(BRIDGE_AMOUNT);
+    let input_amount = deposit_amount.unwrap_or(config.bridge_amount);
 
     let txin = TxIn {
         previous_output: *deposit_outpoint,
         script_sig: ScriptBuf::default(),
-        sequence: Sequence::from_height(USER_TAKES_AFTER as u16),
+        sequence: Sequence::from_height(config.user_takes_after as u16),
         witness: Witness::default(),
     };
 
@@ -252,7 +251,7 @@ pub fn verify_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
-    network: Network,
+    config: CliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
@@ -275,12 +274,12 @@ pub fn verify_recovery_tx(
     }
 
     let (deposit_address, taproot_spend_info) =
-        calculate_deposit_address(citrea_address, recovery_taproot_address, network)?;
+        calculate_deposit_address(citrea_address, recovery_taproot_address, config.clone())?;
 
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
 
-    let recovery_script = recover_script(recovery_key, USER_TAKES_AFTER);
+    let recovery_script = recover_script(recovery_key, config.user_takes_after);
 
     // 1. check that the second element of the witness is the recovery script
     if recovery_tx.input[0].witness[1] != recovery_script.as_script().to_bytes() {
@@ -315,7 +314,7 @@ pub fn verify_recovery_tx(
             return Err("Signature type not supported".into());
         };
 
-    let input_amount = input_amount.unwrap_or(BRIDGE_AMOUNT);
+    let input_amount = input_amount.unwrap_or(config.bridge_amount);
 
     let prevout = TxOut {
         value: input_amount,
@@ -361,7 +360,7 @@ pub fn verify_recovery_tx(
 
     let output_address = BitcoinAddress::from_script(
         &recovery_tx.output[0].script_pubkey,
-        network,
+        config.network,
     )
     .map_err(|_| -> Box<dyn std::error::Error> {
         "Recovery transaction output script pubkey is not a valid address, may be a different address".into()
