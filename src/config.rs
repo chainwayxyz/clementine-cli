@@ -210,7 +210,12 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        CliConfig::try_parse_file(file_name.into()).unwrap();
+        let read_config = CliConfig::try_parse_file(file_name.into()).unwrap();
+
+        // Check some of the fields.
+        assert_eq!(read_config.user_takes_after, 200);
+        assert_eq!(read_config.network, Network::Regtest);
+        assert_eq!(read_config.bitcoin_config.unwrap().url, "http://127.0.0.1");
 
         fs::remove_file(file_name).unwrap();
     }
