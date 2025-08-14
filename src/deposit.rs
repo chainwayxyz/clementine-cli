@@ -316,10 +316,8 @@ mod tests {
     // Integration tests for passphrase workflows
     #[test]
     fn test_sign_recovery_tx_with_encrypted_key() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("clementine_test_recovery_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         // Create and store an encrypted key
         let secp = Secp256k1::new();
@@ -372,18 +370,13 @@ mod tests {
                 .contains("encrypted and requires a passphrase")
         );
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_recovery_key_generation_and_storage_integration() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "clementine_test_integration_{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         // Create a keypair manually (simulating what generate_recovery_key would do)
         let secp = Secp256k1::new();
@@ -415,18 +408,13 @@ mod tests {
             Some(AddressType::P2tr)
         );
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_key_storage_with_different_passphrases() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "clementine_test_passphrases_{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         let secp = Secp256k1::new();
         let network = Network::Testnet4;
@@ -470,16 +458,13 @@ mod tests {
             assert!(wrong_result.is_err());
         }
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_key_encryption_security_properties() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("clementine_test_security_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[6u8; 32]).unwrap();
@@ -525,8 +510,7 @@ mod tests {
         .unwrap();
         assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
@@ -534,10 +518,8 @@ mod tests {
         // This test verifies that wrong passphrases still go through the full
         // key derivation process (not just failing fast), which helps prevent
         // timing attacks
-        let temp_dir =
-            std::env::temp_dir().join(format!("clementine_test_timing_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         let secp = Secp256k1::new();
         let secret_key = SecretKey::from_slice(&[7u8; 32]).unwrap();
@@ -577,7 +559,6 @@ mod tests {
         // passphrases should take similar time for key derivation
         assert!(duration.as_millis() > 10); // Very conservative threshold
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 }

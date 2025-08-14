@@ -750,9 +750,9 @@ mod tests {
     // Integration tests for store_key and load_key
     #[test]
     fn test_store_and_load_key_integration() {
-        let temp_dir = std::env::temp_dir().join(format!("clementine_test_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        println!("Base directory for key storage: {}", temp_dir.display());
+        let temp_dir = tempfile::tempdir().unwrap();
+        let temp_path = temp_dir.path();
+        println!("Base directory for key storage: {}", temp_path.display());
 
         // Create a test keypair
         let secp = Secp256k1::new();
@@ -765,7 +765,7 @@ mod tests {
 
         // Store the key using helper function
         let stored_address =
-            store_key_with_base_dir(&keypair, network, passphrase, &temp_dir).unwrap();
+            store_key_with_base_dir(&keypair, network, passphrase, temp_path).unwrap();
 
         println!("Stored key address: {}", stored_address);
 
@@ -774,7 +774,7 @@ mod tests {
             &stored_address.to_string(),
             network,
             Some(passphrase),
-            &temp_dir,
+            temp_path,
         )
         .unwrap();
 
@@ -790,7 +790,7 @@ mod tests {
         );
 
         // Verify file exists and has correct permissions
-        let storage_dir = temp_dir.join(".clementine").join("keys");
+        let storage_dir = temp_path.join(".clementine").join("keys");
         let key_file = storage_dir.join(format!("key_{}.json", stored_address));
         assert!(key_file.exists());
 
@@ -807,15 +807,13 @@ mod tests {
 
         println!("Key file permissions are correct: 600 (rw-------)");
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_load_key_wrong_passphrase() {
-        let temp_dir = std::env::temp_dir().join(format!("clementine_test_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         // Create and store a key
         let secp = Secp256k1::new();
@@ -843,18 +841,13 @@ mod tests {
                 .contains("Decryption failed")
         );
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_load_nonexistent_key() {
-        let temp_dir = std::env::temp_dir().join(format!(
-            "clementine_test_nonexistent_{}",
-            std::process::id()
-        ));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         let network = Network::Testnet4;
         let fake_address = "tb1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdysn6k0k7";
@@ -869,16 +862,13 @@ mod tests {
                 .contains("Key file not found for address")
         );
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
     fn test_multiple_keys_storage() {
-        let temp_dir =
-            std::env::temp_dir().join(format!("clementine_test_multiple_{}", std::process::id()));
-        std::fs::create_dir_all(&temp_dir).unwrap();
-        let base_dir = &temp_dir;
+        let temp_dir = tempfile::tempdir().unwrap();
+        let base_dir = temp_dir.path();
 
         let secp = Secp256k1::new();
         let network = Network::Testnet4;
@@ -903,8 +893,7 @@ mod tests {
             assert_eq!(original_keypair.secret_key(), loaded_keypair.secret_key());
         }
 
-        // Clean up temp directory
-        std::fs::remove_dir_all(&temp_dir).ok();
+        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 
     #[test]
