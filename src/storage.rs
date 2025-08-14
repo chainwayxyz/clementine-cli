@@ -630,7 +630,7 @@ mod tests {
         let crypto = CryptoParams {
             kdf: "pbkdf2".to_string(), // Unsupported KDF
             salt: hex::encode([1u8; 32]),
-            iterations: 1000,
+            iterations: 3,
             memory: 1024,
             parallelism: 1,
             cipher: "aes-256-gcm".to_string(),
@@ -649,7 +649,7 @@ mod tests {
         let crypto = CryptoParams {
             kdf: "argon2id".to_string(),
             salt: hex::encode([1u8; 32]),
-            iterations: 1000,
+            iterations: 3,
             memory: 1024,
             parallelism: 1,
             cipher: "aes-128-cbc".to_string(), // Unsupported cipher
@@ -673,7 +673,7 @@ mod tests {
         let crypto = CryptoParams {
             kdf: "argon2id".to_string(),
             salt: "invalid_hex_xyz".to_string(), // Invalid hex
-            iterations: 1000,
+            iterations: 3,
             memory: 1024,
             parallelism: 1,
             cipher: "aes-256-gcm".to_string(),
@@ -715,7 +715,7 @@ mod tests {
         let crypto = CryptoParams {
             kdf: "argon2id".to_string(),
             salt: hex::encode([1u8; 32]),
-            iterations: 100_000,
+            iterations: 3,
             memory: 65_536,
             parallelism: 4,
             cipher: "aes-256-gcm".to_string(),
@@ -744,14 +744,15 @@ mod tests {
         assert_eq!(deserialized.version, 2);
         assert!(deserialized.encrypted);
         assert_eq!(deserialized.crypto.kdf, "argon2id");
-        assert_eq!(deserialized.crypto.iterations, 100_000);
+        assert_eq!(deserialized.crypto.iterations, 3);
     }
 
     // Integration tests for store_key and load_key
     #[test]
     fn test_store_and_load_key_integration() {
-        let base_dir = std::path::Path::new(".");
-        println!("Base directory for key storage: {}", base_dir.display());
+        let temp_dir = std::env::temp_dir().join(format!("clementine_test_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        println!("Base directory for key storage: {}", temp_dir.display());
 
         // Create a test keypair
         let secp = Secp256k1::new();
@@ -764,7 +765,7 @@ mod tests {
 
         // Store the key using helper function
         let stored_address =
-            store_key_with_base_dir(&keypair, network, passphrase, base_dir).unwrap();
+            store_key_with_base_dir(&keypair, network, passphrase, &temp_dir).unwrap();
 
         println!("Stored key address: {}", stored_address);
 
@@ -773,7 +774,7 @@ mod tests {
             &stored_address.to_string(),
             network,
             Some(passphrase),
-            base_dir,
+            &temp_dir,
         )
         .unwrap();
 
@@ -789,7 +790,7 @@ mod tests {
         );
 
         // Verify file exists and has correct permissions
-        let storage_dir = base_dir.join(".clementine").join("keys");
+        let storage_dir = temp_dir.join(".clementine").join("keys");
         let key_file = storage_dir.join(format!("key_{}.json", stored_address));
         assert!(key_file.exists());
 
@@ -805,11 +806,16 @@ mod tests {
         }
 
         println!("Key file permissions are correct: 600 (rw-------)");
+
+        // Clean up temp directory
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[test]
     fn test_load_key_wrong_passphrase() {
-        let base_dir = std::path::Path::new(".");
+        let temp_dir = std::env::temp_dir().join(format!("clementine_test_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let base_dir = &temp_dir;
 
         // Create and store a key
         let secp = Secp256k1::new();
@@ -836,11 +842,19 @@ mod tests {
                 .to_string()
                 .contains("Decryption failed")
         );
+
+        // Clean up temp directory
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[test]
     fn test_load_nonexistent_key() {
-        let base_dir = std::path::Path::new(".");
+        let temp_dir = std::env::temp_dir().join(format!(
+            "clementine_test_nonexistent_{}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let base_dir = &temp_dir;
 
         let network = Network::Testnet4;
         let fake_address = "tb1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdysn6k0k7";
@@ -854,11 +868,17 @@ mod tests {
                 .to_string()
                 .contains("Key file not found for address")
         );
+
+        // Clean up temp directory
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[test]
     fn test_multiple_keys_storage() {
-        let base_dir = std::path::Path::new(".");
+        let temp_dir =
+            std::env::temp_dir().join(format!("clementine_test_multiple_{}", std::process::id()));
+        std::fs::create_dir_all(&temp_dir).unwrap();
+        let base_dir = &temp_dir;
 
         let secp = Secp256k1::new();
         let network = Network::Testnet4;
@@ -882,6 +902,9 @@ mod tests {
                     .unwrap();
             assert_eq!(original_keypair.secret_key(), loaded_keypair.secret_key());
         }
+
+        // Clean up temp directory
+        std::fs::remove_dir_all(&temp_dir).ok();
     }
 
     #[test]
