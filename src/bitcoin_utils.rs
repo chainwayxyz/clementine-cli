@@ -508,7 +508,7 @@ mod tests {
 
     #[test]
     fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet, 0, None).unwrap();
+        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet4, 0, None).unwrap();
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
         assert_eq!(
             calculate_taproot_address(&keypair, Network::Testnet4),
