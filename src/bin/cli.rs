@@ -138,14 +138,14 @@ async fn main() {
     match cli.command {
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey { y, word_count, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, network, word_count) {
+                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network, word_count) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }
             }
             DepositCommands::ExportPrivateKey { taproot_address } => {
-                println!("Network: {}", network);
-                if let Err(e) = deposit::export_private_key(&taproot_address, network) {
+                println!("Network: {}", config.network);
+                if let Err(e) = deposit::export_private_key(&taproot_address, config.network) {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

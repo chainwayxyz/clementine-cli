@@ -33,14 +33,14 @@ impl SecureString {
 pub type SecurePassphrase = SecretString;
 
 pub trait SecurePassphraseExt {
-    fn from_str(s: &str) -> Self;
+    fn from_str(s: String) -> Self;
     fn is_empty(&self) -> bool;
     fn as_bytes(&self) -> &[u8];
 }
 
 impl SecurePassphraseExt for SecretString {
-    fn from_str(s: &str) -> Self {
-        SecretString::new(s.to_string())
+    fn from_str(s: String) -> Self {
+        SecretString::new(s.into_boxed_str())
     }
 
     fn is_empty(&self) -> bool {
@@ -113,10 +113,8 @@ pub fn create_encrypted_wallet(
 
     print!("Enter passphrase to encrypt the mnemonic: ");
     io::stdout().flush()?;
-    let mut passphrase_input = rpassword::read_password()?;
-    let passphrase = SecurePassphrase::from_str(&passphrase_input);
-
-    passphrase_input.zeroize();
+    let passphrase_input = rpassword::read_password()?;
+    let passphrase = SecurePassphrase::from_str(passphrase_input);
 
     if passphrase.is_empty() {
         return Err(anyhow!("Passphrase cannot be empty for security reasons"));
@@ -150,7 +148,7 @@ pub fn prompt_secure_passphrase(prompt: &str) -> Result<SecurePassphrase, anyhow
         return Err(anyhow!("Passphrase must be at least 8 characters long"));
     }
 
-    let secure_passphrase = SecurePassphrase::new(passphrase.clone());
+    let secure_passphrase = SecurePassphrase::new(passphrase.clone().into_boxed_str());
     passphrase.zeroize();
 
     Ok(secure_passphrase)
@@ -291,9 +289,10 @@ pub fn load_mnemonic_secure(
     passphrase: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     // Wrap passphrase in secure wrapper and immediately clear the input
-    let mut passphrase_copy = passphrase.to_string();
-    let secure_passphrase = SecurePassphrase::from_str(&passphrase_copy);
-    passphrase_copy.zeroize(); // Immediately clear the copy from memory
+    
+    // TODO: Read the passphrase from the user in that method remove param 
+    let passphrase_copy = passphrase.to_string();
+    let secure_passphrase = SecurePassphrase::from_str(passphrase_copy);
 
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
