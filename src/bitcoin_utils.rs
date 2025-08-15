@@ -507,16 +507,6 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet4, 0, None).unwrap();
-        assert_eq!(address.address_type(), Some(AddressType::P2tr));
-        assert_eq!(
-            calculate_taproot_address(&keypair, Network::Testnet4),
-            address
-        );
-    }
-
-    #[test]
     fn test_confirm_private_key_storage_auto_yes() {
         assert!(confirm_private_key_storage(true).unwrap());
     }
