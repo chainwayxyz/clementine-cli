@@ -9,6 +9,7 @@ use crate::bitcoin_utils::{
     sign_recovery_tx as utils_sign_recovery_tx,
 };
 use crate::config::CliConfig;
+use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::{load_key, prompt_new_passphrase, prompt_unlock_passphrase, store_key};
 use crate::withdrawal::{get_tx_details, get_txout_details};
