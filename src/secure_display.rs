@@ -1,4 +1,4 @@
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use colored::*;
 use crossterm::{
     cursor,
@@ -7,8 +7,8 @@ use crossterm::{
     style::{Color, Print, SetForegroundColor},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
-use std::io::{self, Write, IsTerminal};
 
 use crate::mnemonic::SecureString;
 
@@ -34,7 +34,7 @@ impl SecureMnemonicDisplay {
     pub fn display_securely(&mut self) -> Result<()> {
         // Show pre-display warning
         self.show_timeout_warning()?;
-        
+
         // Try to enter alternate screen, fallback to normal display if it fails
         match self.enter_alternate_screen() {
             Ok(()) => {
@@ -45,16 +45,13 @@ impl SecureMnemonicDisplay {
             Err(e) => {
                 // Ensure we're in a clean state before showing fallback
                 self.cleanup_alternate_screen();
-                
+
                 eprintln!(
                     "{} Could not enter secure display mode: {}",
                     "WARNING".yellow().bold(),
                     e
                 );
-                eprintln!(
-                    "{} Falling back to standard display",
-                    "INFO".blue().bold()
-                );
+                eprintln!("{} Falling back to standard display", "INFO".blue().bold());
                 self.display_fallback()
             }
         }
@@ -65,10 +62,17 @@ impl SecureMnemonicDisplay {
         println!();
         println!("{}", "⚠️  IMPORTANT SECURITY NOTICE ⚠️".red().bold());
         println!();
-        println!("{}", "🕐 TIMED DISPLAY WARNING:".yellow().bold());
-        println!("   • The mnemonic will be displayed for {} ONLY", "60 seconds".red().bold());
-        println!("   • After the timeout, the display will automatically close");
-        println!("   • You must write down ALL words before the timer expires");
+        println!("{}", "🕐 STEP-BY-STEP DISPLAY MODE:".yellow().bold());
+        println!(
+            "   • The mnemonic will be displayed {} at a time",
+            "ONE WORD".red().bold()
+        );
+        println!(
+            "   • Each word has a {} timeout before auto-advancing",
+            "30-second".red().bold()
+        );
+        println!("   • Press Enter to advance immediately to the next word");
+        println!("   • Write down each word as it appears");
         println!("   • This is a security feature to prevent prolonged exposure");
         println!();
         println!("{}", "📝 PREPARATION CHECKLIST:".cyan().bold());
@@ -76,13 +80,20 @@ impl SecureMnemonicDisplay {
         println!("   ✓ Ensure you have good lighting");
         println!("   ✓ Find a private, secure location");
         println!("   ✓ Remove any recording devices or cameras");
+        println!("   ✓ Be ready to write quickly and legibly");
         println!();
-        println!("{}", "Press Enter when you are ready to view the mnemonic...".green().bold());
-        
+        println!(
+            "{}",
+            "Press Enter when you are ready to view the mnemonic step-by-step..."
+                .green()
+                .bold()
+        );
+
         let mut input = String::new();
-        io::stdin().read_line(&mut input)
+        io::stdin()
+            .read_line(&mut input)
             .map_err(|e| anyhow!("Failed to read user input: {}", e))?;
-            
+
         Ok(())
     }
 
@@ -90,13 +101,14 @@ impl SecureMnemonicDisplay {
     fn enter_alternate_screen(&mut self) -> Result<()> {
         // Check if we're in a real terminal first
         if !self.is_terminal_compatible() {
-            return Err(anyhow!("Terminal does not support alternate screen features"));
+            return Err(anyhow!(
+                "Terminal does not support alternate screen features"
+            ));
         }
-        
+
         // Try to enable raw mode first (safer to fail here than after screen change)
-        terminal::enable_raw_mode()
-            .map_err(|e| anyhow!("Failed to enable raw mode: {}", e))?;
-        
+        terminal::enable_raw_mode().map_err(|e| anyhow!("Failed to enable raw mode: {}", e))?;
+
         // Only enter alternate screen if raw mode worked
         match execute!(io::stdout(), EnterAlternateScreen) {
             Ok(()) => {
@@ -110,20 +122,18 @@ impl SecureMnemonicDisplay {
             }
         }
     }
-    
+
     /// Check if terminal supports the features we need
     fn is_terminal_compatible(&self) -> bool {
         // Must be a real terminal (not redirected)
         if !std::io::stdout().is_terminal() {
             return false;
         }
-        
+
         // Check if we can detect terminal size (good indicator of terminal features)
         if let Ok((_, _)) = terminal::size() {
             // Additional check: see if we're not in a non-interactive environment
-            std::env::var("TERM").map_or(false, |term| {
-                !term.is_empty() && term != "dumb"
-            })
+            std::env::var("TERM").map_or(false, |term| !term.is_empty() && term != "dumb")
         } else {
             false
         }
@@ -133,10 +143,8 @@ impl SecureMnemonicDisplay {
     fn display_in_alternate_screen(&self) -> Result<()> {
         self.clear_screen()?;
         self.display_header()?;
-        self.display_mnemonic_words()?;
-        self.display_security_warnings()?;
-        self.display_instructions()?;
-        self.wait_for_user_confirmation()?;
+        self.display_mnemonic_step_by_step()?;
+        self.display_completion_message()?;
         Ok(())
     }
 
@@ -156,129 +164,92 @@ impl SecureMnemonicDisplay {
         execute!(
             io::stdout(),
             SetForegroundColor(Color::Red),
-            Print("╔══════════════════════════════════════════════════════════════════════════════╗\n"),
-            Print("║                          🔐 SECURE MNEMONIC DISPLAY 🔐                       ║\n"),
-            Print("║                                                                              ║\n"),
-            Print("║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️           ║\n"),
-            Print("╚══════════════════════════════════════════════════════════════════════════════╝\n\n"),
+            Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
+            Print("║                          🔐 SECURE MNEMONIC DISPLAY 🔐                       ║\r\n"),
+            Print("║                                                                              ║\r\n"),
+            Print("║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"),
+            Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
             SetForegroundColor(Color::Reset)
         )
         .map_err(|e| anyhow!("Failed to display header: {}", e))?;
         Ok(())
     }
 
-    /// Display the mnemonic words in a formatted grid
-    fn display_mnemonic_words(&self) -> Result<()> {
-        execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Yellow),
-            Print("Your Recovery Phrase (write down in order):\n\n")
-        )
-        .map_err(|e| anyhow!("Failed to display mnemonic header: {}", e))?;
-
+    /// Display the mnemonic words step by step, one word at a time
+    fn display_mnemonic_step_by_step(&self) -> Result<()> {
         let words: Vec<&str> = self.mnemonic.as_str().split_whitespace().collect();
-        
-        // Display words in a 3-column format for better readability
-        for (chunk_idx, chunk) in words.chunks(3).enumerate() {
-            let mut line = String::new();
-            for (word_idx, word) in chunk.iter().enumerate() {
-                let word_num = chunk_idx * 3 + word_idx + 1;
-                line.push_str(&format!("{:2}. {:12} ", word_num, word));
-            }
+
+        for (index, word) in words.iter().enumerate() {
+            let word_num = index + 1;
+            let total_words = words.len();
+
+            // Clear screen and show header for each word
+            self.clear_screen()?;
+            self.display_header()?;
+
+            // Display progress and current word
             execute!(
                 io::stdout(),
+                SetForegroundColor(Color::Yellow),
+                Print(format!("Word {} of {}:\r\n\r\n", word_num, total_words)),
                 SetForegroundColor(Color::Cyan),
-                Print(format!("   {}\n", line))
+                Print(format!("   {:2}. {}\r\n\r\n", word_num, word)),
+                SetForegroundColor(Color::Green),
+                Print("📝 Write down this word and press Enter to continue\r\n"),
+                Print("   (or wait 30 seconds for automatic progression)\r\n\r\n"),
+                SetForegroundColor(Color::Red),
+                Print(
+                    "⚠️  Remember: Anyone with your complete mnemonic can access your funds!\r\n"
+                ),
+                SetForegroundColor(Color::Reset)
             )
-            .map_err(|e| anyhow!("Failed to display mnemonic words: {}", e))?;
+            .map_err(|e| anyhow!("Failed to display word {}: {}", word_num, e))?;
+
+            // Wait for user input or timeout (30 seconds per word)
+            if let Err(e) = self.wait_for_word_confirmation() {
+                return Err(anyhow!("Error during word display: {}", e));
+            }
         }
 
-        execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Reset),
-            Print("\n")
-        )
-        .map_err(|e| anyhow!("Failed to reset color: {}", e))?;
         Ok(())
     }
 
-    /// Display security warnings and best practices
-    fn display_security_warnings(&self) -> Result<()> {
-        execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Red),
-            Print("🚨 SECURITY WARNINGS:\n"),
-            SetForegroundColor(Color::Yellow),
-            Print("   • Write down these words on PAPER - never store digitally\n"),
-            Print("   • Store in a SECURE LOCATION (fireproof safe, safety deposit box)\n"),
-            Print("   • NEVER share this phrase with anyone\n"),
-            Print("   • This is the ONLY way to recover your wallet\n"),
-            Print("   • Anyone with this phrase can access your funds\n\n"),
-            SetForegroundColor(Color::Green),
-            Print("✅ BEST PRACTICES:\n"),
-            Print("   • Double-check each word for spelling\n"),
-            Print("   • Consider making multiple secure copies\n"),
-            Print("   • Verify you can read your handwriting\n"),
-            Print("   • Test recovery with a small amount first\n\n"),
-            SetForegroundColor(Color::Reset)
-        )
-        .map_err(|e| anyhow!("Failed to display security warnings: {}", e))?;
-        Ok(())
-    }
-
-    /// Display user instructions
-    fn display_instructions(&self) -> Result<()> {
-        execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Blue),
-            Print("📝 INSTRUCTIONS:\n"),
-            Print("   1. Write down all words in the exact order shown above\n"),
-            Print("   2. Verify you have written them correctly\n"),
-            Print("   3. Store your written copy in a secure location\n"),
-            Print("   4. Press any key to continue once you have safely stored the phrase\n\n"),
-            SetForegroundColor(Color::Magenta),
-            Print("⚡ This display will be cleared from memory when you continue.\n"),
-            Print("   You will NOT be able to see this phrase again!\n\n"),
-            SetForegroundColor(Color::White),
-            Print("Press any key to continue..."),
-            SetForegroundColor(Color::Reset)
-        )
-        .map_err(|e| anyhow!("Failed to display instructions: {}", e))?;
-        Ok(())
-    }
-
-    /// Wait for user confirmation with timeout
-    fn wait_for_user_confirmation(&self) -> Result<()> {
-        const TIMEOUT_DURATION: Duration = Duration::from_secs(60);
+    /// Wait for user confirmation for each word with 30-second timeout
+    fn wait_for_word_confirmation(&self) -> Result<()> {
+        const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
         let start_time = Instant::now();
-        
+
         loop {
             let elapsed = start_time.elapsed();
-            let remaining = TIMEOUT_DURATION.saturating_sub(elapsed);
-            
+            let remaining = WORD_TIMEOUT_DURATION.saturating_sub(elapsed);
+
             if remaining.is_zero() {
-                self.display_timeout_message()?;
-                return Ok(()); // Timeout reached, exit gracefully
+                // Timeout reached, automatically proceed to next word
+                return Ok(());
             }
-            
-            // Update countdown display
-            self.update_countdown_display(remaining)?;
-            
+
+            // Update countdown display for current word
+            self.update_word_countdown_display(remaining)?;
+
             // Check for user input with a short timeout
             if poll(Duration::from_millis(100))
                 .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
             {
-                if let Event::Key(key_event) = event::read()
-                    .map_err(|e| anyhow!("Failed to read user input: {}", e))?
+                if let Event::Key(key_event) =
+                    event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
                 {
                     if key_event.kind == KeyEventKind::Press {
                         match key_event.code {
+                            KeyCode::Enter => {
+                                // User pressed Enter, proceed to next word
+                                return Ok(());
+                            }
                             KeyCode::Esc => {
                                 return Err(anyhow!("User cancelled mnemonic display"));
                             }
                             _ => {
-                                // Any other key continues (exits the display)
-                                return Ok(());
+                                // Ignore other keys
+                                continue;
                             }
                         }
                     }
@@ -286,49 +257,66 @@ impl SecureMnemonicDisplay {
             }
         }
     }
-    
-    /// Display timeout message
-    fn display_timeout_message(&self) -> Result<()> {
-        self.clear_screen()?;
-        execute!(
-            io::stdout(),
-            SetForegroundColor(Color::Red),
-            Print("╔══════════════════════════════════════════════════════════════════════════════╗\n"),
-            Print("║                               ⏰ TIMEOUT REACHED ⏰                           ║\n"),
-            Print("║                                                                              ║\n"),
-            Print("║  The secure display has automatically closed after 60 seconds.             ║\n"),
-            Print("║  This is a security feature to prevent prolonged exposure.                  ║\n"),
-            Print("║                                                                              ║\n"),
-            Print("║  If you need to view the mnemonic again, please restart the process.        ║\n"),
-            Print("╚══════════════════════════════════════════════════════════════════════════════╝\n"),
-            SetForegroundColor(Color::Reset)
-        )
-        .map_err(|e| anyhow!("Failed to display timeout message: {}", e))?;
-        
-        // Wait a moment for user to read the message
-        std::thread::sleep(Duration::from_secs(3));
-        Ok(())
-    }
-    
-    /// Update countdown display
-    fn update_countdown_display(&self, remaining: Duration) -> Result<()> {
+
+    /// Update countdown display for individual word
+    fn update_word_countdown_display(&self, remaining: Duration) -> Result<()> {
         let seconds_left = remaining.as_secs();
-        let minutes = seconds_left / 60;
-        let seconds = seconds_left % 60;
-        
+
         // Position cursor at bottom of screen for countdown
         execute!(
             io::stdout(),
-            cursor::MoveTo(0, 25), // Move to bottom area
-            SetForegroundColor(Color::Red),
-            Print(format!("⏰ Time remaining: {:02}:{:02} ", minutes, seconds)),
+            cursor::MoveTo(0, 15), // Move to countdown area
             SetForegroundColor(Color::Yellow),
-            Print("Press any key to continue or ESC to cancel"),
+            Print(format!("⏰ Auto-advance in {} seconds ", seconds_left)),
+            SetForegroundColor(Color::Blue),
+            Print("| Press Enter to continue immediately | Press ESC to cancel"),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to update countdown: {}", e))?;
-        
+        .map_err(|e| anyhow!("Failed to update word countdown: {}", e))?;
+
         Ok(())
+    }
+
+    /// Display completion message after all words have been shown
+    fn display_completion_message(&self) -> Result<()> {
+        self.clear_screen()?;
+
+        execute!(
+            io::stdout(),
+            SetForegroundColor(Color::Green),
+            Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
+            Print("║                    ✅ MNEMONIC DISPLAY COMPLETED ✅                          ║\r\n"),
+            Print("║                                                                              ║\r\n"),
+            Print("║  All words have been displayed. Please verify you have written them down.    ║\r\n"),
+            Print("║                                                                              ║\r\n"),
+            Print("║  🔒 IMPORTANT REMINDERS:                                                     ║\r\n"),
+            Print("║  • Store your written mnemonic in a secure location                          ║\r\n"),
+            Print("║  • Never share it with anyone                                                ║\r\n"),
+            Print("║  • This is the only way to recover your wallet                               ║\r\n"),
+            Print("║  • Test recovery with a small amount first                                   ║\r\n"),
+            Print("║                                                                              ║\r\n"),
+            Print("║  The display will now close and clear from memory.                           ║\r\n"),
+            Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
+            SetForegroundColor(Color::Yellow),
+            Print("\r\nPress any key to exit..."),
+            SetForegroundColor(Color::Reset)
+        )
+        .map_err(|e| anyhow!("Failed to display completion message: {}", e))?;
+
+        // Wait for final confirmation
+        loop {
+            if poll(Duration::from_millis(100))
+                .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
+            {
+                if let Event::Key(key_event) =
+                    event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
+                {
+                    if key_event.kind == KeyEventKind::Press {
+                        return Ok(());
+                    }
+                }
+            }
+        }
     }
 
     /// Cleanup alternate screen and return to normal mode
@@ -340,11 +328,11 @@ impl SecureMnemonicDisplay {
             let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
             self.alternate_screen_active = false;
         }
-        
+
         // Only try additional cleanup if we think we might be in raw mode
         // but avoid sending escape sequences that could appear in output
         let _ = terminal::disable_raw_mode();
-        
+
         // Flush stdout to ensure all output is written
         let _ = io::stdout().flush();
     }
@@ -352,46 +340,88 @@ impl SecureMnemonicDisplay {
     /// Fallback display method when alternate screen is not available
     fn display_fallback(&self) -> Result<()> {
         println!();
-        println!("{}", "🔐 MNEMONIC PHRASE (SECURE DISPLAY UNAVAILABLE) 🔐".red().bold());
+        println!(
+            "{}",
+            "🔐 MNEMONIC PHRASE (STEP-BY-STEP DISPLAY) 🔐".red().bold()
+        );
         println!();
-        println!("{}", "⚠️  TIMEOUT WARNING: You have 60 seconds to write this down!".red().bold());
+        println!(
+            "{}",
+            "Each word will be displayed for 30 seconds or until you press Enter".yellow()
+        );
         println!();
-        println!("{}", "Please write down your mnemonic phrase and store it in a safe place:".yellow());
-        println!();
-        
+
         let words: Vec<&str> = self.mnemonic.as_str().split_whitespace().collect();
-        for (i, word) in words.iter().enumerate() {
-            print!("{:2}. {:12} ", i + 1, word);
-            if (i + 1) % 3 == 0 {
-                println!();
+
+        for (index, word) in words.iter().enumerate() {
+            let word_num = index + 1;
+            let total_words = words.len();
+
+            println!();
+            println!(
+                "{}",
+                format!("━━━ Word {} of {} ━━━", word_num, total_words)
+                    .cyan()
+                    .bold()
+            );
+            println!();
+            println!("{}", format!("   {:2}. {}", word_num, word).white().bold());
+            println!();
+            println!(
+                "{}",
+                "📝 Write down this word and press Enter to continue".green()
+            );
+            println!(
+                "{}",
+                "   (or wait 30 seconds for automatic progression)".green()
+            );
+            println!();
+            println!(
+                "{}",
+                "⚠️  Remember: Anyone with your complete mnemonic can access your funds!".red()
+            );
+
+            // Wait for user input or timeout for each word
+            if let Err(e) = self.fallback_word_timeout_wait() {
+                return Err(anyhow!("Error during word display: {}", e));
             }
         }
-        if words.len() % 3 != 0 {
-            println!();
-        }
-        
+
         println!();
-        println!("{}", "This is the ONLY way to recover your wallet if you lose your passphrase!".red().bold());
-        println!("{}", "The mnemonic will be cleared from memory after this display.".yellow());
-        
-        // Timeout for fallback mode as well
-        self.fallback_timeout_wait()?;
-        
+        println!("{}", "✅ All words have been displayed!".green().bold());
+        println!(
+            "{}",
+            "Store your written mnemonic in a secure location.".yellow()
+        );
+        println!(
+            "{}",
+            "The mnemonic will be cleared from memory after this display.".yellow()
+        );
+        println!();
+        println!("{}", "Press Enter to exit...".blue());
+
+        let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| anyhow!("Failed to read user input: {}", e))?;
+
         Ok(())
     }
-    
-    /// Handle timeout in fallback mode
-    fn fallback_timeout_wait(&self) -> Result<()> {
-        const TIMEOUT_DURATION: Duration = Duration::from_secs(60);
+
+    /// Handle timeout for each word in fallback mode
+    fn fallback_word_timeout_wait(&self) -> Result<()> {
+        const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
         let start_time = Instant::now();
-        
+
         println!();
-        print!("Press Enter to continue or wait for automatic timeout... ");
-        io::stdout().flush().map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
-        
+        print!("Press Enter to continue... ");
+        io::stdout()
+            .flush()
+            .map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
+
         // Use a separate thread to handle the timeout
         let (tx, rx) = std::sync::mpsc::channel();
-        
+
         // Spawn thread for user input
         let tx_input = tx.clone();
         std::thread::spawn(move || {
@@ -400,45 +430,48 @@ impl SecureMnemonicDisplay {
                 let _ = tx_input.send(true);
             }
         });
-        
+
         // Spawn thread for timeout
         std::thread::spawn(move || {
-            std::thread::sleep(TIMEOUT_DURATION);
+            std::thread::sleep(WORD_TIMEOUT_DURATION);
             let _ = tx.send(false);
         });
-        
+
         // Update countdown while waiting
         loop {
             let elapsed = start_time.elapsed();
-            let remaining = TIMEOUT_DURATION.saturating_sub(elapsed);
-            
+            let remaining = WORD_TIMEOUT_DURATION.saturating_sub(elapsed);
+
             if remaining.is_zero() {
                 println!();
-                println!("{}", "⏰ Timeout reached - display automatically closed".red().bold());
+                println!("{}", "⏰ Auto-advancing to next word...".yellow());
                 break;
             }
-            
+
             // Check if we received a signal
             if let Ok(user_input) = rx.try_recv() {
                 if user_input {
-                    println!("{}", "User confirmed - continuing...".green());
+                    println!("{}", "Continuing to next word...".green());
                 } else {
                     println!();
-                    println!("{}", "⏰ Timeout reached - display automatically closed".red().bold());
+                    println!("{}", "⏰ Auto-advancing to next word...".yellow());
                 }
                 break;
             }
-            
+
             // Update countdown every second
             let seconds_left = remaining.as_secs();
-            let minutes = seconds_left / 60;
-            let seconds = seconds_left % 60;
-            print!("\r⏰ Time remaining: {:02}:{:02} - Press Enter to continue... ", minutes, seconds);
-            io::stdout().flush().map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
-            
+            print!(
+                "\r⏰ Auto-advance in {} seconds - Press Enter to continue... ",
+                seconds_left
+            );
+            io::stdout()
+                .flush()
+                .map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
+
             std::thread::sleep(Duration::from_millis(1000));
         }
-        
+
         Ok(())
     }
 }
@@ -465,17 +498,15 @@ mod tests {
         let test_mnemonic = SecureString::new(
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
         );
-        
+
         let display = SecureMnemonicDisplay::new(test_mnemonic);
         assert!(!display.alternate_screen_active);
     }
 
     #[test]
     fn test_mnemonic_word_parsing() {
-        let test_mnemonic = SecureString::new(
-            "word1 word2 word3 word4 word5 word6".to_string()
-        );
-        
+        let test_mnemonic = SecureString::new("word1 word2 word3 word4 word5 word6".to_string());
+
         let words: Vec<&str> = test_mnemonic.as_str().split_whitespace().collect();
         assert_eq!(words.len(), 6);
         assert_eq!(words[0], "word1");
@@ -486,7 +517,7 @@ mod tests {
     fn test_word_chunking() {
         let words = vec!["w1", "w2", "w3", "w4", "w5", "w6", "w7"];
         let chunks: Vec<_> = words.chunks(3).collect();
-        
+
         assert_eq!(chunks.len(), 3);
         assert_eq!(chunks[0], &["w1", "w2", "w3"]);
         assert_eq!(chunks[1], &["w4", "w5", "w6"]);

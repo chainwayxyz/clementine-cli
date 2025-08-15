@@ -10,8 +10,8 @@ use std::collections::HashMap;
 use std::fs;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
-use crate::storage::get_storage_dir;
 use crate::secure_display::display_mnemonic_securely;
+use crate::storage::get_storage_dir;
 
 /// Secure wrapper for sensitive strings that auto-zeroizes on drop
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -126,7 +126,7 @@ pub fn create_encrypted_wallet(
 
     println!("✓ Mnemonic encrypted and stored securely");
     println!();
-    
+
     // Use secure display for the mnemonic phrase
     let mnemonic_copy = SecureString::new(mnemonic_phrase.as_str().to_string());
     match display_mnemonic_securely(mnemonic_copy) {
@@ -134,8 +134,15 @@ pub fn create_encrypted_wallet(
             println!("{}", "✓ Mnemonic displayed securely".green());
         }
         Err(e) => {
-            eprintln!("{} Failed to display mnemonic securely: {}", "ERROR".red().bold(), e);
-            eprintln!("{} The mnemonic is still safely stored encrypted.", "INFO".blue().bold());
+            eprintln!(
+                "{} Failed to display mnemonic securely: {}",
+                "ERROR".red().bold(),
+                e
+            );
+            eprintln!(
+                "{} The mnemonic is still safely stored encrypted.",
+                "INFO".blue().bold()
+            );
         }
     }
 
@@ -295,8 +302,8 @@ pub fn load_mnemonic_secure(
     passphrase: &str,
 ) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
     // Wrap passphrase in secure wrapper and immediately clear the input
-    
-    // TODO: Read the passphrase from the user in that method remove param 
+
+    // TODO: Read the passphrase from the user in that method remove param
     let passphrase_copy = passphrase.to_string();
     let secure_passphrase = SecurePassphrase::from_str(passphrase_copy);
 

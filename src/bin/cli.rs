@@ -137,8 +137,14 @@ async fn main() {
 
     match cli.command {
         Commands::Deposit { command } => match command {
-            DepositCommands::GenerateRecoveryKey { y, word_count, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network, word_count) {
+            DepositCommands::GenerateRecoveryKey {
+                y,
+                word_count,
+                private_key,
+            } => {
+                if let Err(e) =
+                    deposit::generate_recovery_key(y, private_key, config.network, word_count)
+                {
                     eprintln!("Error: {}", e);
                     std::process::exit(1);
                 }

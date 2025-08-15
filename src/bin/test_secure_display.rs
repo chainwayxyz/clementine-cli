@@ -9,16 +9,18 @@ fn main() {
     println!("It will show a test mnemonic using AlternateDisplayScreen if available,");
     println!("or fallback to standard display in environments that don't support it.");
     println!();
-    
+
     // Standard BIP39 test mnemonic
     let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    
+
     println!("Press Enter to display the test mnemonic securely...");
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input).expect("Failed to read input");
-    
+    std::io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read input");
+
     let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
-    
+
     match display_mnemonic_securely(secure_mnemonic) {
         Ok(()) => {
             println!();
@@ -39,7 +41,7 @@ fn main() {
             println!("terminals that don't support the required features.");
         }
     }
-    
+
     println!();
     println!("🔒 Security Note:");
     println!("The mnemonic has been cleared from memory and is no longer accessible.");

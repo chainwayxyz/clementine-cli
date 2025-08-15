@@ -1,11 +1,11 @@
 // Key storage functionality for Clementine CLI
 
 use anyhow::Result;
+use bip39::Mnemonic;
 use bitcoin::bip32::{DerivationPath, Xpriv};
 use bitcoin::secp256k1::Keypair;
 use bitcoin::secp256k1::SecretKey;
 use bitcoin::{Address, Network};
-use bip39::Mnemonic;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
@@ -933,13 +933,13 @@ pub fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &str,
 ) -> Result<[u8; 32], Box<dyn std::error::Error>> {
     let mnemonic = Mnemonic::parse(mnemonic_phrase)?;
-    
+
     // Generate seed (64 bytes)
     let seed = mnemonic.to_seed("");
-    
+
     let mut master_seed = [0u8; 32];
     master_seed.copy_from_slice(&seed[0..32]);
-    
+
     Ok(master_seed)
 }
 
