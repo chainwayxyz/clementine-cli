@@ -36,7 +36,7 @@ fn main() {
             println!("  • This is normal in some terminal environments");
         }
         Err(e) => {
-            println!("❌ Secure display failed: {}", e);
+            println!("❌ Secure display failed: {e}");
             println!("This might happen in non-interactive environments or");
             println!("terminals that don't support the required features.");
         }

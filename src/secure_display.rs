@@ -133,7 +133,7 @@ impl SecureMnemonicDisplay {
         // Check if we can detect terminal size (good indicator of terminal features)
         if let Ok((_, _)) = terminal::size() {
             // Additional check: see if we're not in a non-interactive environment
-            std::env::var("TERM").map_or(false, |term| !term.is_empty() && term != "dumb")
+            std::env::var("TERM").is_ok_and(|term| !term.is_empty() && term != "dumb")
         } else {
             false
         }
@@ -191,9 +191,9 @@ impl SecureMnemonicDisplay {
             execute!(
                 io::stdout(),
                 SetForegroundColor(Color::Yellow),
-                Print(format!("Word {} of {}:\r\n\r\n", word_num, total_words)),
+                Print(format!("Word {word_num} of {total_words}:\r\n\r\n")),
                 SetForegroundColor(Color::Cyan),
-                Print(format!("   {:2}. {}\r\n\r\n", word_num, word)),
+                Print(format!("   {word_num:2}. {word}\r\n\r\n")),
                 SetForegroundColor(Color::Green),
                 Print("📝 Write down this word and press Enter to continue\r\n"),
                 Print("   (or wait 30 seconds for automatic progression)\r\n\r\n"),
@@ -267,7 +267,7 @@ impl SecureMnemonicDisplay {
             io::stdout(),
             cursor::MoveTo(0, 15), // Move to countdown area
             SetForegroundColor(Color::Yellow),
-            Print(format!("⏰ Auto-advance in {} seconds ", seconds_left)),
+            Print(format!("⏰ Auto-advance in {seconds_left} seconds ")),
             SetForegroundColor(Color::Blue),
             Print("| Press Enter to continue immediately | Press ESC to cancel"),
             SetForegroundColor(Color::Reset)
@@ -360,12 +360,12 @@ impl SecureMnemonicDisplay {
             println!();
             println!(
                 "{}",
-                format!("━━━ Word {} of {} ━━━", word_num, total_words)
+                format!("━━━ Word {word_num} of {total_words} ━━━")
                     .cyan()
                     .bold()
             );
             println!();
-            println!("{}", format!("   {:2}. {}", word_num, word).white().bold());
+            println!("{}", format!("   {word_num:2}. {word}").white().bold());
             println!();
             println!(
                 "{}",
@@ -461,10 +461,7 @@ impl SecureMnemonicDisplay {
 
             // Update countdown every second
             let seconds_left = remaining.as_secs();
-            print!(
-                "\r⏰ Auto-advance in {} seconds - Press Enter to continue... ",
-                seconds_left
-            );
+            print!("\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... ");
             io::stdout()
                 .flush()
                 .map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
@@ -515,7 +512,7 @@ mod tests {
 
     #[test]
     fn test_word_chunking() {
-        let words = vec!["w1", "w2", "w3", "w4", "w5", "w6", "w7"];
+        let words = ["w1", "w2", "w3", "w4", "w5", "w6", "w7"];
         let chunks: Vec<_> = words.chunks(3).collect();
 
         assert_eq!(chunks.len(), 3);

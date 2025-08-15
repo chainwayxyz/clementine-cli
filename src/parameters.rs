@@ -122,7 +122,7 @@ fn get_transaction_details_for_citrea(
             param
                 .witness
                 .consensus_encode(&mut raw)
-                .map_err(|e| format!("Can't encode param: {}", e))?;
+                .map_err(|e| format!("Can't encode param: {e}"))?;
 
             Ok::<Vec<u8>, Box<dyn std::error::Error>>(raw)
         })

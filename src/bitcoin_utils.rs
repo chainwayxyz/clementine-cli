@@ -37,7 +37,7 @@ pub fn generate_key_and_taproot_address(
     let word_count = word_count.unwrap_or(18);
     let mnemonic = create_encrypted_wallet("recovery_wallet", word_count, network)?;
 
-    let master_seed = get_master_seed_from_mnemonic(&mnemonic.as_str())?;
+    let master_seed = get_master_seed_from_mnemonic(mnemonic.as_str())?;
 
     let derivation_path = get_taproot_derivation_path(account_index, 0, 0);
 

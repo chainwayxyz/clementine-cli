@@ -108,22 +108,22 @@ pub async fn get_tx_details_from_mempool(
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
+        .map_err(|e| format!("Failed to fetch transaction hex: {e}"))?;
     let tx_hex = response
         .text()
         .await
-        .map_err(|e| format!("Failed to read transaction hex response: {}", e))?;
+        .map_err(|e| format!("Failed to read transaction hex response: {e}"))?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
     let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
+        .map_err(|e| format!("Failed to fetch transaction data: {e}"))?;
     let tx_data: Value = response
         .json()
         .await
-        .map_err(|e| format!("Failed to parse transaction data: {}", e))?;
+        .map_err(|e| format!("Failed to parse transaction data: {e}"))?;
     debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
@@ -245,10 +245,7 @@ pub async fn safe_withdraw(
             "WARNING".yellow().bold(),
             e
         );
-        println!(
-            "Please visit the following URL manually:\n{}",
-            withdrawal_ui_url
-        );
+        println!("Please visit the following URL manually:\n{withdrawal_ui_url}",);
     }
 
     Ok(())
@@ -339,7 +336,7 @@ pub async fn send_safe_withdrawal(
         .await?;
 
     let receipt = citrea_withdrawal_tx.get_receipt().await?;
-    println!("Citrea withdrawal tx receipt: {:?}", receipt);
+    println!("Citrea withdrawal tx receipt: {receipt:?}");
 
     Ok(())
 }

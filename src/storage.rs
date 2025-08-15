@@ -97,13 +97,13 @@ pub fn derive_key_from_passphrase(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
         argon2::Params::new(memory, iterations, parallelism, Some(32))
-            .map_err(|e| format!("Invalid Argon2 parameters: {}", e))?,
+            .map_err(|e| format!("Invalid Argon2 parameters: {e}"))?,
     );
 
     let mut key = [0u8; 32];
     argon2
         .hash_password_into(passphrase.as_bytes(), salt, &mut key)
-        .map_err(|e| format!("Key derivation failed: {}", e))?;
+        .map_err(|e| format!("Key derivation failed: {e}"))?;
 
     println!("Key derived successfully.");
 
@@ -141,7 +141,7 @@ fn encrypt_private_key(
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, private_key.as_bytes())
-        .map_err(|e| format!("Encryption failed: {}", e))?;
+        .map_err(|e| format!("Encryption failed: {e}"))?;
 
     Ok(CryptoParams {
         kdf: "argon2id".to_string(),
@@ -246,7 +246,7 @@ pub fn store_key(
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    let key_file = storage_dir.join(format!("key_{}.json", address));
+    let key_file = storage_dir.join(format!("key_{address}.json"));
     let private_key_str = keypair.secret_key().display_secret().to_string();
 
     // Always store encrypted key
@@ -317,10 +317,10 @@ pub fn load_key(
 
     // Load the keypair from storage
     let storage_dir = get_storage_dir()?;
-    let key_file = storage_dir.join(format!("key_{}.json", address));
+    let key_file = storage_dir.join(format!("key_{address}.json"));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {}", address).into());
+        return Err(format!("No key found for address: {address}").into());
     }
 
     let file_content = fs::read_to_string(key_file)?;
@@ -377,10 +377,10 @@ pub fn export_private_key(
     let address = unchecked_address.require_network(network)?;
 
     let storage_dir = get_storage_dir()?;
-    let key_file = storage_dir.join(format!("key_{}.json", address));
+    let key_file = storage_dir.join(format!("key_{address}.json"));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {}", address).into());
+        return Err(format!("No key found for address: {address}").into());
     }
 
     let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
@@ -424,12 +424,12 @@ pub fn store_key_with_base_dir(
     let storage_dir = base_dir.join(".clementine").join("keys");
     fs::create_dir_all(&storage_dir)?;
 
-    println!("Storing key for address: {}", address);
+    println!("Storing key for address: {address}");
 
-    let key_file = storage_dir.join(format!("key_{}.json", address));
+    let key_file = storage_dir.join(format!("key_{address}.json"));
     let private_key_str = keypair.secret_key().display_secret().to_string();
 
-    println!("Private key for address {}: {}", address, private_key_str);
+    println!("Private key for address {address}: {private_key_str}");
 
     let secure_passphrase = SecureString::new(passphrase.to_string());
     let crypto = encrypt_private_key(&private_key_str, &secure_passphrase)?;
@@ -471,10 +471,10 @@ pub fn load_key_with_base_dir(
 ) -> Result<Keypair, Box<dyn std::error::Error>> {
     use bitcoin::secp256k1::{Secp256k1, SecretKey};
     let storage_dir = base_dir.join(".clementine").join("keys");
-    let key_file = storage_dir.join(format!("key_{}.json", address));
+    let key_file = storage_dir.join(format!("key_{address}.json"));
 
     if !key_file.exists() {
-        return Err(format!("Key file not found for address: {}", address).into());
+        return Err(format!("Key file not found for address: {address}").into());
     }
 
     let key_data = fs::read_to_string(&key_file)?;
@@ -503,6 +503,59 @@ pub fn load_key_with_base_dir(
     } else {
         Err("Unencrypted keys are not supported in this version".into())
     }
+}
+
+/// Generate master seed from mnemonic phrase
+pub fn get_master_seed_from_mnemonic(
+    mnemonic_phrase: &str,
+) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+    let mnemonic = Mnemonic::parse(mnemonic_phrase)?;
+
+    // Generate seed (64 bytes)
+    let seed = mnemonic.to_seed("");
+
+    let mut master_seed = [0u8; 32];
+    master_seed.copy_from_slice(&seed[0..32]);
+
+    Ok(master_seed)
+}
+
+pub fn derive_private_key(
+    master_seed: &[u8; 32],
+    derivation_path: &str,
+    network: Network,
+) -> Result<SecretKey, Box<dyn std::error::Error>> {
+    let master_xpriv = Xpriv::new_master(network, master_seed)?;
+
+    let path = DerivationPath::from_str(derivation_path)?;
+
+    let child_xpriv = master_xpriv.derive_priv(&crate::bitcoin_utils::SECP, &path)?;
+
+    Ok(child_xpriv.private_key)
+}
+
+pub fn derive_keypair_and_address(
+    master_seed: &[u8; 32],
+    derivation_path: &str,
+    network: Network,
+) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
+    let secret_key = derive_private_key(master_seed, derivation_path, network)?;
+    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
+    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+
+    Ok((keypair, address))
+}
+
+pub fn get_standard_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/44'/0'/{account}'/{change}/{address_index}")
+}
+
+pub fn get_native_segwit_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/84'/0'/{account}'/{change}/{address_index}")
+}
+
+pub fn get_taproot_derivation_path(account: u32, change: u32, address_index: u32) -> String {
+    format!("m/86'/0'/{account}'/{change}/{address_index}")
 }
 
 #[cfg(test)]
@@ -761,13 +814,13 @@ mod tests {
         let network = Network::Testnet4;
         let passphrase = "test_passphrase_123";
 
-        println!("Passphrase for key storage: {}", passphrase);
+        println!("Passphrase for key storage: {passphrase}");
 
         // Store the key using helper function
         let stored_address =
             store_key_with_base_dir(&keypair, network, passphrase, temp_path).unwrap();
 
-        println!("Stored key address: {}", stored_address);
+        println!("Stored key address: {stored_address}");
 
         // Load the key back using helper function
         let loaded_keypair = load_key_with_base_dir(
@@ -778,20 +831,17 @@ mod tests {
         )
         .unwrap();
 
-        println!("Loaded key address: {}", stored_address);
+        println!("Loaded key address: {stored_address}");
 
         // Verify the loaded keypair matches the original
         assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
         assert_eq!(keypair.public_key(), loaded_keypair.public_key());
 
-        println!(
-            "Key successfully stored and loaded for address: {}",
-            stored_address
-        );
+        println!("Key successfully stored and loaded for address: {stored_address}");
 
         // Verify file exists and has correct permissions
         let storage_dir = temp_path.join(".clementine").join("keys");
-        let key_file = storage_dir.join(format!("key_{}.json", stored_address));
+        let key_file = storage_dir.join(format!("key_{stored_address}.json"));
         assert!(key_file.exists());
 
         println!("Key file exists: {}", key_file.display());
@@ -878,7 +928,7 @@ mod tests {
         for i in 1..=3 {
             let secret_key = SecretKey::from_slice(&[i; 32]).unwrap();
             let keypair = Keypair::from_secret_key(&secp, &secret_key);
-            let passphrase = format!("passphrase_{}", i);
+            let passphrase = format!("passphrase_{i}");
 
             let address =
                 store_key_with_base_dir(&keypair, network, &passphrase, base_dir).unwrap();
@@ -926,57 +976,4 @@ mod tests {
                 .contains("Invalid Argon2 parameters")
         );
     }
-}
-
-/// Generate master seed from mnemonic phrase
-pub fn get_master_seed_from_mnemonic(
-    mnemonic_phrase: &str,
-) -> Result<[u8; 32], Box<dyn std::error::Error>> {
-    let mnemonic = Mnemonic::parse(mnemonic_phrase)?;
-
-    // Generate seed (64 bytes)
-    let seed = mnemonic.to_seed("");
-
-    let mut master_seed = [0u8; 32];
-    master_seed.copy_from_slice(&seed[0..32]);
-
-    Ok(master_seed)
-}
-
-pub fn derive_private_key(
-    master_seed: &[u8; 32],
-    derivation_path: &str,
-    network: Network,
-) -> Result<SecretKey, Box<dyn std::error::Error>> {
-    let master_xpriv = Xpriv::new_master(network, master_seed)?;
-
-    let path = DerivationPath::from_str(derivation_path)?;
-
-    let child_xpriv = master_xpriv.derive_priv(&crate::bitcoin_utils::SECP, &path)?;
-
-    Ok(child_xpriv.private_key)
-}
-
-pub fn derive_keypair_and_address(
-    master_seed: &[u8; 32],
-    derivation_path: &str,
-    network: Network,
-) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
-    let secret_key = derive_private_key(master_seed, derivation_path, network)?;
-    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
-
-    Ok((keypair, address))
-}
-
-pub fn get_standard_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/44'/0'/{}'/{}/{}", account, change, address_index)
-}
-
-pub fn get_native_segwit_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/84'/0'/{}'/{}/{}", account, change, address_index)
-}
-
-pub fn get_taproot_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/86'/0'/{}'/{}/{}", account, change, address_index)
 }

@@ -250,9 +250,8 @@ pub fn export_private_key(
     println!("{} {}", "NETWORK".blue().bold(), network);
     println!("{} {}", "PRIVATE_KEY".red().bold(), private_key);
     println!(
-        "{} {}",
+        "{} \"Keep this private key secure and never share it!\"",
         "WARNING".yellow().bold(),
-        "Keep this private key secure and never share it!"
     );
 
     Ok(())
@@ -478,7 +477,7 @@ mod tests {
 
         // Read the stored file and verify it's actually encrypted
         let storage_dir = base_dir.join(".clementine").join("keys");
-        let key_file = storage_dir.join(format!("key_{}.json", address));
+        let key_file = storage_dir.join(format!("key_{address}.json"));
         let file_content = std::fs::read_to_string(key_file).unwrap();
 
         // The file should not contain the raw private key

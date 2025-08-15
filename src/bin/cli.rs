@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
-use clementine_cli::{config::CliConfig, debug, deposit, withdrawal};
+use clementine_cli::{
+    config::CliConfig, debug, deposit, mnemonic::generate_random_mnemonic, withdrawal,
+};
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -17,6 +19,12 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Generate a random mnemonic phrase using secure display.
+    GenerateMnemonic {
+        /// Number of words in the mnemonic (12, 15, 18, 21, or 24)
+        #[arg(long, default_value = "12")]
+        word_count: usize,
+    },
     /// Deposit related operations.
     Deposit {
         #[command(subcommand)]
@@ -136,6 +144,12 @@ async fn main() {
     };
 
     match cli.command {
+        Commands::GenerateMnemonic { word_count } => {
+            if let Err(e) = generate_random_mnemonic(word_count) {
+                eprintln!("Error: {e}");
+                std::process::exit(1);
+            }
+        }
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey {
                 y,
@@ -145,20 +159,20 @@ async fn main() {
                 if let Err(e) =
                     deposit::generate_recovery_key(y, private_key, config.network, word_count)
                 {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
             DepositCommands::ExportPrivateKey { taproot_address } => {
                 println!("Network: {}", config.network);
                 if let Err(e) = deposit::export_private_key(&taproot_address, config.network) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
             DepositCommands::ListKeys => {
                 if let Err(e) = deposit::list_stored_keys() {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -171,7 +185,7 @@ async fn main() {
                     &recovery_taproot_address,
                     &config,
                 ) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -194,7 +208,7 @@ async fn main() {
                     amount,
                     &config,
                 ) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -211,7 +225,7 @@ async fn main() {
                     amount,
                     &config,
                 ) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -220,7 +234,7 @@ async fn main() {
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
                 if let Err(e) = deposit::get_deposit_params(&move_to_vault_txid, &config).await {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -228,7 +242,7 @@ async fn main() {
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateSignerAddress { y } => {
                 if let Err(e) = withdrawal::generate_signer_address(y, config.network) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -245,7 +259,7 @@ async fn main() {
                     amount,
                     config.network,
                 ) {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -266,7 +280,7 @@ async fn main() {
                 )
                 .await
                 {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }
@@ -287,7 +301,7 @@ async fn main() {
                 )
                 .await
                 {
-                    eprintln!("Error: {}", e);
+                    eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
             }

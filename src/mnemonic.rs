@@ -92,6 +92,27 @@ pub fn generate_mnemonic_secure(word_count: usize) -> Result<SecureString, anyho
     Ok(SecureString::new(mnemonic.to_string()))
 }
 
+pub fn generate_random_mnemonic(word_count: usize) -> Result<(), anyhow::Error> {
+    println!("Generating a {word_count}-word mnemonic phrase...");
+    println!();
+
+    let mnemonic = generate_mnemonic_secure(word_count)?;
+
+    match display_mnemonic_securely(mnemonic) {
+        Ok(()) => {
+            println!("✅ Mnemonic generated and displayed securely");
+        }
+        Err(e) => {
+            return Err(anyhow::anyhow!(
+                "Failed to display mnemonic securely: {}",
+                e
+            ));
+        }
+    }
+
+    Ok(())
+}
+
 pub fn create_encrypted_wallet(
     wallet_name: &str,
     word_count: usize,
@@ -252,7 +273,7 @@ pub fn generate_and_store_mnemonic_secure(
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
     fs::create_dir_all(&storage_dir)?;
 
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
+    let wallet_file = storage_dir.join(format!("wallet_{wallet_name}.json"));
     if wallet_file.exists() {
         return Err(anyhow!(
             "Wallet '{}' already exists. Choose a different name or use a different function to overwrite.",
@@ -260,14 +281,14 @@ pub fn generate_and_store_mnemonic_secure(
         ));
     }
 
-    let encrypted_data = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let encrypted_data = aes_encrypt_secure(&secure_mnemonic, passphrase)?;
 
     let wallet_data = serde_json::json!({
         "wallet_name": wallet_name,
         "network": network.to_string(),
-        "encrypted_data": hex::encode(&encrypted_data.ciphertext),
-        "nonce": hex::encode(&encrypted_data.nonce),
-        "salt": hex::encode(&encrypted_data.salt),
+        "encrypted_data": hex::encode(encrypted_data.ciphertext),
+        "nonce": hex::encode(encrypted_data.nonce),
+        "salt": hex::encode(encrypted_data.salt),
         "word_count": word_count,
         "created_at": chrono::Utc::now().to_rfc3339(),
         "encryption_method": "aes256_gcm_pbkdf2_secure"
@@ -308,10 +329,10 @@ pub fn load_mnemonic_secure(
     let secure_passphrase = SecurePassphrase::from_str(passphrase_copy);
 
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
+    let wallet_file = storage_dir.join(format!("wallet_{wallet_name}.json"));
 
     if !wallet_file.exists() {
-        return Err(format!("No wallet found with name: {}", wallet_name).into());
+        return Err(format!("No wallet found with name: {wallet_name}").into());
     }
 
     let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(wallet_file)?)?;

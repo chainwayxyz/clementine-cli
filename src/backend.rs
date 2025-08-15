@@ -56,10 +56,6 @@ pub fn create_deposit_account(
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
-        Err(format!(
-            "Backend request failed with status: {} {}",
-            status, error_text
-        )
-        .into())
+        Err(format!("Backend request failed with status: {status} {error_text}",).into())
     }
 }

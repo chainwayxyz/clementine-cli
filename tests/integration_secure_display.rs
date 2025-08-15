@@ -26,8 +26,7 @@ fn test_secure_mnemonic_display_integration() {
         }
         Err(e) => {
             println!(
-                "⚠️  Secure display failed (this is expected in CI/non-interactive environments): {}",
-                e
+                "⚠️  Secure display failed (this is expected in CI/non-interactive environments): {e}"
             );
         }
     }
@@ -111,7 +110,7 @@ fn test_manual_secure_display() {
             }
         }
         Err(e) => {
-            println!("❌ Manual test failed: {}", e);
+            println!("❌ Manual test failed: {e}");
             panic!("Manual test failed");
         }
     }
