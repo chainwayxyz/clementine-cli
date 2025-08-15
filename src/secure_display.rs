@@ -234,24 +234,21 @@ impl SecureMnemonicDisplay {
             // Check for user input with a short timeout
             if poll(Duration::from_millis(100))
                 .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
-            {
-                if let Event::Key(key_event) =
+                && let Event::Key(key_event) =
                     event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
-                {
-                    if key_event.kind == KeyEventKind::Press {
-                        match key_event.code {
-                            KeyCode::Enter => {
-                                // User pressed Enter, proceed to next word
-                                return Ok(());
-                            }
-                            KeyCode::Esc => {
-                                return Err(anyhow!("User cancelled mnemonic display"));
-                            }
-                            _ => {
-                                // Ignore other keys
-                                continue;
-                            }
-                        }
+                && key_event.kind == KeyEventKind::Press
+            {
+                match key_event.code {
+                    KeyCode::Enter => {
+                        // User pressed Enter, proceed to next word
+                        return Ok(());
+                    }
+                    KeyCode::Esc => {
+                        return Err(anyhow!("User cancelled mnemonic display"));
+                    }
+                    _ => {
+                        // Ignore other keys
+                        continue;
                     }
                 }
             }
@@ -307,14 +304,11 @@ impl SecureMnemonicDisplay {
         loop {
             if poll(Duration::from_millis(100))
                 .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
-            {
-                if let Event::Key(key_event) =
+                && let Event::Key(key_event) =
                     event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
-                {
-                    if key_event.kind == KeyEventKind::Press {
-                        return Ok(());
-                    }
-                }
+                && key_event.kind == KeyEventKind::Press
+            {
+                return Ok(());
             }
         }
     }

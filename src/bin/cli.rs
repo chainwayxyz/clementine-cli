@@ -4,7 +4,7 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::CliConfig, debug, deposit, mnemonic::generate_random_mnemonic, withdrawal,
 };
-w
+
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
