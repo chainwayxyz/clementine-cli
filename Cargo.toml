@@ -11,6 +11,10 @@ path = "src/lib.rs"
 name = "clementine"
 path = "src/bin/cli.rs"
 
+[[bin]]
+name = "test_secure_display"
+path = "src/bin/test_secure_display.rs"
+
 [dependencies]
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
 reqwest = { version = "0.12.22", features = ["blocking", "json"] }
@@ -41,6 +45,7 @@ rpassword = "7.3"
 subtle = "2.6"
 argon2 = "0.5"
 dirs = "5.0"
+crossterm = "0.28"
 
 alloy = { version = "1.0.23", features = ["full"] }
 alloy-sol-types = { version = "1.0.23", default-features = false, features = [

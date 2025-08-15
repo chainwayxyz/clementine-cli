@@ -46,6 +46,7 @@ pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
 pub mod script;
+pub mod secure_display;
 pub mod storage;
 pub mod types;
 pub mod withdrawal;

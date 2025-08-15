@@ -11,6 +11,7 @@ use std::fs;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::storage::get_storage_dir;
+use crate::secure_display::display_mnemonic_securely;
 
 /// Secure wrapper for sensitive strings that auto-zeroizes on drop
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -125,13 +126,18 @@ pub fn create_encrypted_wallet(
 
     println!("✓ Mnemonic encrypted and stored securely");
     println!();
-    println!("{}", "IMPORTANT SECURITY NOTICE:".red());
-    println!("Please write down your mnemonic phrase and store it in a safe place:");
-    println!();
-    println!("{}", mnemonic_phrase.as_str().bright_yellow());
-    println!();
-    println!("This is the ONLY way to recover your wallet if you lose your passphrase!");
-    println!("The mnemonic will be cleared from memory after this display.");
+    
+    // Use secure display for the mnemonic phrase
+    let mnemonic_copy = SecureString::new(mnemonic_phrase.as_str().to_string());
+    match display_mnemonic_securely(mnemonic_copy) {
+        Ok(()) => {
+            println!("{}", "✓ Mnemonic displayed securely".green());
+        }
+        Err(e) => {
+            eprintln!("{} Failed to display mnemonic securely: {}", "ERROR".red().bold(), e);
+            eprintln!("{} The mnemonic is still safely stored encrypted.", "INFO".blue().bold());
+        }
+    }
 
     Ok(mnemonic_phrase)
 }
