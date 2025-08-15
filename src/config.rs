@@ -86,7 +86,7 @@ impl CliConfig {
         match network {
             Network::Regtest => {
                 config.bitcoin_config = Some(BitcoinConfig {
-                    url: Url::parse("http://localhost:18443")?,
+                    url: Url::parse("http://localhost:18443/")?,
                     password: SecretString::from("admin".to_string()),
                     user: SecretString::from("admin".to_string()),
                 });
@@ -165,10 +165,10 @@ impl Default for CliConfig {
                 )
                 .unwrap(),
             ],
-            mempool_api_url: Url::parse("https://127.0.0.1").unwrap(),
+            mempool_api_url: Url::parse("https://127.0.0.1/").unwrap(),
             citrea_chain_id: 5655,
-            citrea_backend_endpoint: Url::parse("https://127.0.0.1").unwrap(),
-            citrea_rpc_url: Url::parse("https://127.0.0.1").unwrap(),
+            citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
+            citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
             bitcoin_config: None,
