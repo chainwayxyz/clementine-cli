@@ -1370,6 +1370,7 @@ dependencies = [
  "sha2",
  "tokio",
  "toml",
+ "url",
 ]
 
 [[package]]
@@ -4406,6 +4407,7 @@ dependencies = [
  "form_urlencoded",
  "idna",
  "percent-encoding",
+ "serde",
 ]
 
 [[package]]

@@ -7,6 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
@@ -20,10 +21,10 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
 pub struct CliConfig {
     pub network: Network,
     pub verifiers_pks: Vec<PublicKey>,
-    pub mempool_api_url: String,
+    pub mempool_api_url: Url,
     pub citrea_chain_id: u64,
-    pub citrea_rpc_url: String,
-    pub citrea_backend_endpoint: String,
+    pub citrea_rpc_url: Url,
+    pub citrea_backend_endpoint: Url,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
     pub bitcoin_config: Option<BitcoinConfig>,
@@ -31,7 +32,7 @@ pub struct CliConfig {
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct BitcoinConfig {
-    pub url: String,
+    pub url: Url,
     pub password: SecretString,
     pub user: SecretString,
 }
@@ -67,7 +68,7 @@ impl CliConfig {
                     config.user.expose_secret().into(),
                     config.password.expose_secret().into(),
                 );
-                let rpc = Client::new(&config.url, auth).await?;
+                let rpc = Client::new(config.url.as_str(), auth).await?;
                 rpc.ping().await?;
                 Ok(rpc)
             }
@@ -76,7 +77,7 @@ impl CliConfig {
     }
 
     /// Creates a default configuration based on the network.
-    pub fn from_network(network: Network) -> Self {
+    pub fn from_network(network: Network) -> Result<Self, Box<dyn std::error::Error>> {
         let mut config = CliConfig {
             network,
             ..CliConfig::default()
@@ -85,23 +86,23 @@ impl CliConfig {
         match network {
             Network::Regtest => {
                 config.bitcoin_config = Some(BitcoinConfig {
-                    url: "http://localhost:18443".to_string(),
+                    url: Url::parse("http://localhost:18443")?,
                     password: SecretString::from("admin".to_string()),
                     user: SecretString::from("admin".to_string()),
                 });
             }
             Network::Bitcoin => {
                 config.citrea_chain_id = 1;
-                config.citrea_backend_endpoint = "https://api.citrea.xyz/".to_string();
-                config.citrea_rpc_url = "https://rpc.citrea.xyz/".to_string();
-                config.mempool_api_url = "https://mempool.space/api/".to_string();
+                config.citrea_backend_endpoint = Url::parse("https://api.citrea.xyz/")?;
+                config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/")?;
+                config.mempool_api_url = Url::parse("https://mempool.space/api/")?;
                 config.verifiers_pks = vec![];
             }
             Network::Testnet4 => {
                 config.citrea_chain_id = 1;
-                config.citrea_backend_endpoint = "https://api.testnet.citrea.xyz/".to_string();
-                config.citrea_rpc_url = "https://rpc.testnet.citrea.xyz/".to_string();
-                config.mempool_api_url = "https://mempool.space/testnet4/api/".to_string();
+                config.citrea_backend_endpoint = Url::parse("https://api.testnet.citrea.xyz/")?;
+                config.citrea_rpc_url = Url::parse("https://rpc.testnet.citrea.xyz/")?;
+                config.mempool_api_url = Url::parse("https://mempool.space/testnet4/api/")?;
                 config.verifiers_pks = vec![
                     XOnlyPublicKey::from_str(
                         "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -112,9 +113,9 @@ impl CliConfig {
             }
             Network::Signet => {
                 config.citrea_chain_id = 62298;
-                config.citrea_backend_endpoint = "https://api.devnet.citrea.xyz/".to_string();
-                config.citrea_rpc_url = "https://rpc.devnet.citrea.xyz/".to_string();
-                config.mempool_api_url = "https://mempool.devnet.citrea.xyz/api/".to_string();
+                config.citrea_backend_endpoint = Url::parse("https://api.devnet.citrea.xyz/")?;
+                config.citrea_rpc_url = Url::parse("https://rpc.devnet.citrea.xyz/")?;
+                config.mempool_api_url = Url::parse("https://mempool.devnet.citrea.xyz/api/")?;
                 config.verifiers_pks = vec![
                     PublicKey::from_str(
                         "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
@@ -137,7 +138,7 @@ impl CliConfig {
             _ => panic!("Network {} is not supported!", network), // This will only happen if [`Network`] has new fields
         };
 
-        config
+        Ok(config)
     }
 }
 
@@ -164,10 +165,10 @@ impl Default for CliConfig {
                 )
                 .unwrap(),
             ],
-            mempool_api_url: "https://127.0.0.1".to_string(),
+            mempool_api_url: Url::parse("https://127.0.0.1").unwrap(),
             citrea_chain_id: 5655,
-            citrea_backend_endpoint: "https://127.0.0.1".to_string(),
-            citrea_rpc_url: "https://127.0.0.1".to_string(),
+            citrea_backend_endpoint: Url::parse("https://127.0.0.1").unwrap(),
+            citrea_rpc_url: Url::parse("https://127.0.0.1").unwrap(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
             bitcoin_config: None,
@@ -213,7 +214,10 @@ mod tests {
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
         assert_eq!(read_config.network, Network::Regtest);
-        assert_eq!(read_config.bitcoin_config.unwrap().url, "http://127.0.0.1");
+        assert_eq!(
+            read_config.bitcoin_config.unwrap().url.as_str(),
+            "http://127.0.0.1/"
+        );
 
         fs::remove_file(file_name).unwrap();
     }

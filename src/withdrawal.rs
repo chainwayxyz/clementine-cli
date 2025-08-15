@@ -17,7 +17,6 @@ use alloy::signers::local::PrivateKeySigner;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
-use reqwest::Url;
 use serde_json::Value;
 use std::str::FromStr;
 
@@ -93,9 +92,9 @@ pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let base_url = Url::parse(&config.mempool_api_url)?;
-
-    let url = base_url.join(&format!("tx/{prepare_txid}/hex"))?;
+    let url = config
+        .mempool_api_url
+        .join(&format!("tx/{prepare_txid}/hex"))?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
@@ -106,7 +105,7 @@ pub async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
-    let url = base_url.join(&format!("tx/{prepare_txid}"))?;
+    let url = config.mempool_api_url.join(&format!("tx/{prepare_txid}"))?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
@@ -124,7 +123,9 @@ pub async fn get_tx_details_from_mempool(
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
-    let url = base_url.join(&format!("block/{block_hash}/raw"))?;
+    let url = config
+        .mempool_api_url
+        .join(&format!("block/{block_hash}/raw"))?;
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
     debug!("block_raw: {:?}", block_raw);
@@ -265,7 +266,7 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(&config.citrea_rpc_url)?);
+        .connect_http(config.citrea_rpc_url.clone());
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;

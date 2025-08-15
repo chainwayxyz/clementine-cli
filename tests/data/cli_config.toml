@@ -12,6 +12,5 @@ citrea_chain_id = 12345
 
 [bitcoin_config]
 url = "http://127.0.0.1"
-port = 18443
 user = "admin"
 password = "admin"
