@@ -11,6 +11,6 @@ citrea_rpc_url = "https://127.0.0.1"
 citrea_chain_id = 12345
 
 [bitcoin_config]
-url = "http://127.0.0.1"
+url = "http://127.0.0.1:18443"
 user = "admin"
 password = "admin"
