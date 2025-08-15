@@ -4,6 +4,7 @@ use crate::config::CliConfig;
 use crate::deposit::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
+use reqwest::Url;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
@@ -12,7 +13,8 @@ pub fn create_deposit_account(
     recovery_taproot_address: &BitcoinAddress,
     config: &CliConfig,
 ) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
-    let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
+    let base_url = Url::parse(&config.citrea_backend_endpoint)?;
+    let url = base_url.join("deposit-accounts")?;
 
     // Prepare request body
     let request_body = json!({
@@ -31,7 +33,7 @@ pub fn create_deposit_account(
 
     // Make POST request
     let response = client
-        .post(&url)
+        .post(url.as_str())
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()?;

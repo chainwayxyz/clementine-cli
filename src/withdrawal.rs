@@ -93,7 +93,9 @@ pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: &CliConfig,
 ) -> Result<(Transaction, Block, u32), Box<dyn std::error::Error>> {
-    let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
+    let base_url = Url::parse(&config.mempool_api_url)?;
+
+    let url = base_url.join(&format!("tx/{prepare_txid}/hex"))?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction hex: {}", e))?;
@@ -104,7 +106,7 @@ pub async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
-    let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
+    let url = base_url.join(&format!("tx/{prepare_txid}"))?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| format!("Failed to fetch transaction data: {}", e))?;
@@ -122,7 +124,7 @@ pub async fn get_tx_details_from_mempool(
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
-    let url = format!("{}block/{block_hash}/raw", config.mempool_api_url);
+    let url = base_url.join(&format!("block/{block_hash}/raw"))?;
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
     debug!("block_raw: {:?}", block_raw);

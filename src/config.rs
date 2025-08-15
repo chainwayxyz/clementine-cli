@@ -32,7 +32,6 @@ pub struct CliConfig {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BitcoinConfig {
     pub url: String,
-    pub port: u32,
     pub password: SecretString,
     pub user: SecretString,
 }
@@ -86,8 +85,7 @@ impl CliConfig {
         match network {
             Network::Regtest => {
                 config.bitcoin_config = Some(BitcoinConfig {
-                    url: "http://localhost".to_string(),
-                    port: 18443,
+                    url: "http://localhost:18443".to_string(),
                     password: SecretString::from("admin".to_string()),
                     user: SecretString::from("admin".to_string()),
                 });
