@@ -2,7 +2,10 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    config::CliConfig, debug, deposit, mnemonic::generate_random_mnemonic, withdrawal,
+    config::CliConfig,
+    debug, deposit,
+    mnemonic::{create_encrypted_wallet_with_address, show_mnemonic_secure},
+    withdrawal,
 };
 
 #[derive(Parser)]
@@ -43,9 +46,6 @@ enum WalletCommands {
         /// Number of words in the mnemonic (12, 15, 18, 21, or 24)
         #[arg(long, default_value = "12")]
         word_count: usize,
-        /// Whether to display the mnemonic phrase
-        #[arg(long)]
-        display_mnemonic: bool,
     },
     /// Backup wallet to specified destination.
     BackupWallet {
@@ -58,7 +58,10 @@ enum WalletCommands {
         filename: String,
     },
     /// Show mnemonic with interactive terminal.
-    ShowMnemonic,
+    ShowMnemonic {
+        /// Bitcoin address to show mnemonic for
+        address: String,
+    },
     /// Import wallet using mnemonic phrase.
     ImportWithMnemonic {
         /// Mnemonic phrase to import (optional, will prompt if not provided)
@@ -175,11 +178,8 @@ async fn main() {
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::CreateWallet {
-                word_count,
-                display_mnemonic,
-            } => {
-                if let Err(e) = generate_random_mnemonic(word_count, display_mnemonic) {
+            WalletCommands::CreateWallet { word_count } => {
+                if let Err(e) = create_encrypted_wallet_with_address(word_count, config.network) {
                     eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
@@ -190,8 +190,11 @@ async fn main() {
             WalletCommands::ImportWallet { filename } => {
                 unimplemented!("wallet.import_wallet: {}", filename);
             }
-            WalletCommands::ShowMnemonic => {
-                unimplemented!("wallet.show_mnemonic");
+            WalletCommands::ShowMnemonic { address } => {
+                if let Err(e) = show_mnemonic_secure(&address) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
             WalletCommands::ImportWithMnemonic { mnemonic } => {
                 unimplemented!("wallet.import: {:?}", mnemonic);

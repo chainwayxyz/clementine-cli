@@ -51,6 +51,9 @@ pub mod storage;
 pub mod types;
 pub mod withdrawal;
 
+#[cfg(test)]
+pub mod tests;
+
 pub fn parse_citrea_address(
     citrea_address: &str,
 ) -> Result<CitreaAddress, Box<dyn std::error::Error>> {

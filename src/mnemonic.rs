@@ -66,10 +66,17 @@ impl SecureKey {
     }
 }
 
-struct EncryptedData {
-    ciphertext: Vec<u8>,
-    nonce: [u8; 12], // AES-GCM standard nonce size
-    salt: [u8; 32],  // Salt for PBKDF2
+pub struct EncryptedData {
+    pub ciphertext: Vec<u8>,
+    pub nonce: [u8; 12], // AES-GCM standard nonce size
+    pub salt: [u8; 32],  // Salt for PBKDF2
+}
+
+pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
+    let passphrase = prompt_secure_passphrase("Enter passphrase to decrypt the mnemonic: ")?;
+    let mnemonic = load_mnemonic_secure(address, passphrase.expose_secret())?;
+    display_mnemonic_securely(SecureString::new(mnemonic))?;
+    Ok(())
 }
 
 pub fn generate_mnemonic_secure(word_count: usize) -> Result<SecureString, anyhow::Error> {
@@ -118,6 +125,101 @@ pub fn generate_random_mnemonic(
     }
 
     Ok(())
+}
+
+pub fn create_encrypted_wallet_with_address(
+    word_count: usize,
+    network: Network,
+) -> Result<String, anyhow::Error> {
+    use crate::{
+        bitcoin_utils::calculate_taproot_address,
+        storage::{get_master_seed_from_mnemonic, get_storage_dir},
+    };
+    use bitcoin::secp256k1::Keypair;
+    use std::io::{self, Write};
+
+    println!("Creating new wallet with maximum security protection");
+    println!();
+    println!("{}", "Security Features:".yellow());
+    println!("• Secure terminal input (no echo)");
+    println!("• Industry-standard secret handling (secrecy crate)");
+    println!("• Memory zeroization");
+    println!("• AES-256-GCM authenticated encryption");
+    println!("• PBKDF2 key derivation (100,000 iterations)");
+    println!();
+
+    // Generate mnemonic
+    let secure_mnemonic = generate_mnemonic_secure(word_count)?;
+
+    // Generate master seed from mnemonic using BIP-39
+    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic.as_str())
+        .map_err(|e| anyhow!("Failed to generate master seed: {}", e))?;
+
+    // Generate master private key directly from the seed (first 32 bytes)
+    use bitcoin::secp256k1::SecretKey;
+    let master_private_key = SecretKey::from_slice(&master_seed)?;
+    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &master_private_key);
+    let address = calculate_taproot_address(&keypair, network);
+
+    println!("Generated address: {}", address.to_string().green());
+
+    // Prompt for passphrase
+    print!("Enter passphrase to encrypt the wallet: ");
+    io::stdout().flush()?;
+    let passphrase_input = rpassword::read_password()?;
+    let passphrase = SecurePassphrase::from_str(passphrase_input);
+
+    if passphrase.is_empty() {
+        return Err(anyhow!("Passphrase cannot be empty for security reasons"));
+    }
+
+    // Encrypt mnemonic and private key separately with different nonces
+    let master_private_key_str = master_private_key.display_secret().to_string();
+    let master_private_key_secure = SecureString::new(master_private_key_str);
+
+    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
+
+    // Store encrypted wallet with separate encrypted fields
+    store_encrypted_wallet_data_separate(
+        &address.to_string(),
+        network,
+        &encrypted_mnemonic,
+        &encrypted_private_key,
+    )?;
+
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    println!(
+        "✓ Wallet encrypted and stored securely as wallet_{}.json",
+        address
+    );
+    println!(
+        "Generated address: {} at directory: {}",
+        address.to_string().green(),
+        storage_dir.display().to_string().cyan()
+    );
+    println!();
+
+    // Display mnemonic securely
+    let mnemonic_copy = SecureString::new(secure_mnemonic.as_str().to_string());
+    match display_mnemonic_securely(mnemonic_copy) {
+        Ok(()) => {
+            println!("{}", "✓ Mnemonic displayed securely".green());
+        }
+        Err(e) => {
+            eprintln!(
+                "{} Failed to display mnemonic securely: {}",
+                "ERROR".red().bold(),
+                e
+            );
+            eprintln!(
+                "{} The wallet is still safely stored encrypted.",
+                "INFO".blue().bold()
+            );
+        }
+    }
+
+    Ok(address.to_string())
 }
 
 pub fn create_encrypted_wallet(
@@ -226,7 +328,7 @@ fn derive_key_pbkdf2_secure(
     Ok(secure_key)
 }
 
-fn aes_encrypt_secure(
+pub fn aes_encrypt_secure(
     secure_plaintext: &SecureString,
     secure_passphrase: &SecurePassphrase,
 ) -> Result<EncryptedData, anyhow::Error> {
@@ -252,7 +354,7 @@ fn aes_encrypt_secure(
     })
 }
 
-fn aes_decrypt_secure(
+pub fn aes_decrypt_secure(
     encrypted_data: &EncryptedData,
     secure_passphrase: &SecurePassphrase,
 ) -> Result<SecureString, anyhow::Error> {
@@ -296,7 +398,6 @@ pub fn generate_and_store_mnemonic_secure(
         "encrypted_data": hex::encode(encrypted_data.ciphertext),
         "nonce": hex::encode(encrypted_data.nonce),
         "salt": hex::encode(encrypted_data.salt),
-        "word_count": word_count,
         "created_at": chrono::Utc::now().to_rfc3339(),
         "encryption_method": "aes256_gcm_pbkdf2_secure"
     });
@@ -314,8 +415,7 @@ pub fn generate_and_store_mnemonic_secure(
         wallet_name.to_string(),
         serde_json::json!({
             "network": network.to_string(),
-            "word_count": word_count,
-            "created_at": chrono::Utc::now().to_rfc3339(),
+                "created_at": chrono::Utc::now().to_rfc3339(),
             "secure": true
         }),
     );
@@ -325,10 +425,7 @@ pub fn generate_and_store_mnemonic_secure(
     Ok(secure_mnemonic)
 }
 
-pub fn load_mnemonic_secure(
-    wallet_name: &str,
-    passphrase: &str,
-) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+pub fn load_mnemonic_secure(wallet_name: &str, passphrase: &str) -> Result<String, anyhow::Error> {
     // Wrap passphrase in secure wrapper and immediately clear the input
 
     // TODO: Read the passphrase from the user in that method remove param
@@ -339,28 +436,31 @@ pub fn load_mnemonic_secure(
     let wallet_file = storage_dir.join(format!("wallet_{wallet_name}.json"));
 
     if !wallet_file.exists() {
-        return Err(format!("No wallet found with name: {wallet_name}").into());
+        return Err(anyhow!("No wallet found with name: {wallet_name}"));
     }
 
     let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(wallet_file)?)?;
-    let encrypted_hex = wallet_data["encrypted_data"]
+
+    // Handle the new format with nested encrypted_mnemonic object
+    let mnemonic_data = &wallet_data["encrypted_mnemonic"];
+    let encrypted_hex = mnemonic_data["ciphertext"].as_str().ok_or_else(|| {
+        anyhow!("Invalid wallet file format: missing encrypted_mnemonic.ciphertext")
+    })?;
+    let nonce_hex = mnemonic_data["nonce"]
         .as_str()
-        .ok_or("Invalid wallet file format: missing encrypted_data")?;
-    let nonce_hex = wallet_data["nonce"]
+        .ok_or_else(|| anyhow!("Invalid wallet file format: missing encrypted_mnemonic.nonce"))?;
+    let salt_hex = mnemonic_data["salt"]
         .as_str()
-        .ok_or("Invalid wallet file format: missing nonce")?;
-    let salt_hex = wallet_data["salt"]
-        .as_str()
-        .ok_or("Invalid wallet file format: missing salt")?;
+        .ok_or_else(|| anyhow!("Invalid wallet file format: missing encrypted_mnemonic.salt"))?;
 
     let encrypted_data = EncryptedData {
         ciphertext: hex::decode(encrypted_hex)?,
         nonce: hex::decode(nonce_hex)?
             .try_into()
-            .map_err(|_| "Invalid nonce length")?,
+            .map_err(|_| anyhow!("Invalid nonce length"))?,
         salt: hex::decode(salt_hex)?
             .try_into()
-            .map_err(|_| "Invalid salt length")?,
+            .map_err(|_| anyhow!("Invalid salt length"))?,
     };
 
     let secure_mnemonic = aes_decrypt_secure(&encrypted_data, &secure_passphrase)?;
@@ -368,4 +468,120 @@ pub fn load_mnemonic_secure(
     let mnemonic_copy = secure_mnemonic.as_str().to_string();
 
     Ok(mnemonic_copy)
+}
+
+pub fn store_encrypted_wallet_data_separate(
+    address: &str,
+    network: Network,
+    encrypted_mnemonic: &EncryptedData,
+    encrypted_private_key: &EncryptedData,
+) -> Result<(), anyhow::Error> {
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    fs::create_dir_all(&storage_dir)?;
+
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    if wallet_file.exists() {
+        return Err(anyhow!(
+            "Wallet with address '{}' already exists. Choose a different address or use a different function to overwrite.",
+            address
+        ));
+    }
+
+    let wallet_data_json = serde_json::json!({
+        "address": address,
+        "network": network.to_string(),
+        "encrypted_mnemonic": {
+            "ciphertext": hex::encode(&encrypted_mnemonic.ciphertext),
+            "nonce": hex::encode(&encrypted_mnemonic.nonce),
+            "salt": hex::encode(&encrypted_mnemonic.salt)
+        },
+        "encrypted_private_key": {
+            "ciphertext": hex::encode(&encrypted_private_key.ciphertext),
+            "nonce": hex::encode(&encrypted_private_key.nonce),
+            "salt": hex::encode(&encrypted_private_key.salt)
+        },
+        "created_at": chrono::Utc::now().to_rfc3339(),
+        "encryption_method": "aes256_gcm_pbkdf2_secure",
+        "data_format": "separate_encrypted_fields"
+    });
+
+    fs::write(
+        &wallet_file,
+        serde_json::to_string_pretty(&wallet_data_json)?,
+    )?;
+
+    let wallets_file = storage_dir.join("wallets.json");
+    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
+    } else {
+        HashMap::new()
+    };
+
+    wallets.insert(
+        address.to_string(),
+        serde_json::json!({
+            "network": network.to_string(),
+                "created_at": chrono::Utc::now().to_rfc3339(),
+            "secure": true,
+            "data_format": "separate_encrypted_fields"
+        }),
+    );
+
+    fs::write(wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+
+    Ok(())
+}
+
+pub fn store_encrypted_wallet_data(
+    address: &str,
+    network: Network,
+    encrypted_data: &EncryptedData,
+) -> Result<(), anyhow::Error> {
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    fs::create_dir_all(&storage_dir)?;
+
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    if wallet_file.exists() {
+        return Err(anyhow!(
+            "Wallet with address '{}' already exists. Choose a different address or use a different function to overwrite.",
+            address
+        ));
+    }
+
+    let wallet_data_json = serde_json::json!({
+        "address": address,
+        "network": network.to_string(),
+        "encrypted_data": hex::encode(&encrypted_data.ciphertext),
+        "nonce": hex::encode(&encrypted_data.nonce),
+        "salt": hex::encode(&encrypted_data.salt),
+        "created_at": chrono::Utc::now().to_rfc3339(),
+        "encryption_method": "aes256_gcm_pbkdf2_secure",
+        "data_format": "mnemonic|master_private_key"
+    });
+
+    fs::write(
+        &wallet_file,
+        serde_json::to_string_pretty(&wallet_data_json)?,
+    )?;
+
+    let wallets_file = storage_dir.join("wallets.json");
+    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
+    } else {
+        HashMap::new()
+    };
+
+    wallets.insert(
+        address.to_string(),
+        serde_json::json!({
+            "network": network.to_string(),
+                "created_at": chrono::Utc::now().to_rfc3339(),
+            "secure": true,
+            "data_format": "mnemonic|master_private_key"
+        }),
+    );
+
+    fs::write(wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+
+    Ok(())
 }
