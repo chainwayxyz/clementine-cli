@@ -92,22 +92,29 @@ pub fn generate_mnemonic_secure(word_count: usize) -> Result<SecureString, anyho
     Ok(SecureString::new(mnemonic.to_string()))
 }
 
-pub fn generate_random_mnemonic(word_count: usize) -> Result<(), anyhow::Error> {
+pub fn generate_random_mnemonic(
+    word_count: usize,
+    display_mnemonic: bool,
+) -> Result<(), anyhow::Error> {
     println!("Generating a {word_count}-word mnemonic phrase...");
     println!();
 
     let mnemonic = generate_mnemonic_secure(word_count)?;
 
-    match display_mnemonic_securely(mnemonic) {
-        Ok(()) => {
-            println!("✅ Mnemonic generated and displayed securely");
+    if display_mnemonic {
+        match display_mnemonic_securely(mnemonic) {
+            Ok(()) => {
+                println!("✅ Mnemonic generated and displayed securely");
+            }
+            Err(e) => {
+                return Err(anyhow::anyhow!(
+                    "Failed to display mnemonic securely: {}",
+                    e
+                ));
+            }
         }
-        Err(e) => {
-            return Err(anyhow::anyhow!(
-                "Failed to display mnemonic securely: {}",
-                e
-            ));
-        }
+    } else {
+        println!("✅ Mnemonic generated (not displayed)");
     }
 
     Ok(())

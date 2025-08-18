@@ -19,11 +19,10 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
-    /// Generate a random mnemonic phrase using secure display.
-    GenerateMnemonic {
-        /// Number of words in the mnemonic (12, 15, 18, 21, or 24)
-        #[arg(long, default_value = "12")]
-        word_count: usize,
+    /// Wallet related operations.
+    Wallet {
+        #[command(subcommand)]
+        command: WalletCommands,
     },
     /// Deposit related operations.
     Deposit {
@@ -34,6 +33,37 @@ enum Commands {
     Withdrawal {
         #[command(subcommand)]
         command: WithdrawalCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum WalletCommands {
+    /// Create a new wallet with optional mnemonic display.
+    CreateWallet {
+        /// Number of words in the mnemonic (12, 15, 18, 21, or 24)
+        #[arg(long, default_value = "12")]
+        word_count: usize,
+        /// Whether to display the mnemonic phrase
+        #[arg(long)]
+        display_mnemonic: bool,
+    },
+    /// Backup wallet to specified destination.
+    BackupWallet {
+        /// Destination path for wallet backup
+        destination: String,
+    },
+    /// Import wallet from specified filename.
+    ImportWallet {
+        /// Filename to import wallet from
+        filename: String,
+    },
+    /// Show mnemonic with interactive terminal.
+    ShowMnemonic,
+    /// Import wallet using mnemonic phrase.
+    ImportWithMnemonic {
+        /// Mnemonic phrase to import (optional, will prompt if not provided)
+        #[arg(long)]
+        mnemonic: Option<String>,
     },
 }
 
@@ -144,12 +174,29 @@ async fn main() {
     };
 
     match cli.command {
-        Commands::GenerateMnemonic { word_count } => {
-            if let Err(e) = generate_random_mnemonic(word_count) {
-                eprintln!("Error: {e}");
-                std::process::exit(1);
+        Commands::Wallet { command } => match command {
+            WalletCommands::CreateWallet {
+                word_count,
+                display_mnemonic,
+            } => {
+                if let Err(e) = generate_random_mnemonic(word_count, display_mnemonic) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
-        }
+            WalletCommands::BackupWallet { destination } => {
+                unimplemented!("wallet.backup_wallet: {}", destination);
+            }
+            WalletCommands::ImportWallet { filename } => {
+                unimplemented!("wallet.import_wallet: {}", filename);
+            }
+            WalletCommands::ShowMnemonic => {
+                unimplemented!("wallet.show_mnemonic");
+            }
+            WalletCommands::ImportWithMnemonic { mnemonic } => {
+                unimplemented!("wallet.import: {:?}", mnemonic);
+            }
+        },
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey {
                 y,
