@@ -584,4 +584,66 @@ pub fn store_encrypted_wallet_data(
     fs::write(wallets_file, serde_json::to_string_pretty(&wallets)?)?;
 
     Ok(())
+/// Backup a wallet file to a specified destination
+pub fn backup_wallet(
+    wallet_address: &str,
+    destination_path: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
+    
+    if !wallet_file.exists() {
+        return Err(format!("No wallet found with address: {}", wallet_address).into());
+    }
+    
+    // Parse the destination path
+    let dest_path = std::path::Path::new(destination_path);
+    
+    // If destination is a directory, create the filename
+    let final_dest = if dest_path.is_dir() {
+        dest_path.join(format!("wallet_{}.json", wallet_address))
+    } else {
+        dest_path.to_path_buf()
+    };
+    
+    // Create parent directories if they don't exist
+    if let Some(parent) = final_dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+    
+    // Copy the wallet file
+    fs::copy(&wallet_file, &final_dest)?;
+    
+    // Set secure file permissions on Unix systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&final_dest)?.permissions();
+        perms.set_mode(0o600); // rw-------
+        fs::set_permissions(&final_dest, perms)?;
+    }
+    
+    println!(
+        "{} Wallet '{}' backed up successfully to: {}",
+        "✓".green(),
+        wallet_address.cyan(),
+        final_dest.display().to_string().yellow()
+    );
+    
+    Ok(())
+}
+
+/// List all available wallets
+pub fn list_wallets() -> Result<Vec<String>, Box<dyn std::error::Error + Send + Sync>> {
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallets_file = storage_dir.join("wallets.json");
+    
+    if !wallets_file.exists() {
+        return Ok(Vec::new());
+    }
+    
+    let wallets: HashMap<String, serde_json::Value> = 
+        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?;
+    
+    Ok(wallets.keys().cloned().collect())
 }
