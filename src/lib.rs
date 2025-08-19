@@ -49,6 +49,7 @@ pub mod script;
 pub mod secure_display;
 pub mod storage;
 pub mod types;
+pub mod wallet;
 pub mod withdrawal;
 
 #[cfg(test)]

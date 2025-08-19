@@ -524,3 +524,395 @@ fn test_interactive_e2e_create_and_show() {
     println!();
     println!("✅ Interactive E2E test passed!");
 }
+
+// ============================================================================
+// Tests for ImportWithMnemonic functionality
+// ============================================================================
+
+/// Helper function to create a test wallet file with known mnemonic and address
+fn create_test_wallet_file(
+    temp_dir: &tempfile::TempDir,
+    mnemonic: &str,
+    network: Network,
+) -> (std::path::PathBuf, String) {
+    let storage_dir = get_test_storage_dir(temp_dir);
+    fs::create_dir_all(&storage_dir).expect("Failed to create storage directory");
+
+    // Generate address from the known mnemonic
+    let master_seed =
+        get_master_seed_from_mnemonic(mnemonic).expect("Failed to generate master seed");
+    let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
+        .expect("Failed to create private key");
+    let keypair = bitcoin::secp256k1::Keypair::from_secret_key(
+        &crate::bitcoin_utils::SECP,
+        &master_private_key,
+    );
+    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+
+    // Create wallet file with the address
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    let wallet_data_json = serde_json::json!({
+        "address": address.to_string(),
+        "network": network.to_string(),
+        "created_at": chrono::Utc::now().to_rfc3339(),
+        "encryption_method": "test_wallet",
+        "data_format": "test_format"
+    });
+
+    fs::write(
+        &wallet_file,
+        serde_json::to_string_pretty(&wallet_data_json).unwrap(),
+    )
+    .expect("Failed to write test wallet file");
+
+    (wallet_file, address.to_string())
+}
+
+/// Test successful import with valid mnemonic
+#[test]
+fn test_import_with_mnemonic_success() {
+    let temp_dir = setup_test_storage();
+    let network = Network::Testnet4;
+
+    // Use a known valid BIP-39 mnemonic for testing
+    let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    // Create test wallet file with the address that matches this mnemonic
+    let (wallet_file, expected_address) =
+        create_test_wallet_file(&temp_dir, test_mnemonic, network);
+
+    println!("Test wallet created:");
+    println!("  File: {}", wallet_file.display());
+    println!("  Expected address: {}", expected_address);
+    println!("  Test mnemonic: {}", test_mnemonic);
+
+    // Test the helper functions directly first
+    println!("\nTesting helper functions:");
+
+    // Test load_wallet_from_file
+    let wallet_data = load_wallet_from_file(wallet_file.to_str().unwrap())
+        .expect("Should load wallet file successfully");
+    println!("✅ Wallet file loaded successfully");
+
+    // Test extract_address_from_wallet
+    let extracted_address =
+        extract_address_from_wallet(&wallet_data).expect("Should extract address successfully");
+    assert_eq!(
+        extracted_address, expected_address,
+        "Extracted address should match expected"
+    );
+    println!("✅ Address extracted successfully: {}", extracted_address);
+
+    // Test generate_address_from_mnemonic_secure
+    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
+    let generated_address = generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+        .expect("Should generate address from mnemonic");
+    assert_eq!(
+        generated_address, expected_address,
+        "Generated address should match expected"
+    );
+    println!(
+        "✅ Address generated from mnemonic successfully: {}",
+        generated_address
+    );
+
+    println!();
+    println!("✅ Test passed: ImportWithMnemonic helper functions work correctly");
+    println!("  Wallet file: {}", wallet_file.display());
+    println!("  Address consistency verified: {}", expected_address);
+}
+
+/// Test failed import with invalid mnemonic (wrong address)
+#[test]
+fn test_import_with_mnemonic_failure_wrong_mnemonic() {
+    let temp_dir = setup_test_storage();
+    let network = Network::Testnet4;
+
+    // Create wallet with one mnemonic
+    let correct_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let (wallet_file, expected_address) =
+        create_test_wallet_file(&temp_dir, correct_mnemonic, network);
+
+    // Try to verify with a different valid mnemonic (24 words)
+    let wrong_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
+    let wrong_secure_mnemonic = SecureString::new(wrong_mnemonic.to_string());
+
+    println!("Testing with wrong mnemonic:");
+    println!("  Correct mnemonic: {}", correct_mnemonic);
+    println!("  Wrong mnemonic: {}", wrong_mnemonic);
+    println!("  Expected address: {}", expected_address);
+
+    // Load wallet data
+    let wallet_data = load_wallet_from_file(wallet_file.to_str().unwrap())
+        .expect("Should load wallet file successfully");
+
+    // Extract address
+    let extracted_address =
+        extract_address_from_wallet(&wallet_data).expect("Should extract address successfully");
+
+    // Generate address from wrong mnemonic
+    let generated_address = generate_address_from_mnemonic_secure(&wrong_secure_mnemonic, network)
+        .expect("Should generate address from wrong mnemonic");
+
+    println!("  Extracted address: {}", extracted_address);
+    println!("  Generated address: {}", generated_address);
+
+    // Addresses should NOT match
+    assert_ne!(
+        extracted_address, generated_address,
+        "Addresses should not match when using wrong mnemonic"
+    );
+
+    println!();
+    println!("✅ Test passed: ImportWithMnemonic correctly fails with wrong mnemonic");
+    println!("  Wallet address: {}", extracted_address);
+    println!("  Generated address: {}", generated_address);
+    println!("  Addresses correctly don't match ✓");
+}
+
+/// Test with invalid wallet file (missing address field)
+#[test]
+fn test_import_with_mnemonic_invalid_wallet_file() {
+    let temp_dir = setup_test_storage();
+    let storage_dir = get_test_storage_dir(&temp_dir);
+    fs::create_dir_all(&storage_dir).expect("Failed to create storage directory");
+
+    // Create invalid wallet file without address field
+    let invalid_wallet_file = storage_dir.join("invalid_wallet.json");
+    let invalid_wallet_data = serde_json::json!({
+        "network": "testnet4",
+        "created_at": chrono::Utc::now().to_rfc3339(),
+        // Missing "address" field
+    });
+
+    fs::write(
+        &invalid_wallet_file,
+        serde_json::to_string_pretty(&invalid_wallet_data).unwrap(),
+    )
+    .expect("Failed to write invalid wallet file");
+
+    println!("Testing with invalid wallet file:");
+    println!("  File: {}", invalid_wallet_file.display());
+
+    // Test load_wallet_from_file (should succeed)
+    let wallet_data = load_wallet_from_file(invalid_wallet_file.to_str().unwrap())
+        .expect("Should load wallet file successfully even if invalid format");
+
+    // Test extract_address_from_wallet (should fail)
+    let result = extract_address_from_wallet(&wallet_data);
+    assert!(
+        result.is_err(),
+        "Should fail to extract address from invalid wallet"
+    );
+
+    match result {
+        Err(e) => {
+            println!("✅ Correctly failed with error: {}", e);
+            assert!(
+                e.to_string().contains("Address field not found"),
+                "Error should mention missing address field"
+            );
+        }
+        Ok(_) => panic!("Should have failed to extract address"),
+    }
+
+    println!();
+    println!("✅ Test passed: ImportWithMnemonic correctly handles invalid wallet files");
+}
+
+/// Test with non-existent wallet file
+#[test]
+fn test_import_with_mnemonic_nonexistent_file() {
+    let temp_dir = setup_test_storage();
+    let storage_dir = get_test_storage_dir(&temp_dir);
+    let nonexistent_file = storage_dir.join("does_not_exist.json");
+
+    println!("Testing with non-existent wallet file:");
+    println!("  File: {}", nonexistent_file.display());
+
+    // Test load_wallet_from_file (should fail)
+    let result = load_wallet_from_file(nonexistent_file.to_str().unwrap());
+    assert!(
+        result.is_err(),
+        "Should fail to load non-existent wallet file"
+    );
+
+    match result {
+        Err(e) => {
+            println!("✅ Correctly failed with error: {}", e);
+            assert!(
+                e.to_string().contains("Wallet file not found"),
+                "Error should mention file not found"
+            );
+        }
+        Ok(_) => panic!("Should have failed to load non-existent file"),
+    }
+
+    println!();
+    println!("✅ Test passed: ImportWithMnemonic correctly handles non-existent files");
+}
+
+/// Test mnemonic validation in prompt_mnemonic_secure
+#[test]
+fn test_mnemonic_validation() {
+    use bip39::{Language, Mnemonic};
+
+    println!("Testing BIP-39 mnemonic validation:");
+
+    // Test valid mnemonics
+    let valid_mnemonics = vec![
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", // 12 words
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon agent", // 18 words
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art", // 24 words
+    ];
+
+    for (i, mnemonic) in valid_mnemonics.iter().enumerate() {
+        println!(
+            "  Testing valid mnemonic {}: {} words",
+            i + 1,
+            mnemonic.split_whitespace().count()
+        );
+        let result = Mnemonic::parse(*mnemonic);
+        assert!(
+            result.is_ok(),
+            "Valid mnemonic should parse successfully: {}",
+            mnemonic
+        );
+        println!("    ✅ Parsed successfully");
+    }
+
+    // Test invalid mnemonics
+    let invalid_mnemonics = vec![
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 11 words (invalid length)
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 13 words (invalid length)
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word in 24-word mnemonic
+        "", // empty
+        "notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword", // all invalid words
+    ];
+
+    for (i, mnemonic) in invalid_mnemonics.iter().enumerate() {
+        println!(
+            "  Testing invalid mnemonic {}: {} words",
+            i + 1,
+            mnemonic.split_whitespace().count()
+        );
+        let result = Mnemonic::parse(*mnemonic);
+        assert!(
+            result.is_err(),
+            "Invalid mnemonic should fail to parse: {}",
+            mnemonic
+        );
+        println!("    ✅ Correctly failed to parse");
+    }
+
+    // Test individual word validation (same logic as used in prompt_mnemonic_secure)
+    let wordlist = Language::English.word_list();
+
+    println!("  Testing individual word validation:");
+
+    // Valid words
+    let valid_words = vec!["abandon", "ability", "about", "above", "absent"];
+    for word in &valid_words {
+        let is_valid = wordlist.iter().any(|&w| w == *word);
+        assert!(is_valid, "Word '{}' should be valid", word);
+        println!("    ✅ '{}' is valid", word);
+    }
+
+    // Invalid words
+    let invalid_words = vec!["notaword", "invalid", "test123", "abandon123", ""];
+    for word in &invalid_words {
+        let is_valid = wordlist.iter().any(|&w| w == *word);
+        assert!(!is_valid, "Word '{}' should be invalid", word);
+        println!("    ✅ '{}' is correctly invalid", word);
+    }
+
+    println!();
+    println!("✅ Test passed: BIP-39 mnemonic validation works correctly");
+}
+
+/// Interactive test for the complete ImportWithMnemonic flow
+/// This test should be run manually to test the actual user interaction
+#[test]
+#[ignore]
+fn test_import_with_mnemonic_interactive() {
+    println!("=== Interactive Test: ImportWithMnemonic ===");
+    println!();
+    println!("This test will guide you through the complete ImportWithMnemonic workflow.");
+    println!("You will need to:");
+    println!("1. Have a wallet file available");
+    println!("2. Know the mnemonic that was used to create that wallet");
+    println!("3. Enter the mnemonic word by word when prompted");
+    println!();
+    println!("Press Enter to continue or Ctrl+C to cancel...");
+
+    let mut input = String::new();
+    std::io::stdin()
+        .read_line(&mut input)
+        .expect("Failed to read input");
+
+    // Create a test wallet for the interactive test
+    let temp_dir = setup_test_storage();
+    let network = Network::Testnet4;
+    let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let (wallet_file, expected_address) =
+        create_test_wallet_file(&temp_dir, test_mnemonic, network);
+
+    println!();
+    println!("=== Test Setup ===");
+    println!("Created a test wallet for you:");
+    println!("  Wallet file: {}", wallet_file.display());
+    println!("  Expected address: {}", expected_address);
+    println!("  Correct mnemonic: {}", test_mnemonic);
+    println!();
+    println!("Now we'll test the ImportWithMnemonic functionality.");
+    println!("Please enter the mnemonic above when prompted (word by word).");
+    println!();
+
+    // Test the actual import function interactively
+    println!("=== Testing ImportWithMnemonic ===");
+    let result = import_wallet_with_mnemonic(wallet_file.to_str().unwrap(), network);
+
+    match result {
+        Ok(()) => {
+            println!();
+            println!("✅ ImportWithMnemonic completed successfully!");
+            println!();
+            println!("=== Test Alternative: Wrong Mnemonic ===");
+            println!("Now let's test with a wrong mnemonic to see the failure case.");
+            println!("Try entering a different valid mnemonic (it should fail):");
+
+            let wrong_result = import_wallet_with_mnemonic(wallet_file.to_str().unwrap(), network);
+            match wrong_result {
+                Ok(()) => {
+                    println!("⚠️  Unexpected success - you might have entered the same mnemonic");
+                }
+                Err(e) => {
+                    println!("✅ Correctly failed with wrong mnemonic: {}", e);
+                }
+            }
+        }
+        Err(e) => {
+            println!("❌ ImportWithMnemonic failed: {}", e);
+            println!("This might be expected if you entered a wrong mnemonic.");
+        }
+    }
+
+    println!();
+    println!("=== Interactive Test Completed ===");
+    println!();
+    println!("Summary of what was tested:");
+    println!("• Word-by-word mnemonic input");
+    println!("• Real-time BIP-39 word validation");
+    println!("• Complete mnemonic validation");
+    println!("• Address generation and comparison");
+    println!("• Success/failure feedback");
+    println!("• Secure memory handling");
+
+    // Clean up
+    if let Err(e) = std::fs::remove_file(&wallet_file) {
+        println!("Warning: Failed to cleanup test wallet file: {}", e);
+    } else {
+        println!("✅ Test wallet file cleaned up");
+    }
+}

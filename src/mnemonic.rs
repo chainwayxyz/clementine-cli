@@ -11,7 +11,9 @@ use std::fs;
 use zeroize::{Zeroize, ZeroizeOnDrop};
 
 use crate::secure_display::display_mnemonic_securely;
-use crate::storage::get_storage_dir;
+use crate::storage::{
+    SecureString as StorageSecureString, derive_key_from_passphrase, get_storage_dir,
+};
 
 /// Secure wrapper for sensitive strings that auto-zeroizes on drop
 #[derive(Zeroize, ZeroizeOnDrop)]
@@ -308,25 +310,25 @@ pub fn confirm_secure_passphrase(original: &SecurePassphrase) -> Result<(), anyh
     }
 }
 
-fn derive_key_pbkdf2_secure(
-    secure_passphrase: &SecurePassphrase,
-    salt: &[u8],
-) -> Result<SecureKey, anyhow::Error> {
-    use pbkdf2::pbkdf2_hmac;
-    use sha2::Sha256;
+// fn derive_key_pbkdf2_secure(
+//     secure_passphrase: &SecurePassphrase,
+//     salt: &[u8],
+// ) -> Result<SecureKey, anyhow::Error> {
+//     use pbkdf2::pbkdf2_hmac;
+//     use sha2::Sha256;
 
-    println!("Deriving key using PBKDF2 with 100,000 iterations...");
-    const ITERATIONS: u32 = 100_000; // OWASP recommended minimum
-    let mut key = [0u8; 32];
+//     println!("Deriving key using PBKDF2 with 100,000 iterations...");
+//     const ITERATIONS: u32 = 100_000; // OWASP recommended minimum
+//     let mut key = [0u8; 32];
 
-    pbkdf2_hmac::<Sha256>(secure_passphrase.as_bytes(), salt, ITERATIONS, &mut key);
+//     pbkdf2_hmac::<Sha256>(secure_passphrase.as_bytes(), salt, ITERATIONS, &mut key);
 
-    let secure_key = SecureKey::new(key);
+//     let secure_key = SecureKey::new(key);
 
-    key.zeroize();
+//     key.zeroize();
 
-    Ok(secure_key)
-}
+//     Ok(secure_key)
+// }
 
 pub fn aes_encrypt_secure(
     secure_plaintext: &SecureString,
@@ -338,9 +340,14 @@ pub fn aes_encrypt_secure(
     rng().fill_bytes(&mut nonce_bytes);
 
     // Use secure key wrapper that auto-zeroizes
-    let secure_key = derive_key_pbkdf2_secure(secure_passphrase, &salt)?;
+    // Convert SecurePassphrase to storage::SecureString
+    let passphrase_str = secure_passphrase.expose_secret();
+    let passphrase_secure = StorageSecureString::new(passphrase_str.to_string());
 
-    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.as_slice()));
+    let secure_key = derive_key_from_passphrase(&passphrase_secure, &salt, 3, 65536, 1)
+        .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.as_bytes()));
     let nonce = GenericArray::from_slice(&nonce_bytes);
 
     let ciphertext = cipher
@@ -358,9 +365,15 @@ pub fn aes_decrypt_secure(
     encrypted_data: &EncryptedData,
     secure_passphrase: &SecurePassphrase,
 ) -> Result<SecureString, anyhow::Error> {
-    let secure_key = derive_key_pbkdf2_secure(secure_passphrase, &encrypted_data.salt)?;
+    // Convert SecurePassphrase to storage::SecureString
+    let passphrase_str = secure_passphrase.expose_secret();
+    let passphrase_secure = StorageSecureString::new(passphrase_str.to_string());
 
-    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.as_slice()));
+    let secure_key =
+        derive_key_from_passphrase(&passphrase_secure, &encrypted_data.salt, 3, 65536, 1)
+            .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+
+    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.as_bytes()));
     let nonce = GenericArray::from_slice(&encrypted_data.nonce);
 
     let plaintext = cipher
@@ -468,6 +481,66 @@ pub fn load_mnemonic_secure(wallet_name: &str, passphrase: &str) -> Result<Strin
     let mnemonic_copy = secure_mnemonic.as_str().to_string();
 
     Ok(mnemonic_copy)
+}
+
+pub fn load_private_key_secure(
+    wallet_name: &str,
+    passphrase: &str,
+) -> Result<String, anyhow::Error> {
+    // Wrap passphrase in secure wrapper
+    let passphrase_copy = passphrase.to_string();
+    let secure_passphrase = SecurePassphrase::from_str(passphrase_copy);
+
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file = storage_dir.join(format!("wallet_{wallet_name}.json"));
+
+    if !wallet_file.exists() {
+        return Err(anyhow!("No wallet found with name: {wallet_name}"));
+    }
+
+    let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(wallet_file)?)?;
+
+    // Handle the format with encrypted_private_key object
+    let private_key_data = &wallet_data["encrypted_private_key"];
+    let encrypted_hex = private_key_data["ciphertext"].as_str().ok_or_else(|| {
+        anyhow!("Invalid wallet file format: missing encrypted_private_key.ciphertext")
+    })?;
+    let nonce_hex = private_key_data["nonce"].as_str().ok_or_else(|| {
+        anyhow!("Invalid wallet file format: missing encrypted_private_key.nonce")
+    })?;
+    let salt_hex = private_key_data["salt"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Invalid wallet file format: missing encrypted_private_key.salt"))?;
+
+    let encrypted_data = EncryptedData {
+        ciphertext: hex::decode(encrypted_hex)?,
+        nonce: hex::decode(nonce_hex)?
+            .try_into()
+            .map_err(|_| anyhow!("Invalid nonce length"))?,
+        salt: hex::decode(salt_hex)?
+            .try_into()
+            .map_err(|_| anyhow!("Invalid salt length"))?,
+    };
+
+    let secure_private_key = aes_decrypt_secure(&encrypted_data, &secure_passphrase)?;
+
+    let private_key_copy = secure_private_key.as_str().to_string();
+
+    Ok(private_key_copy)
+}
+
+pub fn derive_private_key_from_mnemonic_secure(mnemonic: &str) -> Result<String, anyhow::Error> {
+    use crate::storage::get_master_seed_from_mnemonic;
+    use bitcoin::secp256k1::SecretKey;
+
+    // Generate master seed from mnemonic using BIP-39
+    let master_seed = get_master_seed_from_mnemonic(mnemonic)
+        .map_err(|e| anyhow!("Failed to generate master seed from mnemonic: {}", e))?;
+
+    // Generate master private key directly from the seed (first 32 bytes)
+    let master_private_key = SecretKey::from_slice(&master_seed)?;
+
+    Ok(master_private_key.display_secret().to_string())
 }
 
 pub fn store_encrypted_wallet_data_separate(
@@ -911,4 +984,248 @@ pub fn import_wallet_from_private_key(
     // master_private_key_secure (SecureString), and passphrase (SecretString)
     // will all be automatically zeroized when they go out of scope
     Ok(address.to_string())
+}
+
+pub fn import_wallet_with_mnemonic(file: &str, network: Network) -> Result<(), anyhow::Error> {
+    // Load wallet data from file
+    let wallet_data = load_wallet_from_file(file)?;
+
+    // Extract address from wallet data
+    let address = extract_address_from_wallet(&wallet_data)?;
+
+    // Check if wallet already exists in storage before prompting mnemonic
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file_dest = storage_dir.join(format!("wallet_{}.json", address));
+    let wallets_file = storage_dir.join("wallets.json");
+
+    if wallet_file_dest.exists() {
+        return Err(anyhow!(
+            "❌ Wallet with address '{}' already exists in storage.\nLocation: {}",
+            address,
+            wallet_file_dest.display()
+        ));
+    }
+
+    // Also check wallets.json metadata
+    if wallets_file.exists() {
+        let wallets_content = fs::read_to_string(&wallets_file)?;
+        let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
+        if wallets.contains_key(&address) {
+            return Err(anyhow!(
+                "❌ Wallet with address '{}' already exists in wallets registry.",
+                address
+            ));
+        }
+    }
+
+    // Prompt for mnemonic securely (word by word)
+    let secure_mnemonic = prompt_mnemonic_secure()?;
+
+    // Generate address from mnemonic to compare
+    let generated_address = generate_address_from_mnemonic_secure(&secure_mnemonic, network)?;
+
+    // Check if the addresses match
+    if address == generated_address {
+        println!("✅ Mnemonic verification successful!");
+        println!("Address from wallet: {}", address);
+        println!("Address from mnemonic: {}", generated_address);
+        println!("🔒 Mnemonic handled securely and zeroized from memory");
+
+        // Copy wallet file to storage directory
+        println!("📁 Copying wallet to storage directory...");
+        fs::create_dir_all(&storage_dir)?;
+        fs::copy(file, &wallet_file_dest)?;
+        println!("✅ Wallet file copied to: {}", wallet_file_dest.display());
+
+        // Update wallets.json with metadata
+        let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+            let wallets_content = fs::read_to_string(&wallets_file)?;
+            serde_json::from_str(&wallets_content)?
+        } else {
+            HashMap::new()
+        };
+
+        wallets.insert(
+            address.clone(),
+            serde_json::json!({
+                "network": network.to_string(),
+                "imported_at": chrono::Utc::now().to_rfc3339(),
+                "imported": true,
+                "original_file": file
+            }),
+        );
+
+        fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+        println!("✅ Wallet metadata updated in wallets registry");
+    } else {
+        return Err(anyhow!(
+            "❌ Mnemonic verification failed!\nAddress from wallet: {}\nAddress from mnemonic: {}",
+            address,
+            generated_address
+        ));
+    }
+
+    // secure_mnemonic will be automatically zeroized when it goes out of scope
+    Ok(())
+}
+
+pub fn load_wallet_from_file(file: &str) -> Result<serde_json::Value, anyhow::Error> {
+    if !std::path::Path::new(file).exists() {
+        return Err(anyhow!("Wallet file not found: {}", file));
+    }
+
+    let file_content = std::fs::read_to_string(file)?;
+    let wallet_data: serde_json::Value = serde_json::from_str(&file_content)?;
+
+    Ok(wallet_data)
+}
+
+pub fn extract_address_from_wallet(
+    wallet_data: &serde_json::Value,
+) -> Result<String, anyhow::Error> {
+    // Try to get the address field from the wallet data
+    if let Some(address) = wallet_data.get("address") {
+        if let Some(address_str) = address.as_str() {
+            return Ok(address_str.to_string());
+        }
+    }
+
+    Err(anyhow!("Address field not found or invalid in wallet data"))
+}
+
+pub fn generate_address_from_mnemonic_secure(
+    secure_mnemonic: &SecureString,
+    network: Network,
+) -> Result<String, anyhow::Error> {
+    use crate::{bitcoin_utils::calculate_taproot_address, storage::get_master_seed_from_mnemonic};
+    use bitcoin::secp256k1::{Keypair, SecretKey};
+    use zeroize::Zeroize;
+
+    // Generate master seed from mnemonic using BIP-39
+    let mut master_seed = get_master_seed_from_mnemonic(secure_mnemonic.as_str())
+        .map_err(|e| anyhow!("Failed to generate master seed from mnemonic: {}", e))?;
+
+    // Generate master private key directly from the seed (first 32 bytes)
+    let master_private_key = SecretKey::from_slice(&master_seed)?;
+    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &master_private_key);
+
+    // Calculate the taproot address
+    let address = calculate_taproot_address(&keypair, network);
+
+    // Explicitly zeroize sensitive data in memory
+    master_seed.zeroize();
+    // Note: master_private_key and keypair contain sensitive data but SecretKey
+    // and Keypair don't implement Zeroize, so they'll be cleared when they go out of scope
+
+    Ok(address.to_string())
+}
+
+/// Securely prompt for mnemonic phrase word by word with validation
+pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
+    use bip39::{Language, Mnemonic};
+    use colored::Colorize;
+    use zeroize::Zeroize;
+
+    println!("{}", "🔒 Secure Mnemonic Input".blue().bold());
+    println!("Enter your mnemonic phrase word by word.");
+    println!("Each word will be validated against the BIP-39 wordlist.");
+    println!("Valid lengths: 12, 15, 18, 21, or 24 words");
+    println!("Type 'done' when you've entered all words, or just press Enter on an empty line.");
+    println!();
+
+    let mut words: Vec<String> = Vec::new();
+    let mut word_index = 1;
+
+    // Get the BIP-39 English wordlist for validation
+    let wordlist = Language::English.word_list();
+
+    loop {
+        let mut word =
+            rpassword::prompt_password(&format!("Word {}: ", word_index.to_string().cyan()))?
+                .trim()
+                .to_lowercase();
+
+        // Check if user wants to finish (empty input or "done")
+        if word.is_empty() || word == "done" {
+            if !words.is_empty() {
+                break;
+            } else {
+                println!("{} Please enter at least one word.", "⚠️".yellow());
+                continue;
+            }
+        }
+
+        // Validate word against BIP-39 wordlist
+        if wordlist.iter().any(|&w| w == word) {
+            words.push(word.clone());
+            println!("✅ Word {} accepted", word_index);
+            word_index += 1;
+            word.zeroize(); // Clear the word from memory
+
+            // Check if we have a valid mnemonic length and offer to finish
+            if [12, 15, 18, 21, 24].contains(&words.len()) {
+                println!();
+                println!(
+                    "{} You have entered {} words (valid mnemonic length).",
+                    "ℹ️".blue(),
+                    words.len().to_string().green()
+                );
+                println!("Press Enter to finish, or continue entering more words.");
+            }
+        } else {
+            word.zeroize(); // Clear invalid word from memory
+            println!("{} Invalid word entered. Please try again.", "❌".red());
+            println!("Hint: Words should be lowercase English BIP-39 words.");
+        }
+
+        // Safety check - prevent extremely long inputs
+        if words.len() > 24 {
+            return Err(anyhow!(
+                "Too many words entered. BIP-39 mnemonics have maximum 24 words."
+            ));
+        }
+    }
+
+    // Validate final mnemonic length
+    let word_count = words.len();
+    if ![12, 15, 18, 21, 24].contains(&word_count) {
+        // Clear words from memory
+        for mut word in words {
+            word.zeroize();
+        }
+        return Err(anyhow!(
+            "Invalid mnemonic length: {} words. Must be 12, 15, 18, 21, or 24 words.",
+            word_count
+        ));
+    }
+
+    // Join words and validate complete mnemonic
+    let mnemonic_phrase = words.join(" ");
+    let mnemonic_validation = Mnemonic::parse(&mnemonic_phrase);
+
+    // Clear individual words from memory
+    for mut word in words {
+        word.zeroize();
+    }
+
+    match mnemonic_validation {
+        Ok(_) => {
+            println!();
+            println!(
+                "✅ {} Valid BIP-39 mnemonic phrase with {} words",
+                "SUCCESS".green().bold(),
+                mnemonic_phrase.split_whitespace().count()
+            );
+            println!("🔒 Mnemonic will be handled securely and zeroized from memory");
+
+            // Create secure string
+            let secure_mnemonic = SecureString::new(mnemonic_phrase);
+
+            Ok(secure_mnemonic)
+        }
+        Err(e) => {
+            // This shouldn't happen since we validated each word, but safety check
+            Err(anyhow!("Mnemonic validation failed: {}", e))
+        }
+    }
 }

@@ -4,7 +4,10 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::CliConfig,
     debug, deposit,
-    mnemonic::{create_encrypted_wallet_with_address, show_mnemonic_secure},
+    mnemonic::{
+        create_encrypted_wallet_with_address, import_wallet_with_mnemonic, show_mnemonic_secure,
+    },
+    wallet::{delete_wallet, verify_wallet_integrity},
     withdrawal,
 };
 
@@ -64,10 +67,16 @@ enum WalletCommands {
     },
     /// Import wallet using mnemonic phrase.
     ImportWithMnemonic {
-        /// Mnemonic phrase to import (optional, will prompt if not provided)
-        #[arg(long)]
-        mnemonic: Option<String>,
+        /// File path to import wallet from
+        file: String,
     },
+    /// Delete a wallet by address.
+    DeleteWallet {
+        /// Bitcoin address of the wallet to delete
+        address: String,
+    },
+    /// Verify integrity of wallet registry and files.
+    VerifyIntegrity,
 }
 
 #[derive(Subcommand)]
@@ -196,8 +205,23 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
-            WalletCommands::ImportWithMnemonic { mnemonic } => {
-                unimplemented!("wallet.import: {:?}", mnemonic);
+            WalletCommands::ImportWithMnemonic { file } => {
+                if let Err(e) = import_wallet_with_mnemonic(&file, config.network) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
+            WalletCommands::DeleteWallet { address } => {
+                if let Err(e) = delete_wallet(&address) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
+            WalletCommands::VerifyIntegrity => {
+                if let Err(e) = verify_wallet_integrity() {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
         },
         Commands::Deposit { command } => match command {
