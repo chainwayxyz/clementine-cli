@@ -5,7 +5,7 @@ use clementine_cli::{
     config::CliConfig,
     debug, deposit,
     mnemonic::{
-        create_encrypted_wallet_with_address, import_wallet_with_mnemonic, show_mnemonic_secure,
+        create_encrypted_wallet_with_address, import_wallet_from_mnemonic, show_mnemonic_secure,
     },
     wallet::{delete_wallet, verify_wallet_integrity},
     withdrawal,
@@ -61,10 +61,13 @@ enum WalletCommands {
         /// Bitcoin address to show mnemonic for
         address: String,
     },
-    /// Import wallet using mnemonic phrase.
-    ImportWithMnemonic {
-        /// File path to import wallet from
-        file: String,
+    /// Import wallet using secure mnemonic input.
+    ImportFromMnemonic {
+        // No file parameter - uses secure step-by-step mnemonic input
+    },
+    ImportFromFile {
+        /// Filename to import wallet from
+        filename: String,
     },
     /// Delete a wallet by address.
     DeleteWallet {
@@ -199,11 +202,14 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
-            WalletCommands::ImportWithMnemonic { file } => {
-                if let Err(e) = import_wallet_with_mnemonic(&file, config.network) {
+            WalletCommands::ImportFromMnemonic {} => {
+                if let Err(e) = import_wallet_from_mnemonic(config.network) {
                     eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
+            }
+            WalletCommands::ImportFromFile { filename } => {
+                unimplemented!("wallet.import_from_file: {}", filename);
             }
             WalletCommands::DeleteWallet { address } => {
                 if let Err(e) = delete_wallet(&address) {

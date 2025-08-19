@@ -4,7 +4,7 @@ use bitcoin::{Address, Network};
 use colored::Colorize;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
 use std::path::PathBuf;
@@ -128,8 +128,6 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
 }
 
 pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
-    use std::collections::HashSet;
-
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
     let wallets_file = storage_dir.join("wallets.json");
 
@@ -254,6 +252,104 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     }
 
     Ok(())
+}
+
+/// Import a wallet from a file path
+pub fn import_wallet_from_file(
+    file_path: &str,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    let source_path = std::path::Path::new(file_path);
+
+    if !source_path.exists() {
+        return Err(format!("Wallet file does not exist: {}", file_path).into());
+    }
+
+    if !source_path.is_file() {
+        return Err(format!("Path is not a file: {}", file_path).into());
+    }
+
+    // Read and validate the wallet file
+    let wallet_content = fs::read_to_string(source_path)?;
+    let wallet_data: serde_json::Value = serde_json::from_str(&wallet_content)?;
+
+    // Extract wallet address from the file content
+    let wallet_address = wallet_data["address"]
+        .as_str()
+        .ok_or("Invalid wallet file: missing address field")?;
+
+    // Validate required fields
+    if wallet_data["network"].is_null() {
+        return Err("Invalid wallet file: missing network field".into());
+    }
+
+    // Check if encrypted data exists (either old format or new format)
+    let has_encrypted_data =
+        wallet_data["encrypted_data"].is_string() || wallet_data["encrypted_mnemonic"].is_object();
+
+    if !has_encrypted_data {
+        return Err("Invalid wallet file: missing encrypted data".into());
+    }
+
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    fs::create_dir_all(&storage_dir)?;
+
+    let dest_wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
+
+    // Check if wallet already exists
+    if dest_wallet_file.exists() {
+        return Err(format!(
+            "Wallet with address '{}' already exists in local storage",
+            wallet_address
+        )
+        .into());
+    }
+
+    fs::copy(source_path, &dest_wallet_file)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&dest_wallet_file)?.permissions();
+        perms.set_mode(0o600); // rw-------
+        fs::set_permissions(&dest_wallet_file, perms)?;
+    }
+
+    let wallets_file = storage_dir.join("wallets.json");
+    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
+    } else {
+        HashMap::new()
+    };
+
+    let network = wallet_data["network"].as_str().unwrap_or("unknown");
+    let default_created_at = chrono::Utc::now().to_rfc3339();
+    let created_at = wallet_data["created_at"]
+        .as_str()
+        .unwrap_or(&default_created_at);
+    let data_format = wallet_data["data_format"].as_str().unwrap_or("legacy");
+
+    wallets.insert(
+        wallet_address.to_string(),
+        serde_json::json!({
+            "network": network,
+            "created_at": created_at,
+            "imported_at": chrono::Utc::now().to_rfc3339(),
+            "secure": true,
+            "data_format": data_format,
+            "imported": true
+        }),
+    );
+
+    fs::write(wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+
+    println!(
+        "{} Wallet '{}' imported successfully from: {}",
+        "✓".green(),
+        wallet_address.cyan(),
+        file_path.yellow()
+    );
+
+    Ok(wallet_address.to_string())
 }
 
 /// List all stored keys with their addresses and metadata

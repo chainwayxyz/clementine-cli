@@ -1,6 +1,5 @@
 use std::str::FromStr;
 
-use anyhow::anyhow;
 use bitcoin::{
     Network,
     bip32::{DerivationPath, Xpriv},

@@ -1,11 +1,11 @@
 use bitcoin::Network;
 use clementine_cli::{
     bitcoin_utils::{self},
+    encryption::{aes_decrypt_secure, aes_encrypt_secure},
     mnemonic::{
-        EncryptedData, aes_decrypt_secure, aes_encrypt_secure, extract_address_from_wallet,
-        generate_address_from_mnemonic_secure, generate_and_store_mnemonic_secure,
-        generate_mnemonic_secure, get_master_seed_from_mnemonic, import_wallet_with_mnemonic,
-        load_mnemonic_secure,
+        EncryptedData, extract_address_from_wallet, generate_address_from_mnemonic_secure,
+        generate_and_store_mnemonic_secure, generate_mnemonic_secure,
+        get_master_seed_from_mnemonic, load_mnemonic_secure,
     },
     secure_display::display_mnemonic_securely,
     secure_structs::SecureString,
@@ -838,92 +838,4 @@ fn test_mnemonic_validation() {
 
     println!();
     println!("✅ Test passed: BIP-39 mnemonic validation works correctly");
-}
-
-/// Interactive test for the complete ImportWithMnemonic flow
-/// This test should be run manually to test the actual user interaction
-#[test]
-#[ignore]
-fn test_import_with_mnemonic_interactive() {
-    println!("=== Interactive Test: ImportWithMnemonic ===");
-    println!();
-    println!("This test will guide you through the complete ImportWithMnemonic workflow.");
-    println!("You will need to:");
-    println!("1. Have a wallet file available");
-    println!("2. Know the mnemonic that was used to create that wallet");
-    println!("3. Enter the mnemonic word by word when prompted");
-    println!();
-    println!("Press Enter to continue or Ctrl+C to cancel...");
-
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .expect("Failed to read input");
-
-    // Create a test wallet for the interactive test
-    let temp_dir = setup_test_storage();
-    let network = Network::Testnet4;
-    let test_mnemonic = SecureString::init_with(|| {
-        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
-    });
-    let (wallet_file, expected_address) =
-        create_test_wallet_file(&temp_dir, &test_mnemonic, network);
-
-    println!();
-    println!("=== Test Setup ===");
-    println!("Created a test wallet for you:");
-    println!("  Wallet file: {}", wallet_file.display());
-    println!("  Expected address: {}", expected_address);
-    println!("  Correct mnemonic: {}", test_mnemonic.expose_secret());
-    println!();
-    println!("Now we'll test the ImportWithMnemonic functionality.");
-    println!("Please enter the mnemonic above when prompted (word by word).");
-    println!();
-
-    // Test the actual import function interactively
-    println!("=== Testing ImportWithMnemonic ===");
-    let result = import_wallet_with_mnemonic(wallet_file.to_str().unwrap(), network);
-
-    match result {
-        Ok(()) => {
-            println!();
-            println!("✅ ImportWithMnemonic completed successfully!");
-            println!();
-            println!("=== Test Alternative: Wrong Mnemonic ===");
-            println!("Now let's test with a wrong mnemonic to see the failure case.");
-            println!("Try entering a different valid mnemonic (it should fail):");
-
-            let wrong_result = import_wallet_with_mnemonic(wallet_file.to_str().unwrap(), network);
-            match wrong_result {
-                Ok(()) => {
-                    println!("⚠️  Unexpected success - you might have entered the same mnemonic");
-                }
-                Err(e) => {
-                    println!("✅ Correctly failed with wrong mnemonic: {}", e);
-                }
-            }
-        }
-        Err(e) => {
-            println!("❌ ImportWithMnemonic failed: {}", e);
-            println!("This might be expected if you entered a wrong mnemonic.");
-        }
-    }
-
-    println!();
-    println!("=== Interactive Test Completed ===");
-    println!();
-    println!("Summary of what was tested:");
-    println!("• Word-by-word mnemonic input");
-    println!("• Real-time BIP-39 word validation");
-    println!("• Complete mnemonic validation");
-    println!("• Address generation and comparison");
-    println!("• Success/failure feedback");
-    println!("• Secure memory handling");
-
-    // Clean up
-    if let Err(e) = std::fs::remove_file(&wallet_file) {
-        println!("Warning: Failed to cleanup test wallet file: {}", e);
-    } else {
-        println!("✅ Test wallet file cleaned up");
-    }
 }
