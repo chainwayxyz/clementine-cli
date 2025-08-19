@@ -1,3 +1,4 @@
+use crate::secure_structs::SecureString;
 use anyhow::{Result, anyhow};
 use colored::*;
 use crossterm::{
@@ -7,23 +8,22 @@ use crossterm::{
     style::{Color, Print, SetForegroundColor},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
 
-use crate::mnemonic::SecureString;
-
 /// Secure display manager for sensitive information like mnemonic phrases
 /// Uses alternate screen to prevent shell history contamination
-pub struct SecureMnemonicDisplay {
+pub struct SecureMnemonicDisplay<'a> {
     /// The secure mnemonic phrase to display
-    mnemonic: SecureString,
+    mnemonic: &'a SecureString,
     /// Whether alternate screen is currently active
     alternate_screen_active: bool,
 }
 
-impl SecureMnemonicDisplay {
+impl<'a> SecureMnemonicDisplay<'a> {
     /// Create a new secure display instance
-    pub fn new(mnemonic: SecureString) -> Self {
+    pub fn new(mnemonic: &'a SecureString) -> Self {
         Self {
             mnemonic,
             alternate_screen_active: false,
@@ -177,7 +177,12 @@ impl SecureMnemonicDisplay {
 
     /// Display the mnemonic words step by step, one word at a time
     fn display_mnemonic_step_by_step(&self) -> Result<()> {
-        let words: Vec<&str> = self.mnemonic.as_str().split_whitespace().collect();
+        let words: Vec<SecureString> = self
+            .mnemonic
+            .expose_secret()
+            .split_whitespace()
+            .map(|w| SecureString::init_with(|| w.to_string()))
+            .collect();
 
         for (index, word) in words.iter().enumerate() {
             let word_num = index + 1;
@@ -186,6 +191,8 @@ impl SecureMnemonicDisplay {
             // Clear screen and show header for each word
             self.clear_screen()?;
             self.display_header()?;
+
+            let word = word.expose_secret();
 
             // Display progress and current word
             execute!(
@@ -345,11 +352,18 @@ impl SecureMnemonicDisplay {
         );
         println!();
 
-        let words: Vec<&str> = self.mnemonic.as_str().split_whitespace().collect();
+        let words: Vec<SecureString> = self
+            .mnemonic
+            .expose_secret()
+            .split_whitespace()
+            .map(|w| SecureString::init_with(|| w.to_string()))
+            .collect();
 
         for (index, word) in words.iter().enumerate() {
             let word_num = index + 1;
             let total_words = words.len();
+
+            let word = word.expose_secret();
 
             println!();
             println!(
@@ -467,7 +481,7 @@ impl SecureMnemonicDisplay {
     }
 }
 
-impl Drop for SecureMnemonicDisplay {
+impl<'a> Drop for SecureMnemonicDisplay<'a> {
     fn drop(&mut self) {
         self.cleanup_alternate_screen();
         // SecureString handles its own zeroization
@@ -475,7 +489,7 @@ impl Drop for SecureMnemonicDisplay {
 }
 
 /// Convenience function to display a mnemonic securely
-pub fn display_mnemonic_securely(mnemonic: SecureString) -> Result<()> {
+pub fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
     let mut display = SecureMnemonicDisplay::new(mnemonic);
     display.display_securely()
 }
@@ -486,19 +500,20 @@ mod tests {
 
     #[test]
     fn test_secure_display_creation() {
-        let test_mnemonic = SecureString::new(
+        let test_mnemonic = SecureString::init_with(|| {
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
-        );
+        });
 
-        let display = SecureMnemonicDisplay::new(test_mnemonic);
+        let display = SecureMnemonicDisplay::new(&test_mnemonic);
         assert!(!display.alternate_screen_active);
     }
 
     #[test]
     fn test_mnemonic_word_parsing() {
-        let test_mnemonic = SecureString::new("word1 word2 word3 word4 word5 word6".to_string());
+        let test_mnemonic =
+            SecureString::init_with(|| "word1 word2 word3 word4 word5 word6".to_string());
 
-        let words: Vec<&str> = test_mnemonic.as_str().split_whitespace().collect();
+        let words: Vec<&str> = test_mnemonic.expose_secret().split_whitespace().collect();
         assert_eq!(words.len(), 6);
         assert_eq!(words[0], "word1");
         assert_eq!(words[5], "word6");

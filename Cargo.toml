@@ -11,10 +11,6 @@ path = "src/lib.rs"
 name = "clementine"
 path = "src/bin/cli.rs"
 
-[[bin]]
-name = "test_secure_display"
-path = "src/bin/test_secure_display.rs"
-
 [dependencies]
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
 reqwest = { version = "0.12.22", features = ["blocking", "json"] }
@@ -38,7 +34,7 @@ tokio = { version = "1.36", features = ["full"] }
 sha2 = "0.10.9"
 bitcoincore-rpc = { version = "0.18.0"}
 bip39 = { version = "2.0", features = ["zeroize"] }
-aes-gcm = "0.10"
+aes-gcm = {version = "0.10", features = ["zeroize"] }
 pbkdf2 = "0.12"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 rpassword = "7.3"

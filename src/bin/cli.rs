@@ -45,11 +45,7 @@ enum Commands {
 #[derive(Subcommand)]
 enum WalletCommands {
     /// Create a new wallet with optional mnemonic display.
-    CreateWallet {
-        /// Number of words in the mnemonic (12, 15, 18, 21, or 24)
-        #[arg(long, default_value = "12")]
-        word_count: usize,
-    },
+    CreateWallet {},
     /// Backup wallet to specified destination.
     BackupWallet {
         /// Destination path for wallet backup
@@ -86,8 +82,6 @@ enum DepositCommands {
         y: bool,
         #[arg(long)]
         private_key: Option<String>,
-        #[arg(long)]
-        word_count: Option<usize>,
     },
     ExportPrivateKey {
         taproot_address: String,
@@ -187,8 +181,8 @@ async fn main() {
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::CreateWallet { word_count } => {
-                if let Err(e) = create_encrypted_wallet_with_address(word_count, config.network) {
+            WalletCommands::CreateWallet {} => {
+                if let Err(e) = create_encrypted_wallet_with_address(config.network) {
                     eprintln!("Error: {e}");
                     std::process::exit(1);
                 }
@@ -225,14 +219,8 @@ async fn main() {
             }
         },
         Commands::Deposit { command } => match command {
-            DepositCommands::GenerateRecoveryKey {
-                y,
-                word_count,
-                private_key,
-            } => {
-                if let Err(e) =
-                    deposit::generate_recovery_key(y, private_key, config.network, word_count)
-                {
+            DepositCommands::GenerateRecoveryKey { y, private_key } => {
+                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network) {
                     eprintln!("Error: {e}");
                     std::process::exit(1);
                 }

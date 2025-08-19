@@ -12,12 +12,10 @@ use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::mnemonic::create_encrypted_wallet;
+use crate::mnemonic::{create_encrypted_wallet, get_master_seed_from_mnemonic};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
-use crate::storage::{
-    derive_keypair_and_address, get_master_seed_from_mnemonic, get_taproot_derivation_path,
-};
+use crate::wallet::{derive_keypair_and_address, get_taproot_derivation_path};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 
@@ -32,12 +30,10 @@ pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> Bitcoin
 pub fn generate_key_and_taproot_address(
     network: Network,
     account_index: u32,
-    word_count: Option<usize>,
 ) -> Result<(Keypair, BitcoinAddress), Box<dyn std::error::Error>> {
-    let word_count = word_count.unwrap_or(18);
-    let mnemonic = create_encrypted_wallet("recovery_wallet", word_count, network)?;
+    let mnemonic = create_encrypted_wallet("recovery_wallet", network)?;
 
-    let master_seed = get_master_seed_from_mnemonic(mnemonic.as_str())?;
+    let master_seed = get_master_seed_from_mnemonic(&mnemonic)?;
 
     let derivation_path = get_taproot_derivation_path(account_index, 0, 0);
 

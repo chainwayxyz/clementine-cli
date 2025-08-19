@@ -1,7 +1,16 @@
-use crate::mnemonic::*;
-use crate::secure_display::display_mnemonic_securely;
-use crate::storage::{get_master_seed_from_mnemonic, get_storage_dir};
 use bitcoin::Network;
+use clementine_cli::{
+    bitcoin_utils::{self},
+    mnemonic::{
+        EncryptedData, aes_decrypt_secure, aes_encrypt_secure, extract_address_from_wallet,
+        generate_address_from_mnemonic_secure, generate_and_store_mnemonic_secure,
+        generate_mnemonic_secure, get_master_seed_from_mnemonic, import_wallet_with_mnemonic,
+        load_mnemonic_secure,
+    },
+    secure_display::display_mnemonic_securely,
+    secure_structs::SecureString,
+    wallet::{get_storage_dir, load_wallet_from_file},
+};
 use secrecy::ExposeSecret;
 use std::fs;
 use tempfile::tempdir;
@@ -26,23 +35,21 @@ fn test_generate_and_store_wallet() {
 
     // Test data
     let network = Network::Testnet4;
-    let passphrase = SecurePassphrase::from_str("test_passphrase_123".to_string());
+    let passphrase = SecureString::init_with(|| "test_passphrase_123".to_string());
 
     // Generate mnemonic and master private key
-    let secure_mnemonic = generate_mnemonic_secure(12).expect("Failed to generate mnemonic");
-    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic.as_str())
-        .expect("Failed to generate master seed");
+    let secure_mnemonic = generate_mnemonic_secure().expect("Failed to generate mnemonic");
+    let master_seed =
+        get_master_seed_from_mnemonic(&secure_mnemonic).expect("Failed to generate master seed");
     let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
         .expect("Failed to create private key");
     let master_private_key_str = master_private_key.display_secret().to_string();
-    let master_private_key_secure = SecureString::new(master_private_key_str);
+    let master_private_key_secure = SecureString::init_with(|| master_private_key_str);
 
     // Generate address
-    let keypair = bitcoin::secp256k1::Keypair::from_secret_key(
-        &crate::bitcoin_utils::SECP,
-        &master_private_key,
-    );
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+    let keypair =
+        bitcoin::secp256k1::Keypair::from_secret_key(&bitcoin_utils::SECP, &master_private_key);
+    let address = bitcoin_utils::calculate_taproot_address(&keypair, network);
 
     // Encrypt both separately
     let encrypted_mnemonic =
@@ -121,24 +128,22 @@ fn test_decrypt_stored_wallet() {
 
     // Test data
     let network = Network::Testnet4;
-    let passphrase = SecurePassphrase::from_str("test_passphrase_123".to_string());
+    let passphrase = SecureString::init_with(|| "test_passphrase_123".to_string());
 
     // Generate and store wallet
-    let secure_mnemonic = generate_mnemonic_secure(12).expect("Failed to generate mnemonic");
-    let original_mnemonic = secure_mnemonic.as_str().to_string();
+    let secure_mnemonic = generate_mnemonic_secure().expect("Failed to generate mnemonic");
+    let original_mnemonic = secure_mnemonic.expose_secret().to_string();
 
     let master_seed =
-        get_master_seed_from_mnemonic(&original_mnemonic).expect("Failed to generate master seed");
+        get_master_seed_from_mnemonic(&secure_mnemonic).expect("Failed to generate master seed");
     let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
         .expect("Failed to create private key");
     let original_private_key = master_private_key.display_secret().to_string();
-    let master_private_key_secure = SecureString::new(original_private_key.clone());
+    let master_private_key_secure = SecureString::init_with(|| original_private_key.clone());
 
-    let keypair = bitcoin::secp256k1::Keypair::from_secret_key(
-        &crate::bitcoin_utils::SECP,
-        &master_private_key,
-    );
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+    let keypair =
+        bitcoin::secp256k1::Keypair::from_secret_key(&bitcoin_utils::SECP, &master_private_key);
+    let address = bitcoin_utils::calculate_taproot_address(&keypair, network);
 
     // Encrypt and store
     let encrypted_mnemonic =
@@ -227,22 +232,25 @@ fn test_decrypt_stored_wallet() {
 
     // Verify decrypted data matches original
     assert_eq!(
-        decrypted_mnemonic.as_str(),
+        decrypted_mnemonic.expose_secret().to_string(),
         original_mnemonic,
         "Decrypted mnemonic should match original"
     );
     assert_eq!(
-        decrypted_private_key.as_str(),
+        decrypted_private_key.expose_secret().to_string(),
         original_private_key,
         "Decrypted private key should match original"
     );
 
     println!("✓ Test 2 passed: Wallet decrypted successfully");
     println!("  Original mnemonic: {}", original_mnemonic);
-    println!("  Decrypted mnemonic: {}", decrypted_mnemonic.as_str());
+    println!(
+        "  Decrypted mnemonic: {}",
+        decrypted_mnemonic.expose_secret()
+    );
     println!(
         "  Mnemonics match: {}",
-        original_mnemonic == decrypted_mnemonic.as_str()
+        original_mnemonic == decrypted_mnemonic.expose_secret().to_string()
     );
 }
 
@@ -259,23 +267,21 @@ fn test_e2e_create_store_show_mnemonic() {
     println!("Step 1: Creating wallet...");
 
     // Generate mnemonic
-    let secure_mnemonic = generate_mnemonic_secure(12).expect("Failed to generate mnemonic");
-    let original_mnemonic = secure_mnemonic.as_str().to_string();
+    let secure_mnemonic = generate_mnemonic_secure().expect("Failed to generate mnemonic");
+    let original_mnemonic = secure_mnemonic.expose_secret().to_string();
 
     // Generate master seed and private key using BIP-39
     let master_seed =
-        get_master_seed_from_mnemonic(&original_mnemonic).expect("Failed to generate master seed");
+        get_master_seed_from_mnemonic(&secure_mnemonic).expect("Failed to generate master seed");
     let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
         .expect("Failed to create private key");
     let master_private_key_str = master_private_key.display_secret().to_string();
-    let master_private_key_secure = SecureString::new(master_private_key_str);
+    let master_private_key_secure = SecureString::init_with(|| master_private_key_str);
 
     // Generate address
-    let keypair = bitcoin::secp256k1::Keypair::from_secret_key(
-        &crate::bitcoin_utils::SECP,
-        &master_private_key,
-    );
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+    let keypair =
+        bitcoin::secp256k1::Keypair::from_secret_key(&bitcoin_utils::SECP, &master_private_key);
+    let address = bitcoin_utils::calculate_taproot_address(&keypair, network);
 
     println!("  Generated address: {}", address);
     println!("  Generated mnemonic: {}", original_mnemonic);
@@ -283,7 +289,7 @@ fn test_e2e_create_store_show_mnemonic() {
     // Step 2: Store wallet with separate encryption
     println!("Step 2: Encrypting and storing wallet...");
 
-    let passphrase = SecurePassphrase::from_str(passphrase_str.to_string());
+    let passphrase = SecureString::init_with(|| passphrase_str.to_string());
     let encrypted_mnemonic =
         aes_encrypt_secure(&secure_mnemonic, &passphrase).expect("Failed to encrypt mnemonic");
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
@@ -354,22 +360,22 @@ fn test_e2e_create_store_show_mnemonic() {
 
     // Verify the full flow worked correctly
     assert_eq!(
-        decrypted_mnemonic.as_str(),
+        decrypted_mnemonic.expose_secret().to_string(),
         original_mnemonic,
         "E2E: Final mnemonic should match original"
     );
 
     // Also verify we can regenerate the same address from the decrypted mnemonic
-    let verification_seed = get_master_seed_from_mnemonic(decrypted_mnemonic.as_str())
+    let verification_seed = get_master_seed_from_mnemonic(&decrypted_mnemonic)
         .expect("Failed to regenerate master seed");
     let verification_private_key = bitcoin::secp256k1::SecretKey::from_slice(&verification_seed)
         .expect("Failed to recreate private key");
     let verification_keypair = bitcoin::secp256k1::Keypair::from_secret_key(
-        &crate::bitcoin_utils::SECP,
+        &bitcoin_utils::SECP,
         &verification_private_key,
     );
     let verification_address =
-        crate::bitcoin_utils::calculate_taproot_address(&verification_keypair, network);
+        bitcoin_utils::calculate_taproot_address(&verification_keypair, network);
 
     assert_eq!(
         verification_address, address,
@@ -378,7 +384,10 @@ fn test_e2e_create_store_show_mnemonic() {
 
     println!("✓ Test 3 passed: End-to-end create, store, and show mnemonic");
     println!("  Original mnemonic: {}", original_mnemonic);
-    println!("  Retrieved mnemonic: {}", decrypted_mnemonic.as_str());
+    println!(
+        "  Retrieved mnemonic: {}",
+        decrypted_mnemonic.expose_secret()
+    );
     println!("  Address consistency: {}", address);
     println!("  Full round-trip successful: ✓");
 }
@@ -386,15 +395,15 @@ fn test_e2e_create_store_show_mnemonic() {
 #[test]
 fn test_different_nonces_used() {
     // Test to ensure mnemonic and private key use different nonces
-    let passphrase = SecurePassphrase::from_str("nonce_test_passphrase".to_string());
+    let passphrase = SecureString::init_with(|| "nonce_test_passphrase".to_string());
 
-    let secure_mnemonic = generate_mnemonic_secure(12).expect("Failed to generate mnemonic");
-    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic.as_str())
-        .expect("Failed to generate master seed");
+    let secure_mnemonic = generate_mnemonic_secure().expect("Failed to generate mnemonic");
+    let master_seed =
+        get_master_seed_from_mnemonic(&secure_mnemonic).expect("Failed to generate master seed");
     let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
         .expect("Failed to create private key");
     let master_private_key_str = master_private_key.display_secret().to_string();
-    let master_private_key_secure = SecureString::new(master_private_key_str);
+    let master_private_key_secure = SecureString::init_with(|| master_private_key_str);
 
     // Encrypt both multiple times to ensure nonces are always different
     for i in 0..5 {
@@ -440,15 +449,14 @@ fn test_interactive_e2e_create_and_show() {
     println!("=== Step 1: Creating Wallet ===");
     let wallet_name = "test_interactive_e2e_wallet";
     let network = bitcoin::Network::Testnet4;
-    let test_passphrase = SecurePassphrase::from_str("test_passphrase_for_e2e".to_string());
+    let test_passphrase = SecureString::init_with(|| "test_passphrase_for_e2e".to_string());
 
     println!("Creating wallet: {}", wallet_name);
     println!("Network: {}", network);
     println!();
 
     // Use the non-interactive generate_and_store_mnemonic_secure function
-    let create_result =
-        generate_and_store_mnemonic_secure(12, wallet_name, &test_passphrase, network);
+    let create_result = generate_and_store_mnemonic_secure(wallet_name, &test_passphrase, network);
 
     match create_result {
         Ok(original_mnemonic) => {
@@ -472,7 +480,7 @@ fn test_interactive_e2e_create_and_show() {
             println!();
 
             // Use the non-interactive load_mnemonic_secure function
-            let show_result = load_mnemonic_secure(wallet_name, test_passphrase.expose_secret());
+            let show_result = load_mnemonic_secure(wallet_name, &test_passphrase);
 
             match show_result {
                 Ok(retrieved_mnemonic) => {
@@ -480,13 +488,13 @@ fn test_interactive_e2e_create_and_show() {
 
                     // Verify the retrieved mnemonic matches the original
                     assert_eq!(
-                        retrieved_mnemonic,
-                        original_mnemonic.as_str(),
+                        retrieved_mnemonic.expose_secret(),
+                        original_mnemonic.expose_secret(),
                         "Retrieved mnemonic should match the original"
                     );
 
                     // Display the mnemonic securely
-                    match display_mnemonic_securely(SecureString::new(retrieved_mnemonic)) {
+                    match display_mnemonic_securely(&retrieved_mnemonic) {
                         Ok(()) => {
                             println!("✅ Mnemonic displayed securely!");
                         }
@@ -532,7 +540,7 @@ fn test_interactive_e2e_create_and_show() {
 /// Helper function to create a test wallet file with known mnemonic and address
 fn create_test_wallet_file(
     temp_dir: &tempfile::TempDir,
-    mnemonic: &str,
+    mnemonic: &SecureString,
     network: Network,
 ) -> (std::path::PathBuf, String) {
     let storage_dir = get_test_storage_dir(temp_dir);
@@ -543,11 +551,9 @@ fn create_test_wallet_file(
         get_master_seed_from_mnemonic(mnemonic).expect("Failed to generate master seed");
     let master_private_key = bitcoin::secp256k1::SecretKey::from_slice(&master_seed)
         .expect("Failed to create private key");
-    let keypair = bitcoin::secp256k1::Keypair::from_secret_key(
-        &crate::bitcoin_utils::SECP,
-        &master_private_key,
-    );
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+    let keypair =
+        bitcoin::secp256k1::Keypair::from_secret_key(&bitcoin_utils::SECP, &master_private_key);
+    let address = bitcoin_utils::calculate_taproot_address(&keypair, network);
 
     // Create wallet file with the address
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
@@ -575,16 +581,18 @@ fn test_import_with_mnemonic_success() {
     let network = Network::Testnet4;
 
     // Use a known valid BIP-39 mnemonic for testing
-    let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let test_mnemonic = SecureString::init_with(|| {
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
+    });
 
     // Create test wallet file with the address that matches this mnemonic
     let (wallet_file, expected_address) =
-        create_test_wallet_file(&temp_dir, test_mnemonic, network);
+        create_test_wallet_file(&temp_dir, &test_mnemonic, network);
 
     println!("Test wallet created:");
     println!("  File: {}", wallet_file.display());
     println!("  Expected address: {}", expected_address);
-    println!("  Test mnemonic: {}", test_mnemonic);
+    println!("  Test mnemonic: {}", test_mnemonic.expose_secret());
 
     // Test the helper functions directly first
     println!("\nTesting helper functions:");
@@ -603,9 +611,7 @@ fn test_import_with_mnemonic_success() {
     );
     println!("✅ Address extracted successfully: {}", extracted_address);
 
-    // Test generate_address_from_mnemonic_secure
-    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
-    let generated_address = generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+    let generated_address = generate_address_from_mnemonic_secure(&test_mnemonic, network)
         .expect("Should generate address from mnemonic");
     assert_eq!(
         generated_address, expected_address,
@@ -629,17 +635,20 @@ fn test_import_with_mnemonic_failure_wrong_mnemonic() {
     let network = Network::Testnet4;
 
     // Create wallet with one mnemonic
-    let correct_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let correct_mnemonic = SecureString::init_with(|| {
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
+    });
     let (wallet_file, expected_address) =
-        create_test_wallet_file(&temp_dir, correct_mnemonic, network);
+        create_test_wallet_file(&temp_dir, &correct_mnemonic, network);
 
     // Try to verify with a different valid mnemonic (24 words)
-    let wrong_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art";
-    let wrong_secure_mnemonic = SecureString::new(wrong_mnemonic.to_string());
+    let wrong_mnemonic = SecureString::init_with(|| {
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art".to_string()
+    });
 
     println!("Testing with wrong mnemonic:");
-    println!("  Correct mnemonic: {}", correct_mnemonic);
-    println!("  Wrong mnemonic: {}", wrong_mnemonic);
+    println!("  Correct mnemonic: {}", correct_mnemonic.expose_secret());
+    println!("  Wrong mnemonic: {}", wrong_mnemonic.expose_secret());
     println!("  Expected address: {}", expected_address);
 
     // Load wallet data
@@ -651,7 +660,7 @@ fn test_import_with_mnemonic_failure_wrong_mnemonic() {
         extract_address_from_wallet(&wallet_data).expect("Should extract address successfully");
 
     // Generate address from wrong mnemonic
-    let generated_address = generate_address_from_mnemonic_secure(&wrong_secure_mnemonic, network)
+    let generated_address = generate_address_from_mnemonic_secure(&wrong_mnemonic, network)
         .expect("Should generate address from wrong mnemonic");
 
     println!("  Extracted address: {}", extracted_address);
@@ -854,16 +863,18 @@ fn test_import_with_mnemonic_interactive() {
     // Create a test wallet for the interactive test
     let temp_dir = setup_test_storage();
     let network = Network::Testnet4;
-    let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let test_mnemonic = SecureString::init_with(|| {
+        "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
+    });
     let (wallet_file, expected_address) =
-        create_test_wallet_file(&temp_dir, test_mnemonic, network);
+        create_test_wallet_file(&temp_dir, &test_mnemonic, network);
 
     println!();
     println!("=== Test Setup ===");
     println!("Created a test wallet for you:");
     println!("  Wallet file: {}", wallet_file.display());
     println!("  Expected address: {}", expected_address);
-    println!("  Correct mnemonic: {}", test_mnemonic);
+    println!("  Correct mnemonic: {}", test_mnemonic.expose_secret());
     println!();
     println!("Now we'll test the ImportWithMnemonic functionality.");
     println!("Please enter the mnemonic above when prompted (word by word).");

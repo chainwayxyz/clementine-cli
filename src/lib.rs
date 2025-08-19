@@ -42,18 +42,18 @@ pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
+pub mod encryption;
 pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
+pub mod passphrase;
+pub mod private_key;
 pub mod script;
 pub mod secure_display;
-pub mod storage;
+pub mod secure_structs;
 pub mod types;
 pub mod wallet;
 pub mod withdrawal;
-
-#[cfg(test)]
-pub mod tests;
 
 pub fn parse_citrea_address(
     citrea_address: &str,

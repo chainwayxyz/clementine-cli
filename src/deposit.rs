@@ -10,7 +10,8 @@ use crate::bitcoin_utils::{
 };
 use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
-use crate::storage::{load_key, prompt_new_passphrase, prompt_unlock_passphrase, store_key};
+use crate::passphrase::{prompt_new_passphrase, prompt_unlock_passphrase};
+use crate::wallet::{load_key, store_key};
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 use bitcoin::AddressType;
@@ -51,7 +52,6 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-    word_count: Option<usize>,
 ) -> Result<(), Box<dyn std::error::Error>> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
@@ -62,14 +62,14 @@ pub fn generate_recovery_key(
     let (keypair, address) = if let Some(private_key) = private_key {
         generate_keypair_and_taproot_address_from_private_key(&private_key, network)
     } else {
-        generate_key_and_taproot_address(network, 0, word_count)
+        generate_key_and_taproot_address(network, 0)
     }?;
 
     // Prompt for passphrase to encrypt the key
     let secure_passphrase = prompt_new_passphrase()?;
 
     // Store the key securely
-    let stored_address = store_key(&keypair, network, secure_passphrase.as_str())?;
+    let stored_address = store_key(&keypair, network, secure_passphrase)?;
 
     // Verify the stored address matches the generated one
     if stored_address != address {
@@ -173,7 +173,7 @@ pub fn sign_recovery_tx(
             load_key(
                 recovery_taproot_address,
                 config.network,
-                Some(secure_passphrase.as_str()),
+                Some(&secure_passphrase),
             )?
         }
     };
@@ -244,7 +244,7 @@ pub fn export_private_key(
 ) -> Result<(), Box<dyn std::error::Error>> {
     let address = parse_taproot_address(taproot_address, network)?;
 
-    let private_key = crate::storage::export_private_key(&address.to_string(), network)?;
+    let private_key = crate::wallet::export_private_key(&address.to_string(), network)?;
 
     println!("{} {}", "ADDRESS".cyan().bold(), address);
     println!("{} {}", "NETWORK".blue().bold(), network);
@@ -259,7 +259,7 @@ pub fn export_private_key(
 
 /// List all stored keys
 pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
-    let keys = crate::storage::list_keys()?;
+    let keys = crate::wallet::list_keys()?;
 
     if keys.is_empty() {
         println!("{} No keys found in storage", "INFO".yellow().bold());
@@ -326,11 +326,11 @@ mod tests {
         let passphrase = "test_recovery_passphrase";
 
         let recovery_address =
-            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
                 .unwrap();
 
         // Test that we can load the key with correct passphrase
-        let loaded_keypair = crate::storage::load_key_with_base_dir(
+        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
             &recovery_address.to_string(),
             network,
             Some(passphrase),
@@ -340,7 +340,7 @@ mod tests {
         assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
 
         // Test that loading fails with wrong passphrase
-        let wrong_result = crate::storage::load_key_with_base_dir(
+        let wrong_result = crate::wallet::tests::load_key_with_base_dir(
             &recovery_address.to_string(),
             network,
             Some("wrong_passphrase"),
@@ -355,7 +355,7 @@ mod tests {
         );
 
         // Test that loading fails without passphrase (encrypted key)
-        let no_pass_result = crate::storage::load_key_with_base_dir(
+        let no_pass_result = crate::wallet::tests::load_key_with_base_dir(
             &recovery_address.to_string(),
             network,
             None,
@@ -386,11 +386,11 @@ mod tests {
 
         // Store the key (this is what generate_recovery_key does internally)
         let stored_address =
-            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
                 .unwrap();
 
         // Verify we can use this key in the recovery signing workflow
-        let loaded_keypair = crate::storage::load_key_with_base_dir(
+        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
             &stored_address.to_string(),
             network,
             Some(passphrase),
@@ -433,12 +433,13 @@ mod tests {
             let keypair = Keypair::from_secret_key(&secp, &secret_key);
 
             // Store with the passphrase
-            let address =
-                crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
-                    .unwrap();
+            let address = crate::wallet::tests::store_key_with_base_dir(
+                &keypair, network, passphrase, base_dir,
+            )
+            .unwrap();
 
             // Verify we can load it back
-            let loaded_keypair = crate::storage::load_key_with_base_dir(
+            let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
                 &address.to_string(),
                 network,
                 Some(passphrase),
@@ -448,7 +449,7 @@ mod tests {
             assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
 
             // Verify wrong passphrase fails
-            let wrong_result = crate::storage::load_key_with_base_dir(
+            let wrong_result = crate::wallet::tests::load_key_with_base_dir(
                 &address.to_string(),
                 network,
                 Some("definitely_wrong"),
@@ -472,7 +473,7 @@ mod tests {
         let passphrase = "security_test_passphrase";
 
         let address =
-            crate::storage::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
+            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
                 .unwrap();
 
         // Read the stored file and verify it's actually encrypted
@@ -500,7 +501,7 @@ mod tests {
         assert!(file_content.contains("\"nonce\":"));
 
         // Verify we can still load the key
-        let loaded_keypair = crate::storage::load_key_with_base_dir(
+        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
             &address.to_string(),
             network,
             Some(passphrase),
@@ -526,7 +527,7 @@ mod tests {
         let network = Network::Testnet4;
         let correct_passphrase = "timing_test_passphrase";
 
-        let address = crate::storage::store_key_with_base_dir(
+        let address = crate::wallet::tests::store_key_with_base_dir(
             &keypair,
             network,
             correct_passphrase,
@@ -536,7 +537,7 @@ mod tests {
 
         // Test with wrong passphrase - should still take reasonable time
         let start = std::time::Instant::now();
-        let wrong_result = crate::storage::load_key_with_base_dir(
+        let wrong_result = crate::wallet::tests::load_key_with_base_dir(
             &address.to_string(),
             network,
             Some("wrong_passphrase"),

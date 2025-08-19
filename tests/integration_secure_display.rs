@@ -1,5 +1,7 @@
-use clementine_cli::mnemonic::SecureString;
-use clementine_cli::secure_display::{SecureMnemonicDisplay, display_mnemonic_securely};
+use clementine_cli::{
+    secure_display::{SecureMnemonicDisplay, display_mnemonic_securely},
+    secure_structs::SecureString,
+};
 use tempfile::TempDir;
 
 #[test]
@@ -11,7 +13,7 @@ fn test_secure_mnemonic_display_integration() {
 
     // Test mnemonic phrase (standard BIP39 test vector)
     let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
+    let secure_mnemonic = SecureString::init_with(|| test_mnemonic.to_string());
 
     println!("Testing secure mnemonic display...");
     println!("This test will attempt to use AlternateDisplayScreen.");
@@ -20,7 +22,7 @@ fn test_secure_mnemonic_display_integration() {
     println!();
 
     // Test the secure display function directly
-    match display_mnemonic_securely(secure_mnemonic) {
+    match display_mnemonic_securely(&secure_mnemonic) {
         Ok(()) => {
             println!("✅ Secure display completed successfully");
         }
@@ -37,10 +39,10 @@ fn test_secure_mnemonic_display_integration() {
 #[test]
 fn test_secure_display_struct_lifecycle() {
     let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
+    let secure_mnemonic = SecureString::init_with(|| test_mnemonic.to_string());
 
     // Test creating the display struct
-    let display = SecureMnemonicDisplay::new(secure_mnemonic);
+    let display = SecureMnemonicDisplay::new(&secure_mnemonic);
 
     // The display struct is created successfully (we can't access private fields in tests)
 
@@ -83,7 +85,7 @@ fn test_manual_secure_display() {
     println!();
 
     let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
+    let secure_mnemonic = SecureString::init_with(|| test_mnemonic.to_string());
 
     println!("About to display a test mnemonic securely...");
     println!("Press Enter to continue...");
@@ -93,7 +95,7 @@ fn test_manual_secure_display() {
         .read_line(&mut input)
         .expect("Failed to read input");
 
-    match display_mnemonic_securely(secure_mnemonic) {
+    match display_mnemonic_securely(&secure_mnemonic) {
         Ok(()) => {
             println!("✅ Manual secure display test completed");
             println!("Did you see the mnemonic displayed in an alternate screen? (y/n)");
@@ -132,10 +134,10 @@ fn test_encrypted_wallet_integration() {
     // so we'll test the components that can be tested non-interactively
 
     let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
-    let secure_mnemonic = SecureString::new(test_mnemonic.to_string());
+    let secure_mnemonic = SecureString::init_with(|| test_mnemonic.to_string());
 
     // This should use fallback display in CI environment
-    let result = display_mnemonic_securely(secure_mnemonic);
+    let result = display_mnemonic_securely(&secure_mnemonic);
 
     match result {
         Ok(()) => println!("✅ Integration test with secure display passed"),
@@ -149,8 +151,8 @@ fn test_encrypted_wallet_integration() {
 #[test]
 fn test_secure_display_error_handling() {
     // Test with empty mnemonic
-    let empty_mnemonic = SecureString::new("".to_string());
-    let result = display_mnemonic_securely(empty_mnemonic);
+    let empty_mnemonic = SecureString::init_with(|| "".to_string());
+    let result = display_mnemonic_securely(&empty_mnemonic);
 
     // Should handle gracefully (either succeed with empty display or fail gracefully)
     match result {
@@ -159,8 +161,8 @@ fn test_secure_display_error_handling() {
     }
 
     // Test with very long mnemonic
-    let long_mnemonic = SecureString::new("word ".repeat(100).trim().to_string());
-    let result = display_mnemonic_securely(long_mnemonic);
+    let long_mnemonic = SecureString::init_with(|| "word ".repeat(100).trim().to_string());
+    let result = display_mnemonic_securely(&long_mnemonic);
 
     match result {
         Ok(()) => println!("✅ Long mnemonic handled gracefully"),
