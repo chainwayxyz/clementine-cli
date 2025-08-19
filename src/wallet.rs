@@ -257,7 +257,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
 }
 
 /// List all stored keys with their addresses and metadata
-pub fn list_keys() -> Result<Vec<(String, serde_json::Value)>, Box<dyn std::error::Error>> {
+pub fn list_keys() -> Result<Vec<(String, serde_json::Value)>, anyhow::Error> {
     let storage_dir = get_storage_dir()?;
     let address_file = storage_dir.join("addresses.json");
 
@@ -287,7 +287,7 @@ pub fn store_key(
     keypair: &Keypair,
     network: Network,
     passphrase: SecureString,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, anyhow::Error> {
     // Calculate the taproot address for this keypair
     let address = crate::bitcoin_utils::calculate_taproot_address(keypair, network);
 
@@ -356,7 +356,7 @@ pub fn load_key(
     taproot_address: &str,
     network: Network,
     passphrase: Option<&SecureString>,
-) -> Result<Keypair, Box<dyn std::error::Error>> {
+) -> Result<Keypair, anyhow::Error> {
     // Parse the address to validate it
     let unchecked_address: BitcoinAddress<bitcoin::address::NetworkUnchecked> =
         taproot_address.parse()?;
@@ -367,7 +367,7 @@ pub fn load_key(
     let key_file = storage_dir.join(format!("key_{address}.json"));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {address}").into());
+        return Err(anyhow!("No key found for address: {address}").into());
     }
 
     let file_content = fs::read_to_string(key_file)?;
@@ -386,7 +386,7 @@ pub fn load_key(
     let private_key_str = if is_encrypted && version >= 2 {
         // Handle encrypted key (version 2+)
         let passphrase = passphrase.ok_or(
-            "This key is encrypted and requires a passphrase. Please provide the passphrase used when the key was created."
+            anyhow!("This key is encrypted and requires a passphrase. Please provide the passphrase used when the key was created.")
         )?;
 
         let encrypted_data: EncryptedKeyData = serde_json::from_str(&file_content)?;
@@ -394,9 +394,9 @@ pub fn load_key(
         decrypted.expose_secret().to_owned()
     } else {
         // Handle legacy format keys - these should be migrated
-        return Err(
-            "This key uses an old storage format. Please regenerate your key to use the current secure storage format.".into()
-        );
+        return Err(anyhow!(
+            "This key uses an old storage format. Please regenerate your key to use the current secure storage format."
+        ));
     };
 
     // Parse the private key
@@ -418,7 +418,7 @@ pub fn load_key(
 pub fn export_private_key(
     taproot_address: &str,
     network: Network,
-) -> Result<String, Box<dyn std::error::Error>> {
+) -> Result<String, anyhow::Error> {
     let unchecked_address: Address<bitcoin::address::NetworkUnchecked> = taproot_address.parse()?;
     let address = unchecked_address.require_network(network)?;
 
@@ -426,20 +426,20 @@ pub fn export_private_key(
     let key_file = storage_dir.join(format!("key_{address}.json"));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {address}").into());
+        return Err(anyhow!("No key found for address: {address}"));
     }
 
     let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
     let private_key_str = key_data["private_key"]
         .as_str()
-        .ok_or("Invalid key file format: missing private_key")?;
+        .ok_or(anyhow!("Invalid key file format: missing private_key"))?;
 
     Ok(private_key_str.to_string())
 }
 
 /// Get the storage directory path
-pub fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
+pub fn get_storage_dir() -> Result<PathBuf, anyhow::Error> {
+    let home_dir = dirs::home_dir().ok_or(anyhow!("Could not determine home directory"))?;
     Ok(home_dir.join(".clementine").join("keys"))
 }
 
@@ -447,7 +447,7 @@ pub fn derive_keypair_and_address(
     master_seed: &[u8; 32],
     derivation_path: &str,
     network: Network,
-) -> Result<(Keypair, Address), Box<dyn std::error::Error>> {
+) -> Result<(Keypair, Address), anyhow::Error> {
     let secret_key = derive_private_key(master_seed, derivation_path, network)?;
     let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
     let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
@@ -482,7 +482,7 @@ pub mod tests {
         network: Network,
         passphrase: &str,
         base_dir: &std::path::Path,
-    ) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+    ) -> Result<BitcoinAddress, anyhow::Error> {
         use secrecy::SecretBox;
 
         let address = crate::bitcoin_utils::calculate_taproot_address(keypair, network);
@@ -533,24 +533,24 @@ pub mod tests {
         network: Network,
         passphrase: Option<&str>,
         base_dir: &std::path::Path,
-    ) -> Result<Keypair, Box<dyn std::error::Error>> {
+    ) -> Result<Keypair, anyhow::Error> {
         use bitcoin::secp256k1::{Secp256k1, SecretKey};
         let storage_dir = base_dir.join(".clementine").join("keys");
         let key_file = storage_dir.join(format!("key_{address}.json"));
 
         if !key_file.exists() {
-            return Err(format!("Key file not found for address: {address}").into());
+            return Err(anyhow!("Key file not found for address: {address}"));
         }
 
         let key_data = fs::read_to_string(&key_file)?;
         let encrypted_data: EncryptedKeyData = serde_json::from_str(&key_data)?;
 
         if encrypted_data.network != network.to_string() {
-            return Err(format!(
+            return Err(anyhow!(
                 "Key network mismatch: expected {}, found {}",
-                network, encrypted_data.network
-            )
-            .into());
+                network,
+                encrypted_data.network
+            ));
         }
 
         if encrypted_data.encrypted {
@@ -563,10 +563,12 @@ pub mod tests {
                     let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
                     Ok(Keypair::from_secret_key(&secp, &secret_key))
                 }
-                None => Err("Key is encrypted and requires a passphrase".into()),
+                None => Err(anyhow!("Key is encrypted and requires a passphrase")),
             }
         } else {
-            Err("Unencrypted keys are not supported in this version".into())
+            Err(anyhow!(
+                "Unencrypted keys are not supported in this version"
+            ))
         }
     }
 

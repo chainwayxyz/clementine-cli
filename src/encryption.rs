@@ -2,6 +2,7 @@ use aes_gcm::{
     Aes256Gcm, Key, KeyInit, Nonce,
     aead::{Aead, OsRng},
 };
+use anyhow::anyhow;
 use bitcoin::key::rand::RngCore;
 use colored::Colorize;
 use secrecy::ExposeSecret;
@@ -14,7 +15,7 @@ use crate::{
 pub fn encrypt_private_key(
     private_key: &str,
     passphrase: &SecureString,
-) -> Result<CryptoParams, Box<dyn std::error::Error>> {
+) -> Result<CryptoParams, anyhow::Error> {
     println!("{} Encrypting private key...", "SECURE".green().bold());
     // Generate random salt and nonce
     let mut salt = [0u8; 32];
@@ -41,7 +42,7 @@ pub fn encrypt_private_key(
     let nonce = Nonce::from_slice(&nonce_bytes);
     let ciphertext = cipher
         .encrypt(nonce, private_key.as_bytes())
-        .map_err(|e| format!("Encryption failed: {e}"))?;
+        .map_err(|e| anyhow!("Encryption failed: {e}"))?;
 
     Ok(CryptoParams {
         kdf: "argon2id".to_string(),
@@ -59,13 +60,13 @@ pub fn encrypt_private_key(
 pub fn decrypt_private_key(
     crypto: &CryptoParams,
     passphrase: &SecureString,
-) -> Result<SecureString, Box<dyn std::error::Error>> {
+) -> Result<SecureString, anyhow::Error> {
     // Validate crypto parameters
     if crypto.kdf != "argon2id" {
-        return Err(format!("Unsupported KDF: {}", crypto.kdf).into());
+        return Err(anyhow!("Unsupported KDF: {}", crypto.kdf));
     }
     if crypto.cipher != "aes-256-gcm" {
-        return Err(format!("Unsupported cipher: {}", crypto.cipher).into());
+        return Err(anyhow!("Unsupported cipher: {}", crypto.cipher));
     }
 
     // Decode hex values
@@ -87,10 +88,10 @@ pub fn decrypt_private_key(
     let nonce = Nonce::from_slice(&nonce_bytes);
     let plaintext = cipher
         .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| "Decryption failed: invalid passphrase or corrupted data")?;
+        .map_err(|_| anyhow!("Decryption failed: invalid passphrase or corrupted data"))?;
 
     let private_key_str =
-        String::from_utf8(plaintext).map_err(|_| "Decryption failed: invalid UTF-8")?;
+        String::from_utf8(plaintext).map_err(|_| anyhow!("Decryption failed: invalid UTF-8"))?;
     let secure_private_key = SecureString::init_with(|| private_key_str);
 
     Ok(secure_private_key)

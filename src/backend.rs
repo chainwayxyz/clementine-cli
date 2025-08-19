@@ -3,6 +3,7 @@
 use crate::config::CliConfig;
 use crate::deposit::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
+use anyhow::anyhow;
 use colored::*;
 use serde_json::json;
 
@@ -11,7 +12,7 @@ pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &CliConfig,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, anyhow::Error> {
     let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
 
     // Prepare request body
@@ -56,6 +57,8 @@ pub fn create_deposit_account(
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
-        Err(format!("Backend request failed with status: {status} {error_text}",).into())
+        Err(anyhow!(
+            "Backend request failed with status: {status} {error_text}",
+        ))
     }
 }

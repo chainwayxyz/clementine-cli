@@ -2,6 +2,7 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
+use anyhow::anyhow;
 use bitcoin::{
     Amount, Network, XOnlyPublicKey,
     secp256k1::{Parity, PublicKey},
@@ -61,7 +62,7 @@ impl CliConfig {
         }
     }
 
-    pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, Box<dyn std::error::Error>> {
+    pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, anyhow::Error> {
         match self.bitcoin_config {
             Some(ref config) => {
                 let auth = Auth::UserPass(
@@ -72,7 +73,7 @@ impl CliConfig {
                 rpc.ping().await?;
                 Ok(rpc)
             }
-            None => Err("Bitcoin RPC configuration not found in config".into()),
+            None => Err(anyhow!("Bitcoin RPC configuration not found in config")),
         }
     }
 

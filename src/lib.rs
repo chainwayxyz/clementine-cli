@@ -1,3 +1,4 @@
+use anyhow::anyhow;
 use std::env;
 use std::str::FromStr;
 
@@ -55,10 +56,8 @@ pub mod types;
 pub mod wallet;
 pub mod withdrawal;
 
-pub fn parse_citrea_address(
-    citrea_address: &str,
-) -> Result<CitreaAddress, Box<dyn std::error::Error>> {
-    let citrea_address: CitreaAddress =
-        CitreaAddress::from_str(citrea_address).map_err(|_| "Invalid Citrea address format")?;
+pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, anyhow::Error> {
+    let citrea_address: CitreaAddress = CitreaAddress::from_str(citrea_address)
+        .map_err(|_| anyhow!("Invalid Citrea address format"))?;
     Ok(citrea_address)
 }

@@ -14,6 +14,7 @@ use crate::passphrase::{prompt_new_passphrase, prompt_unlock_passphrase};
 use crate::wallet::{load_key, store_key};
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
+use anyhow::anyhow;
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
@@ -21,13 +22,10 @@ use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
 use std::str::FromStr;
 
-pub fn parse_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, anyhow::Error> {
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
-        .map_err(|_| "Invalid Bitcoin address format")?;
+        .map_err(|_| anyhow!("Invalid Bitcoin address format"))?;
     let address = unchecked_address.require_network(network)?;
     Ok(address)
 }
@@ -36,12 +34,12 @@ pub fn parse_address(
 pub fn parse_taproot_address(
     address: &str,
     network: Network,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, anyhow::Error> {
     let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err("Address is not a taproot (P2TR) address".into());
+        return Err(anyhow!("Address is not a taproot (P2TR) address"));
     }
 
     Ok(address)
@@ -52,7 +50,7 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -73,7 +71,7 @@ pub fn generate_recovery_key(
 
     // Verify the stored address matches the generated one
     if stored_address != address {
-        return Err("Address mismatch after storage".into());
+        return Err(anyhow!("Address mismatch after storage"));
     }
 
     println!("{} {}", "ADDRESS".cyan().bold(), address);
@@ -87,7 +85,7 @@ pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
         "{} {}",
@@ -118,7 +116,7 @@ pub fn get_deposit_address(
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
     config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
@@ -154,7 +152,7 @@ pub fn sign_recovery_tx(
     fee_rate: Option<u64>,
     amount: Option<f64>,
     config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), anyhow::Error> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -209,7 +207,7 @@ pub fn verify_recovery_tx(
     recovery_taproot_address: &str,
     amount: Option<f64>,
     config: &CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
+) -> Result<(Txid, BitcoinAddress, Amount), anyhow::Error> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
@@ -238,10 +236,7 @@ pub fn verify_recovery_tx(
 // TODO: Implement deposit.deposit_status
 
 /// Export private key for a taproot address
-pub fn export_private_key(
-    taproot_address: &str,
-    network: Network,
-) -> Result<(), Box<dyn std::error::Error>> {
+pub fn export_private_key(taproot_address: &str, network: Network) -> Result<(), anyhow::Error> {
     let address = parse_taproot_address(taproot_address, network)?;
 
     let private_key = crate::wallet::export_private_key(&address.to_string(), network)?;
@@ -258,7 +253,7 @@ pub fn export_private_key(
 }
 
 /// List all stored keys
-pub fn list_stored_keys() -> Result<(), Box<dyn std::error::Error>> {
+pub fn list_stored_keys() -> Result<(), anyhow::Error> {
     let keys = crate::wallet::list_keys()?;
 
     if keys.is_empty() {

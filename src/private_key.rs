@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+use anyhow::anyhow;
 use bitcoin::{
     Network,
     bip32::{DerivationPath, Xpriv},
@@ -10,7 +11,7 @@ pub fn derive_private_key(
     master_seed: &[u8; 32],
     derivation_path: &str,
     network: Network,
-) -> Result<SecretKey, Box<dyn std::error::Error>> {
+) -> Result<SecretKey, anyhow::Error> {
     let master_xpriv = Xpriv::new_master(network, master_seed)?;
 
     let path = DerivationPath::from_str(derivation_path)?;

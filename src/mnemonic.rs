@@ -298,7 +298,7 @@ pub fn aes_encrypt_secure(
 /// Generate master seed from mnemonic phrase
 pub fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &SecureString,
-) -> Result<[u8; 32], Box<dyn std::error::Error>> {
+) -> Result<[u8; 32], anyhow::Error> {
     let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())?;
 
     // Generate seed (64 bytes)
