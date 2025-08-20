@@ -38,11 +38,12 @@ alloy-sol-types = { version = "1.0.23", default-features = false, features = [
 ] }
 alloy-contract = "1.0.23"
 alloy-transport = "1.0.23"
+eyre = "0.6.12"
 serde = "1.0.219"
 toml = "0.9.5"
 secrecy = { version = "0.10.0", features = ["serde"] }
 urlencoding = "2.1"
-
+thiserror = "2.0.14"
 
 [patch.crates-io]
 secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc" }

@@ -2,13 +2,14 @@
 
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{
-    calculate_deposit_address, confirm_private_key_storage, generate_key_and_taproot_address,
+    calculate_deposit_address, confirm_private_key_storage, generate_keypair_and_taproot_address,
 };
 use crate::bitcoin_utils::{
     generate_keypair_and_taproot_address_from_private_key,
     sign_recovery_tx as utils_sign_recovery_tx,
 };
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
+use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
@@ -22,13 +23,10 @@ use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
 use std::str::FromStr;
 
-pub fn parse_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
-        .map_err(|_| "Invalid Bitcoin address format")?;
+        .map_err(|_| eyre::eyre!("Invalid Bitcoin address format"))?;
     let address = unchecked_address.require_network(network)?;
     Ok(address)
 }
@@ -37,12 +35,12 @@ pub fn parse_address(
 pub fn parse_taproot_address(
     address: &str,
     network: Network,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err("Address is not a taproot (P2TR) address".into());
+        return Err(eyre::eyre!("Address is not a taproot (P2TR) address").into());
     }
 
     Ok(address)
@@ -53,7 +51,7 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), BridgeCliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
         println!("Operation cancelled by user.");
@@ -63,7 +61,7 @@ pub fn generate_recovery_key(
     let (keypair, address) = if let Some(private_key) = private_key {
         generate_keypair_and_taproot_address_from_private_key(&private_key, network)
     } else {
-        generate_key_and_taproot_address(network)
+        Ok(generate_keypair_and_taproot_address(network))
     }?;
 
     // Store the key securely
@@ -71,7 +69,7 @@ pub fn generate_recovery_key(
 
     // Verify the stored address matches the generated one
     if stored_address != address {
-        return Err("Address mismatch after storage".into());
+        return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
     println!("{} {}", "ADDRESS".cyan().bold(), address);
@@ -84,8 +82,8 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
         "{} {}",
@@ -110,13 +108,14 @@ pub fn get_deposit_address(
         "Deposit address:".blue().bold(),
         calculated_deposit_address
     );
+
     Ok(())
 }
 
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
-    config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
@@ -151,8 +150,8 @@ pub fn sign_recovery_tx(
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    config: &CliConfig,
-) -> Result<(), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -193,8 +192,8 @@ pub fn verify_recovery_tx(
     citrea_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    config: &CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
