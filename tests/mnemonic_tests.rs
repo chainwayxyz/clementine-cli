@@ -122,7 +122,7 @@ mod tests {
             "Nonces should be different"
         );
 
-        println!("✓ Test 1 passed: Wallet generated and stored successfully");
+        println!("  Test 1 passed: Wallet generated and stored successfully");
         println!("  Address: {}", address);
         println!("  Mnemonic nonce: {}", mnemonic_nonce);
         println!("  Private key nonce: {}", private_key_nonce);
@@ -250,7 +250,7 @@ mod tests {
             "Decrypted private key should match original"
         );
 
-        println!("✓ Test 2 passed: Wallet decrypted successfully");
+        println!("  Test 2 passed: Wallet decrypted successfully");
         println!("  Original mnemonic: {}", original_mnemonic);
         println!(
             "  Decrypted mnemonic: {}",
@@ -391,14 +391,14 @@ mod tests {
             "E2E: Regenerated address should match stored address"
         );
 
-        println!("✓ Test 3 passed: End-to-end create, store, and show mnemonic");
+        println!("  Test 3 passed: End-to-end create, store, and show mnemonic");
         println!("  Original mnemonic: {}", original_mnemonic);
         println!(
             "  Retrieved mnemonic: {}",
             decrypted_mnemonic.expose_secret()
         );
         println!("  Address consistency: {}", address);
-        println!("  Full round-trip successful: ✓");
+        println!("  Full round-trip successful!");
     }
 
     #[test]
@@ -438,7 +438,7 @@ mod tests {
             }
         }
 
-        println!("✓ Test 4 passed: Different nonces are used for each encryption");
+        println!("Test 4 passed: Different nonces are used for each encryption");
     }
 
     // ============================================================================
@@ -508,7 +508,7 @@ mod tests {
         // Test load_wallet_from_file
         let wallet_data = load_wallet_from_file(wallet_file.to_str().unwrap())
             .expect("Should load wallet file successfully");
-        println!("✅ Wallet file loaded successfully");
+        println!("Wallet file loaded successfully");
 
         // Test extract_address_from_wallet
         let extracted_address =
@@ -517,7 +517,7 @@ mod tests {
             extracted_address, expected_address,
             "Extracted address should match expected"
         );
-        println!("✅ Address extracted successfully: {}", extracted_address);
+        println!("Address extracted successfully: {}", extracted_address);
 
         let generated_address = generate_address_from_mnemonic_secure(&test_mnemonic, network)
             .expect("Should generate address from mnemonic");
@@ -526,12 +526,12 @@ mod tests {
             "Generated address should match expected"
         );
         println!(
-            "✅ Address generated from mnemonic successfully: {}",
+            "Address generated from mnemonic successfully: {}",
             generated_address
         );
 
         println!();
-        println!("✅ Test passed: ImportWithMnemonic helper functions work correctly");
+        println!("Test passed: ImportWithMnemonic helper functions work correctly");
         println!("  Wallet file: {}", wallet_file.display());
         println!("  Address consistency verified: {}", expected_address);
     }
@@ -581,10 +581,10 @@ mod tests {
         );
 
         println!();
-        println!("✅ Test passed: ImportWithMnemonic correctly fails with wrong mnemonic");
+        println!("Test passed: ImportWithMnemonic correctly fails with wrong mnemonic");
         println!("  Wallet address: {}", extracted_address);
         println!("  Generated address: {}", generated_address);
-        println!("  Addresses correctly don't match ✓");
+        println!("  Addresses correctly don't match!");
     }
 
     /// Test with invalid wallet file (missing address field)
@@ -624,7 +624,7 @@ mod tests {
 
         match result {
             Err(e) => {
-                println!("✅ Correctly failed with error: {}", e);
+                println!("Correctly failed with error: {}", e);
                 assert!(
                     e.to_string().contains("Address field not found"),
                     "Error should mention missing address field"
@@ -634,7 +634,7 @@ mod tests {
         }
 
         println!();
-        println!("✅ Test passed: ImportWithMnemonic correctly handles invalid wallet files");
+        println!("Test passed: ImportWithMnemonic correctly handles invalid wallet files");
     }
 
     /// Test with non-existent wallet file
@@ -656,7 +656,7 @@ mod tests {
 
         match result {
             Err(e) => {
-                println!("✅ Correctly failed with error: {}", e);
+                println!("Correctly failed with error: {}", e);
                 assert!(
                     e.to_string().contains("Wallet file not found"),
                     "Error should mention file not found"
@@ -666,7 +666,7 @@ mod tests {
         }
 
         println!();
-        println!("✅ Test passed: ImportWithMnemonic correctly handles non-existent files");
+        println!("Test passed: ImportWithMnemonic correctly handles non-existent files");
     }
 
     /// Test mnemonic validation in prompt_mnemonic_secure
@@ -695,7 +695,7 @@ mod tests {
                 "Valid mnemonic should parse successfully: {}",
                 mnemonic
             );
-            println!("    ✅ Parsed successfully");
+            println!("Parsed successfully");
         }
 
         // Test invalid mnemonics
@@ -720,7 +720,7 @@ mod tests {
                 "Invalid mnemonic should fail to parse: {}",
                 mnemonic
             );
-            println!("    ✅ Correctly failed to parse");
+            println!("Correctly failed to parse");
         }
 
         // Test individual word validation (same logic as used in prompt_mnemonic_secure)
@@ -733,7 +733,7 @@ mod tests {
         for word in &valid_words {
             let is_valid = wordlist.contains(word);
             assert!(is_valid, "Word '{}' should be valid", word);
-            println!("    ✅ '{}' is valid", word);
+            println!("'{}' is valid", word);
         }
 
         // Invalid words
@@ -741,10 +741,10 @@ mod tests {
         for word in &invalid_words {
             let is_valid = wordlist.contains(word);
             assert!(!is_valid, "Word '{}' should be invalid", word);
-            println!("    ✅ '{}' is correctly invalid", word);
+            println!("'{}' is correctly invalid", word);
         }
 
         println!();
-        println!("✅ Test passed: BIP-39 mnemonic validation works correctly");
+        println!("Test passed: BIP-39 mnemonic validation works correctly");
     }
 }

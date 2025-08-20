@@ -90,7 +90,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
     use colored::Colorize;
     use zeroize::Zeroize;
 
-    println!("{}", "🔒 Secure Mnemonic Input".blue().bold());
+    println!("{}", "Secure Mnemonic Input".blue().bold());
     println!("Enter your mnemonic phrase word by word.");
     println!("Each word will be validated against the BIP-39 wordlist.");
     println!("Valid lengths: 12, 15, 18, 21, or 24 words");
@@ -112,7 +112,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         // Validate word against BIP-39 wordlist
         if wordlist.iter().any(|&w| w == word) {
             words.push(word.clone());
-            println!("✅ Word {} accepted", word_index);
+            println!("Word {} accepted", word_index);
             word_index += 1;
             word.zeroize(); // Clear the word from memory
 
@@ -120,15 +120,14 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
             if words.len() == MNEMONIC_WORD_COUNT {
                 println!();
                 println!(
-                    "{} You have entered {} words (valid mnemonic length).",
-                    "ℹ️".blue(),
+                    "You have entered {} words (valid mnemonic length).",
                     words.len().to_string().green()
                 );
                 break;
             }
         } else {
             word.zeroize(); // Clear invalid word from memory
-            println!("{} Invalid word entered. Please try again.", "❌".red());
+            println!("Invalid word entered. Please try again.");
             println!("Hint: Words should be lowercase English BIP-39 words.");
         }
 
@@ -165,11 +164,11 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         Ok(mut mnemonic) => {
             println!();
             println!(
-                "✅ {} Valid BIP-39 mnemonic phrase with {} words",
+                "{} Valid BIP-39 mnemonic phrase with {} words",
                 "SUCCESS".green().bold(),
                 mnemonic_phrase.split_whitespace().count()
             );
-            println!("🔒 Mnemonic will be handled securely and zeroized from memory");
+            println!("Mnemonic will be handled securely and zeroized from memory");
 
             // Create secure string
             let secure_mnemonic = SecureString::init_with(|| mnemonic_phrase);

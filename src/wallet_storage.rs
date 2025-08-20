@@ -37,7 +37,7 @@ pub fn store_wallet_data(
 
     if wallet_file.exists() {
         return Err(anyhow!(
-            "❌ Wallet with address '{}' already exists. Choose a different address or use a different function to overwrite.",
+            "Wallet with address '{}' already exists. Choose a different address or use a different function to overwrite.",
             address
         ));
     }

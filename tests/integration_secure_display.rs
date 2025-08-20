@@ -24,11 +24,11 @@ fn test_secure_mnemonic_display_integration() {
     // Test the secure display function directly
     match display_mnemonic_securely(&secure_mnemonic) {
         Ok(()) => {
-            println!("✅ Secure display completed successfully");
+            println!("Secure display completed successfully");
         }
         Err(e) => {
             println!(
-                "⚠️  Secure display failed (this is expected in CI/non-interactive environments): {e}"
+                "Secure display failed (this is expected in CI/non-interactive environments): {e}"
             );
         }
     }
@@ -49,7 +49,7 @@ fn test_secure_display_struct_lifecycle() {
     // Test that cleanup works properly (should not panic)
     drop(display);
 
-    println!("✅ SecureMnemonicDisplay lifecycle test passed");
+    println!("SecureMnemonicDisplay lifecycle test passed");
 }
 
 #[test]
@@ -72,7 +72,7 @@ fn test_mnemonic_word_formatting() {
         assert_eq!(word_num, i + 1);
     }
 
-    println!("✅ Mnemonic word formatting test passed");
+    println!(" Mnemonic word formatting test passed");
 }
 
 // Manual test function that can be run interactively
@@ -97,7 +97,7 @@ fn test_manual_secure_display() {
 
     match display_mnemonic_securely(&secure_mnemonic) {
         Ok(()) => {
-            println!("✅ Manual secure display test completed");
+            println!("Manual secure display test completed");
             println!("Did you see the mnemonic displayed in an alternate screen? (y/n)");
 
             let mut response = String::new();
@@ -106,13 +106,13 @@ fn test_manual_secure_display() {
                 .expect("Failed to read response");
 
             if response.trim().to_lowercase().starts_with('y') {
-                println!("✅ Alternate screen display worked correctly!");
+                println!(" Alternate screen display worked correctly!");
             } else {
-                println!("ℹ️  Fallback display was used (expected in some environments)");
+                println!("Fallback display was used (expected in some environments)");
             }
         }
         Err(e) => {
-            println!("❌ Manual test failed: {e}");
+            println!("Manual test failed: {e}");
             panic!("Manual test failed");
         }
     }
@@ -140,8 +140,8 @@ fn test_encrypted_wallet_integration() {
     let result = display_mnemonic_securely(&secure_mnemonic);
 
     match result {
-        Ok(()) => println!("✅ Integration test with secure display passed"),
-        Err(_) => println!("ℹ️  Secure display used fallback (expected in CI)"),
+        Ok(()) => println!("Integration test with secure display passed"),
+        Err(_) => println!("Secure display used fallback (expected in CI)"),
     }
 
     // Temporary directory is automatically cleaned up when temp_dir goes out of scope
@@ -156,8 +156,8 @@ fn test_secure_display_error_handling() {
 
     // Should handle gracefully (either succeed with empty display or fail gracefully)
     match result {
-        Ok(()) => println!("✅ Empty mnemonic handled gracefully"),
-        Err(_) => println!("ℹ️  Empty mnemonic failed gracefully (acceptable)"),
+        Ok(()) => println!("Empty mnemonic handled gracefully"),
+        Err(_) => println!("Empty mnemonic failed gracefully (acceptable)"),
     }
 
     // Test with very long mnemonic
@@ -165,7 +165,7 @@ fn test_secure_display_error_handling() {
     let result = display_mnemonic_securely(&long_mnemonic);
 
     match result {
-        Ok(()) => println!("✅ Long mnemonic handled gracefully"),
-        Err(_) => println!("ℹ️  Long mnemonic failed gracefully (acceptable)"),
+        Ok(()) => println!("Long mnemonic handled gracefully"),
+        Err(_) => println!("Long mnemonic failed gracefully (acceptable)"),
     }
 }

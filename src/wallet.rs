@@ -25,18 +25,18 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
 
     // Check if wallet exists
     if !wallet_file.exists() {
-        return Err(anyhow!("❌ No wallet found with address: {}", address));
+        return Err(anyhow!("No wallet found with address: {}", address));
     }
 
     // Load wallet data to verify it exists
     let _wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
 
-    println!("{}", "🗑️  Wallet Deletion".red().bold());
+    println!("{}", "Wallet Deletion".red().bold());
     println!(
         "You are about to delete the wallet with address: {}",
         address.yellow()
     );
-    println!("{}", "⚠️  This action cannot be undone!".red().bold());
+    println!("{}", "This action cannot be undone!".red().bold());
     println!("Make sure you have backed up your mnemonic phrase before proceeding.");
     println!();
 
@@ -47,17 +47,16 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
     io::stdin().read_line(&mut confirmation)?;
 
     if confirmation.trim() != "DELETE" {
-        println!("❌ Deletion cancelled.");
+        println!("Deletion cancelled.");
         return Ok(());
     }
 
-    // If we got here, passphrase is correct and integrity check passed
-    println!("✅ Wallet integrity check passed");
-    println!("🗑️  Deleting wallet...");
+    println!("Wallet integrity check passed");
+    println!("Deleting wallet...");
 
     // Delete wallet file
     fs::remove_file(&wallet_file)?;
-    println!("✅ Wallet file deleted: {}", wallet_file.display());
+    println!("Wallet file deleted: {}", wallet_file.display());
 
     // Remove from wallets.json registry
     if wallets_file.exists() {
@@ -68,16 +67,16 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
 
         if wallets.remove(address).is_some() {
             fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
-            println!("✅ Wallet removed from registry");
+            println!("Wallet removed from registry");
         } else {
-            println!("⚠️  Wallet was not found in registry");
+            println!("Wallet was not found in registry");
         }
     }
 
-    println!("{}", "✅ Wallet deleted successfully!".green().bold());
+    println!("{}", "Wallet deleted successfully!".green().bold());
     println!(
         "{}",
-        "⚠️  Remember: Your mnemonic phrase is the only way to recover this wallet.".yellow()
+        "Remember: Your mnemonic phrase is the only way to recover this wallet.".yellow()
     );
 
     Ok(())
@@ -121,7 +120,7 @@ pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(),
 
     println!(
         "{} Wallet '{}' backed up successfully to: {}",
-        "✓".green(),
+        "SUCCESS".green(),
         wallet_address.cyan(),
         final_dest.display().to_string().yellow()
     );
@@ -131,11 +130,11 @@ pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(),
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
 pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::Error> {
-    println!("{}", "🔒 Import Wallet with Secure Input".blue().bold());
+    println!("{}", "Import Wallet with Secure Input".blue().bold());
     println!("This process will:");
-    println!("• Securely collect your mnemonic phrase word by word");
-    println!("• Create a secure passphrase to encrypt the wallet");
-    println!("• Derive and store the wallet with full encryption");
+    println!("- Securely collect your mnemonic phrase word by word");
+    println!("- Create a secure passphrase to encrypt the wallet");
+    println!("- Derive and store the wallet with full encryption");
     println!();
 
     // Prompt for mnemonic securely (word by word)
@@ -147,7 +146,7 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
         .map_err(|e| anyhow!("Failed to generate address from mnemonic: {}", e))?;
 
     println!();
-    println!("✅ Mnemonic processed successfully!");
+    println!("Mnemonic processed successfully!");
     println!("Derived address: {}", address.to_string().green());
     println!();
 
@@ -157,7 +156,7 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
 
     if wallet_file.exists() {
         return Err(anyhow!(
-            "❌ Wallet with address '{}' already exists in local storage.\nLocation: {}",
+            "Wallet with address '{}' already exists in local storage.\nLocation: {}",
             address,
             wallet_file.display()
         ));
@@ -170,7 +169,7 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
 
     // Confirm passphrase using secure comparison
     confirm_passphrase_secure(&passphrase)?;
-    println!("✅ Passphrase created successfully!");
+    println!("Passphrase created successfully!");
     println!();
 
     // Encrypt and store wallet
@@ -219,17 +218,17 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
 
     fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
 
-    println!("✅ Wallet imported and encrypted successfully!");
-    println!("📁 Stored as: wallet_{}.json", address);
-    println!("📍 Location: {}", storage_dir.display().to_string().cyan());
-    println!("🆔 Address: {}", address.to_string().green());
+    println!("Wallet imported and encrypted successfully!");
+    println!("Stored as: wallet_{}.json", address);
+    println!("Location: {}", storage_dir.display().to_string().cyan());
+    println!("Address: {}", address.to_string().green());
     println!();
-    println!("{}", "🔒 Security Features Applied:".green());
-    println!("• Mnemonic handled securely and zeroized from memory");
-    println!("• Passphrase stored securely and zeroized from memory");
-    println!("• AES-256-GCM authenticated encryption");
-    println!("• Separate encryption for mnemonic and private key");
-    println!("• Secure file permissions applied");
+    println!("{}", "Security Features Applied:".green());
+    println!("- Mnemonic handled securely and zeroized from memory");
+    println!("- Passphrase stored securely and zeroized from memory");
+    println!("- AES-256-GCM authenticated encryption");
+    println!("- Separate encryption for mnemonic and private key");
+    println!("- Secure file permissions applied");
 
     Ok(address.to_string())
 }
@@ -238,7 +237,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
-    println!("{}", "🔍 Verifying Wallet Integrity".blue().bold());
+    println!("{}", "Verifying Wallet Integrity".blue().bold());
     println!("Storage directory: {}", storage_dir.display());
     println!();
 
@@ -249,7 +248,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
             .map_err(|e| anyhow!("Failed to parse wallets.json: {}", e))?;
         wallets.keys().cloned().collect()
     } else {
-        println!("⚠️  wallets.json not found - no registered wallets");
+        println!("wallets.json not found - no registered wallets");
         HashSet::new()
     };
 
@@ -280,7 +279,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
             }
         }
     } else {
-        println!("⚠️  Storage directory does not exist");
+        println!("Storage directory does not exist");
     }
 
     // Compare registry vs files
@@ -289,7 +288,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     let matching: HashSet<_> = registry_wallets.intersection(&file_wallets).collect();
 
     // Report results
-    println!("📊 Integrity Verification Results:");
+    println!("Integrity Verification Results:");
     println!("  Total registered wallets: {}", registry_wallets.len());
     println!("  Total wallet files found: {}", file_wallets.len());
     println!("  Matching entries: {}", matching.len());
@@ -300,10 +299,10 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     // Report wallets in registry but missing files
     if !registry_only.is_empty() {
         has_issues = true;
-        println!("{} Wallets in registry but missing files:", "❌".red());
+        println!("Wallets in registry but missing files:");
         for address in &registry_only {
             println!(
-                "  • {} (file: wallet_{}.json not found)",
+                "  - {} (file: wallet_{}.json not found)",
                 address.yellow(),
                 address
             );
@@ -314,10 +313,10 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     // Report wallet files not in registry
     if !files_only.is_empty() {
         has_issues = true;
-        println!("{} Wallet files not in registry:", "⚠️".yellow());
+        println!("Wallet files not in registry:");
         for address in &files_only {
             println!(
-                "  • {} (wallet_{}.json exists but not registered)",
+                "  - {} (wallet_{}.json exists but not registered)",
                 address.yellow(),
                 address
             );
@@ -327,32 +326,32 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
 
     // Report successful matches
     if !matching.is_empty() {
-        println!("{} Properly registered wallets:", "✅".green());
+        println!("Properly registered wallets:");
         for address in &matching {
-            println!("  • {}", address.green());
+            println!("  - {}", address.green());
         }
         println!();
     }
 
     // Summary
     if has_issues {
-        println!("{}", "❌ Integrity issues found!".red().bold());
+        println!("{}", "Integrity issues found!".red().bold());
         println!("Consider:");
         if !registry_only.is_empty() {
-            println!("• Remove orphaned registry entries or restore missing wallet files");
+            println!("- Remove orphaned registry entries or restore missing wallet files");
         }
         if !files_only.is_empty() {
-            println!("• Register untracked wallet files or remove them if not needed");
+            println!("- Register untracked wallet files or remove them if not needed");
         }
     } else if registry_wallets.is_empty() && file_wallets.is_empty() {
         println!(
             "{}",
-            "ℹ️  No wallets found (this is normal for new installations)".blue()
+            "No wallets found (this is normal for new installations)".blue()
         );
     } else {
         println!(
             "{}",
-            "✅ All wallets are properly registered and files exist!"
+            "All wallets are properly registered and files exist!"
                 .green()
                 .bold()
         );
@@ -386,7 +385,7 @@ fn get_validated_passphrase(
         let passphrase_input = rpassword::read_password()?;
 
         if passphrase_input.is_empty() {
-            println!("❌ Passphrase cannot be empty for security reasons");
+            println!("Passphrase cannot be empty for security reasons");
             attempts += 1;
             if attempts < MAX_ATTEMPTS {
                 println!(
@@ -399,7 +398,7 @@ fn get_validated_passphrase(
         }
 
         if require_length && passphrase_input.len() < 8 {
-            println!("❌ Passphrase must be at least 8 characters long for security");
+            println!("Passphrase must be at least 8 characters long for security");
             attempts += 1;
             if attempts < MAX_ATTEMPTS {
                 println!(
@@ -415,7 +414,7 @@ fn get_validated_passphrase(
     }
 
     Err(anyhow!(
-        "❌ Maximum attempts exceeded. Operation cancelled for security."
+        "Maximum attempts exceeded. Operation cancelled for security."
     ))
 }
 
@@ -450,7 +449,7 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), anyhow::Er
         }
 
         attempts += 1;
-        println!("❌ Passphrases do not match");
+        println!("Passphrases do not match");
         if attempts < MAX_ATTEMPTS {
             println!(
                 "Attempt {} of {}. Please try again.",
@@ -461,7 +460,7 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), anyhow::Er
     }
 
     Err(anyhow!(
-        "❌ Maximum attempts exceeded for passphrase confirmation."
+        "Maximum attempts exceeded for passphrase confirmation."
     ))
 }
 
@@ -501,29 +500,27 @@ fn validate_private_key_import(
 
                         if derived_address.to_string() != wallet_address {
                             return Err(anyhow!(
-                                "❌ Address mismatch! The decrypted private key doesn't correspond to this wallet address."
+                                "Address mismatch! The decrypted private key doesn't correspond to this wallet address."
                             ));
                         }
                         println!(
-                            "✅ Passphrase verified successfully! Private key address confirmed."
+                            "Passphrase verified successfully! Private key address confirmed."
                         );
                     }
                     Err(_) => {
-                        return Err(anyhow!(
-                            "❌ Invalid wallet file: invalid private key format"
-                        ));
+                        return Err(anyhow!("Invalid wallet file: invalid private key format"));
                     }
                 }
             }
             Err(_) => {
                 return Err(anyhow!(
-                    "❌ Incorrect passphrase! Cannot decrypt private key data."
+                    "Incorrect passphrase! Cannot decrypt private key data."
                 ));
             }
         }
     } else {
         return Err(anyhow!(
-            "❌ Invalid wallet file: missing encrypted_private_key field for private key import"
+            "Invalid wallet file: missing encrypted_private_key field for private key import"
         ));
     }
 
@@ -544,12 +541,12 @@ fn validate_mnemonic_import(
         Ok(derived_address) => {
             if derived_address != wallet_address {
                 return Err(anyhow!(
-                    "❌ Address mismatch! The decrypted mnemonic doesn't correspond to this wallet address."
+                    "Address mismatch! The decrypted mnemonic doesn't correspond to this wallet address."
                 ));
             }
-            println!("✅ Passphrase verified successfully! Address confirmed.");
+            println!("Passphrase verified successfully! Address confirmed.");
         }
-        Err(_) => return Err(anyhow!("❌ Invalid wallet file: invalid mnemonic format")),
+        Err(_) => return Err(anyhow!("Invalid wallet file: invalid mnemonic format")),
     }
 
     Ok(())
@@ -594,19 +591,19 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
 
     if dest_wallet_file.exists() {
         return Err(anyhow!(
-            "❌ Wallet with address '{}' already exists in local storage",
+            "Wallet with address '{}' already exists in local storage",
             wallet_address
         ));
     }
 
-    println!("{}", "🔐 Passphrase Verification Required".yellow().bold());
+    println!("{}", "Passphrase Verification Required".yellow().bold());
     println!("To import this wallet, you must provide the correct passphrase to verify access.");
 
     // Prompt for passphrase to verify the user can decrypt the wallet
     let passphrase = get_validated_passphrase("Enter the passphrase for this wallet: ", true)?;
 
     // Verify passphrase by attempting to decrypt the wallet data
-    println!("🔍 Verifying passphrase...");
+    println!("Verifying passphrase...");
 
     // Parse encrypted mnemonic as EncryptedDataHex
     let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
@@ -626,7 +623,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
                 return Err(anyhow!(
-                    "❌ Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"
+                    "Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"
                 ));
             }
 
@@ -638,9 +635,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
             }
         }
         Err(_) => {
-            return Err(anyhow!(
-                "❌ Incorrect passphrase! Cannot decrypt wallet data."
-            ));
+            return Err(anyhow!("Incorrect passphrase! Cannot decrypt wallet data."));
         }
     }
 
@@ -685,7 +680,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
 
     println!(
         "{} Wallet '{}' imported successfully from: {}",
-        "✓".green(),
+        "SUCCESS".green(),
         wallet_address.cyan(),
         file_path.yellow()
     );
@@ -727,7 +722,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow
 
     if wallet_file.exists() {
         return Err(anyhow!(
-            "❌ Wallet with address '{}' already exists in local storage",
+            "Wallet with address '{}' already exists in local storage",
             address
         ));
     }
@@ -763,7 +758,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow
     .map_err(|e| anyhow!("Failed to store wallet: {}", e))?;
 
     println!(
-        "✓ Wallet imported and encrypted successfully as wallet_{}.json",
+        "Wallet imported and encrypted successfully as wallet_{}.json",
         address
     );
     println!(
@@ -773,7 +768,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow
     );
     println!(
         "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
-        "ℹ".yellow()
+        "INFO".yellow()
     );
 
     // Note: private_key_hex (SecureString), placeholder_mnemonic (SecureString),
@@ -788,11 +783,11 @@ pub fn create_encrypted_wallet_with_address(
     println!("Creating new wallet with maximum security protection");
     println!();
     println!("{}", "Security Features:".yellow());
-    println!("• Secure terminal input (no echo)");
-    println!("• Industry-standard secret handling (secrecy crate)");
-    println!("• Memory zeroization");
-    println!("• AES-256-GCM authenticated encryption");
-    println!("• Argon2 key derivation");
+    println!("- Secure terminal input (no echo)");
+    println!("- Industry-standard secret handling (secrecy crate)");
+    println!("- Memory zeroization");
+    println!("- AES-256-GCM authenticated encryption");
+    println!("- Argon2 key derivation");
     println!();
 
     // Generate mnemonic
@@ -830,7 +825,7 @@ pub fn create_encrypted_wallet_with_address(
 
     let storage_dir = get_storage_dir()?;
     println!(
-        "✓ Wallet encrypted and stored securely as wallet_{}.json",
+        "Wallet encrypted and stored securely as wallet_{}.json",
         address
     );
     println!(
@@ -842,7 +837,7 @@ pub fn create_encrypted_wallet_with_address(
 
     match display_mnemonic_securely(&secure_mnemonic) {
         Ok(()) => {
-            println!("{}", "✓ Mnemonic displayed securely".green());
+            println!("{}", "Mnemonic displayed securely".green());
         }
         Err(e) => {
             eprintln!(
@@ -866,7 +861,7 @@ pub fn export_private_key(address: &str, network: Network) -> Result<(), anyhow:
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
     if !wallet_file.exists() {
-        return Err(anyhow!("❌ Wallet file not found for address: {}", address));
+        return Err(anyhow!("Wallet file not found for address: {}", address));
     }
 
     let passphrase = get_validated_passphrase("Enter passphrase to decrypt private key: ", true)
