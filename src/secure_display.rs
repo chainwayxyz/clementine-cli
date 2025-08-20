@@ -240,21 +240,23 @@ impl<'a> SecureMnemonicDisplay<'a> {
             // Check for user input with a short timeout
             if poll(Duration::from_millis(100))
                 .map_err(|e| eyre!("Failed to poll for input: {}", e))?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
-                && key_event.kind == KeyEventKind::Press
             {
-                match key_event.code {
-                    KeyCode::Enter => {
-                        // User pressed Enter, proceed to next word
-                        return Ok(());
-                    }
-                    KeyCode::Esc => {
-                        return Err(eyre!("User cancelled mnemonic display"));
-                    }
-                    _ => {
-                        // Ignore other keys
-                        continue;
+                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
+                if let Event::Key(key_event) = event {
+                    if key_event.kind == KeyEventKind::Press {
+                        match key_event.code {
+                            KeyCode::Enter => {
+                                // User pressed Enter, proceed to next word
+                                return Ok(());
+                            }
+                            KeyCode::Esc => {
+                                return Err(eyre!("User cancelled mnemonic display"));
+                            }
+                            _ => {
+                                // Ignore other keys
+                                continue;
+                            }
+                        }
                     }
                 }
             }
@@ -310,11 +312,13 @@ impl<'a> SecureMnemonicDisplay<'a> {
         loop {
             if poll(Duration::from_millis(100))
                 .map_err(|e| eyre!("Failed to poll for input: {}", e))?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
-                && key_event.kind == KeyEventKind::Press
             {
-                return Ok(());
+                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
+                if let Event::Key(key_event) = event {
+                    if key_event.kind == KeyEventKind::Press {
+                        return Ok(());
+                    }
+                }
             }
         }
     }
@@ -555,7 +559,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         Print(format!("   {}\r\n\r\n", private_key.display_secret())),
         SetForegroundColor(Color::Red),
         Print("⚠️  WARNING: Anyone with this private key can access your funds!\r\n"),
-        Print("⚠️  Never share this key or store it in unsecure locations!\r\n\r\n"),
+        Print("⚠️  Never share this key or store it in insecure locations!\r\n\r\n"),
         SetForegroundColor(Color::Green),
         Print("Press any key to clear and exit (auto-close in 30 seconds)..."),
         SetForegroundColor(Color::Reset)
@@ -587,11 +591,13 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
             SetForegroundColor(Color::Reset)
         )?;
 
-        if poll(Duration::from_millis(100))?
-            && let Event::Key(key_event) = event::read()?
-            && key_event.kind == KeyEventKind::Press
-        {
-            break;
+        if poll(Duration::from_millis(100))? {
+            let event = event::read()?;
+            if let Event::Key(key_event) = event {
+                if key_event.kind == KeyEventKind::Press {
+                    break;
+                }
+            }
         }
     }
 
@@ -605,7 +611,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     println!();
     println!("{}", "⚠️  CRITICAL SECURITY WARNING ⚠️".red().bold());
     println!("Anyone with this private key can access your funds!");
-    println!("Never share this key or store it in unsecure locations!");
+    println!("Never share this key or store it in insecure locations!");
     println!();
     println!("{}", "Private Key:".cyan().bold());
     println!("   {}", private_key.display_secret());
