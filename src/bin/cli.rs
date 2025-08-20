@@ -4,11 +4,14 @@ use clementine_cli::{
 };
 use std::path::PathBuf;
 
+use clap::{Parser, Subcommand};
+use clementine_cli::{config::BridgeCliConfig, debug, deposit, withdrawal};
+
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
 struct Cli {
-    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
+    /// Path to config file. If not given, current directory will be searched for the bridge_bridge_cli_config.toml file
     #[arg(long)]
     config_file: Option<PathBuf>,
 
