@@ -79,7 +79,7 @@ pub fn aes_decrypt_secure(
 
     let mut plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-        .map_err(|e| anyhow!("Decryption failed: {}", e))?;
+        .map_err(|_| anyhow!("Decryption failed: Password may be wrong."))?;
 
     let plaintext_string = String::from_utf8(plaintext.clone())
         .map_err(|_| anyhow!("Decryption produced invalid UTF-8"))?;
