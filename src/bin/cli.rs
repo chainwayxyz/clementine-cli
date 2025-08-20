@@ -4,9 +4,6 @@ use clementine_cli::{
 };
 use std::path::PathBuf;
 
-use clap::{Parser, Subcommand};
-use clementine_cli::{config::BridgeCliConfig, debug, deposit, withdrawal};
-
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
