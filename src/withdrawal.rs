@@ -4,7 +4,7 @@ use crate::bitcoin_utils::{
     confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
     verify_withdrawal_signature,
 };
-use crate::config::{BRIDGE_CONTRACT_ADDRESS, CliConfig, get_chain_id, get_withdrawal_sign_url};
+use crate::config::CliConfig;
 use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::storage::{load_key, store_key};
@@ -220,19 +220,21 @@ pub async fn safe_withdraw(
         prepare_tx_block_height,
     )?;
 
-    let bridge_contract_addr = BRIDGE_CONTRACT_ADDRESS;
-    let chain_id = get_chain_id(network);
-
     let tx_json = json!({
-        "to": bridge_contract_addr,
+        "to": config.bridge_contract_address,
         "data": calldata_hex,
         "value": "0x0",
-        "chainId": chain_id,
+        "chainId": config.citrea_chain_id,
     })
     .to_string();
 
     // Prompt user to open the withdrawal UI
-    let withdrawal_ui_url = "https://i-explorer.devnet.citrea.xyz/address/0x3100000000000000000000000000000000000002?tab=write_proxy#9072f747";
+    let query = format!(
+        "tx={}&btc={}",
+        encode(&tx_json),
+        encode(&withdrawal_address.to_string())
+    );
+    let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
     println!(
         "\n{} Press Enter to open the withdrawal UI in your default browser...",
         "INFO".yellow().bold()
@@ -240,7 +242,7 @@ pub async fn safe_withdraw(
     let mut input = String::new();
     std::io::stdin().read_line(&mut input)?;
 
-    if let Err(e) = open::that(withdrawal_ui_url) {
+    if let Err(e) = open::that(&withdrawal_ui_url) {
         println!(
             "{} Failed to open browser: {}",
             "WARNING".yellow().bold(),

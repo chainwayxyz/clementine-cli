@@ -26,6 +26,7 @@ pub struct CliConfig {
     pub citrea_backend_endpoint: String,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
+    pub bridge_contract_address: String,
     pub bitcoin_config: Option<BitcoinConfig>,
 }
 
@@ -142,11 +143,12 @@ impl CliConfig {
         config
     }
 
-    pub fn get_withdrawal_sign_url(network: Network) -> &'static str {
-        match network {
-            // Network::Bitcoin => "https://citrea.xyz/withdrawal/sign/",
-            Network::Testnet4 => "https://citrea.xyz/withdrawal/sign/", // TODO: Change to testnet.citrea.xyz/withdrawal/sign/ in the future
+    pub fn get_withdrawal_sign_url(&self) -> &'static str {
+        match self.network {
+            Network::Bitcoin => "https://citrea.xyz/withdrawal/sign/",
+            Network::Testnet | Network::Testnet4 => "https://testnet.citrea.xyz/withdrawal/sign/",
             Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign/",
+            Network::Regtest => "http://127.0.0.1:12345",
             _ => unimplemented!(),
         }
     }
@@ -181,6 +183,7 @@ impl Default for CliConfig {
             citrea_rpc_url: "https://127.0.0.1".to_string(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
+            bridge_contract_address: "0x3100000000000000000000000000000000000002".to_string(),
             bitcoin_config: None,
         }
     }
