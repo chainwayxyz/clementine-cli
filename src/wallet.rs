@@ -361,13 +361,14 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
 }
 
 /// Helper function to parse network string into Network enum
-fn parse_network(network_str: &str) -> Network {
+fn parse_network(network_str: &str) -> Result<Network, anyhow::Error> {
     match network_str {
-        "testnet4" => Network::Testnet4,
-        "testnet" => Network::Testnet,
-        "regtest" => Network::Regtest,
-        "signet" => Network::Signet,
-        _ => Network::Bitcoin,
+        "testnet4" => Ok(Network::Testnet4),
+        "testnet" => Ok(Network::Testnet),
+        "regtest" => Ok(Network::Regtest),
+        "signet" => Ok(Network::Signet),
+        "bitcoin" => Ok(Network::Bitcoin),
+        _ => Err(anyhow!("Unknown network: {}", network_str))
     }
 }
 
@@ -486,7 +487,7 @@ fn validate_private_key_import(
         match aes_decrypt_secure(&encrypted_private_data, passphrase) {
             Ok(decrypted_private_key) => {
                 let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
-                let network = parse_network(network_str);
+                let network = parse_network(network_str)?;
 
                 // Validate the private key format and derive address to verify
                 match SecretKey::from_str(decrypted_private_key.expose_secret()) {
@@ -534,7 +535,7 @@ fn validate_mnemonic_import(
     wallet_address: &str,
 ) -> Result<(), anyhow::Error> {
     let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
-    let network = parse_network(network_str);
+    let network = parse_network(network_str)?;
 
     // Generate address from mnemonic to verify it matches
     match crate::address::generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
@@ -667,7 +668,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
             .map_err(|e| anyhow!("Failed to convert encrypted private key: {}", e))?;
 
     // Use store_wallet_data function for consistent storage
-    let network_enum = parse_network(network);
+    let network_enum = parse_network(network)?;
     crate::wallet_storage::store_wallet_data(
         wallet_address,
         network_enum,

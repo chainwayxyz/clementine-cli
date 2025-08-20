@@ -101,7 +101,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
     /// Enter alternate screen mode with proper error handling
     fn enter_alternate_screen(&mut self) -> Result<()> {
         // Check if we're in a real terminal first
-        if !self.is_terminal_compatible() {
+        if !self.is_alternate_screen_supported() {
             return Err(anyhow!(
                 "Terminal does not support alternate screen features"
             ));
@@ -125,7 +125,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
     }
 
     /// Check if terminal supports the features we need
-    fn is_terminal_compatible(&self) -> bool {
+    fn is_alternate_screen_supported(&self) -> bool {
         // Must be a real terminal (not redirected)
         if !std::io::stdout().is_terminal() {
             return false;
