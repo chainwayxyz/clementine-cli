@@ -39,7 +39,10 @@ pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, 
 }
 
 /// Parse a taproot address specifically and validate it's the correct type
-pub fn parse_taproot_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
+pub fn parse_taproot_address(
+    address: &str,
+    network: Network,
+) -> Result<BitcoinAddress, BridgeCliError> {
     use bitcoin::AddressType;
 
     let address = parse_address(address, network)?;
@@ -53,7 +56,9 @@ pub fn parse_taproot_address(address: &str, network: Network) -> Result<BitcoinA
 }
 
 /// Extract address from wallet JSON data
-pub fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<String, BridgeCliError> {
+pub fn extract_address_from_wallet(
+    wallet_data: &serde_json::Value,
+) -> Result<String, BridgeCliError> {
     // Try to get the address field from the wallet data
     if let Some(address) = wallet_data.get("address") {
         if let Some(address_str) = address.as_str() {

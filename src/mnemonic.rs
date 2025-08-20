@@ -30,7 +30,9 @@ pub fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
 }
 
 /// Generate master seed from mnemonic phrase
-pub fn get_master_seed_from_mnemonic(mnemonic_phrase: &SecureString) -> Result<[u8; 32], BridgeCliError> {
+pub fn get_master_seed_from_mnemonic(
+    mnemonic_phrase: &SecureString,
+) -> Result<[u8; 32], BridgeCliError> {
     let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
         .map_err(|_| BridgeCliError::MnemonicParseError)?;
 
@@ -47,7 +49,10 @@ pub fn get_master_seed_from_mnemonic(mnemonic_phrase: &SecureString) -> Result<[
     Ok(master_seed)
 }
 
-pub fn load_mnemonic_secure(wallet_name: &str, passphrase: &SecureString) -> Result<SecureString, BridgeCliError> {
+pub fn load_mnemonic_secure(
+    wallet_name: &str,
+    passphrase: &SecureString,
+) -> Result<SecureString, BridgeCliError> {
     let wallet_data = crate::wallet_storage::load_wallet_data(wallet_name)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
@@ -61,7 +66,9 @@ pub fn load_mnemonic_secure(wallet_name: &str, passphrase: &SecureString) -> Res
     Ok(secure_mnemonic)
 }
 
-pub fn derive_private_key_from_mnemonic_secure(mnemonic: &SecureString) -> Result<SecureString, BridgeCliError> {
+pub fn derive_private_key_from_mnemonic_secure(
+    mnemonic: &SecureString,
+) -> Result<SecureString, BridgeCliError> {
     use bitcoin::secp256k1::SecretKey;
 
     // Generate master seed from mnemonic using BIP-39
@@ -124,7 +131,6 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
             println!("Invalid word entered. Please try again.");
             println!("Hint: Words should be lowercase English BIP-39 words.");
         }
-
     }
 
     // Validate final mnemonic length

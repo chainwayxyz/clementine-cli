@@ -65,7 +65,9 @@ use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-use crate::{errors::BridgeCliError, passphrase::derive_key_from_passphrase, secure_structs::SecureString};
+use crate::{
+    errors::BridgeCliError, passphrase::derive_key_from_passphrase, secure_structs::SecureString,
+};
 
 // Argon2id parameters: 3 iterations, 64MB memory, 1 thread
 // Balances security (GPU/ASIC resistance) with interactive performance
@@ -100,8 +102,7 @@ pub fn aes_encrypt_secure(
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
     getrandom::fill(&mut salt).map_err(|_| BridgeCliError::RandomSaltGenerationError)?;
-    getrandom::fill(&mut nonce_bytes)
-        .map_err(|_| BridgeCliError::RandomNonceGenerationError)?;
+    getrandom::fill(&mut nonce_bytes).map_err(|_| BridgeCliError::RandomNonceGenerationError)?;
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
@@ -153,8 +154,8 @@ pub fn aes_decrypt_secure(
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
         .map_err(|_| BridgeCliError::DecryptionError)?;
 
-    let plaintext_string = String::from_utf8(plaintext.clone())
-        .map_err(|_| BridgeCliError::InvalidUtf8Error)?;
+    let plaintext_string =
+        String::from_utf8(plaintext.clone()).map_err(|_| BridgeCliError::InvalidUtf8Error)?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
     plaintext.zeroize();

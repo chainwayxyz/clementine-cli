@@ -31,7 +31,7 @@ pub enum BridgeCliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
-    
+
     // Address-related errors
     #[error("Failed to generate master seed from mnemonic")]
     MnemonicToSeedError,
@@ -45,7 +45,7 @@ pub enum BridgeCliError {
     StorageDirectoryError,
     #[error("Failed to read storage directory")]
     StorageReadError,
-    
+
     // Encryption-related errors
     #[error("Failed to generate random salt")]
     RandomSaltGenerationError,
@@ -63,7 +63,7 @@ pub enum BridgeCliError {
     InvalidNonceLength,
     #[error("Invalid salt length")]
     InvalidSaltLength,
-    
+
     // Mnemonic-related errors
     #[error("Failed to generate mnemonic")]
     MnemonicGenerationError,
@@ -77,8 +77,8 @@ pub enum BridgeCliError {
     MnemonicValidationFailed(String),
     #[error("Failed to encrypt placeholder mnemonic")]
     PlaceholderMnemonicEncryptionFailed,
-    
-        // Passphrase-related errors
+
+    // Passphrase-related errors
     #[error("Invalid Argon2 parameters")]
     InvalidArgon2Parameters,
     #[error("Passphrase not provided for encrypted key")]
@@ -91,11 +91,11 @@ pub enum BridgeCliError {
     PassphraseTooShort,
     #[error("Passphrases do not match")]
     PassphraseMismatch,
-    
+
     // Private key related errors
     #[error("No encrypted private key found in wallet data")]
     NoEncryptedPrivateKeyFound,
-    
+
     // Wallet storage related errors
     #[error("Wallet with address '{0}' already exists")]
     WalletAlreadyExists(String),
@@ -103,7 +103,7 @@ pub enum BridgeCliError {
     WalletNotFound(String),
     #[error("Could not determine home directory")]
     HomeDirectoryNotFound,
-    
+
     // Wallet operation related errors
     #[error("Failed to generate address from mnemonic: {0}")]
     AddressGenerationFromMnemonicFailed(String),
@@ -138,10 +138,8 @@ pub enum BridgeCliError {
     #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
     AddressMismatch,
 
-
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
     MissingEncryptedPrivateKeyField,
-
 
     #[error("Incorrect passphrase! Cannot decrypt wallet data.")]
     IncorrectPassphrase,

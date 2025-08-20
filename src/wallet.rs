@@ -370,7 +370,10 @@ fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
 }
 
 /// Helper function to get a valid passphrase from user with validation
-fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<SecureString, BridgeCliError> {
+fn get_validated_passphrase(
+    prompt: &str,
+    require_length: bool,
+) -> Result<SecureString, BridgeCliError> {
     let mut attempts = 0;
     const MAX_ATTEMPTS: usize = 5;
 
@@ -466,12 +469,17 @@ fn validate_private_key_import(
 
     if wallet_data["encrypted_private_key"].as_object().is_some() {
         let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
-            serde_json::from_value(wallet_data["encrypted_private_key"].clone())
-                .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key structure: {}", e)))?;
+            serde_json::from_value(wallet_data["encrypted_private_key"].clone()).map_err(|e| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse encrypted private key structure: {}",
+                    e
+                ))
+            })?;
 
-        let encrypted_private_data =
-            crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
-                .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+        let encrypted_private_data = crate::encryption::encrypted_data_from_hex(
+            &encrypted_private_key_hex,
+        )
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
 
         // Decrypt and validate the private key
         match aes_decrypt_secure(&encrypted_private_data, passphrase) {
@@ -497,7 +505,9 @@ fn validate_private_key_import(
                         );
                     }
                     Err(_) => {
-                        return Err(BridgeCliError::InvalidPrivateKey("Invalid private key format".to_string()));
+                        return Err(BridgeCliError::InvalidPrivateKey(
+                            "Invalid private key format".to_string(),
+                        ));
                     }
                 }
             }
@@ -571,7 +581,9 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
     let dest_wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
 
     if dest_wallet_file.exists() {
-        return Err(BridgeCliError::WalletAlreadyExists(wallet_address.to_string()));
+        return Err(BridgeCliError::WalletAlreadyExists(
+            wallet_address.to_string(),
+        ));
     }
 
     println!("{}", "Passphrase Verification Required".yellow().bold());
@@ -585,8 +597,9 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
 
     // Parse encrypted mnemonic as EncryptedDataHex
     let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
-        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone())
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic structure: {}", e)))?;
+        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone()).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic structure: {}", e))
+        })?;
 
     let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
@@ -626,21 +639,25 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
 
     // Extract and convert encrypted data from the original wallet
     let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
-        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone())
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
+        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone()).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e))
+        })?;
 
     let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
-        serde_json::from_value(wallet_data["encrypted_private_key"].clone())
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+        serde_json::from_value(wallet_data["encrypted_private_key"].clone()).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
+        })?;
 
     // Convert hex structures to EncryptedData
     let encrypted_mnemonic_data =
-        crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e)))?;
+        crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
+        })?;
 
     let encrypted_private_key_data =
-        crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e)))?;
+        crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
+        })?;
 
     // Use store_wallet_data function for consistent storage
     let network_enum = parse_network(network)?;
@@ -672,12 +689,14 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
     let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
 
-    let mut private_key_bytes =
-        hex::decode(private_key).map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?;
+    let mut private_key_bytes = hex::decode(private_key)
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?;
 
     if private_key_bytes.len() != 32 {
         private_key_bytes.zeroize();
-        return Err(BridgeCliError::InvalidPrivateKey("Private key must be exactly 32 bytes (64 hex characters)".to_string()));
+        return Err(BridgeCliError::InvalidPrivateKey(
+            "Private key must be exactly 32 bytes (64 hex characters)".to_string(),
+        ));
     }
 
     let mut master_private_key = SecretKey::from_slice(&private_key_bytes).map_err(|e| {
@@ -748,7 +767,9 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
     Ok(address.to_string())
 }
 
-pub fn create_encrypted_wallet_with_address(network: Network) -> Result<SecureString, BridgeCliError> {
+pub fn create_encrypted_wallet_with_address(
+    network: Network,
+) -> Result<SecureString, BridgeCliError> {
     println!("Creating new wallet with maximum security protection");
     println!();
     println!("{}", "Security Features:".yellow());
@@ -844,7 +865,11 @@ pub fn export_private_key(address: &str, network: Network) -> Result<(), BridgeC
 }
 
 /// Securely load a key from wallet storage - always requires a passphrase
-pub fn load_key(address: &str, network: Network, passphrase: &SecureString) -> Result<Keypair, BridgeCliError> {
+pub fn load_key(
+    address: &str,
+    network: Network,
+    passphrase: &SecureString,
+) -> Result<Keypair, BridgeCliError> {
     use bitcoin::secp256k1::{Secp256k1, SecretKey};
     use std::str::FromStr;
 

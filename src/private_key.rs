@@ -1,5 +1,5 @@
-use crate::{encryption::aes_decrypt_secure, secure_structs::SecureString};
 use crate::errors::BridgeCliError;
+use crate::{encryption::aes_decrypt_secure, secure_structs::SecureString};
 
 pub fn load_private_key_secure(
     wallet_name: &str,
