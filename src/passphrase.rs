@@ -75,7 +75,7 @@ pub fn derive_key_from_passphrase(
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
         .map_err(|e| anyhow!("Key derivation failed: {e}"))?;
 
-    println!("Key derived successfully.");
+    println!("Encryption (also decryption) key derived successfully.");
 
     Ok(SecureByteSlice::init_with(|| key))
 }

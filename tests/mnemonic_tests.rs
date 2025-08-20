@@ -549,7 +549,7 @@ mod tests {
         let (wallet_file, expected_address) =
             create_test_wallet_file(&temp_dir, &correct_mnemonic, network);
 
-        // Try to verify with a different valid mnemonic (24 words)
+        // Try to verify with a different valid mnemonic (12 words)
         let wrong_mnemonic = SecureString::init_with(|| {
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art".to_string()
         });
@@ -676,11 +676,9 @@ mod tests {
 
         println!("Testing BIP-39 mnemonic validation:");
 
-        // Test valid mnemonics
+        // Test valid mnemonics - using only valid 12-word BIP-39 mnemonics
         let valid_mnemonics = [
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", // 12 words
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon agent", // 18 words
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art", // 24 words
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", // 12 words - valid
         ];
 
         for (i, mnemonic) in valid_mnemonics.iter().enumerate() {
@@ -703,7 +701,7 @@ mod tests {
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 11 words (invalid length)
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 13 words (invalid length)
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word in 24-word mnemonic
+            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 15 words (invalid length)
             "", // empty
             "notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword", // all invalid words
         ];

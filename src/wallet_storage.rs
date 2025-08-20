@@ -29,16 +29,18 @@ pub fn store_wallet_data(
     data_format: &str,
     imported: bool,
     import_method: Option<&str>,
+    custom_filename: Option<&str>,
 ) -> Result<(), anyhow::Error> {
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    let filename = custom_filename.unwrap_or(address);
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", filename));
 
     if wallet_file.exists() {
         return Err(anyhow!(
-            "Wallet with address '{}' already exists. Choose a different address or use a different function to overwrite.",
-            address
+            "Wallet with filename '{}' already exists. Choose a different name or use a different function to overwrite.",
+            filename
         ));
     }
 

@@ -14,26 +14,31 @@ use crate::mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
     prompt_mnemonic_secure,
 };
+use crate::passphrase::prompt_unlock_passphrase;
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
 use crate::wallet_storage::get_storage_dir;
 
-pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
+pub fn delete_wallet(wallet_name: &str) -> Result<(), anyhow::Error> {
     let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
     let wallets_file = storage_dir.join("wallets.json");
 
     // Check if wallet exists
     if !wallet_file.exists() {
-        return Err(anyhow!("No wallet found with address: {}", address));
+        return Err(anyhow!("No wallet found with name: {}", wallet_name));
     }
 
-    // Load wallet data to verify it exists
-    let _wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
+    // Load wallet data to verify it exists and get the address
+    let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
+    let address = wallet_data["address"]
+        .as_str()
+        .ok_or_else(|| anyhow!("Invalid wallet file: missing address field"))?;
 
     println!("{}", "Wallet Deletion".red().bold());
     println!(
-        "You are about to delete the wallet with address: {}",
+        "You are about to delete the wallet '{}' with address: {}",
+        wallet_name.cyan(),
         address.yellow()
     );
     println!("{}", "This action cannot be undone!".red().bold());
@@ -51,7 +56,6 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
         return Ok(());
     }
 
-    println!("Wallet integrity check passed");
     println!("Deleting wallet...");
 
     // Delete wallet file
@@ -130,12 +134,7 @@ pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(),
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
 pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::Error> {
-    println!("{}", "Import Wallet with Secure Input".blue().bold());
-    println!("This process will:");
-    println!("- Securely collect your mnemonic phrase word by word");
-    println!("- Create a secure passphrase to encrypt the wallet");
-    println!("- Derive and store the wallet with full encryption");
-    println!();
+    println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
     println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
@@ -195,6 +194,7 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
         "separate_encrypted_fields",
         true,
         Some("secure_mnemonic_input"),
+        None,
     )
     .map_err(|e| anyhow!("Failed to store wallet: {}", e))?;
 
@@ -223,12 +223,6 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::E
     println!("Location: {}", storage_dir.display().to_string().cyan());
     println!("Address: {}", address.to_string().green());
     println!();
-    println!("{}", "Security Features Applied:".green());
-    println!("- Mnemonic handled securely and zeroized from memory");
-    println!("- Passphrase stored securely and zeroized from memory");
-    println!("- AES-256-GCM authenticated encryption");
-    println!("- Separate encryption for mnemonic and private key");
-    println!("- Secure file permissions applied");
 
     Ok(address.to_string())
 }
@@ -261,20 +255,42 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            // Check if it's a wallet file (wallet_ADDRESS.json)
+            // Check if it's a wallet file (wallet_*.json)
             if file_name_str.starts_with("wallet_")
                 && file_name_str.ends_with(".json")
                 && file_name_str != "wallets.json"
             {
-                // Extract address from filename
-                let address = file_name_str
-                    .strip_prefix("wallet_")
-                    .and_then(|s| s.strip_suffix(".json"))
-                    .unwrap_or("")
-                    .to_string();
-
-                if !address.is_empty() {
-                    file_wallets.insert(address);
+                // Read the wallet file and extract address from JSON content
+                let wallet_file_path = entry.path();
+                match fs::read_to_string(&wallet_file_path) {
+                    Ok(wallet_content) => {
+                        match serde_json::from_str::<serde_json::Value>(&wallet_content) {
+                            Ok(wallet_data) => {
+                                if let Some(address) = wallet_data["address"].as_str() {
+                                    file_wallets.insert(address.to_string());
+                                } else {
+                                    println!(
+                                        "Warning: Wallet file {} is missing address field",
+                                        file_name_str.yellow()
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                println!(
+                                    "Warning: Failed to parse wallet file {}: {}",
+                                    file_name_str.yellow(),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Warning: Failed to read wallet file {}: {}",
+                            file_name_str.yellow(),
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -368,7 +384,7 @@ fn parse_network(network_str: &str) -> Result<Network, anyhow::Error> {
         "regtest" => Ok(Network::Regtest),
         "signet" => Ok(Network::Signet),
         "bitcoin" => Ok(Network::Bitcoin),
-        _ => Err(anyhow!("Unknown network: {}", network_str))
+        _ => Err(anyhow!("Unknown network: {}", network_str)),
     }
 }
 
@@ -601,7 +617,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
     println!("To import this wallet, you must provide the correct passphrase to verify access.");
 
     // Prompt for passphrase to verify the user can decrypt the wallet
-    let passphrase = get_validated_passphrase("Enter the passphrase for this wallet: ", true)?;
+    let passphrase = prompt_unlock_passphrase()?;
 
     // Verify passphrase by attempting to decrypt the wallet data
     println!("Verifying passphrase...");
@@ -624,7 +640,8 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
                 return Err(anyhow!(
-                    "Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"
+                    "Invalid wallet file: decrypted data doesn't appear to be a valid {}-word mnemonic",
+                    MNEMONIC_WORD_COUNT
                 ));
             }
 
@@ -677,6 +694,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error>
         data_format,
         true,
         Some("file_import"),
+        None,
     )?;
 
     println!(
@@ -755,6 +773,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow
         "separate_encrypted_fields",
         true,
         Some("private_key_import"),
+        None,
     )
     .map_err(|e| anyhow!("Failed to store wallet: {}", e))?;
 
@@ -780,15 +799,8 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow
 
 pub fn create_encrypted_wallet_with_address(
     network: Network,
+    name: String,
 ) -> Result<SecureString, anyhow::Error> {
-    println!("Creating new wallet with maximum security protection");
-    println!();
-    println!("{}", "Security Features:".yellow());
-    println!("- Secure terminal input (no echo)");
-    println!("- Industry-standard secret handling (secrecy crate)");
-    println!("- Memory zeroization");
-    println!("- AES-256-GCM authenticated encryption");
-    println!("- Argon2 key derivation");
     println!();
 
     // Generate mnemonic
@@ -822,12 +834,13 @@ pub fn create_encrypted_wallet_with_address(
         "separate_encrypted_fields",
         false,
         None,
+        Some(&name),
     )?;
 
     let storage_dir = get_storage_dir()?;
     println!(
         "Wallet encrypted and stored securely as wallet_{}.json",
-        address
+        name
     );
     println!(
         "Generated address: {} at directory: {}",
@@ -856,7 +869,7 @@ pub fn create_encrypted_wallet_with_address(
     Ok(secure_mnemonic)
 }
 
-pub fn export_private_key(address: &str, network: Network) -> Result<(), anyhow::Error> {
+pub fn show_private_key(address: &str, network: Network) -> Result<(), anyhow::Error> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
@@ -865,8 +878,7 @@ pub fn export_private_key(address: &str, network: Network) -> Result<(), anyhow:
         return Err(anyhow!("Wallet file not found for address: {}", address));
     }
 
-    let passphrase = get_validated_passphrase("Enter passphrase to decrypt private key: ", true)
-        .map_err(|e| anyhow!("{}", e))?;
+    let passphrase = prompt_unlock_passphrase()?;
 
     let mut keypair = load_key(address, network, &passphrase)?;
 
