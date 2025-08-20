@@ -234,28 +234,20 @@ pub async fn safe_withdraw(
 
     // Prompt user to open the withdrawal UI
     let query = format!(
-        "tx={}&btc={}",
+        "?tx={}&btc={}",
         encode(&tx_json),
         encode(&withdrawal_address.to_string())
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
     println!(
-        "\n{} Press Enter to open the withdrawal UI in your default browser...",
-        "INFO".yellow().bold()
+        "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
+        "INFO".green().bold()
     );
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .wrap_err("Can't read key stroke")?;
 
     if let Err(e) = open::that(&withdrawal_ui_url) {
+        println!("{} Failed to open browser: {}", "ERROR".red().bold(), e);
         println!(
-            "{} Failed to open browser: {}",
-            "WARNING".yellow().bold(),
-            e
-        );
-        println!(
-            "Please visit the following URL manually:\n{}",
+            "Please visit the following URL manually: {}",
             withdrawal_ui_url
         );
     }

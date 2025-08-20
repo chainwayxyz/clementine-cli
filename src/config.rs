@@ -156,9 +156,9 @@ impl BridgeCliConfig {
 
     pub fn get_withdrawal_sign_url(&self) -> &'static str {
         match self.network {
-            Network::Bitcoin => "https://citrea.xyz/withdrawal/sign/",
-            Network::Testnet | Network::Testnet4 => "https://testnet.citrea.xyz/withdrawal/sign/",
-            Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign/",
+            Network::Bitcoin => "https://citrea.xyz/withdrawal/sign",
+            Network::Testnet | Network::Testnet4 => "https://testnet.citrea.xyz/withdrawal/sign",
+            Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign",
             Network::Regtest => "http://127.0.0.1:12345",
             _ => unimplemented!(),
         }
