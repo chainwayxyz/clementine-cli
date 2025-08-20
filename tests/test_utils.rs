@@ -33,7 +33,7 @@ pub fn get_test_storage_dir(temp_dir: &TempDir) -> std::path::PathBuf {
 pub fn generate_test_wallet_data(
     network: Network,
     passphrase: &str,
-) -> Result<TestWalletData, anyhow::Error> {
+) -> eyre::Result<TestWalletData> {
     let passphrase = SecureString::init_with(|| passphrase.to_string());
     let secure_mnemonic = generate_mnemonic_secure()?;
 
@@ -64,7 +64,7 @@ pub fn generate_test_wallet_data(
 pub fn store_test_wallet(
     storage_dir: &std::path::Path,
     wallet_data: &TestWalletData,
-) -> Result<std::path::PathBuf, anyhow::Error> {
+) -> eyre::Result<std::path::PathBuf> {
     fs::create_dir_all(storage_dir)?;
 
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_data.address));
@@ -94,7 +94,7 @@ pub fn store_test_wallet(
 /// Load and verify wallet JSON structure
 pub fn load_and_verify_wallet_json(
     wallet_file: &std::path::Path,
-) -> Result<serde_json::Value, anyhow::Error> {
+) -> eyre::Result<serde_json::Value> {
     let json_data = fs::read_to_string(wallet_file)?;
     let wallet_data: serde_json::Value = serde_json::from_str(&json_data)?;
 
@@ -108,16 +108,14 @@ pub fn load_and_verify_wallet_json(
 }
 
 /// Create EncryptedData from JSON object
-pub fn encrypted_data_from_json(
-    json_obj: &serde_json::Value,
-) -> Result<EncryptedData, anyhow::Error> {
+pub fn encrypted_data_from_json(json_obj: &serde_json::Value) -> eyre::Result<EncryptedData> {
     Ok(EncryptedData {
         ciphertext: hex::decode(json_obj["ciphertext"].as_str().unwrap())?,
         nonce: hex::decode(json_obj["nonce"].as_str().unwrap())?
             .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid nonce length"))?,
+            .map_err(|_| eyre::eyre!("Invalid nonce length"))?,
         salt: hex::decode(json_obj["salt"].as_str().unwrap())?
             .try_into()
-            .map_err(|_| anyhow::anyhow!("Invalid salt length"))?,
+            .map_err(|_| eyre::eyre!("Invalid salt length"))?,
     })
 }

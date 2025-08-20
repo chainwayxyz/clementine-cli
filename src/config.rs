@@ -2,12 +2,12 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use anyhow::anyhow;
 use bitcoin::{
     Amount, Network, XOnlyPublicKey,
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use eyre::{Result, eyre};
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
@@ -44,7 +44,7 @@ impl CliConfig {
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> Result<Self, anyhow::Error> {
+    pub fn try_parse_file(path: PathBuf) -> Result<Self> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
@@ -55,11 +55,11 @@ impl CliConfig {
 
     /// Try to parse a [`CliConfig`] from given TOML formatted string and
     /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> Result<Self, anyhow::Error> {
-        toml::from_str::<Self>(&input).map_err(|e| anyhow!("Failed to parse config: {}", e))
+    pub fn try_parse_from(input: String) -> Result<Self> {
+        toml::from_str::<Self>(&input).map_err(|e| eyre!("Failed to parse config: {}", e))
     }
 
-    pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, anyhow::Error> {
+    pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client> {
         match self.bitcoin_config {
             Some(ref config) => {
                 let auth = Auth::UserPass(
@@ -70,7 +70,7 @@ impl CliConfig {
                 rpc.ping().await?;
                 Ok(rpc)
             }
-            None => Err(anyhow!("Bitcoin RPC configuration not found in config")),
+            None => Err(eyre!("Bitcoin RPC configuration not found in config")),
         }
     }
 

@@ -1,5 +1,4 @@
 mod tests {
-    use anyhow::anyhow;
     use bitcoin::Network;
     use clementine_cli::{
         address::{extract_address_from_wallet, generate_address_from_mnemonic_secure},
@@ -22,9 +21,9 @@ mod tests {
         temp_dir.path().join(".clementine").join("keys")
     }
 
-    pub fn load_wallet_from_file(file: &str) -> Result<serde_json::Value, anyhow::Error> {
+    pub fn load_wallet_from_file(file: &str) -> eyre::Result<serde_json::Value> {
         if !std::path::Path::new(file).exists() {
-            return Err(anyhow!("Wallet file not found: {}", file));
+            return Err(eyre::eyre!("Wallet file not found: {}", file));
         }
 
         let file_content = std::fs::read_to_string(file)?;

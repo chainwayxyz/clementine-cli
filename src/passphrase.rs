@@ -40,9 +40,9 @@
 //! In this implementation, we use conservative parameters that balance security with
 //! interactive performance for command-line wallet operations.
 
-use anyhow::anyhow;
 use argon2::Argon2;
 use colored::Colorize;
+use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 use zeroize::Zeroize;
 
@@ -58,14 +58,14 @@ pub fn derive_key_from_passphrase(
     iterations: u32,
     memory: u32,
     parallelism: u32,
-) -> Result<SecureByteSlice, anyhow::Error> {
+) -> Result<SecureByteSlice> {
     println!("Deriving encryption key from passphrase...");
 
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
         argon2::Params::new(memory, iterations, parallelism, Some(32))
-            .map_err(|e| anyhow!("Invalid Argon2 parameters: {e}"))?,
+            .map_err(|e| eyre!("Invalid Argon2 parameters: {e}"))?,
     );
 
     let mut key = [0u8; 32];
@@ -73,7 +73,7 @@ pub fn derive_key_from_passphrase(
     // Passphrase + salt → 32-byte key via memory-hard computation
     argon2
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
-        .map_err(|e| anyhow!("Key derivation failed: {e}"))?;
+        .map_err(|e| eyre!("Key derivation failed: {e}"))?;
 
     println!("Key derived successfully.");
 
@@ -81,26 +81,26 @@ pub fn derive_key_from_passphrase(
 }
 
 /// Prompt user for a passphrase with confirmation for new keys
-pub fn prompt_passphrase() -> Result<SecureString, anyhow::Error> {
+pub fn prompt_passphrase() -> Result<SecureString> {
     println!("{}", "Passphrase protection:".blue().bold());
     println!("Enter a passphrase to encrypt your private key.");
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
 
     if passphrase.is_empty() {
-        return Err(anyhow!("Passphrase cannot be empty"));
+        return Err(eyre!("Passphrase cannot be empty"));
     }
 
     // Validate passphrase strength
     if passphrase.len() < 8 {
-        return Err(anyhow!("Passphrase must be at least 8 characters long"));
+        return Err(eyre!("Passphrase must be at least 8 characters long"));
     }
 
     // Confirm passphrase
     let mut confirm = rpassword::prompt_password("Confirm passphrase: ")?;
 
     if passphrase != confirm {
-        return Err(anyhow!("Passphrases do not match"));
+        return Err(eyre!("Passphrases do not match"));
     }
 
     confirm.zeroize(); // Clear confirmation from memory
@@ -116,11 +116,11 @@ pub fn prompt_passphrase() -> Result<SecureString, anyhow::Error> {
 }
 
 /// Prompt user for a passphrase to unlock existing encrypted key
-pub fn prompt_unlock_passphrase() -> Result<SecureString, anyhow::Error> {
+pub fn prompt_unlock_passphrase() -> Result<SecureString> {
     let passphrase = rpassword::prompt_password("Enter passphrase to unlock key: ")?;
 
     if passphrase.is_empty() {
-        return Err(anyhow!("Passphrase cannot be empty"));
+        return Err(eyre!("Passphrase cannot be empty"));
     }
 
     Ok(SecureString::init_with(|| passphrase))

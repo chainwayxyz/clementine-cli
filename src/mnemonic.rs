@@ -1,5 +1,5 @@
-use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
+use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 
 use zeroize::Zeroize;
@@ -11,7 +11,7 @@ use crate::secure_structs::SecureString;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
+pub fn show_mnemonic_secure(address: &str) -> Result<()> {
     let passphrase = prompt_passphrase()?;
     let mnemonic = load_mnemonic_secure(address, &passphrase)?;
     display_mnemonic_securely(&mnemonic)?;
@@ -19,7 +19,7 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn generate_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
+pub fn generate_mnemonic_secure() -> Result<SecureString> {
     let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)?;
 
     let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
@@ -30,9 +30,7 @@ pub fn generate_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
 }
 
 /// Generate master seed from mnemonic phrase
-pub fn get_master_seed_from_mnemonic(
-    mnemonic_phrase: &SecureString,
-) -> Result<[u8; 32], anyhow::Error> {
+pub fn get_master_seed_from_mnemonic(mnemonic_phrase: &SecureString) -> Result<[u8; 32]> {
     let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())?;
 
     // Generate seed (64 bytes)
@@ -48,16 +46,13 @@ pub fn get_master_seed_from_mnemonic(
     Ok(master_seed)
 }
 
-pub fn load_mnemonic_secure(
-    wallet_name: &str,
-    passphrase: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
+pub fn load_mnemonic_secure(wallet_name: &str, passphrase: &SecureString) -> Result<SecureString> {
     let wallet_data = crate::wallet_storage::load_wallet_data(wallet_name)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         crate::encryption::encrypted_data_from_hex(encrypted_mnemonic)?
     } else {
-        return Err(anyhow!("No encrypted mnemonic found in wallet data"));
+        return Err(eyre!("No encrypted mnemonic found in wallet data"));
     };
 
     let secure_mnemonic = aes_decrypt_secure(&encrypted_data, passphrase)?;
@@ -65,14 +60,12 @@ pub fn load_mnemonic_secure(
     Ok(secure_mnemonic)
 }
 
-pub fn derive_private_key_from_mnemonic_secure(
-    mnemonic: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
+pub fn derive_private_key_from_mnemonic_secure(mnemonic: &SecureString) -> Result<SecureString> {
     use bitcoin::secp256k1::SecretKey;
 
     // Generate master seed from mnemonic using BIP-39
     let master_seed = get_master_seed_from_mnemonic(mnemonic)
-        .map_err(|e| anyhow!("Failed to generate master seed from mnemonic: {}", e))?;
+        .map_err(|e| eyre!("Failed to generate master seed from mnemonic: {}", e))?;
 
     let mut master_private_key = SecretKey::from_slice(&master_seed)?;
 
@@ -85,7 +78,7 @@ pub fn derive_private_key_from_mnemonic_secure(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
-pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
+pub fn prompt_mnemonic_secure() -> Result<SecureString> {
     use bip39::{Language, Mnemonic};
     use colored::Colorize;
     use zeroize::Zeroize;
@@ -133,7 +126,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
 
         // Safety check - prevent extremely long inputs
         if words.len() > 24 {
-            return Err(anyhow!(
+            return Err(eyre!(
                 "Too many words entered. BIP-39 mnemonics have maximum 24 words."
             ));
         }
@@ -145,7 +138,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         for mut word in words {
             word.zeroize();
         }
-        return Err(anyhow!(
+        return Err(eyre!(
             "Invalid mnemonic length: {} words. Must be 12 words.",
             word_count
         ));
@@ -180,7 +173,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         Err(e) => {
             mnemonic_phrase.zeroize();
             // This shouldn't happen since we validated each word, but safety check
-            Err(anyhow!("Mnemonic validation failed: {}", e))
+            Err(eyre!("Mnemonic validation failed: {}", e))
         }
     }
 }

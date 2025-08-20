@@ -60,7 +60,7 @@
 
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
-use anyhow::anyhow;
+use eyre::{Result, eyre};
 use getrandom;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -96,13 +96,13 @@ pub struct EncryptedDataHex {
 pub fn aes_encrypt_secure(
     secure_plaintext: &SecureString,
     secure_passphrase: &SecureString,
-) -> Result<EncryptedData, anyhow::Error> {
+) -> Result<EncryptedData> {
     // Generate fresh random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
-    getrandom::fill(&mut salt).map_err(|e| anyhow!("Failed to generate random salt: {}", e))?;
+    getrandom::fill(&mut salt).map_err(|e| eyre!("Failed to generate random salt: {}", e))?;
     getrandom::fill(&mut nonce_bytes)
-        .map_err(|e| anyhow!("Failed to generate random nonce: {}", e))?;
+        .map_err(|e| eyre!("Failed to generate random nonce: {}", e))?;
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
@@ -112,7 +112,7 @@ pub fn aes_encrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+    .map_err(|e| eyre!("Key derivation failed: {}", e))?;
 
     // Encrypt with AES-256-GCM
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -120,7 +120,7 @@ pub fn aes_encrypt_secure(
 
     let ciphertext = cipher
         .encrypt(nonce, secure_plaintext.expose_secret().as_bytes())
-        .map_err(|e| anyhow!("Encryption failed: {}", e))?;
+        .map_err(|e| eyre!("Encryption failed: {}", e))?;
 
     Ok(EncryptedData {
         ciphertext,
@@ -135,7 +135,7 @@ pub fn aes_encrypt_secure(
 pub fn aes_decrypt_secure(
     encrypted_data: &EncryptedData,
     secure_passphrase: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
+) -> Result<SecureString> {
     // Reconstruct same key using stored salt
     let secure_key = derive_key_from_passphrase(
         secure_passphrase,
@@ -144,7 +144,7 @@ pub fn aes_decrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+    .map_err(|e| eyre!("Key derivation failed: {}", e))?;
 
     // Decrypt with AES-256-GCM (verifies authentication)
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -152,10 +152,10 @@ pub fn aes_decrypt_secure(
 
     let mut plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-        .map_err(|_| anyhow!("Decryption failed: Password may be wrong."))?;
+        .map_err(|_| eyre!("Decryption failed: Password may be wrong."))?;
 
     let plaintext_string = String::from_utf8(plaintext.clone())
-        .map_err(|_| anyhow!("Decryption produced invalid UTF-8"))?;
+        .map_err(|_| eyre!("Decryption produced invalid UTF-8"))?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
     plaintext.zeroize();
@@ -173,14 +173,14 @@ pub fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
 }
 
 /// Generic function to convert hex EncryptedDataHex back to binary
-pub fn encrypted_data_from_hex(data: &EncryptedDataHex) -> Result<EncryptedData, anyhow::Error> {
+pub fn encrypted_data_from_hex(data: &EncryptedDataHex) -> Result<EncryptedData> {
     Ok(EncryptedData {
         ciphertext: hex::decode(&data.ciphertext)?,
         nonce: hex::decode(&data.nonce)?
             .try_into()
-            .map_err(|_| anyhow!("Invalid nonce length"))?,
+            .map_err(|_| eyre!("Invalid nonce length"))?,
         salt: hex::decode(&data.salt)?
             .try_into()
-            .map_err(|_| anyhow!("Invalid salt length"))?,
+            .map_err(|_| eyre!("Invalid salt length"))?,
     })
 }
