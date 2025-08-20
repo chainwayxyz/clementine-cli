@@ -1,10 +1,10 @@
 use bitcoin::Network;
 use bitcoin::secp256k1::{Keypair, SecretKey};
-use eyre::{Result, eyre};
 use zeroize::Zeroize;
 
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
+use crate::errors::BridgeCliError;
 use crate::mnemonic::get_master_seed_from_mnemonic;
 use crate::secure_structs::SecureString;
 
@@ -12,9 +12,9 @@ use crate::secure_structs::SecureString;
 pub fn generate_address_from_mnemonic_secure(
     secure_mnemonic: &SecureString,
     network: Network,
-) -> Result<String> {
+) -> Result<String, BridgeCliError> {
     let mut master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
-        .map_err(|e| eyre!("Failed to generate master seed from mnemonic: {}", e))?;
+        .map_err(|_| BridgeCliError::MnemonicToSeedError)?;
 
     let mut master_private_key = SecretKey::from_slice(&master_seed)?;
     let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &master_private_key);
@@ -28,32 +28,32 @@ pub fn generate_address_from_mnemonic_secure(
 }
 
 /// Parse a Bitcoin address string into a proper Address object
-pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress> {
+pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
     use crate::{BitcoinAddress, NetworkUnchecked};
 
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
-        .map_err(|_| eyre!("Invalid Bitcoin address format"))?;
+        .map_err(|_| BridgeCliError::InvalidAddressFormat)?;
     let address = unchecked_address.require_network(network)?;
     Ok(address)
 }
 
 /// Parse a taproot address specifically and validate it's the correct type
-pub fn parse_taproot_address(address: &str, network: Network) -> Result<BitcoinAddress> {
+pub fn parse_taproot_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
     use bitcoin::AddressType;
 
     let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err(eyre!("Address is not a taproot (P2TR) address"));
+        return Err(BridgeCliError::NotTaprootAddress);
     }
 
     Ok(address)
 }
 
 /// Extract address from wallet JSON data
-pub fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<String> {
+pub fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<String, BridgeCliError> {
     // Try to get the address field from the wallet data
     if let Some(address) = wallet_data.get("address") {
         if let Some(address_str) = address.as_str() {
@@ -61,7 +61,7 @@ pub fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<St
         }
     }
 
-    Err(eyre!("Address field not found or invalid in wallet data"))
+    Err(BridgeCliError::MissingWalletAddress)
 }
 
 /// Helper function to process a wallet file and extract its address
@@ -84,18 +84,19 @@ fn process_wallet_file(file_path: &std::path::Path, file_name: &str) -> Option<S
 }
 
 /// Get all wallet addresses from storage and print them
-pub fn get_all_wallet_addresses() -> Result<()> {
+pub fn get_all_wallet_addresses() -> Result<(), BridgeCliError> {
     use std::fs;
 
     let storage_dir = crate::wallet_storage::get_storage_dir()
-        .map_err(|e| eyre!("Failed to get storage directory: {}", e))?;
+        .map_err(|_| BridgeCliError::StorageDirectoryError)?;
 
     if !storage_dir.exists() {
         println!("No wallets found in storage.");
         return Ok(());
     }
 
-    let addresses: Vec<String> = fs::read_dir(&storage_dir)?
+    let addresses: Vec<String> = fs::read_dir(&storage_dir)
+        .map_err(|_| BridgeCliError::StorageReadError)?
         .filter_map(|entry| entry.ok())
         .filter_map(|entry| {
             let file_name = entry.file_name();

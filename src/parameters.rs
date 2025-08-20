@@ -4,7 +4,7 @@ use crate::bitcoin_merkle::BitcoinMerkleTree;
 use crate::errors::BridgeCliError;
 use crate::types::encode_citrea_deposit_params;
 
-use eyre::{Result, eyre};
+use eyre::Result;
 
 use bitcoin::OutPoint;
 use bitcoin::ScriptBuf;

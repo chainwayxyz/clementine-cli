@@ -3,7 +3,8 @@
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::calculate_deposit_address;
 use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
+use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::passphrase::prompt_unlock_passphrase;
 use crate::wallet::load_key;

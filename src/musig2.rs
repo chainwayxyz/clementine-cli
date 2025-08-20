@@ -4,7 +4,7 @@
 
 use crate::errors::BridgeCliError;
 use bitcoin::{XOnlyPublicKey, secp256k1::PublicKey};
-use eyre::{Result, eyre};
+use eyre::Result;
 use secp256k1::{
     SECP256K1,
     musig::{KeyAggCache, PublicNonce, SecretNonce},

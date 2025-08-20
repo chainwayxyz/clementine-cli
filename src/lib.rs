@@ -1,4 +1,4 @@
-use eyre::{Result, eyre};
+use eyre::Result;
 use std::env;
 use std::str::FromStr;
 
@@ -48,8 +48,8 @@ pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
 pub mod encryption;
-pub mod mnemonic;
 pub mod errors;
+pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
 pub mod passphrase;

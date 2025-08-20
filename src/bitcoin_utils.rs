@@ -1,13 +1,20 @@
 // Bitcoin utility functions for Clementine CLI
 
+use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Keypair, Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
     Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use eyre::{Result, eyre};
+use eyre::{Context, Result};
 use std::sync::LazyLock;
+
+use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::errors::BridgeCliError;
+use crate::musig2::AggregateFromPublicKeys;
+use crate::script::{deposit_script, recover_script};
+use crate::{BitcoinAddress, CitreaAddress};
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 

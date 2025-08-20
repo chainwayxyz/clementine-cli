@@ -223,7 +223,9 @@ pub async fn send_safe_withdrawal(
     // get the secret key from env
     // raise error if not found
     let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
-    let signer: PrivateKeySigner = secret_key.parse()?;
+    let signer: PrivateKeySigner = secret_key
+        .parse()
+        .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();

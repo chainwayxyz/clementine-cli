@@ -7,7 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use eyre::{Result, eyre};
+use eyre::Result;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
