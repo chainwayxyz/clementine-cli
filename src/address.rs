@@ -60,10 +60,10 @@ pub fn extract_address_from_wallet(
     wallet_data: &serde_json::Value,
 ) -> Result<String, anyhow::Error> {
     // Try to get the address field from the wallet data
-    if let Some(address) = wallet_data.get("address") {
-        if let Some(address_str) = address.as_str() {
-            return Ok(address_str.to_string());
-        }
+    if let Some(address) = wallet_data.get("address")
+        && let Some(address_str) = address.as_str()
+    {
+        return Ok(address_str.to_string());
     }
 
     Err(anyhow!("Address field not found or invalid in wallet data"))

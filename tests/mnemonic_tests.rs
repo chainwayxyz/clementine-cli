@@ -73,13 +73,13 @@ mod tests {
             "network": network.to_string(),
             "encrypted_mnemonic": {
                 "ciphertext": hex::encode(&encrypted_mnemonic.ciphertext),
-                "nonce": hex::encode(&encrypted_mnemonic.nonce),
-                "salt": hex::encode(&encrypted_mnemonic.salt)
+                "nonce": hex::encode(encrypted_mnemonic.nonce),
+                "salt": hex::encode(encrypted_mnemonic.salt)
             },
             "encrypted_private_key": {
                 "ciphertext": hex::encode(&encrypted_private_key.ciphertext),
-                "nonce": hex::encode(&encrypted_private_key.nonce),
-                "salt": hex::encode(&encrypted_private_key.salt)
+                "nonce": hex::encode(encrypted_private_key.nonce),
+                "salt": hex::encode(encrypted_private_key.salt)
             },
             "created_at": chrono::Utc::now().to_rfc3339(),
             "encryption_method": "aes256_gcm_argon2id_secure",
@@ -165,13 +165,13 @@ mod tests {
             "network": network.to_string(),
             "encrypted_mnemonic": {
                 "ciphertext": hex::encode(&encrypted_mnemonic.ciphertext),
-                "nonce": hex::encode(&encrypted_mnemonic.nonce),
-                "salt": hex::encode(&encrypted_mnemonic.salt)
+                "nonce": hex::encode(encrypted_mnemonic.nonce),
+                "salt": hex::encode(encrypted_mnemonic.salt)
             },
             "encrypted_private_key": {
                 "ciphertext": hex::encode(&encrypted_private_key.ciphertext),
-                "nonce": hex::encode(&encrypted_private_key.nonce),
-                "salt": hex::encode(&encrypted_private_key.salt)
+                "nonce": hex::encode(encrypted_private_key.nonce),
+                "salt": hex::encode(encrypted_private_key.salt)
             },
             "created_at": chrono::Utc::now().to_rfc3339(),
             "encryption_method": "aes256_gcm_argon2id_secure",
@@ -258,7 +258,7 @@ mod tests {
         );
         println!(
             "  Mnemonics match: {}",
-            original_mnemonic == decrypted_mnemonic.expose_secret().to_string()
+            original_mnemonic == *decrypted_mnemonic.expose_secret()
         );
     }
 
@@ -310,13 +310,13 @@ mod tests {
             "network": network.to_string(),
             "encrypted_mnemonic": {
                 "ciphertext": hex::encode(&encrypted_mnemonic.ciphertext),
-                "nonce": hex::encode(&encrypted_mnemonic.nonce),
-                "salt": hex::encode(&encrypted_mnemonic.salt)
+                "nonce": hex::encode(encrypted_mnemonic.nonce),
+                "salt": hex::encode(encrypted_mnemonic.salt)
             },
             "encrypted_private_key": {
                 "ciphertext": hex::encode(&encrypted_private_key.ciphertext),
-                "nonce": hex::encode(&encrypted_private_key.nonce),
-                "salt": hex::encode(&encrypted_private_key.salt)
+                "nonce": hex::encode(encrypted_private_key.nonce),
+                "salt": hex::encode(encrypted_private_key.salt)
             },
             "created_at": chrono::Utc::now().to_rfc3339(),
             "encryption_method": "aes256_gcm_argon2id_secure",
@@ -677,7 +677,7 @@ mod tests {
         println!("Testing BIP-39 mnemonic validation:");
 
         // Test valid mnemonics
-        let valid_mnemonics = vec![
+        let valid_mnemonics = [
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", // 12 words
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon agent", // 18 words
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art", // 24 words
@@ -699,7 +699,7 @@ mod tests {
         }
 
         // Test invalid mnemonics
-        let invalid_mnemonics = vec![
+        let invalid_mnemonics = [
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 11 words (invalid length)
             "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 13 words (invalid length)
@@ -731,7 +731,7 @@ mod tests {
         // Valid words
         let valid_words = vec!["abandon", "ability", "about", "above", "absent"];
         for word in &valid_words {
-            let is_valid = wordlist.iter().any(|&w| w == *word);
+            let is_valid = wordlist.contains(word);
             assert!(is_valid, "Word '{}' should be valid", word);
             println!("    ✅ '{}' is valid", word);
         }
@@ -739,7 +739,7 @@ mod tests {
         // Invalid words
         let invalid_words = vec!["notaword", "invalid", "test123", "abandon123", ""];
         for word in &invalid_words {
-            let is_valid = wordlist.iter().any(|&w| w == *word);
+            let is_valid = wordlist.contains(word);
             assert!(!is_valid, "Word '{}' should be invalid", word);
             println!("    ✅ '{}' is correctly invalid", word);
         }

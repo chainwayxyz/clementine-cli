@@ -1,6 +1,5 @@
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
-use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
 
 use zeroize::Zeroize;
@@ -106,7 +105,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
 
     loop {
         let mut word =
-            rpassword::prompt_password(&format!("Word {}: ", word_index.to_string().cyan()))?
+            rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))?
                 .trim()
                 .to_lowercase();
 

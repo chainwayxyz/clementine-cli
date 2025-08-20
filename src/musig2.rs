@@ -49,10 +49,7 @@ impl AggregateFromPublicKeys for XOnlyPublicKey {
         }
         let musig_key_agg_cache = create_key_agg_cache(pks)?;
 
-        Ok(
-            XOnlyPublicKey::from_slice(&musig_key_agg_cache.agg_pk().serialize()).map_err(
-                |_| anyhow!("Failed to create XOnlyPublicKey from aggregated public key"),
-            )?,
-        )
+        XOnlyPublicKey::from_slice(&musig_key_agg_cache.agg_pk().serialize())
+            .map_err(|_| anyhow!("Failed to create XOnlyPublicKey from aggregated public key"))
     }
 }

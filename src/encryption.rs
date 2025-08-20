@@ -106,7 +106,7 @@ pub fn aes_encrypt_secure(
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
-        &secure_passphrase,
+        secure_passphrase,
         &salt,
         ARGON2_TIME_COST,
         ARGON2_MEMORY_COST,
@@ -138,7 +138,7 @@ pub fn aes_decrypt_secure(
 ) -> Result<SecureString, anyhow::Error> {
     // Reconstruct same key using stored salt
     let secure_key = derive_key_from_passphrase(
-        &secure_passphrase,
+        secure_passphrase,
         &encrypted_data.salt,
         ARGON2_TIME_COST,
         ARGON2_MEMORY_COST,
@@ -167,8 +167,8 @@ pub fn aes_decrypt_secure(
 pub fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
     EncryptedDataHex {
         ciphertext: hex::encode(&data.ciphertext),
-        nonce: hex::encode(&data.nonce),
-        salt: hex::encode(&data.salt),
+        nonce: hex::encode(data.nonce),
+        salt: hex::encode(data.salt),
     }
 }
 

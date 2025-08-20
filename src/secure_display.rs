@@ -503,11 +503,11 @@ pub fn display_private_key_securely(private_key: &SecretKey) -> Result<()> {
     }
 
     // Try to enter alternate screen
-    if let Err(_) = terminal::enable_raw_mode() {
+    if terminal::enable_raw_mode().is_err() {
         return display_private_key_fallback(private_key);
     }
 
-    if let Err(_) = execute!(io::stdout(), EnterAlternateScreen) {
+    if execute!(io::stdout(), EnterAlternateScreen).is_err() {
         let _ = terminal::disable_raw_mode();
         return display_private_key_fallback(private_key);
     }

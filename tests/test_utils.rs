@@ -74,13 +74,13 @@ pub fn store_test_wallet(
         "network": wallet_data.network.to_string(),
         "encrypted_mnemonic": {
             "ciphertext": hex::encode(&wallet_data.encrypted_mnemonic.ciphertext),
-            "nonce": hex::encode(&wallet_data.encrypted_mnemonic.nonce),
-            "salt": hex::encode(&wallet_data.encrypted_mnemonic.salt)
+            "nonce": hex::encode(wallet_data.encrypted_mnemonic.nonce),
+            "salt": hex::encode(wallet_data.encrypted_mnemonic.salt)
         },
         "encrypted_private_key": {
             "ciphertext": hex::encode(&wallet_data.encrypted_private_key.ciphertext),
-            "nonce": hex::encode(&wallet_data.encrypted_private_key.nonce),
-            "salt": hex::encode(&wallet_data.encrypted_private_key.salt)
+            "nonce": hex::encode(wallet_data.encrypted_private_key.nonce),
+            "salt": hex::encode(wallet_data.encrypted_private_key.salt)
         },
         "created_at": chrono::Utc::now().to_rfc3339(),
         "encryption_method": "aes256_gcm_argon2id_secure",

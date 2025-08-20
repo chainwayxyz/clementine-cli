@@ -12,9 +12,8 @@ use crate::bitcoin_utils::calculate_taproot_address;
 use crate::encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use crate::mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
-    load_mnemonic_secure, prompt_mnemonic_secure,
+    prompt_mnemonic_secure,
 };
-use crate::private_key::load_private_key_secure;
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
 use crate::wallet_storage::get_storage_dir;
@@ -474,7 +473,7 @@ fn validate_private_key_import(
     use bitcoin::secp256k1::SecretKey;
     use std::str::FromStr;
 
-    if let Some(_) = wallet_data["encrypted_private_key"].as_object() {
+    if wallet_data["encrypted_private_key"].as_object().is_some() {
         let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
             serde_json::from_value(wallet_data["encrypted_private_key"].clone())
                 .map_err(|e| anyhow!("Failed to parse encrypted private key structure: {}", e))?;
@@ -484,7 +483,7 @@ fn validate_private_key_import(
                 .map_err(|e| anyhow!("Failed to parse encrypted private key: {}", e))?;
 
         // Decrypt and validate the private key
-        match aes_decrypt_secure(&encrypted_private_data, &passphrase) {
+        match aes_decrypt_secure(&encrypted_private_data, passphrase) {
             Ok(decrypted_private_key) => {
                 let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
                 let network = parse_network(network_str);
@@ -881,6 +880,47 @@ pub fn export_private_key(address: &str, network: Network) -> Result<(), anyhow:
     Ok(())
 }
 
+/// Securely load a key from wallet storage - always requires a passphrase
+pub fn load_key(
+    address: &str,
+    network: Network,
+    passphrase: &SecureString,
+) -> Result<Keypair, anyhow::Error> {
+    use bitcoin::secp256k1::{Secp256k1, SecretKey};
+    use std::str::FromStr;
+
+    let storage_dir = get_storage_dir()?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+
+    if !wallet_file.exists() {
+        return Err(anyhow!("Wallet file not found for address: {address}"));
+    }
+
+    // Load wallet data
+    let wallet_data = crate::wallet_storage::load_wallet_data(address)?;
+
+    // Verify network matches
+    if wallet_data.network != network.to_string() {
+        return Err(anyhow!(
+            "Wallet network mismatch: expected {}, found {}",
+            network,
+            wallet_data.network
+        ));
+    }
+
+    // Load the encrypted private key
+    let encrypted_private_key = wallet_data
+        .encrypted_private_key
+        .ok_or_else(|| anyhow!("No encrypted private key found in wallet"))?;
+
+    let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_private_key)?;
+    let decrypted_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
+
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
+    Ok(Keypair::from_secret_key(&secp, &secret_key))
+}
+
 #[cfg(test)]
 pub mod tests {
     use crate::passphrase::derive_key_from_passphrase;
@@ -941,45 +981,4 @@ pub mod tests {
         // Both should succeed but produce different keys due to different parameters
         assert_ne!(key_min.expose_secret(), key_prod.expose_secret());
     }
-}
-
-/// Securely load a key from wallet storage - always requires a passphrase
-pub fn load_key(
-    address: &str,
-    network: Network,
-    passphrase: &SecureString,
-) -> Result<Keypair, anyhow::Error> {
-    use bitcoin::secp256k1::{Secp256k1, SecretKey};
-    use std::str::FromStr;
-
-    let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
-
-    if !wallet_file.exists() {
-        return Err(anyhow!("Wallet file not found for address: {address}"));
-    }
-
-    // Load wallet data
-    let wallet_data = crate::wallet_storage::load_wallet_data(address)?;
-
-    // Verify network matches
-    if wallet_data.network != network.to_string() {
-        return Err(anyhow!(
-            "Wallet network mismatch: expected {}, found {}",
-            network,
-            wallet_data.network
-        ));
-    }
-
-    // Load the encrypted private key
-    let encrypted_private_key = wallet_data
-        .encrypted_private_key
-        .ok_or_else(|| anyhow!("No encrypted private key found in wallet"))?;
-
-    let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_private_key)?;
-    let decrypted_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
-
-    let secp = Secp256k1::new();
-    let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
-    Ok(Keypair::from_secret_key(&secp, &secret_key))
 }
