@@ -48,7 +48,7 @@ pub fn store_wallet_data(
         encrypted_mnemonic: Some(encrypted_data_to_hex(encrypted_mnemonic)),
         encrypted_private_key: Some(encrypted_data_to_hex(encrypted_private_key)),
         created_at: chrono::Utc::now().to_rfc3339(),
-        encryption_method: "aes256_gcm_argon2_secure".to_string(),
+        encryption_method: "aes256_gcm_argon2id_secure".to_string(),
         data_format: data_format.to_string(),
         imported: if imported { Some(true) } else { None },
         import_method: import_method.map(|s| s.to_string()),

@@ -83,7 +83,7 @@ pub fn store_test_wallet(
             "salt": hex::encode(&wallet_data.encrypted_private_key.salt)
         },
         "created_at": chrono::Utc::now().to_rfc3339(),
-        "encryption_method": "aes256_gcm_argon2_secure",
+        "encryption_method": "aes256_gcm_argon2id_secure",
         "data_format": "separate_encrypted_fields"
     });
 
