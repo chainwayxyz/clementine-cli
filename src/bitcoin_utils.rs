@@ -12,7 +12,6 @@ use bitcoin::{
     Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use colored::*;
 use eyre::Context;
 use std::io::{self, Write};
 use std::str::FromStr;
@@ -51,13 +50,12 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliErro
         return Ok(true);
     }
 
-    println!(
-        "{} This command will save a private key to your computer.",
-        "WARNING".red().bold()
+    tracing::warn!(
+        "This command will save a private key to your computer.\n
+        \tAnyone with access to this computer could potentially spend your funds.\n
+        \tMake sure you're running this in a secure environment.\n",
     );
-    println!("   Anyone with access to this computer could potentially spend your funds.");
-    println!("   Make sure you're running this in a secure environment.");
-    println!();
+    // Don't print new line for the question.
     print!("Are you sure you want to continue? (y/N): ");
     io::stdout().flush().wrap_err("Can flush stdout")?;
 

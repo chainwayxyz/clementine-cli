@@ -15,20 +15,23 @@ use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
-use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
+use bitcoin::taproot::Signature;
+use bitcoin::{Address, Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
-use colored::*;
 use eyre::Context;
 use reqwest::Url;
 use serde_json::Value;
 use std::str::FromStr;
 
 /// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), BridgeCliError> {
+pub fn generate_signer_address(
+    auto_yes: bool,
+    network: Network,
+) -> Result<Address, BridgeCliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
+        tracing::info!("Operation cancelled by user.");
+        return Err(BridgeCliError::OperationCancelled);
     }
 
     // Generate the key and address
@@ -42,19 +45,7 @@ pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), B
         return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
-    // println!(
-    //     "{} Signer key generated and stored successfully",
-    //     "SUCCESS".green().bold()
-    // );
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-    // println!("{} ~/.clementine/keys/", "STORAGE".magenta().bold());
-    println!(
-        "{} Please send 0.0000033 BTC (330 sats) to this address.",
-        "INFO".yellow().bold()
-    );
-
-    Ok(())
+    Ok(address)
 }
 
 pub fn generate_withdrawal_signature(
@@ -63,7 +54,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> Result<(), BridgeCliError> {
+) -> Result<Signature, BridgeCliError> {
     let keypair = load_key(signer_address, network, None)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
@@ -79,13 +70,7 @@ pub fn generate_withdrawal_signature(
         amount,
     )?;
 
-    println!(
-        "{} {}",
-        "SIGNATURE".cyan().bold(),
-        hex::encode(signature.serialize())
-    );
-
-    Ok(())
+    Ok(signature)
 }
 
 pub async fn get_tx_details_from_mempool(
@@ -127,6 +112,7 @@ pub async fn get_tx_details_from_mempool(
     tracing::debug!("block_raw: {:?}", block_raw);
     let block: Block = bitcoin::consensus::deserialize(&block_raw)?;
     tracing::debug!("block: {:?}", block);
+
     Ok((tx, block, block_height as u32))
 }
 
@@ -224,22 +210,15 @@ pub async fn safe_withdraw(
 
     // Prompt user to open the withdrawal UI
     let withdrawal_ui_url = "https://i-explorer.devnet.citrea.xyz/address/0x3100000000000000000000000000000000000002?tab=write_proxy#9072f747";
-    println!(
-        "\n{} Press Enter to open the withdrawal UI in your default browser...",
-        "INFO".yellow().bold()
-    );
+    tracing::warn!("Press Enter to open the withdrawal UI in your default browser...",);
     let mut input = String::new();
     std::io::stdin()
         .read_line(&mut input)
         .wrap_err("Can't read key stroke")?;
 
     if let Err(e) = open::that(withdrawal_ui_url) {
-        println!(
-            "{} Failed to open browser: {}",
-            "WARNING".yellow().bold(),
-            e
-        );
-        println!(
+        tracing::error!("Failed to open browser: {}", e);
+        tracing::info!(
             "Please visit the following URL manually:\n{}",
             withdrawal_ui_url
         );
@@ -337,7 +316,7 @@ pub async fn send_safe_withdrawal(
         .get_receipt()
         .await
         .wrap_err("Can't get receipt")?;
-    println!("Citrea withdrawal tx receipt: {:?}", receipt);
+    tracing::info!("Citrea withdrawal tx receipt: {:?}", receipt);
 
     Ok(())
 }

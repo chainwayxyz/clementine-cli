@@ -4,7 +4,6 @@ use crate::config::BridgeCliConfig;
 use crate::deposit::parse_taproot_address;
 use crate::errors::BridgeCliError;
 use crate::{BitcoinAddress, CitreaAddress};
-use colored::*;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
@@ -39,10 +38,7 @@ pub fn create_deposit_account(
 
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json()?;
-        tracing::info!(
-            "{} Deposit address request successful",
-            "SUCCESS".green().bold(),
-        );
+        tracing::debug!("Deposit address request successful",);
         tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
@@ -55,9 +51,8 @@ pub fn create_deposit_account(
     } else {
         let status = response.status();
         let error_text = response.text()?;
-        println!("{} Deposit address request failed", "ERROR".red().bold());
-        println!("{} {}", "STATUS".red().bold(), status);
-        tracing::debug!("Error response: {}", error_text);
+        tracing::error!("Deposit address request failed: {}", status);
+        tracing::error!("Error response: {}", error_text);
 
         Err(eyre::eyre!(
             "Backend request failed with status: {} {}",

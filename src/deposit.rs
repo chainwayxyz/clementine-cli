@@ -21,7 +21,6 @@ use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use bitcoin::{Network, address::NetworkUnchecked};
-use colored::*;
 use std::str::FromStr;
 
 pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
@@ -55,7 +54,7 @@ pub fn generate_recovery_key(
 ) -> Result<(), BridgeCliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
+        tracing::info!("Operation cancelled by user.");
         return Ok(());
     }
 
@@ -73,8 +72,8 @@ pub fn generate_recovery_key(
         return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
+    tracing::debug!("Address: {}", address);
+    tracing::debug!("Network: {}", network);
 
     Ok(())
 }
@@ -86,29 +85,21 @@ pub fn get_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
-    println!(
-        "{} {}",
-        "CITREA_ADDRESS (checksummed)".green().bold(),
-        citrea_address,
-    );
+    tracing::info!("CITREA_ADDRESS (checksummed): {}", citrea_address,);
     let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, config.network)?;
 
     // Call backend to create deposit account
     let deposit_address =
         create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
 
-    println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
+    tracing::info!("DEPOSIT_ADDRESS: {}", deposit_address);
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
-    println!(
-        "{} {}",
-        "Deposit address:".blue().bold(),
-        calculated_deposit_address
-    );
+    tracing::info!("Deposit address: {}", calculated_deposit_address);
 
     Ok(())
 }
@@ -136,8 +127,7 @@ pub async fn get_deposit_params(
         move_to_vault_block_height,
     )?;
 
-    println!("{}", "Encoded deposit params:".blue().bold());
-    println!("{}", hex::encode(deposit_params));
+    tracing::info!("Encoded deposit params: {}", hex::encode(deposit_params));
 
     Ok(())
 }
@@ -180,7 +170,7 @@ pub fn sign_recovery_tx(
         fee_rate_opt,
         config,
     )?;
-    println!(
+    tracing::info!(
         "Signed Recovery Transaction: {}",
         hex::encode(bitcoin::consensus::serialize(&signed_tx))
     );
@@ -205,15 +195,11 @@ pub fn verify_recovery_tx(
         config,
     )?;
 
-    println!(
-        "{} Recovery transaction verification successful!",
-        "SUCCESS".green().bold()
-    );
-    println!("{} {}", "Output address:".blue().bold(), address);
-    println!("{} {} BTC", "Output amount:".blue().bold(), amount.to_btc());
-    println!(
-        "\n{} This transaction can be broadcast after 200 blocks from {}",
-        "NOTE:".yellow().bold(),
+    tracing::info!("Recovery transaction verification successful!",);
+    tracing::debug!("Output address: {}", address);
+    tracing::debug!("Output amount: {} BTC", amount.to_btc());
+    tracing::warn!(
+        "This transaction can be broadcast after 200 blocks from {}",
         txid
     );
 

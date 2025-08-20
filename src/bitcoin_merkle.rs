@@ -40,9 +40,9 @@ impl BitcoinMerkleTree {
         let mut prev_level_index_offset = 0;
         let mut preimage: [u8; 64] = [0; 64];
         while prev_level_size > 1 {
-            // println!("curr_level_offset: {}", curr_level_offset);
-            // println!("prev_level_size: {}", prev_level_size);
-            // println!("prev_level_index_offset: {}", prev_level_index_offset);
+            // tracing::debug!("curr_level_offset: {}", curr_level_offset);
+            // tracing::debug!("prev_level_size: {}", prev_level_size);
+            // tracing::debug!("prev_level_index_offset: {}", prev_level_index_offset);
             tree.nodes.push(vec![]);
             for i in 0..(prev_level_size / 2) {
                 preimage[..32].copy_from_slice(

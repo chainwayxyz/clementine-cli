@@ -31,6 +31,8 @@ pub enum BridgeCliError {
     // Shared error messages
     #[error("Unsupported network")]
     UnsupportedNetwork,
+    #[error("Operation cancelled by the user")]
+    OperationCancelled,
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]

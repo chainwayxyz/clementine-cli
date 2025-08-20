@@ -215,9 +215,16 @@ async fn main() {
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateSignerAddress { y } => {
-                if let Err(e) = withdrawal::generate_signer_address(y, config.network) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                match withdrawal::generate_signer_address(y, config.network) {
+                    Ok(address) => println!(
+                        "Address for {} is {}\n
+                        Please send 0.0000033 BTC (330 sats) to this address.",
+                        config.network, address
+                    ),
+                    Err(e) => {
+                        eprintln!("Error while generating signer address: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             WithdrawalCommands::GenerateWithdrawalSignature {
@@ -226,15 +233,18 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
             } => {
-                if let Err(e) = withdrawal::generate_withdrawal_signature(
+                match withdrawal::generate_withdrawal_signature(
                     &signer_address,
                     &withdrawal_address,
                     &withdrawal_utxo,
                     amount,
                     config.network,
                 ) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                    Ok(signature) => println!("Signature: {}", hex::encode(signature.serialize())),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             WithdrawalCommands::SafeWithdraw {
