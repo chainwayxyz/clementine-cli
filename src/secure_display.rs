@@ -537,11 +537,21 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
     execute!(
         io::stdout(),
         SetForegroundColor(Color::Red),
-        Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
-        Print("║                          🔐 SECURE PRIVATE KEY DISPLAY 🔐                    ║\r\n"),
-        Print("║                                                                              ║\r\n"),
-        Print("║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"),
-        Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n\r\n"),
+        Print(
+            "╔══════════════════════════════════════════════════════════════════════════════╗\r\n"
+        ),
+        Print(
+            "║                          🔐 SECURE PRIVATE KEY DISPLAY 🔐                    ║\r\n"
+        ),
+        Print(
+            "║                                                                              ║\r\n"
+        ),
+        Print(
+            "║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"
+        ),
+        Print(
+            "╚══════════════════════════════════════════════════════════════════════════════╝\r\n\r\n"
+        ),
         SetForegroundColor(Color::Cyan),
         Print("Private Key:\r\n\r\n"),
         Print(format!("   {}\r\n\r\n", private_key.display_secret())),
@@ -572,7 +582,10 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
             io::stdout(),
             cursor::MoveTo(0, 12), // Position cursor for countdown
             SetForegroundColor(Color::Yellow),
-            Print(format!("⏰ Auto-close in {} seconds | Press any key to close immediately   ", seconds_left)),
+            Print(format!(
+                "⏰ Auto-close in {} seconds | Press any key to close immediately   ",
+                seconds_left
+            )),
             SetForegroundColor(Color::Reset)
         )?;
 
@@ -599,7 +612,10 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     println!("{}", "Private Key:".cyan().bold());
     println!("   {}", private_key.display_secret());
     println!();
-    println!("{}", "Press Enter to clear and continue (auto-close in 30 seconds)...".green());
+    println!(
+        "{}",
+        "Press Enter to clear and continue (auto-close in 30 seconds)...".green()
+    );
 
     // Use the same timeout pattern as the fallback_word_timeout_wait function
     const DISPLAY_TIMEOUT: Duration = Duration::from_secs(30);
@@ -650,7 +666,10 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
 
         // Update countdown every second
         let seconds_left = remaining.as_secs();
-        print!("\r⏰ Auto-close in {} seconds - Press Enter to close... ", seconds_left);
+        print!(
+            "\r⏰ Auto-close in {} seconds - Press Enter to close... ",
+            seconds_left
+        );
         io::stdout().flush()?;
 
         std::thread::sleep(Duration::from_millis(1000));

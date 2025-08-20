@@ -72,14 +72,17 @@ pub fn extract_address_from_wallet(
 /// Helper function to process a wallet file and extract its address
 fn process_wallet_file(file_path: &std::path::Path, file_name: &str) -> Option<String> {
     use std::fs;
-    
+
     let wallet_content = fs::read_to_string(file_path).ok()?;
     let wallet_data: serde_json::Value = serde_json::from_str(&wallet_content).ok()?;
-    
+
     match extract_address_from_wallet(&wallet_data) {
         Ok(address) => Some(address),
         Err(e) => {
-            eprintln!("Warning: Failed to extract address from {}: {}", file_name, e);
+            eprintln!(
+                "Warning: Failed to extract address from {}: {}",
+                file_name, e
+            );
             None
         }
     }
@@ -102,11 +105,12 @@ pub fn get_all_wallet_addresses() -> Result<(), anyhow::Error> {
         .filter_map(|entry| {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
-            
+
             // Check if it's a wallet file (wallet_ADDRESS.json)
-            if file_name_str.starts_with("wallet_") 
-                && file_name_str.ends_with(".json") 
-                && file_name_str != "wallets.json" {
+            if file_name_str.starts_with("wallet_")
+                && file_name_str.ends_with(".json")
+                && file_name_str != "wallets.json"
+            {
                 process_wallet_file(&entry.path(), &file_name_str)
             } else {
                 None

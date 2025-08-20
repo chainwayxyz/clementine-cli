@@ -6,7 +6,8 @@ use clementine_cli::{
     debug, deposit,
     mnemonic::show_mnemonic_secure,
     wallet::{
-        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity
+        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
+        import_wallet_from_mnemonic, verify_wallet_integrity,
     },
     withdrawal,
 };

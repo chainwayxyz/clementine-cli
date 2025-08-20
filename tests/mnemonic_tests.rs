@@ -4,7 +4,7 @@ mod tests {
     use clementine_cli::{
         address::{extract_address_from_wallet, generate_address_from_mnemonic_secure},
         bitcoin_utils::{self},
-        encryption::{aes_decrypt_secure, aes_encrypt_secure, EncryptedData},
+        encryption::{EncryptedData, aes_decrypt_secure, aes_encrypt_secure},
         mnemonic::{generate_mnemonic_secure, get_master_seed_from_mnemonic},
         secure_structs::SecureString,
     };

@@ -101,11 +101,7 @@ pub fn sign_recovery_tx(
     // Always prompt for passphrase for maximum security
     println!("Please enter the passphrase for the recovery key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(
-        recovery_taproot_address,
-        config.network,
-        &secure_passphrase,
-    )?;
+    let keypair = load_key(recovery_taproot_address, config.network, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {

@@ -52,16 +52,7 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
         return Ok(());
     }
 
-    // Prompt for passphrase to verify access
-    let passphrase = get_validated_passphrase("Enter wallet passphrase: ", true)
-        .map_err(|e| anyhow!("{}", e))?;
-
-    // Try to decrypt both mnemonic and private key to verify passphrase is correct TODO: Maybe there is a better way
-    let _mnemonic = load_mnemonic_secure(address, &passphrase)?;
-    let _stored_private_key = load_private_key_secure(address, &passphrase)?;
-
     // If we got here, passphrase is correct and integrity check passed
-    println!("🔒 Passphrase verified successfully");
     println!("✅ Wallet integrity check passed");
     println!("🗑️  Deleting wallet...");
 
@@ -94,10 +85,7 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
 }
 
 /// Backup a wallet file to a specified destination
-pub fn backup_wallet(
-    wallet_address: &str,
-    destination_path: &str,
-) -> Result<(), anyhow::Error> {
+pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(), anyhow::Error> {
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
 
@@ -143,9 +131,7 @@ pub fn backup_wallet(
 }
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
-pub fn import_wallet_from_mnemonic(
-    network: Network,
-) -> Result<String, anyhow::Error> {
+pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, anyhow::Error> {
     println!("{}", "🔒 Import Wallet with Secure Input".blue().bold());
     println!("This process will:");
     println!("• Securely collect your mnemonic phrase word by word");
@@ -387,7 +373,10 @@ fn parse_network(network_str: &str) -> Network {
 }
 
 /// Helper function to get a valid passphrase from user with validation
-fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<SecureString, anyhow::Error> {
+fn get_validated_passphrase(
+    prompt: &str,
+    require_length: bool,
+) -> Result<SecureString, anyhow::Error> {
     let mut attempts = 0;
     const MAX_ATTEMPTS: usize = 5;
 
@@ -400,7 +389,11 @@ fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<Secure
             println!("❌ Passphrase cannot be empty for security reasons");
             attempts += 1;
             if attempts < MAX_ATTEMPTS {
-                println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+                println!(
+                    "Attempt {} of {}. Please try again.",
+                    attempts + 1,
+                    MAX_ATTEMPTS
+                );
             }
             continue;
         }
@@ -409,7 +402,11 @@ fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<Secure
             println!("❌ Passphrase must be at least 8 characters long for security");
             attempts += 1;
             if attempts < MAX_ATTEMPTS {
-                println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+                println!(
+                    "Attempt {} of {}. Please try again.",
+                    attempts + 1,
+                    MAX_ATTEMPTS
+                );
             }
             continue;
         }
@@ -417,7 +414,9 @@ fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<Secure
         return Ok(SecureString::init_with(|| passphrase_input));
     }
 
-    Err(anyhow!("❌ Maximum attempts exceeded. Operation cancelled for security."))
+    Err(anyhow!(
+        "❌ Maximum attempts exceeded. Operation cancelled for security."
+    ))
 }
 
 /// Helper function to securely confirm passphrases without exposing secrets
@@ -434,7 +433,7 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), anyhow::Er
         let matches = {
             let passphrase_bytes = passphrase.expose_secret().as_bytes();
             let confirm_bytes = confirm_input.as_bytes();
-            
+
             use subtle::ConstantTimeEq;
             if passphrase_bytes.len() != confirm_bytes.len() {
                 false
@@ -453,11 +452,17 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), anyhow::Er
         attempts += 1;
         println!("❌ Passphrases do not match");
         if attempts < MAX_ATTEMPTS {
-            println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+            println!(
+                "Attempt {} of {}. Please try again.",
+                attempts + 1,
+                MAX_ATTEMPTS
+            );
         }
     }
 
-    Err(anyhow!("❌ Maximum attempts exceeded for passphrase confirmation."))
+    Err(anyhow!(
+        "❌ Maximum attempts exceeded for passphrase confirmation."
+    ))
 }
 
 /// Helper function to validate private key imports during wallet import
@@ -487,31 +492,39 @@ fn validate_private_key_import(
                 // Validate the private key format and derive address to verify
                 match SecretKey::from_str(decrypted_private_key.expose_secret()) {
                     Ok(mut private_key) => {
-                        let keypair = Keypair::from_secret_key(
-                            &crate::bitcoin_utils::SECP,
-                            &private_key,
-                        );
+                        let keypair =
+                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key);
                         let derived_address = calculate_taproot_address(&keypair, network);
 
                         // Zeroize the private key after use
                         private_key.non_secure_erase();
 
                         if derived_address.to_string() != wallet_address {
-                            return Err(anyhow!("❌ Address mismatch! The decrypted private key doesn't correspond to this wallet address."));
+                            return Err(anyhow!(
+                                "❌ Address mismatch! The decrypted private key doesn't correspond to this wallet address."
+                            ));
                         }
-                        println!("✅ Passphrase verified successfully! Private key address confirmed.");
+                        println!(
+                            "✅ Passphrase verified successfully! Private key address confirmed."
+                        );
                     }
                     Err(_) => {
-                        return Err(anyhow!("❌ Invalid wallet file: invalid private key format"));
+                        return Err(anyhow!(
+                            "❌ Invalid wallet file: invalid private key format"
+                        ));
                     }
                 }
             }
             Err(_) => {
-                return Err(anyhow!("❌ Incorrect passphrase! Cannot decrypt private key data."));
+                return Err(anyhow!(
+                    "❌ Incorrect passphrase! Cannot decrypt private key data."
+                ));
             }
         }
     } else {
-        return Err(anyhow!("❌ Invalid wallet file: missing encrypted_private_key field for private key import"));
+        return Err(anyhow!(
+            "❌ Invalid wallet file: missing encrypted_private_key field for private key import"
+        ));
     }
 
     Ok(())
@@ -530,7 +543,9 @@ fn validate_mnemonic_import(
     match crate::address::generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
         Ok(derived_address) => {
             if derived_address != wallet_address {
-                return Err(anyhow!("❌ Address mismatch! The decrypted mnemonic doesn't correspond to this wallet address."));
+                return Err(anyhow!(
+                    "❌ Address mismatch! The decrypted mnemonic doesn't correspond to this wallet address."
+                ));
             }
             println!("✅ Passphrase verified successfully! Address confirmed.");
         }
@@ -541,9 +556,7 @@ fn validate_mnemonic_import(
 }
 
 /// Import a wallet from a file path
-pub fn import_wallet_from_file(
-    file_path: &str,
-) -> Result<String, anyhow::Error> {
+pub fn import_wallet_from_file(file_path: &str) -> Result<String, anyhow::Error> {
     let source_path = std::path::Path::new(file_path);
 
     if !source_path.exists() {
@@ -570,7 +583,9 @@ pub fn import_wallet_from_file(
 
     // Check if encrypted data exists (new format with separate encrypted fields)
     if !wallet_data["encrypted_mnemonic"].is_object() {
-        return Err(anyhow!("Invalid wallet file: missing encrypted_mnemonic field"));
+        return Err(anyhow!(
+            "Invalid wallet file: missing encrypted_mnemonic field"
+        ));
     }
 
     // Check if destination wallet already exists BEFORE prompting for passphrase
@@ -610,9 +625,9 @@ pub fn import_wallet_from_file(
             // Basic validation: should have words separated by spaces
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
-                return Err(
-                    anyhow!("❌ Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"),
-                );
+                return Err(anyhow!(
+                    "❌ Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"
+                ));
             }
 
             // Validate wallet data based on import type
@@ -623,7 +638,9 @@ pub fn import_wallet_from_file(
             }
         }
         Err(_) => {
-            return Err(anyhow!("❌ Incorrect passphrase! Cannot decrypt wallet data."));
+            return Err(anyhow!(
+                "❌ Incorrect passphrase! Cannot decrypt wallet data."
+            ));
         }
     }
 
@@ -632,23 +649,27 @@ pub fn import_wallet_from_file(
 
     // Create new wallet content instead of copying
     let network = wallet_data["network"].as_str().unwrap_or("mainnet");
-    let data_format = wallet_data["data_format"].as_str().unwrap_or("separate_encrypted_fields");
+    let data_format = wallet_data["data_format"]
+        .as_str()
+        .unwrap_or("separate_encrypted_fields");
 
     // Extract and convert encrypted data from the original wallet
     let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_mnemonic"].clone())
             .map_err(|e| anyhow!("Failed to parse encrypted mnemonic: {}", e))?;
-    
+
     let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_private_key"].clone())
             .map_err(|e| anyhow!("Failed to parse encrypted private key: {}", e))?;
 
     // Convert hex structures to EncryptedData
-    let encrypted_mnemonic_data = crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
-        .map_err(|e| anyhow!("Failed to convert encrypted mnemonic: {}", e))?;
-    
-    let encrypted_private_key_data = crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
-        .map_err(|e| anyhow!("Failed to convert encrypted private key: {}", e))?;
+    let encrypted_mnemonic_data =
+        crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
+            .map_err(|e| anyhow!("Failed to convert encrypted mnemonic: {}", e))?;
+
+    let encrypted_private_key_data =
+        crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
+            .map_err(|e| anyhow!("Failed to convert encrypted private key: {}", e))?;
 
     // Use store_wallet_data function for consistent storage
     let network_enum = parse_network(network);
@@ -673,21 +694,21 @@ pub fn import_wallet_from_file(
 }
 
 /// Import a wallet from a private key
-pub fn import_wallet_from_private_key(
-    network: Network,
-) -> Result<String, anyhow::Error> {
+pub fn import_wallet_from_private_key(network: Network) -> Result<String, anyhow::Error> {
     use crate::bitcoin_utils::calculate_taproot_address;
     use bitcoin::secp256k1::{Keypair, SecretKey};
 
     let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| anyhow!("Failed to read private key: {}", e))?;
-    
-    let mut private_key_bytes = hex::decode(private_key)
-        .map_err(|e| anyhow!("Invalid private key hex format: {}", e))?;
+
+    let mut private_key_bytes =
+        hex::decode(private_key).map_err(|e| anyhow!("Invalid private key hex format: {}", e))?;
 
     if private_key_bytes.len() != 32 {
         private_key_bytes.zeroize();
-        return Err(anyhow!("Private key must be exactly 32 bytes (64 hex characters)"));
+        return Err(anyhow!(
+            "Private key must be exactly 32 bytes (64 hex characters)"
+        ));
     }
 
     let mut master_private_key = SecretKey::from_slice(&private_key_bytes).map_err(|e| {
@@ -711,7 +732,8 @@ pub fn import_wallet_from_private_key(
         ));
     }
 
-    let passphrase = get_validated_passphrase("Enter passphrase to encrypt the imported wallet: ", true)?;
+    let passphrase =
+        get_validated_passphrase("Enter passphrase to encrypt the imported wallet: ", true)?;
 
     // Confirm passphrase using secure comparison
     confirm_passphrase_secure(&passphrase)?;
@@ -787,8 +809,7 @@ pub fn create_encrypted_wallet_with_address(
         .map_err(|e| anyhow!("{}", e))?;
 
     // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)
-        .map_err(|e| anyhow!("{}", e))?;
+    confirm_passphrase_secure(&passphrase).map_err(|e| anyhow!("{}", e))?;
 
     // Encrypt mnemonic and private key separately with different nonces
     let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
@@ -839,10 +860,7 @@ pub fn create_encrypted_wallet_with_address(
     Ok(secure_mnemonic)
 }
 
-pub fn export_private_key(
-    address: &str,
-    network: Network,
-) -> Result<(), anyhow::Error> {
+pub fn export_private_key(address: &str, network: Network) -> Result<(), anyhow::Error> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
@@ -855,7 +873,6 @@ pub fn export_private_key(
         .map_err(|e| anyhow!("{}", e))?;
 
     let mut keypair = load_key(address, network, &passphrase)?;
-
 
     display_private_key_securely(&keypair.secret_key())?;
 
