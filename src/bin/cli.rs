@@ -3,6 +3,7 @@ use clementine_cli::{
     config::BridgeCliConfig, debug, deposit, utils::initialize_logger, withdrawal,
 };
 use std::path::PathBuf;
+use tracing::level_filters::LevelFilter;
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -11,6 +12,10 @@ struct Cli {
     /// Path to config file. If not given, current directory will be searched for the bridge_bridge_cli_config.toml file
     #[arg(long)]
     config_file: Option<PathBuf>,
+
+    /// Turns verbose logging on
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    verbose: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -120,7 +125,12 @@ enum WithdrawalCommands {
 async fn main() {
     let cli = Cli::parse();
 
-    initialize_logger(None).unwrap();
+    let level_filter = if cli.verbose {
+        Some(LevelFilter::INFO)
+    } else {
+        None
+    };
+    initialize_logger(level_filter).unwrap();
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
