@@ -1,5 +1,6 @@
 use crate::secure_structs::SecureString;
 use anyhow::{Result, anyhow};
+use bitcoin::secp256k1::SecretKey;
 use colored::*;
 use crossterm::{
     cursor,
@@ -492,6 +493,170 @@ impl<'a> Drop for SecureMnemonicDisplay<'a> {
 pub fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
     let mut display = SecureMnemonicDisplay::new(mnemonic);
     display.display_securely()
+}
+
+/// Simple secure display for private keys
+pub fn display_private_key_securely(private_key: &SecretKey) -> Result<()> {
+    // Check if terminal supports alternate screen
+    if !std::io::stdout().is_terminal() {
+        return display_private_key_fallback(private_key);
+    }
+
+    // Try to enter alternate screen
+    if let Err(_) = terminal::enable_raw_mode() {
+        return display_private_key_fallback(private_key);
+    }
+
+    if let Err(_) = execute!(io::stdout(), EnterAlternateScreen) {
+        let _ = terminal::disable_raw_mode();
+        return display_private_key_fallback(private_key);
+    }
+
+    // Display private key in alternate screen
+    let result = display_private_key_in_alternate_screen(private_key);
+
+    // Cleanup
+    let _ = terminal::disable_raw_mode();
+    let _ = execute!(io::stdout(), LeaveAlternateScreen);
+    let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
+    let _ = io::stdout().flush();
+
+    result
+}
+
+/// Display private key in alternate screen
+fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()> {
+    // Clear screen
+    execute!(
+        io::stdout(),
+        terminal::Clear(terminal::ClearType::All),
+        cursor::MoveTo(0, 0)
+    )?;
+
+    // Display header
+    execute!(
+        io::stdout(),
+        SetForegroundColor(Color::Red),
+        Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
+        Print("║                          🔐 SECURE PRIVATE KEY DISPLAY 🔐                    ║\r\n"),
+        Print("║                                                                              ║\r\n"),
+        Print("║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"),
+        Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n\r\n"),
+        SetForegroundColor(Color::Cyan),
+        Print("Private Key:\r\n\r\n"),
+        Print(format!("   {}\r\n\r\n", private_key.display_secret())),
+        SetForegroundColor(Color::Red),
+        Print("⚠️  WARNING: Anyone with this private key can access your funds!\r\n"),
+        Print("⚠️  Never share this key or store it in unsecure locations!\r\n\r\n"),
+        SetForegroundColor(Color::Green),
+        Print("Press any key to clear and exit (auto-close in 30 seconds)..."),
+        SetForegroundColor(Color::Reset)
+    )?;
+
+    // Wait for key press with 30-second timeout
+    const DISPLAY_TIMEOUT: Duration = Duration::from_secs(30);
+    let start_time = Instant::now();
+
+    loop {
+        let elapsed = start_time.elapsed();
+        let remaining = DISPLAY_TIMEOUT.saturating_sub(elapsed);
+
+        if remaining.is_zero() {
+            // Timeout reached, automatically close
+            break;
+        }
+
+        // Update countdown display
+        let seconds_left = remaining.as_secs();
+        execute!(
+            io::stdout(),
+            cursor::MoveTo(0, 12), // Position cursor for countdown
+            SetForegroundColor(Color::Yellow),
+            Print(format!("⏰ Auto-close in {} seconds | Press any key to close immediately   ", seconds_left)),
+            SetForegroundColor(Color::Reset)
+        )?;
+
+        if poll(Duration::from_millis(100))?
+            && let Event::Key(key_event) = event::read()?
+            && key_event.kind == KeyEventKind::Press
+        {
+            break;
+        }
+    }
+
+    Ok(())
+}
+
+/// Fallback display for private key when alternate screen is not available
+fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
+    println!();
+    println!("{}", "🔐 PRIVATE KEY DISPLAY 🔐".red().bold());
+    println!();
+    println!("{}", "⚠️  CRITICAL SECURITY WARNING ⚠️".red().bold());
+    println!("Anyone with this private key can access your funds!");
+    println!("Never share this key or store it in unsecure locations!");
+    println!();
+    println!("{}", "Private Key:".cyan().bold());
+    println!("   {}", private_key.display_secret());
+    println!();
+    println!("{}", "Press Enter to clear and continue (auto-close in 30 seconds)...".green());
+
+    // Use the same timeout pattern as the fallback_word_timeout_wait function
+    const DISPLAY_TIMEOUT: Duration = Duration::from_secs(30);
+    let start_time = Instant::now();
+
+    print!("Press Enter to continue... ");
+    io::stdout().flush()?;
+
+    // Use a separate thread to handle the timeout
+    let (tx, rx) = std::sync::mpsc::channel();
+
+    // Spawn thread for user input
+    let tx_input = tx.clone();
+    std::thread::spawn(move || {
+        let mut input = String::new();
+        if std::io::stdin().read_line(&mut input).is_ok() {
+            let _ = tx_input.send(true);
+        }
+    });
+
+    // Spawn thread for timeout
+    std::thread::spawn(move || {
+        std::thread::sleep(DISPLAY_TIMEOUT);
+        let _ = tx.send(false);
+    });
+
+    // Update countdown while waiting
+    loop {
+        let elapsed = start_time.elapsed();
+        let remaining = DISPLAY_TIMEOUT.saturating_sub(elapsed);
+
+        if remaining.is_zero() {
+            println!();
+            println!("{}", "⏰ Auto-closing...".yellow());
+            break;
+        }
+
+        // Check if we received a signal
+        if let Ok(user_input) = rx.try_recv() {
+            if user_input {
+                println!("{}", "Closing...".green());
+            } else {
+                println!();
+                println!("{}", "⏰ Auto-closing...".yellow());
+            }
+            break;
+        }
+
+        // Update countdown every second
+        let seconds_left = remaining.as_secs();
+        print!("\r⏰ Auto-close in {} seconds - Press Enter to close... ", seconds_left);
+        io::stdout().flush()?;
+
+        std::thread::sleep(Duration::from_millis(1000));
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

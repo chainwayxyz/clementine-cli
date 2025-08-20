@@ -2,6 +2,7 @@ use anyhow::anyhow;
 use argon2::Argon2;
 use colored::Colorize;
 use secrecy::ExposeSecret;
+use zeroize::Zeroize;
 
 use crate::secure_structs::{SecureByteSlice, SecureString};
 
@@ -33,7 +34,7 @@ pub fn derive_key_from_passphrase(
 }
 
 /// Prompt user for a passphrase with confirmation for new keys
-pub fn prompt_new_passphrase() -> Result<SecureString, anyhow::Error> {
+pub fn prompt_passphrase() -> Result<SecureString, anyhow::Error> {
     println!("{}", "Passphrase protection:".blue().bold());
     println!("Enter a passphrase to encrypt your private key.");
 
@@ -49,11 +50,13 @@ pub fn prompt_new_passphrase() -> Result<SecureString, anyhow::Error> {
     }
 
     // Confirm passphrase
-    let confirm = rpassword::prompt_password("Confirm passphrase: ")?;
+    let mut confirm = rpassword::prompt_password("Confirm passphrase: ")?;
 
     if passphrase != confirm {
         return Err(anyhow!("Passphrases do not match"));
     }
+
+    confirm.zeroize(); // Clear confirmation from memory
 
     println!(
         "{} Private key will be encrypted with AES-256-GCM",

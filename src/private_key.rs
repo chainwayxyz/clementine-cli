@@ -1,21 +1,19 @@
-use std::str::FromStr;
+use crate::{encryption::aes_decrypt_secure, secure_structs::SecureString};
+use anyhow::anyhow;
 
-use bitcoin::{
-    Network,
-    bip32::{DerivationPath, Xpriv},
-    secp256k1::SecretKey,
-};
+pub fn load_private_key_secure(
+    wallet_name: &str,
+    passphrase: &SecureString,
+) -> Result<SecureString, anyhow::Error> {
+    let wallet_data = crate::wallet_storage::load_wallet_data(wallet_name)?;
 
-pub fn derive_private_key(
-    master_seed: &[u8; 32],
-    derivation_path: &str,
-    network: Network,
-) -> Result<SecretKey, anyhow::Error> {
-    let master_xpriv = Xpriv::new_master(network, master_seed)?;
+    let encrypted_data = if let Some(encrypted_private_key) = &wallet_data.encrypted_private_key {
+        crate::encryption::encrypted_data_from_hex(encrypted_private_key)?
+    } else {
+        return Err(anyhow!("No encrypted private key found in wallet data"));
+    };
 
-    let path = DerivationPath::from_str(derivation_path)?;
+    let secure_private_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
 
-    let child_xpriv = master_xpriv.derive_priv(&crate::bitcoin_utils::SECP, &path)?;
-
-    Ok(child_xpriv.private_key)
+    Ok(secure_private_key)
 }

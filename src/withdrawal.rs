@@ -1,15 +1,12 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::bitcoin_utils::{
-    confirm_private_key_storage, generate_key_and_taproot_address, sign_withdrawal_signature,
-    verify_withdrawal_signature,
-};
+use crate::address::{parse_address, parse_taproot_address};
+use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::CliConfig;
-use crate::deposit::{parse_address, parse_taproot_address};
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::passphrase::{prompt_new_passphrase, prompt_unlock_passphrase};
+use crate::passphrase::prompt_unlock_passphrase;
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
-use crate::wallet::{load_key, store_key};
+use crate::wallet::load_key;
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -23,43 +20,6 @@ use reqwest::Url;
 use serde_json::Value;
 use std::str::FromStr;
 
-/// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), anyhow::Error> {
-    // Confirm with user about private key storage
-    if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
-    }
-
-    // Generate the key and address
-    let (keypair, address) = generate_key_and_taproot_address(network, 1)?;
-
-    // Prompt for passphrase to encrypt the key
-    let secure_passphrase = prompt_new_passphrase()?;
-
-    // Store the key securely
-    let stored_address = store_key(&keypair, network, secure_passphrase)?;
-
-    // Verify the stored address matches the generated one
-    if stored_address != address {
-        return Err(anyhow!("Address mismatch after storage"));
-    }
-
-    // println!(
-    //     "{} Signer key generated and stored successfully",
-    //     "SUCCESS".green().bold()
-    // );
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-    // println!("{} ~/.clementine/keys/", "STORAGE".magenta().bold());
-    println!(
-        "{} Please send 0.0000033 BTC (330 sats) to this address.",
-        "INFO".yellow().bold()
-    );
-
-    Ok(())
-}
-
 pub fn generate_withdrawal_signature(
     signer_address: &str,
     claim_address: &str,
@@ -67,16 +27,9 @@ pub fn generate_withdrawal_signature(
     amount: f64,
     network: Network,
 ) -> Result<(), anyhow::Error> {
-    // Try loading key without passphrase first, if that fails, prompt for passphrase
-    let keypair = match load_key(signer_address, network, None) {
-        Ok(keypair) => keypair,
-        Err(_) => {
-            // Key might be encrypted, prompt for passphrase
-            println!("Key appears to be encrypted. Please enter the passphrase:");
-            let secure_passphrase = prompt_unlock_passphrase()?;
-            load_key(signer_address, network, Some(&secure_passphrase))?
-        }
-    };
+    println!("Please enter the passphrase for the signer key:");
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let keypair = load_key(signer_address, network, &secure_passphrase)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
     let claim_address = parse_address(claim_address, network)?;

@@ -38,6 +38,7 @@ macro_rules! debug_colored {
     };
 }
 
+pub mod address;
 pub mod backend;
 pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
@@ -54,6 +55,7 @@ pub mod secure_display;
 pub mod secure_structs;
 pub mod types;
 pub mod wallet;
+pub mod wallet_storage;
 pub mod withdrawal;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, anyhow::Error> {

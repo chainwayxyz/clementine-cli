@@ -1,84 +1,21 @@
 // Deposit-related commands and logic for Clementine CLI
 
 use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::{
-    calculate_deposit_address, confirm_private_key_storage, generate_key_and_taproot_address,
-};
-use crate::bitcoin_utils::{
-    generate_keypair_and_taproot_address_from_private_key,
-    sign_recovery_tx as utils_sign_recovery_tx,
-};
+use crate::bitcoin_utils::calculate_deposit_address;
+use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::config::CliConfig;
 use crate::parameters::get_citrea_deposit_params;
-use crate::passphrase::{prompt_new_passphrase, prompt_unlock_passphrase};
-use crate::wallet::{load_key, store_key};
+use crate::passphrase::prompt_unlock_passphrase;
+use crate::wallet::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-use anyhow::anyhow;
-use bitcoin::AddressType;
+
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
-use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
 use std::str::FromStr;
 
-pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, anyhow::Error> {
-    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
-        .parse()
-        .map_err(|_| anyhow!("Invalid Bitcoin address format"))?;
-    let address = unchecked_address.require_network(network)?;
-    Ok(address)
-}
-
-/// Parse and validate taproot address for the specified network
-pub fn parse_taproot_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress, anyhow::Error> {
-    let address = parse_address(address, network)?;
-
-    // Verify it's a taproot (P2TR) address
-    if address.address_type() != Some(AddressType::P2tr) {
-        return Err(anyhow!("Address is not a taproot (P2TR) address"));
-    }
-
-    Ok(address)
-}
-
-/// Generate a new recovery key and taproot address for deposit operations
-pub fn generate_recovery_key(
-    auto_yes: bool,
-    private_key: Option<String>,
-    network: Network,
-) -> Result<(), anyhow::Error> {
-    // Confirm with user about private key storage
-    if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
-    }
-
-    let (keypair, address) = if let Some(private_key) = private_key {
-        generate_keypair_and_taproot_address_from_private_key(&private_key, network)
-    } else {
-        generate_key_and_taproot_address(network, 0)
-    }?;
-
-    // Prompt for passphrase to encrypt the key
-    let secure_passphrase = prompt_new_passphrase()?;
-
-    // Store the key securely
-    let stored_address = store_key(&keypair, network, secure_passphrase)?;
-
-    // Verify the stored address matches the generated one
-    if stored_address != address {
-        return Err(anyhow!("Address mismatch after storage"));
-    }
-
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-
-    Ok(())
-}
+use crate::address::parse_taproot_address;
 
 /// Get deposit address from backend
 pub fn get_deposit_address(
@@ -161,20 +98,14 @@ pub fn sign_recovery_tx(
         txid,
         vout: deposit_vout,
     };
-    // Try loading key without passphrase first, if that fails, prompt for passphrase
-    let keypair = match load_key(recovery_taproot_address, config.network, None) {
-        Ok(keypair) => keypair,
-        Err(_) => {
-            // Key might be encrypted, prompt for passphrase
-            println!("Key appears to be encrypted. Please enter the passphrase:");
-            let secure_passphrase = prompt_unlock_passphrase()?;
-            load_key(
-                recovery_taproot_address,
-                config.network,
-                Some(&secure_passphrase),
-            )?
-        }
-    };
+    // Always prompt for passphrase for maximum security
+    println!("Please enter the passphrase for the recovery key:");
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let keypair = load_key(
+        recovery_taproot_address,
+        config.network,
+        &secure_passphrase,
+    )?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -235,52 +166,10 @@ pub fn verify_recovery_tx(
 
 // TODO: Implement deposit.deposit_status
 
-/// Export private key for a taproot address
-pub fn export_private_key(taproot_address: &str, network: Network) -> Result<(), anyhow::Error> {
-    let address = parse_taproot_address(taproot_address, network)?;
-
-    let private_key = crate::wallet::export_private_key(&address.to_string(), network)?;
-
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-    println!("{} {}", "PRIVATE_KEY".red().bold(), private_key);
-    println!(
-        "{} \"Keep this private key secure and never share it!\"",
-        "WARNING".yellow().bold(),
-    );
-
-    Ok(())
-}
-
-/// List all stored keys
-pub fn list_stored_keys() -> Result<(), anyhow::Error> {
-    let keys = crate::wallet::list_keys()?;
-
-    if keys.is_empty() {
-        println!("{} No keys found in storage", "INFO".yellow().bold());
-        return Ok(());
-    }
-
-    println!("{} Stored keys:", "INFO".cyan().bold());
-    println!();
-
-    for (address, metadata) in keys {
-        let network = metadata["network"].as_str().unwrap_or("unknown");
-        let stored_at = metadata["stored_at"].as_str().unwrap_or("unknown");
-
-        println!("{} {}", "ADDRESS".cyan().bold(), address);
-        println!("{} {}", "NETWORK".blue().bold(), network);
-        println!("{} {}", "STORED_AT".green().bold(), stored_at);
-        println!();
-    }
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey};
+    use bitcoin::{AddressType, Network};
 
     #[test]
     fn test_parse_taproot_address_valid() {
@@ -305,255 +194,5 @@ mod tests {
     fn test_parse_taproot_address_invalid_format() {
         let invalid = "invalid_address";
         assert!(parse_taproot_address(invalid, Network::Testnet4).is_err());
-    }
-
-    // Integration tests for passphrase workflows
-    #[test]
-    fn test_sign_recovery_tx_with_encrypted_key() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        // Create and store an encrypted key
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let passphrase = "test_recovery_passphrase";
-
-        let recovery_address =
-            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
-                .unwrap();
-
-        // Test that we can load the key with correct passphrase
-        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
-            &recovery_address.to_string(),
-            network,
-            Some(passphrase),
-            base_dir,
-        )
-        .unwrap();
-        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
-
-        // Test that loading fails with wrong passphrase
-        let wrong_result = crate::wallet::tests::load_key_with_base_dir(
-            &recovery_address.to_string(),
-            network,
-            Some("wrong_passphrase"),
-            base_dir,
-        );
-        assert!(wrong_result.is_err());
-        assert!(
-            wrong_result
-                .unwrap_err()
-                .to_string()
-                .contains("Decryption failed")
-        );
-
-        // Test that loading fails without passphrase (encrypted key)
-        let no_pass_result = crate::wallet::tests::load_key_with_base_dir(
-            &recovery_address.to_string(),
-            network,
-            None,
-            base_dir,
-        );
-        assert!(no_pass_result.is_err());
-        assert!(
-            no_pass_result
-                .unwrap_err()
-                .to_string()
-                .contains("encrypted and requires a passphrase")
-        );
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_recovery_key_generation_and_storage_integration() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        // Create a keypair manually (simulating what generate_recovery_key would do)
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[2u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let passphrase = "integration_test_passphrase";
-
-        // Store the key (this is what generate_recovery_key does internally)
-        let stored_address =
-            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
-                .unwrap();
-
-        // Verify we can use this key in the recovery signing workflow
-        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
-            &stored_address.to_string(),
-            network,
-            Some(passphrase),
-            base_dir,
-        )
-        .unwrap();
-        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
-
-        // Verify the address format is correct for taproot
-        let address_result = parse_taproot_address(&stored_address.to_string(), network);
-        assert!(address_result.is_ok());
-        assert_eq!(
-            address_result.unwrap().address_type(),
-            Some(AddressType::P2tr)
-        );
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_key_storage_with_different_passphrases() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        let secp = Secp256k1::new();
-        let network = Network::Testnet4;
-
-        // Test multiple keys with different passphrases
-        let test_cases = vec![
-            ("short_pass", [3u8; 32]),
-            (
-                "this_is_a_much_longer_passphrase_with_special_chars_!@#$%",
-                [4u8; 32],
-            ),
-            ("パスワード", [5u8; 32]), // Unicode passphrase
-        ];
-
-        for (passphrase, seed) in test_cases {
-            let secret_key = SecretKey::from_slice(&seed).unwrap();
-            let keypair = Keypair::from_secret_key(&secp, &secret_key);
-
-            // Store with the passphrase
-            let address = crate::wallet::tests::store_key_with_base_dir(
-                &keypair, network, passphrase, base_dir,
-            )
-            .unwrap();
-
-            // Verify we can load it back
-            let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
-                &address.to_string(),
-                network,
-                Some(passphrase),
-                base_dir,
-            )
-            .unwrap();
-            assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
-
-            // Verify wrong passphrase fails
-            let wrong_result = crate::wallet::tests::load_key_with_base_dir(
-                &address.to_string(),
-                network,
-                Some("definitely_wrong"),
-                base_dir,
-            );
-            assert!(wrong_result.is_err());
-        }
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_key_encryption_security_properties() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[6u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let passphrase = "security_test_passphrase";
-
-        let address =
-            crate::wallet::tests::store_key_with_base_dir(&keypair, network, passphrase, base_dir)
-                .unwrap();
-
-        // Read the stored file and verify it's actually encrypted
-        let storage_dir = base_dir.join(".clementine").join("keys");
-        let key_file = storage_dir.join(format!("key_{address}.json"));
-        let file_content = std::fs::read_to_string(key_file).unwrap();
-
-        // The file should not contain the raw private key
-        let private_key_str = secret_key.display_secret().to_string();
-        assert!(!file_content.contains(&private_key_str));
-
-        println!(
-            "{} Key stored securely at: {}",
-            "INFO".blue().bold(),
-            file_content
-        );
-
-        // The file should contain encrypted metadata
-        assert!(file_content.contains("\"encrypted\": true"));
-        assert!(file_content.contains("\"version\": 2"));
-        assert!(file_content.contains("\"kdf\": \"argon2id\""));
-        assert!(file_content.contains("\"cipher\": \"aes-256-gcm\""));
-        assert!(file_content.contains("\"ciphertext\":"));
-        assert!(file_content.contains("\"salt\":"));
-        assert!(file_content.contains("\"nonce\":"));
-
-        // Verify we can still load the key
-        let loaded_keypair = crate::wallet::tests::load_key_with_base_dir(
-            &address.to_string(),
-            network,
-            Some(passphrase),
-            base_dir,
-        )
-        .unwrap();
-        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_passphrase_timing_resistance() {
-        // This test verifies that wrong passphrases still go through the full
-        // key derivation process (not just failing fast), which helps prevent
-        // timing attacks
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[7u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let correct_passphrase = "timing_test_passphrase";
-
-        let address = crate::wallet::tests::store_key_with_base_dir(
-            &keypair,
-            network,
-            correct_passphrase,
-            base_dir,
-        )
-        .unwrap();
-
-        // Test with wrong passphrase - should still take reasonable time
-        let start = std::time::Instant::now();
-        let wrong_result = crate::wallet::tests::load_key_with_base_dir(
-            &address.to_string(),
-            network,
-            Some("wrong_passphrase"),
-            base_dir,
-        );
-        let duration = start.elapsed();
-
-        // Should fail
-        assert!(wrong_result.is_err());
-        assert!(
-            wrong_result
-                .unwrap_err()
-                .to_string()
-                .contains("Decryption failed")
-        );
-
-        // Should take at least some time (indicating key derivation occurred)
-        // This is a rough test - in a real scenario, both correct and incorrect
-        // passphrases should take similar time for key derivation
-        assert!(duration.as_millis() > 10); // Very conservative threshold
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
     }
 }

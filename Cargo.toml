@@ -35,10 +35,8 @@ sha2 = "0.10.9"
 bitcoincore-rpc = { version = "0.18.0"}
 bip39 = { version = "2.0", features = ["zeroize"] }
 aes-gcm = {version = "0.10", features = ["zeroize"] }
-pbkdf2 = "0.12"
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 rpassword = "7.3"
-subtle = "2.6"
 argon2 = "0.5"
 dirs = "5.0"
 crossterm = "0.28"
@@ -51,6 +49,7 @@ alloy-contract = "1.0.23"
 alloy-transport = "1.0.23"
 toml = "0.9.5"
 secrecy = { version = "0.10.0", features = ["serde"] }
+subtle = "2.6.1"
 
 
 [dev-dependencies]

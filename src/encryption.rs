@@ -1,100 +1,32 @@
 use aes_gcm::aead::generic_array::GenericArray;
-use aes_gcm::{Aes256Gcm, Key, KeyInit, Nonce, aead::Aead};
+use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use anyhow::anyhow;
-use colored::Colorize;
 use rand::{RngCore, rng};
 use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
-use crate::{
-    mnemonic::EncryptedData, passphrase::derive_key_from_passphrase, secure_structs::SecureString,
-    wallet::CryptoParams,
-};
+use crate::{passphrase::derive_key_from_passphrase, secure_structs::SecureString};
 
-/// Encrypt a private key with AES-256-GCM
-pub fn encrypt_private_key(
-    private_key: &str,
-    passphrase: &SecureString,
-) -> Result<CryptoParams, anyhow::Error> {
-    println!("{} Encrypting private key...", "SECURE".green().bold());
-    // Generate random salt and nonce
-    let mut salt = [0u8; 32];
-    let mut nonce_bytes = [0u8; 12];
-    rng().fill_bytes(&mut salt);
-    rng().fill_bytes(&mut nonce_bytes);
-    println!("{} Generating salt and nonce...", "SECURE".green().bold());
+// Argon2 parameters for key derivation
+const ARGON2_TIME_COST: u32 = 3; // Number of iterations
+const ARGON2_MEMORY_COST: u32 = 65536; // Memory usage in KB (64 MB)
+const ARGON2_PARALLELISM: u32 = 1; // Number of parallel threads
 
-    // Argon2id parameters (secure defaults)
-    let iterations = 3; // 3 iterations
-    let memory = 65_536; // 64 MB
-    let parallelism = 4; // 4 threads
-
-    println!("Generating encryption key...");
-
-    // Derive encryption key
-    let derived_key =
-        derive_key_from_passphrase(passphrase, &salt, iterations, memory, parallelism)?;
-
-    println!("Encryption key generated.");
-
-    // Encrypt with AES-256-GCM
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(derived_key.expose_secret()));
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    let ciphertext = cipher
-        .encrypt(nonce, private_key.as_bytes())
-        .map_err(|e| anyhow!("Encryption failed: {e}"))?;
-
-    Ok(CryptoParams {
-        kdf: "argon2id".to_string(),
-        salt: hex::encode(salt),
-        iterations,
-        memory,
-        parallelism,
-        cipher: "aes-256-gcm".to_string(),
-        nonce: hex::encode(nonce_bytes),
-        ciphertext: hex::encode(ciphertext),
-    })
+/// Generic encrypted data structure for binary data
+#[derive(Debug, Clone)]
+pub struct EncryptedData {
+    pub ciphertext: Vec<u8>,
+    pub nonce: [u8; 12], // AES-GCM standard nonce size
+    pub salt: [u8; 32],  // Salt for key derivation
 }
 
-/// Decrypt a private key with AES-256-GCM
-pub fn decrypt_private_key(
-    crypto: &CryptoParams,
-    passphrase: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
-    // Validate crypto parameters
-    if crypto.kdf != "argon2id" {
-        return Err(anyhow!("Unsupported KDF: {}", crypto.kdf));
-    }
-    if crypto.cipher != "aes-256-gcm" {
-        return Err(anyhow!("Unsupported cipher: {}", crypto.cipher));
-    }
-
-    // Decode hex values
-    let salt = hex::decode(&crypto.salt)?;
-    let nonce_bytes = hex::decode(&crypto.nonce)?;
-    let ciphertext = hex::decode(&crypto.ciphertext)?;
-
-    // Derive decryption key
-    let derived_key = derive_key_from_passphrase(
-        passphrase,
-        &salt,
-        crypto.iterations,
-        crypto.memory,
-        crypto.parallelism,
-    )?;
-
-    // Decrypt with AES-256-GCM
-    let cipher = Aes256Gcm::new(Key::<Aes256Gcm>::from_slice(derived_key.expose_secret()));
-    let nonce = Nonce::from_slice(&nonce_bytes);
-    let plaintext = cipher
-        .decrypt(nonce, ciphertext.as_ref())
-        .map_err(|_| anyhow!("Decryption failed: invalid passphrase or corrupted data"))?;
-
-    let private_key_str =
-        String::from_utf8(plaintext).map_err(|_| anyhow!("Decryption failed: invalid UTF-8"))?;
-    let secure_private_key = SecureString::init_with(|| private_key_str);
-
-    Ok(secure_private_key)
+/// Hex-encoded version of EncryptedData for JSON serialization
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EncryptedDataHex {
+    pub ciphertext: String,
+    pub nonce: String,
+    pub salt: String,
 }
 
 pub fn aes_encrypt_secure(
@@ -106,8 +38,14 @@ pub fn aes_encrypt_secure(
     rng().fill_bytes(&mut salt);
     rng().fill_bytes(&mut nonce_bytes);
 
-    let secure_key = derive_key_from_passphrase(&secure_passphrase, &salt, 3, 65536, 1)
-        .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+    let secure_key = derive_key_from_passphrase(
+        &secure_passphrase,
+        &salt,
+        ARGON2_TIME_COST,
+        ARGON2_MEMORY_COST,
+        ARGON2_PARALLELISM,
+    )
+    .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
 
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
     let nonce = GenericArray::from_slice(&nonce_bytes);
@@ -127,9 +65,14 @@ pub fn aes_decrypt_secure(
     encrypted_data: &EncryptedData,
     secure_passphrase: &SecureString,
 ) -> Result<SecureString, anyhow::Error> {
-    let secure_key =
-        derive_key_from_passphrase(&secure_passphrase, &encrypted_data.salt, 3, 65536, 1)
-            .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
+    let secure_key = derive_key_from_passphrase(
+        &secure_passphrase,
+        &encrypted_data.salt,
+        ARGON2_TIME_COST,
+        ARGON2_MEMORY_COST,
+        ARGON2_PARALLELISM,
+    )
+    .map_err(|e| anyhow!("Key derivation failed: {}", e))?;
 
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
     let nonce = GenericArray::from_slice(&encrypted_data.nonce);
@@ -146,4 +89,26 @@ pub fn aes_decrypt_secure(
     plaintext.zeroize();
 
     Ok(secure_string)
+}
+
+/// Generic function to convert binary EncryptedData to hex format for JSON
+pub fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
+    EncryptedDataHex {
+        ciphertext: hex::encode(&data.ciphertext),
+        nonce: hex::encode(&data.nonce),
+        salt: hex::encode(&data.salt),
+    }
+}
+
+/// Generic function to convert hex EncryptedDataHex back to binary
+pub fn encrypted_data_from_hex(data: &EncryptedDataHex) -> Result<EncryptedData, anyhow::Error> {
+    Ok(EncryptedData {
+        ciphertext: hex::decode(&data.ciphertext)?,
+        nonce: hex::decode(&data.nonce)?
+            .try_into()
+            .map_err(|_| anyhow!("Invalid nonce length"))?,
+        salt: hex::decode(&data.salt)?
+            .try_into()
+            .map_err(|_| anyhow!("Invalid salt length"))?,
+    })
 }

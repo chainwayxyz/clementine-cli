@@ -1,22 +1,17 @@
 // Bitcoin utility functions for Clementine CLI
 
 use anyhow::anyhow;
-use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, schnorr};
+use bitcoin::secp256k1::{Keypair, Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
     Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use colored::*;
-use std::io::{self, Write};
-use std::str::FromStr;
 use std::sync::LazyLock;
 
 use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::mnemonic::{create_encrypted_wallet, get_master_seed_from_mnemonic};
 use crate::musig2::AggregateFromPublicKeys;
 use crate::script::{deposit_script, recover_script};
-use crate::wallet::{derive_keypair_and_address, get_taproot_derivation_path};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 
@@ -26,51 +21,6 @@ pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Se
 pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> BitcoinAddress {
     let (xonly_public_key, _parity) = keypair.public_key().x_only_public_key();
     BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
-}
-
-pub fn generate_key_and_taproot_address(
-    network: Network,
-    account_index: u32,
-) -> Result<(Keypair, BitcoinAddress), anyhow::Error> {
-    let mnemonic = create_encrypted_wallet("recovery_wallet", network)?;
-
-    let master_seed = get_master_seed_from_mnemonic(&mnemonic)?;
-
-    let derivation_path = get_taproot_derivation_path(account_index, 0, 0);
-
-    derive_keypair_and_address(&master_seed, &derivation_path.to_string(), network)
-}
-
-pub fn generate_keypair_and_taproot_address_from_private_key(
-    private_key: &str,
-    network: Network,
-) -> Result<(Keypair, BitcoinAddress), anyhow::Error> {
-    let sk = SecretKey::from_str(private_key)?;
-    let keypair = Keypair::from_secret_key(&SECP, &sk);
-    let address = calculate_taproot_address(&keypair, network);
-    Ok((keypair, address))
-}
-
-/// Prompt user for confirmation about storing private key
-pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, anyhow::Error> {
-    if auto_yes {
-        return Ok(true);
-    }
-
-    println!(
-        "{} This command will save a private key to your computer.",
-        "WARNING".red().bold()
-    );
-    println!("   Anyone with access to this computer could potentially spend your funds.");
-    println!("   Make sure you're running this in a secure environment.");
-    println!();
-    print!("Are you sure you want to continue? (y/N): ");
-    io::stdout().flush()?;
-
-    let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
-
-    Ok(input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes")
 }
 
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
@@ -500,10 +450,5 @@ mod tests {
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
         let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
-    }
-
-    #[test]
-    fn test_confirm_private_key_storage_auto_yes() {
-        assert!(confirm_private_key_storage(true).unwrap());
     }
 }

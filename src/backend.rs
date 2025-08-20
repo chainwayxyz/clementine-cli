@@ -1,7 +1,7 @@
 // Backend communication logic for Clementine CLI
 
+use crate::address::parse_taproot_address;
 use crate::config::CliConfig;
-use crate::deposit::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
 use anyhow::anyhow;
 use colored::*;

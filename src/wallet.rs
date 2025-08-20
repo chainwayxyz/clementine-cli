@@ -1,47 +1,23 @@
 use anyhow::anyhow;
+use bitcoin::Network;
 use bitcoin::key::Keypair;
-use bitcoin::{Address, Network};
 use colored::Colorize;
 use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
-use std::path::PathBuf;
-use std::str::FromStr;
+use zeroize::Zeroize;
 
-use crate::BitcoinAddress;
-use crate::encryption::{decrypt_private_key, encrypt_private_key};
+use crate::bitcoin_utils::calculate_taproot_address;
+use crate::encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use crate::mnemonic::{
-    derive_private_key_from_mnemonic_secure, load_mnemonic_secure, load_private_key_secure,
-    prompt_secure_passphrase,
+    MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
+    load_mnemonic_secure, prompt_mnemonic_secure,
 };
-use crate::private_key::derive_private_key;
+use crate::private_key::load_private_key_secure;
+use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
-
-/// Encrypted private key storage format
-#[derive(Serialize, Deserialize)]
-pub struct EncryptedKeyData {
-    pub version: u8,
-    pub encrypted: bool,
-    pub network: String,
-    pub address: String,
-    pub crypto: CryptoParams,
-    pub stored_at: String,
-}
-
-/// Cryptographic parameters for encrypted storage
-#[derive(Serialize, Deserialize)]
-pub struct CryptoParams {
-    pub kdf: String,        // "argon2id"
-    pub salt: String,       // hex encoded salt
-    pub iterations: u32,    // argon2 time cost
-    pub memory: u32,        // argon2 memory cost in KB
-    pub parallelism: u32,   // argon2 parallelism
-    pub cipher: String,     // "aes-256-gcm"
-    pub nonce: String,      // hex encoded nonce
-    pub ciphertext: String, // hex encoded encrypted private key
-}
+use crate::wallet_storage::get_storage_dir;
 
 pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
@@ -77,7 +53,8 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
     }
 
     // Prompt for passphrase to verify access
-    let passphrase = prompt_secure_passphrase("Enter passphrase to verify wallet access: ")?;
+    let passphrase = get_validated_passphrase("Enter wallet passphrase: ", true)
+        .map_err(|e| anyhow!("{}", e))?;
 
     // Try to decrypt both mnemonic and private key to verify passphrase is correct
     let mnemonic = load_mnemonic_secure(address, &passphrase)?;
@@ -125,6 +102,163 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
     );
 
     Ok(())
+}
+
+/// Backup a wallet file to a specified destination
+pub fn backup_wallet(
+    wallet_address: &str,
+    destination_path: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
+
+    if !wallet_file.exists() {
+        return Err(format!("No wallet found with address: {}", wallet_address).into());
+    }
+
+    // Parse the destination path
+    let dest_path = std::path::Path::new(destination_path);
+
+    // If destination is a directory, create the filename
+    let final_dest = if dest_path.is_dir() {
+        dest_path.join(format!("wallet_{}.json", wallet_address))
+    } else {
+        dest_path.to_path_buf()
+    };
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = final_dest.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    // Copy the wallet file
+    fs::copy(&wallet_file, &final_dest)?;
+
+    // Set secure file permissions on Unix systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&final_dest)?.permissions();
+        perms.set_mode(0o600); // rw-------
+        fs::set_permissions(&final_dest, perms)?;
+    }
+
+    println!(
+        "{} Wallet '{}' backed up successfully to: {}",
+        "✓".green(),
+        wallet_address.cyan(),
+        final_dest.display().to_string().yellow()
+    );
+
+    Ok(())
+}
+
+/// Import a wallet using secure mnemonic input (step-by-step) and password creation
+pub fn import_wallet_from_mnemonic(
+    network: Network,
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    println!("{}", "🔒 Import Wallet with Secure Input".blue().bold());
+    println!("This process will:");
+    println!("• Securely collect your mnemonic phrase word by word");
+    println!("• Create a secure passphrase to encrypt the wallet");
+    println!("• Derive and store the wallet with full encryption");
+    println!();
+
+    // Prompt for mnemonic securely (word by word)
+    println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
+    let secure_mnemonic = prompt_mnemonic_secure()?;
+
+    // Generate address from mnemonic using helper function
+    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+        .map_err(|e| format!("Failed to generate address from mnemonic: {}", e))?;
+
+    println!();
+    println!("✅ Mnemonic processed successfully!");
+    println!("Derived address: {}", address.to_string().green());
+    println!();
+
+    // Check if wallet already exists
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+
+    if wallet_file.exists() {
+        return Err(format!(
+            "❌ Wallet with address '{}' already exists in local storage.\nLocation: {}",
+            address,
+            wallet_file.display()
+        )
+        .into());
+    }
+
+    // Securely prompt for passphrase
+    println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
+    println!("Enter a strong passphrase to encrypt your imported wallet:");
+    let passphrase = get_validated_passphrase("Passphrase: ", true)?;
+
+    // Confirm passphrase using secure comparison
+    confirm_passphrase_secure(&passphrase)?;
+    println!("✅ Passphrase created successfully!");
+    println!();
+
+    // Encrypt and store wallet
+    println!(
+        "{}",
+        "Step 3: Encrypting and Storing Wallet".yellow().bold()
+    );
+
+    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)
+        .map_err(|e| format!("Failed to derive private key from mnemonic: {}", e))?;
+
+    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)
+        .map_err(|e| format!("Failed to encrypt mnemonic: {}", e))?;
+
+    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
+        .map_err(|e| format!("Failed to encrypt private key: {}", e))?;
+
+    crate::wallet_storage::store_wallet_data(
+        &address.to_string(),
+        network,
+        &encrypted_mnemonic,
+        &encrypted_private_key,
+        "separate_encrypted_fields",
+        true,
+        Some("secure_mnemonic_input"),
+    )
+    .map_err(|e| format!("Failed to store wallet: {}", e))?;
+
+    // Update wallets registry
+    let wallets_file = storage_dir.join("wallets.json");
+    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
+    } else {
+        HashMap::new()
+    };
+
+    wallets.insert(
+        address.to_string(),
+        serde_json::json!({
+            "network": network.to_string(),
+            "imported_at": chrono::Utc::now().to_rfc3339(),
+            "imported": true,
+            "import_method": "secure_mnemonic_input"
+        }),
+    );
+
+    fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+
+    println!("✅ Wallet imported and encrypted successfully!");
+    println!("📁 Stored as: wallet_{}.json", address);
+    println!("📍 Location: {}", storage_dir.display().to_string().cyan());
+    println!("🆔 Address: {}", address.to_string().green());
+    println!();
+    println!("{}", "🔒 Security Features Applied:".green());
+    println!("• Mnemonic handled securely and zeroized from memory");
+    println!("• Passphrase stored securely and zeroized from memory");
+    println!("• AES-256-GCM authenticated encryption");
+    println!("• Separate encryption for mnemonic and private key");
+    println!("• Secure file permissions applied");
+
+    Ok(address.to_string())
 }
 
 pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
@@ -254,6 +388,170 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Helper function to parse network string into Network enum
+fn parse_network(network_str: &str) -> Network {
+    match network_str {
+        "testnet" => Network::Testnet,
+        "regtest" => Network::Regtest,
+        "signet" => Network::Signet,
+        _ => Network::Bitcoin,
+    }
+}
+
+/// Helper function to get a valid passphrase from user with validation
+fn get_validated_passphrase(prompt: &str, require_length: bool) -> Result<SecureString, Box<dyn std::error::Error + Send + Sync>> {
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: usize = 5;
+
+    while attempts < MAX_ATTEMPTS {
+        print!("{}", prompt);
+        io::stdout().flush()?;
+        let passphrase_input = rpassword::read_password()?;
+
+        if passphrase_input.is_empty() {
+            println!("❌ Passphrase cannot be empty for security reasons");
+            attempts += 1;
+            if attempts < MAX_ATTEMPTS {
+                println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+            }
+            continue;
+        }
+
+        if require_length && passphrase_input.len() < 8 {
+            println!("❌ Passphrase must be at least 8 characters long for security");
+            attempts += 1;
+            if attempts < MAX_ATTEMPTS {
+                println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+            }
+            continue;
+        }
+
+        return Ok(SecureString::init_with(|| passphrase_input));
+    }
+
+    Err("❌ Maximum attempts exceeded. Operation cancelled for security.".into())
+}
+
+/// Helper function to securely confirm passphrases without exposing secrets
+fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let mut attempts = 0;
+    const MAX_ATTEMPTS: usize = 3;
+
+    while attempts < MAX_ATTEMPTS {
+        print!("Confirm passphrase: ");
+        io::stdout().flush()?;
+        let mut confirm_input = rpassword::read_password()?;
+
+        // Use constant-time comparison to avoid timing attacks
+        let matches = {
+            let passphrase_bytes = passphrase.expose_secret().as_bytes();
+            let confirm_bytes = confirm_input.as_bytes();
+            
+            use subtle::ConstantTimeEq;
+            if passphrase_bytes.len() != confirm_bytes.len() {
+                false
+            } else {
+                passphrase_bytes.ct_eq(confirm_bytes).into()
+            }
+        };
+
+        // Immediately zeroize the confirmation input
+        confirm_input.zeroize();
+
+        if matches {
+            return Ok(());
+        }
+
+        attempts += 1;
+        println!("❌ Passphrases do not match");
+        if attempts < MAX_ATTEMPTS {
+            println!("Attempt {} of {}. Please try again.", attempts + 1, MAX_ATTEMPTS);
+        }
+    }
+
+    Err("❌ Maximum attempts exceeded for passphrase confirmation.".into())
+}
+
+/// Helper function to validate private key imports during wallet import
+fn validate_private_key_import(
+    wallet_data: &serde_json::Value,
+    passphrase: &SecureString,
+    wallet_address: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    use bitcoin::secp256k1::SecretKey;
+    use std::str::FromStr;
+
+    if let Some(_) = wallet_data["encrypted_private_key"].as_object() {
+        let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
+            serde_json::from_value(wallet_data["encrypted_private_key"].clone())
+                .map_err(|e| format!("Failed to parse encrypted private key structure: {}", e))?;
+
+        let encrypted_private_data =
+            crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
+                .map_err(|e| format!("Failed to parse encrypted private key: {}", e))?;
+
+        // Decrypt and validate the private key
+        match aes_decrypt_secure(&encrypted_private_data, &passphrase) {
+            Ok(decrypted_private_key) => {
+                let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
+                let network = parse_network(network_str);
+
+                // Validate the private key format and derive address to verify
+                match SecretKey::from_str(decrypted_private_key.expose_secret()) {
+                    Ok(mut private_key) => {
+                        let keypair = Keypair::from_secret_key(
+                            &crate::bitcoin_utils::SECP,
+                            &private_key,
+                        );
+                        let derived_address = calculate_taproot_address(&keypair, network);
+
+                        // Zeroize the private key after use
+                        private_key.non_secure_erase();
+
+                        if derived_address.to_string() != wallet_address {
+                            return Err("❌ Address mismatch! The decrypted private key doesn't correspond to this wallet address.".into());
+                        }
+                        println!("✅ Passphrase verified successfully! Private key address confirmed.");
+                    }
+                    Err(_) => {
+                        return Err("❌ Invalid wallet file: invalid private key format".into());
+                    }
+                }
+            }
+            Err(_) => {
+                return Err("❌ Incorrect passphrase! Cannot decrypt private key data.".into());
+            }
+        }
+    } else {
+        return Err("❌ Invalid wallet file: missing encrypted_private_key field for private key import".into());
+    }
+
+    Ok(())
+}
+
+/// Helper function to validate mnemonic imports during wallet import
+fn validate_mnemonic_import(
+    decrypted_mnemonic: &SecureString,
+    wallet_data: &serde_json::Value,
+    wallet_address: &str,
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
+    let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
+    let network = parse_network(network_str);
+
+    // Generate address from mnemonic to verify it matches
+    match crate::address::generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
+        Ok(derived_address) => {
+            if derived_address != wallet_address {
+                return Err("❌ Address mismatch! The decrypted mnemonic doesn't correspond to this wallet address.".into());
+            }
+            println!("✅ Passphrase verified successfully! Address confirmed.");
+        }
+        Err(_) => return Err("❌ Invalid wallet file: invalid mnemonic format".into()),
+    }
+
+    Ok(())
+}
+
 /// Import a wallet from a file path
 pub fn import_wallet_from_file(
     file_path: &str,
@@ -282,20 +580,15 @@ pub fn import_wallet_from_file(
         return Err("Invalid wallet file: missing network field".into());
     }
 
-    // Check if encrypted data exists (either old format or new format)
-    let has_encrypted_data =
-        wallet_data["encrypted_data"].is_string() || wallet_data["encrypted_mnemonic"].is_object();
-
-    if !has_encrypted_data {
-        return Err("Invalid wallet file: missing encrypted data".into());
+    // Check if encrypted data exists (new format with separate encrypted fields)
+    if !wallet_data["encrypted_mnemonic"].is_object() {
+        return Err("Invalid wallet file: missing encrypted_mnemonic field".into());
     }
 
+    // Check if destination wallet already exists BEFORE prompting for passphrase
     let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
-    fs::create_dir_all(&storage_dir)?;
-
     let dest_wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_address));
 
-    // Check if wallet already exists
     if dest_wallet_file.exists() {
         return Err(format!(
             "Wallet with address '{}' already exists in local storage",
@@ -304,43 +597,84 @@ pub fn import_wallet_from_file(
         .into());
     }
 
-    fs::copy(source_path, &dest_wallet_file)?;
+    println!("{}", "🔐 Passphrase Verification Required".yellow().bold());
+    println!("To import this wallet, you must provide the correct passphrase to verify access.");
 
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&dest_wallet_file)?.permissions();
-        perms.set_mode(0o600); // rw-------
-        fs::set_permissions(&dest_wallet_file, perms)?;
+    // Prompt for passphrase to verify the user can decrypt the wallet
+    let passphrase = get_validated_passphrase("Enter the passphrase for this wallet: ", true)?;
+
+    // Verify passphrase by attempting to decrypt the wallet data
+    println!("🔍 Verifying passphrase...");
+
+    // Parse encrypted mnemonic as EncryptedDataHex
+    let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
+        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone())
+            .map_err(|e| format!("Failed to parse encrypted mnemonic structure: {}", e))?;
+
+    let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
+        .map_err(|e| format!("Failed to parse encrypted mnemonic: {}", e))?;
+
+    // Try to decrypt mnemonic to verify passphrase
+    match aes_decrypt_secure(&encrypted_data, &passphrase) {
+        Ok(decrypted_mnemonic) => {
+            // Additional validation: check if decrypted content looks like a valid mnemonic
+            let mnemonic_str = decrypted_mnemonic.expose_secret();
+
+            // Basic validation: should have words separated by spaces
+            let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
+            if words.len() != MNEMONIC_WORD_COUNT {
+                return Err(
+                    "❌ Invalid wallet file: decrypted data doesn't appear to be a valid mnemonic"
+                        .into(),
+                );
+            }
+
+            // Validate wallet data based on import type
+            if mnemonic_str == "IMPORTED_FROM_PRIVATE_KEY" {
+                validate_private_key_import(&wallet_data, &passphrase, wallet_address)?;
+            } else {
+                validate_mnemonic_import(&decrypted_mnemonic, &wallet_data, wallet_address)?;
+            }
+        }
+        Err(_) => {
+            return Err("❌ Incorrect passphrase! Cannot decrypt wallet data.".into());
+        }
     }
 
-    let wallets_file = storage_dir.join("wallets.json");
-    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
-        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
-    } else {
-        HashMap::new()
-    };
+    // Storage directory was already created during the file existence check
+    fs::create_dir_all(&storage_dir)?;
 
-    let network = wallet_data["network"].as_str().unwrap_or("unknown");
-    let default_created_at = chrono::Utc::now().to_rfc3339();
-    let created_at = wallet_data["created_at"]
-        .as_str()
-        .unwrap_or(&default_created_at);
-    let data_format = wallet_data["data_format"].as_str().unwrap_or("legacy");
+    // Create new wallet content instead of copying
+    let network = wallet_data["network"].as_str().unwrap_or("mainnet");
+    let data_format = wallet_data["data_format"].as_str().unwrap_or("separate_encrypted_fields");
 
-    wallets.insert(
-        wallet_address.to_string(),
-        serde_json::json!({
-            "network": network,
-            "created_at": created_at,
-            "imported_at": chrono::Utc::now().to_rfc3339(),
-            "secure": true,
-            "data_format": data_format,
-            "imported": true
-        }),
-    );
+    // Extract and convert encrypted data from the original wallet
+    let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
+        serde_json::from_value(wallet_data["encrypted_mnemonic"].clone())
+            .map_err(|e| format!("Failed to parse encrypted mnemonic: {}", e))?;
+    
+    let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
+        serde_json::from_value(wallet_data["encrypted_private_key"].clone())
+            .map_err(|e| format!("Failed to parse encrypted private key: {}", e))?;
 
-    fs::write(wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+    // Convert hex structures to EncryptedData
+    let encrypted_mnemonic_data = crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
+        .map_err(|e| format!("Failed to convert encrypted mnemonic: {}", e))?;
+    
+    let encrypted_private_key_data = crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex)
+        .map_err(|e| format!("Failed to convert encrypted private key: {}", e))?;
+
+    // Use store_wallet_data function for consistent storage
+    let network_enum = parse_network(network);
+    crate::wallet_storage::store_wallet_data(
+        wallet_address,
+        network_enum,
+        &encrypted_mnemonic_data,
+        &encrypted_private_key_data,
+        data_format,
+        true,
+        Some("file_import"),
+    )?;
 
     println!(
         "{} Wallet '{}' imported successfully from: {}",
@@ -352,321 +686,204 @@ pub fn import_wallet_from_file(
     Ok(wallet_address.to_string())
 }
 
-/// List all stored keys with their addresses and metadata
-pub fn list_keys() -> Result<Vec<(String, serde_json::Value)>, anyhow::Error> {
-    let storage_dir = get_storage_dir()?;
-    let address_file = storage_dir.join("addresses.json");
-
-    if !address_file.exists() {
-        return Ok(Vec::new());
-    }
-
-    let addresses: HashMap<String, serde_json::Value> =
-        serde_json::from_str(&fs::read_to_string(&address_file)?)?;
-
-    Ok(addresses.into_iter().collect())
-}
-
-pub fn load_wallet_from_file(file: &str) -> Result<serde_json::Value, anyhow::Error> {
-    if !std::path::Path::new(file).exists() {
-        return Err(anyhow!("Wallet file not found: {}", file));
-    }
-
-    let file_content = std::fs::read_to_string(file)?;
-    let wallet_data: serde_json::Value = serde_json::from_str(&file_content)?;
-
-    Ok(wallet_data)
-}
-
-/// Store a keypair and its corresponding taproot address
-pub fn store_key(
-    keypair: &Keypair,
+/// Import a wallet from a private key
+pub fn import_wallet_from_private_key(
     network: Network,
-    passphrase: SecureString,
-) -> Result<BitcoinAddress, anyhow::Error> {
-    // Calculate the taproot address for this keypair
-    let address = crate::bitcoin_utils::calculate_taproot_address(keypair, network);
+) -> Result<String, Box<dyn std::error::Error + Send + Sync>> {
+    use crate::bitcoin_utils::calculate_taproot_address;
+    use bitcoin::secp256k1::{Keypair, SecretKey};
 
-    // Create storage directory
-    let storage_dir = get_storage_dir()?;
-    fs::create_dir_all(&storage_dir)?;
+    let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
+        .map_err(|e| format!("Failed to read private key: {}", e))?;
+    
+    let mut private_key_bytes = hex::decode(private_key)
+        .map_err(|e| format!("Invalid private key hex format: {}", e))?;
 
-    let key_file = storage_dir.join(format!("key_{address}.json"));
-    let private_key_str = keypair.secret_key().display_secret().to_string();
-
-    let crypto = encrypt_private_key(&private_key_str, &passphrase)?;
-
-    let encrypted_data = EncryptedKeyData {
-        version: 2,
-        encrypted: true,
-        network: network.to_string(),
-        address: address.to_string(),
-        crypto,
-        stored_at: chrono::Utc::now().to_rfc3339(),
-    };
-
-    let key_data = serde_json::to_string_pretty(&encrypted_data)?;
-
-    fs::write(&key_file, key_data)?;
-
-    // Set file permissions to 700 (rwx------)
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&key_file)?.permissions();
-        perms.set_mode(0o700);
-        fs::set_permissions(&key_file, perms)?;
+    if private_key_bytes.len() != 32 {
+        private_key_bytes.zeroize();
+        return Err("Private key must be exactly 32 bytes (64 hex characters)".into());
     }
 
-    // Store address for easy lookup
-    let address_file = storage_dir.join("addresses.json");
-    let mut addresses: HashMap<String, serde_json::Value> = if address_file.exists() {
-        serde_json::from_str(&fs::read_to_string(&address_file)?)?
-    } else {
-        HashMap::new()
-    };
+    let mut master_private_key = SecretKey::from_slice(&private_key_bytes).map_err(|e| {
+        private_key_bytes.zeroize();
+        format!("Invalid private key: {}", e)
+    })?;
+    private_key_bytes.zeroize();
 
-    addresses.insert(
-        address.to_string(),
-        serde_json::json!({
-            "network": network.to_string(),
-            "stored_at": chrono::Utc::now().to_rfc3339()
-        }),
+    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &master_private_key);
+    let address = calculate_taproot_address(&keypair, network);
+
+    println!("Derived address: {}", address.to_string().green());
+
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+
+    if wallet_file.exists() {
+        return Err(format!(
+            "Wallet with address '{}' already exists in local storage",
+            address
+        )
+        .into());
+    }
+
+    let passphrase = get_validated_passphrase("Enter passphrase to encrypt the imported wallet: ", true)?;
+
+    // Confirm passphrase using secure comparison
+    confirm_passphrase_secure(&passphrase)?;
+
+    let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
+
+    let mut master_private_key_str = master_private_key.display_secret().to_string();
+    let master_private_key_secure = SecureString::init_with(|| master_private_key_str.clone());
+
+    master_private_key_str.zeroize();
+    master_private_key.non_secure_erase();
+
+    let encrypted_mnemonic = aes_encrypt_secure(&placeholder_mnemonic, &passphrase)
+        .map_err(|e| format!("Failed to encrypt placeholder mnemonic: {}", e))?;
+    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
+        .map_err(|e| format!("Failed to encrypt private key: {}", e))?;
+
+    crate::wallet_storage::store_wallet_data(
+        &address.to_string(),
+        network,
+        &encrypted_mnemonic,
+        &encrypted_private_key,
+        "separate_encrypted_fields",
+        true,
+        Some("private_key_import"),
+    )
+    .map_err(|e| format!("Failed to store wallet: {}", e))?;
+
+    println!(
+        "✓ Wallet imported and encrypted successfully as wallet_{}.json",
+        address
+    );
+    println!(
+        "Imported address: {} at directory: {}",
+        address.to_string().green(),
+        storage_dir.display().to_string().cyan()
+    );
+    println!(
+        "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
+        "ℹ".yellow()
     );
 
-    fs::write(address_file, serde_json::to_string_pretty(&addresses)?)?;
-
-    debug!("{} Key stored successfully", "SUCCESS".green().bold());
-    debug!("{} {}", "ADDRESS".cyan().bold(), address);
-    debug!("{} {}", "NETWORK".blue().bold(), network);
-    debug!(
-        "{} Key stored with AES-256-GCM encryption",
-        "ENCRYPTED".green().bold()
-    );
-
-    Ok(address)
+    // Note: private_key_hex (SecureString), placeholder_mnemonic (SecureString),
+    // master_private_key_secure (SecureString), and passphrase (SecretString)
+    // will all be automatically zeroized when they go out of scope
+    Ok(address.to_string())
 }
 
-/// Load a keypair by its taproot address
-pub fn load_key(
-    taproot_address: &str,
+pub fn create_encrypted_wallet_with_address(
     network: Network,
-    passphrase: Option<&SecureString>,
-) -> Result<Keypair, anyhow::Error> {
-    // Parse the address to validate it
-    let unchecked_address: BitcoinAddress<bitcoin::address::NetworkUnchecked> =
-        taproot_address.parse()?;
-    let address = unchecked_address.assume_checked();
+) -> Result<SecureString, anyhow::Error> {
+    println!("Creating new wallet with maximum security protection");
+    println!();
+    println!("{}", "Security Features:".yellow());
+    println!("• Secure terminal input (no echo)");
+    println!("• Industry-standard secret handling (secrecy crate)");
+    println!("• Memory zeroization");
+    println!("• AES-256-GCM authenticated encryption");
+    println!("• Argon2 key derivation");
+    println!();
 
-    // Load the keypair from storage
-    let storage_dir = get_storage_dir()?;
-    let key_file = storage_dir.join(format!("key_{address}.json"));
+    // Generate mnemonic
+    let secure_mnemonic = generate_mnemonic_secure()?;
 
-    if !key_file.exists() {
-        return Err(anyhow!("No key found for address: {address}").into());
+    // Generate address from mnemonic using helper function
+    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+        .map_err(|e| anyhow!("Failed to generate address from mnemonic: {}", e))?;
+
+    println!("Generated address: {}", address.green());
+
+    // Prompt for passphrase
+    let passphrase = get_validated_passphrase("Enter passphrase to encrypt the wallet: ", true)
+        .map_err(|e| anyhow!("{}", e))?;
+
+    // Confirm passphrase using secure comparison
+    confirm_passphrase_secure(&passphrase)
+        .map_err(|e| anyhow!("{}", e))?;
+
+    // Encrypt mnemonic and private key separately with different nonces
+    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
+
+    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
+
+    // Store encrypted wallet with separate encrypted fields
+    crate::wallet_storage::store_wallet_data(
+        &address.to_string(),
+        network,
+        &encrypted_mnemonic,
+        &encrypted_private_key,
+        "separate_encrypted_fields",
+        false,
+        None,
+    )?;
+
+    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    println!(
+        "✓ Wallet encrypted and stored securely as wallet_{}.json",
+        address
+    );
+    println!(
+        "Generated address: {} at directory: {}",
+        address.to_string().green(),
+        storage_dir.display().to_string().cyan()
+    );
+    println!();
+
+    match display_mnemonic_securely(&secure_mnemonic) {
+        Ok(()) => {
+            println!("{}", "✓ Mnemonic displayed securely".green());
+        }
+        Err(e) => {
+            eprintln!(
+                "{} Failed to display mnemonic securely: {}",
+                "ERROR".red().bold(),
+                e
+            );
+            eprintln!(
+                "{} The wallet is still safely stored encrypted.",
+                "INFO".blue().bold()
+            );
+        }
     }
 
-    let file_content = fs::read_to_string(key_file)?;
-    let key_data: serde_json::Value = serde_json::from_str(&file_content)?;
-
-    // Detect key format version
-    let version = key_data
-        .get("version")
-        .and_then(|v| v.as_u64())
-        .unwrap_or(1);
-    let is_encrypted = key_data
-        .get("encrypted")
-        .and_then(|e| e.as_bool())
-        .unwrap_or(false);
-
-    let private_key_str = if is_encrypted && version >= 2 {
-        // Handle encrypted key (version 2+)
-        let passphrase = passphrase.ok_or(
-            anyhow!("This key is encrypted and requires a passphrase. Please provide the passphrase used when the key was created.")
-        )?;
-
-        let encrypted_data: EncryptedKeyData = serde_json::from_str(&file_content)?;
-        let decrypted = decrypt_private_key(&encrypted_data.crypto, &passphrase)?;
-        decrypted.expose_secret().to_owned()
-    } else {
-        // Handle legacy format keys - these should be migrated
-        return Err(anyhow!(
-            "This key uses an old storage format. Please regenerate your key to use the current secure storage format."
-        ));
-    };
-
-    // Parse the private key
-    let secret_key = bitcoin::secp256k1::SecretKey::from_str(&private_key_str)?;
-    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
-
-    debug!("{} Key loaded successfully", "SUCCESS".green().bold());
-    debug!("{} {}", "ADDRESS".cyan().bold(), address);
-    debug!("{} {}", "NETWORK".blue().bold(), network);
-    debug!(
-        "{} Key loaded from encrypted storage",
-        "DECRYPTED".green().bold()
-    );
-
-    Ok(keypair)
+    Ok(secure_mnemonic)
 }
 
-/// Export the private key for a given taproot address
 pub fn export_private_key(
-    taproot_address: &str,
+    address: &str,
     network: Network,
-) -> Result<String, anyhow::Error> {
-    let unchecked_address: Address<bitcoin::address::NetworkUnchecked> = taproot_address.parse()?;
-    let address = unchecked_address.require_network(network)?;
-
+) -> Result<(), anyhow::Error> {
+    // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
-    let key_file = storage_dir.join(format!("key_{address}.json"));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
-    if !key_file.exists() {
-        return Err(anyhow!("No key found for address: {address}"));
+    if !wallet_file.exists() {
+        return Err(anyhow!("❌ Wallet file not found for address: {}", address));
     }
 
-    let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
-    let private_key_str = key_data["private_key"]
-        .as_str()
-        .ok_or(anyhow!("Invalid key file format: missing private_key"))?;
+    let passphrase = get_validated_passphrase("Enter passphrase to decrypt private key: ", true)
+        .map_err(|e| anyhow!("{}", e))?;
 
-    Ok(private_key_str.to_string())
-}
+    let mut keypair = load_key(address, network, &passphrase)?;
 
-/// Get the storage directory path
-pub fn get_storage_dir() -> Result<PathBuf, anyhow::Error> {
-    let home_dir = dirs::home_dir().ok_or(anyhow!("Could not determine home directory"))?;
-    Ok(home_dir.join(".clementine").join("keys"))
-}
 
-pub fn derive_keypair_and_address(
-    master_seed: &[u8; 32],
-    derivation_path: &str,
-    network: Network,
-) -> Result<(Keypair, Address), anyhow::Error> {
-    let secret_key = derive_private_key(master_seed, derivation_path, network)?;
-    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
-    let address = crate::bitcoin_utils::calculate_taproot_address(&keypair, network);
+    display_private_key_securely(&keypair.secret_key())?;
 
-    Ok((keypair, address))
-}
+    keypair.non_secure_erase();
 
-pub fn get_standard_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/44'/0'/{account}'/{change}/{address_index}")
-}
-
-pub fn get_native_segwit_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/84'/0'/{account}'/{change}/{address_index}")
-}
-
-pub fn get_taproot_derivation_path(account: u32, change: u32, address_index: u32) -> String {
-    format!("m/86'/0'/{account}'/{change}/{address_index}")
+    Ok(())
 }
 
 #[cfg(test)]
 pub mod tests {
-    use crate::{passphrase::derive_key_from_passphrase, secure_structs::SecureByteSlice};
+    use crate::passphrase::derive_key_from_passphrase;
 
     use super::*;
-    use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey};
-    use std::fs;
-
-    /// Test helper to store a key with custom base directory
-    #[cfg(test)]
-    pub fn store_key_with_base_dir(
-        keypair: &Keypair,
-        network: Network,
-        passphrase: &str,
-        base_dir: &std::path::Path,
-    ) -> Result<BitcoinAddress, anyhow::Error> {
-        use secrecy::SecretBox;
-
-        let address = crate::bitcoin_utils::calculate_taproot_address(keypair, network);
-        let storage_dir = base_dir.join(".clementine").join("keys");
-        fs::create_dir_all(&storage_dir)?;
-
-        println!("Storing key for address: {address}");
-
-        let key_file = storage_dir.join(format!("key_{address}.json"));
-        let private_key_str = keypair.secret_key().display_secret().to_string();
-
-        println!("Private key for address {address}: {private_key_str}");
-
-        let secure_passphrase = SecretBox::init_with(|| passphrase.to_string());
-        let crypto = encrypt_private_key(&private_key_str, &secure_passphrase)?;
-
-        println!("Secure passphrase is generated");
-
-        let encrypted_data = EncryptedKeyData {
-            version: 2,
-            encrypted: true,
-            network: network.to_string(),
-            address: address.to_string(),
-            crypto,
-            stored_at: chrono::Utc::now().to_rfc3339(),
-        };
-
-        println!("Encrypted key data generated.");
-
-        let key_data = serde_json::to_string_pretty(&encrypted_data)?;
-        fs::write(&key_file, key_data)?;
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&key_file)?.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&key_file, perms)?;
-        }
-
-        Ok(address)
-    }
-
-    /// Test helper to load a key with custom base directory
-    #[cfg(test)]
-    pub fn load_key_with_base_dir(
-        address: &str,
-        network: Network,
-        passphrase: Option<&str>,
-        base_dir: &std::path::Path,
-    ) -> Result<Keypair, anyhow::Error> {
-        use bitcoin::secp256k1::{Secp256k1, SecretKey};
-        let storage_dir = base_dir.join(".clementine").join("keys");
-        let key_file = storage_dir.join(format!("key_{address}.json"));
-
-        if !key_file.exists() {
-            return Err(anyhow!("Key file not found for address: {address}"));
-        }
-
-        let key_data = fs::read_to_string(&key_file)?;
-        let encrypted_data: EncryptedKeyData = serde_json::from_str(&key_data)?;
-
-        if encrypted_data.network != network.to_string() {
-            return Err(anyhow!(
-                "Key network mismatch: expected {}, found {}",
-                network,
-                encrypted_data.network
-            ));
-        }
-
-        if encrypted_data.encrypted {
-            match passphrase {
-                Some(pass) => {
-                    let secure_passphrase = SecureString::init_with(|| pass.to_string());
-                    let decrypted_key =
-                        decrypt_private_key(&encrypted_data.crypto, &secure_passphrase)?;
-                    let secp = Secp256k1::new();
-                    let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
-                    Ok(Keypair::from_secret_key(&secp, &secret_key))
-                }
-                None => Err(anyhow!("Key is encrypted and requires a passphrase")),
-            }
-        } else {
-            Err(anyhow!(
-                "Unencrypted keys are not supported in this version"
-            ))
-        }
-    }
 
     #[test]
     fn test_derive_key_from_passphrase() {
@@ -708,379 +925,59 @@ pub mod tests {
     }
 
     #[test]
-    fn test_encrypt_decrypt_round_trip() {
-        let private_key = "L1HKVVLHXiUhecWnwFYF6L3shkf1E12HUmuZTESvBXUdx3yqVP1D";
-        let passphrase = SecureString::init_with(|| "strong_passphrase_123".to_string());
-
-        // Encrypt the private key
-        let crypto_params = encrypt_private_key(private_key, &passphrase).unwrap();
-
-        // Verify crypto parameters are properly set
-        assert_eq!(crypto_params.kdf, "argon2id");
-        assert_eq!(crypto_params.cipher, "aes-256-gcm");
-        assert_eq!(crypto_params.iterations, 3);
-        assert_eq!(crypto_params.memory, 65_536);
-        assert_eq!(crypto_params.parallelism, 4);
-        assert!(!crypto_params.salt.is_empty());
-        assert!(!crypto_params.nonce.is_empty());
-        assert!(!crypto_params.ciphertext.is_empty());
-
-        // Decrypt the private key
-        let decrypted = decrypt_private_key(&crypto_params, &passphrase).unwrap();
-
-        // Should match original
-        assert_eq!(decrypted.expose_secret(), private_key);
-    }
-
-    #[test]
-    fn test_decrypt_wrong_passphrase() {
-        let private_key = "L1HKVVLHXiUhecWnwFYF6L3shkf1E12HUmuZTESvBXUdx3yqVP1D";
-        let correct_passphrase = SecureString::init_with(|| "correct_passphrase".to_string());
-        let wrong_passphrase = SecureString::init_with(|| "wrong_passphrase".to_string());
-
-        // Encrypt with correct passphrase
-        let crypto_params = encrypt_private_key(private_key, &correct_passphrase).unwrap();
-
-        // Try to decrypt with wrong passphrase - should fail
-        let result = decrypt_private_key(&crypto_params, &wrong_passphrase);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Decryption failed")
-        );
-    }
-
-    #[test]
-    fn test_encrypt_different_passphrases_different_output() {
-        let private_key = "L1HKVVLHXiUhecWnwFYF6L3shkf1E12HUmuZTESvBXUdx3yqVP1D";
-        let passphrase1 = SecureString::init_with(|| "passphrase1".to_string());
-        let passphrase2 = SecureString::init_with(|| "passphrase2".to_string());
-
-        let crypto1 = encrypt_private_key(private_key, &passphrase1).unwrap();
-        let crypto2 = encrypt_private_key(private_key, &passphrase2).unwrap();
-
-        // Different passphrases should produce different encrypted results
-        assert_ne!(crypto1.ciphertext, crypto2.ciphertext);
-        assert_ne!(crypto1.salt, crypto2.salt);
-        assert_ne!(crypto1.nonce, crypto2.nonce);
-    }
-
-    #[test]
-    fn test_encrypt_same_passphrase_different_output() {
-        let private_key = "L1HKVVLHXiUhecWnwFYF6L3shkf1E12HUmuZTESvBXUdx3yqVP1D";
-        let passphrase = SecureString::init_with(|| "same_passphrase".to_string());
-
-        let crypto1 = encrypt_private_key(private_key, &passphrase).unwrap();
-        let crypto2 = encrypt_private_key(private_key, &passphrase).unwrap();
-
-        // Same passphrase should still produce different encrypted results due to random salt/nonce
-        assert_ne!(crypto1.ciphertext, crypto2.ciphertext);
-        assert_ne!(crypto1.salt, crypto2.salt);
-        assert_ne!(crypto1.nonce, crypto2.nonce);
-    }
-
-    #[test]
-    fn test_decrypt_unsupported_kdf() {
-        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
-        let crypto = CryptoParams {
-            kdf: "pbkdf2".to_string(), // Unsupported KDF
-            salt: hex::encode([1u8; 32]),
-            iterations: 3,
-            memory: 1024,
-            parallelism: 1,
-            cipher: "aes-256-gcm".to_string(),
-            nonce: hex::encode([2u8; 12]),
-            ciphertext: hex::encode([3u8; 32]),
-        };
-
-        let result = decrypt_private_key(&crypto, &passphrase);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("Unsupported KDF"));
-    }
-
-    #[test]
-    fn test_decrypt_unsupported_cipher() {
-        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
-        let crypto = CryptoParams {
-            kdf: "argon2id".to_string(),
-            salt: hex::encode([1u8; 32]),
-            iterations: 3,
-            memory: 1024,
-            parallelism: 1,
-            cipher: "aes-128-cbc".to_string(), // Unsupported cipher
-            nonce: hex::encode([2u8; 12]),
-            ciphertext: hex::encode([3u8; 32]),
-        };
-
-        let result = decrypt_private_key(&crypto, &passphrase);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Unsupported cipher")
-        );
-    }
-
-    #[test]
-    fn test_decrypt_invalid_hex() {
-        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
-        let crypto = CryptoParams {
-            kdf: "argon2id".to_string(),
-            salt: "invalid_hex_xyz".to_string(), // Invalid hex
-            iterations: 3,
-            memory: 1024,
-            parallelism: 1,
-            cipher: "aes-256-gcm".to_string(),
-            nonce: hex::encode([2u8; 12]),
-            ciphertext: hex::encode([3u8; 32]),
-        };
-
-        let result = decrypt_private_key(&crypto, &passphrase);
-        assert!(result.is_err());
-    }
-
-    #[test]
-    fn test_secure_string_zeroize() {
-        let secret_data = "sensitive_private_key_data";
-        let secure_string = SecureString::init_with(|| secret_data.to_string());
-
-        assert_eq!(secure_string.expose_secret(), secret_data);
-        assert_eq!(
-            secure_string.expose_secret().as_bytes(),
-            secret_data.as_bytes()
-        );
-
-        // SecureString should implement ZeroizeOnDrop
-        // We can't directly test the zeroing behavior in a unit test,
-        // but we can verify the type implements the trait
-        drop(secure_string);
-    }
-
-    #[test]
-    fn test_derived_key_zeroize() {
-        let key_bytes = [42u8; 32];
-        let derived_key = SecureByteSlice::init_with(|| key_bytes);
-
-        assert_eq!(derived_key.expose_secret(), &key_bytes);
-
-        // DerivedKey should implement ZeroizeOnDrop
-        drop(derived_key);
-    }
-
-    #[test]
-    fn test_encrypted_key_data_serialization() {
-        let crypto = CryptoParams {
-            kdf: "argon2id".to_string(),
-            salt: hex::encode([1u8; 32]),
-            iterations: 3,
-            memory: 65_536,
-            parallelism: 4,
-            cipher: "aes-256-gcm".to_string(),
-            nonce: hex::encode([2u8; 12]),
-            ciphertext: hex::encode([3u8; 64]),
-        };
-
-        let encrypted_data = EncryptedKeyData {
-            version: 2,
-            encrypted: true,
-            network: "bitcoin".to_string(),
-            address: "bc1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdyspfxcv6".to_string(),
-            crypto,
-            stored_at: "2024-01-01T00:00:00Z".to_string(),
-        };
-
-        // Test serialization
-        let json = serde_json::to_string(&encrypted_data).unwrap();
-        assert!(json.contains("\"version\":2"));
-        assert!(json.contains("\"encrypted\":true"));
-        assert!(json.contains("\"kdf\":\"argon2id\""));
-        assert!(json.contains("\"cipher\":\"aes-256-gcm\""));
-
-        // Test deserialization
-        let deserialized: EncryptedKeyData = serde_json::from_str(&json).unwrap();
-        assert_eq!(deserialized.version, 2);
-        assert!(deserialized.encrypted);
-        assert_eq!(deserialized.crypto.kdf, "argon2id");
-        assert_eq!(deserialized.crypto.iterations, 3);
-    }
-
-    // Integration tests for store_key and load_key
-    #[test]
-    fn test_store_and_load_key_integration() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let temp_path = temp_dir.path();
-        println!("Base directory for key storage: {}", temp_path.display());
-
-        // Create a test keypair
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let passphrase = "test_passphrase_123";
-
-        println!("Passphrase for key storage: {passphrase}");
-
-        // Store the key using helper function
-        let stored_address =
-            store_key_with_base_dir(&keypair, network, passphrase, temp_path).unwrap();
-
-        println!("Stored key address: {stored_address}");
-
-        // Load the key back using helper function
-        let loaded_keypair = load_key_with_base_dir(
-            &stored_address.to_string(),
-            network,
-            Some(passphrase),
-            temp_path,
-        )
-        .unwrap();
-
-        println!("Loaded key address: {stored_address}");
-
-        // Verify the loaded keypair matches the original
-        assert_eq!(keypair.secret_key(), loaded_keypair.secret_key());
-        assert_eq!(keypair.public_key(), loaded_keypair.public_key());
-
-        println!("Key successfully stored and loaded for address: {stored_address}");
-
-        // Verify file exists and has correct permissions
-        let storage_dir = temp_path.join(".clementine").join("keys");
-        let key_file = storage_dir.join(format!("key_{stored_address}.json"));
-        assert!(key_file.exists());
-
-        println!("Key file exists: {}", key_file.display());
-
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let metadata = fs::metadata(&key_file).unwrap();
-            let permissions = metadata.permissions().mode();
-            // Check that permissions are 600 (rw-------)
-            assert_eq!(permissions & 0o777, 0o600);
-        }
-
-        println!("Key file permissions are correct: 600 (rw-------)");
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_load_key_wrong_passphrase() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        // Create and store a key
-        let secp = Secp256k1::new();
-        let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
-        let keypair = Keypair::from_secret_key(&secp, &secret_key);
-        let network = Network::Testnet4;
-        let correct_passphrase = "correct_passphrase";
-        let wrong_passphrase = "wrong_passphrase";
-
-        let stored_address =
-            store_key_with_base_dir(&keypair, network, correct_passphrase, base_dir).unwrap();
-
-        // Try to load with wrong passphrase - should fail
-        let result = load_key_with_base_dir(
-            &stored_address.to_string(),
-            network,
-            Some(wrong_passphrase),
-            base_dir,
-        );
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Decryption failed")
-        );
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_load_nonexistent_key() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        let network = Network::Testnet4;
-        let fake_address = "tb1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdysn6k0k7";
-
-        let result =
-            load_key_with_base_dir(fake_address, network, Some("any_passphrase"), base_dir);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Key file not found for address")
-        );
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
-    fn test_multiple_keys_storage() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let base_dir = temp_dir.path();
-
-        let secp = Secp256k1::new();
-        let network = Network::Testnet4;
-
-        // Store multiple keys
-        let mut stored_addresses = Vec::new();
-        for i in 1..=3 {
-            let secret_key = SecretKey::from_slice(&[i; 32]).unwrap();
-            let keypair = Keypair::from_secret_key(&secp, &secret_key);
-            let passphrase = format!("passphrase_{i}");
-
-            let address =
-                store_key_with_base_dir(&keypair, network, &passphrase, base_dir).unwrap();
-            stored_addresses.push((address, passphrase, keypair));
-        }
-
-        // Load each key and verify
-        for (address, passphrase, original_keypair) in stored_addresses {
-            let loaded_keypair =
-                load_key_with_base_dir(&address.to_string(), network, Some(&passphrase), base_dir)
-                    .unwrap();
-            assert_eq!(original_keypair.secret_key(), loaded_keypair.secret_key());
-        }
-
-        // Temporary directory will be automatically cleaned up when temp_dir goes out of scope
-    }
-
-    #[test]
     fn test_key_derivation_parameters() {
+        // This test is maintained for key derivation functionality
         let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
         let salt = [1u8; 32];
 
         // Test with minimum secure parameters
         let key_min = derive_key_from_passphrase(&passphrase, &salt, 3, 1024, 1).unwrap();
 
-        // Test with production parameters (same as used in encrypt_private_key)
+        // Test with production parameters
         let key_prod = derive_key_from_passphrase(&passphrase, &salt, 3, 65_536, 4).unwrap();
 
         // Both should succeed but produce different keys due to different parameters
         assert_ne!(key_min.expose_secret(), key_prod.expose_secret());
     }
+}
 
-    #[test]
-    fn test_argon2_invalid_parameters() {
-        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
-        let salt = [1u8; 32];
+/// Securely load a key from wallet storage - always requires a passphrase
+pub fn load_key(
+    address: &str,
+    network: Network,
+    passphrase: &SecureString,
+) -> Result<Keypair, anyhow::Error> {
+    use bitcoin::secp256k1::{Secp256k1, SecretKey};
+    use std::str::FromStr;
 
-        // Test with invalid memory parameter (too small)
-        let result = derive_key_from_passphrase(&passphrase, &salt, 1, 0, 1);
-        assert!(result.is_err());
-        assert!(
-            result
-                .unwrap_err()
-                .to_string()
-                .contains("Invalid Argon2 parameters")
-        );
+    let storage_dir = get_storage_dir()?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+
+    if !wallet_file.exists() {
+        return Err(anyhow!("Wallet file not found for address: {address}"));
     }
+
+    // Load wallet data
+    let wallet_data = crate::wallet_storage::load_wallet_data(address)?;
+
+    // Verify network matches
+    if wallet_data.network != network.to_string() {
+        return Err(anyhow!(
+            "Wallet network mismatch: expected {}, found {}",
+            network,
+            wallet_data.network
+        ));
+    }
+
+    // Load the encrypted private key
+    let encrypted_private_key = wallet_data
+        .encrypted_private_key
+        .ok_or_else(|| anyhow!("No encrypted private key found in wallet"))?;
+
+    let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_private_key)?;
+    let decrypted_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
+
+    let secp = Secp256k1::new();
+    let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
+    Ok(Keypair::from_secret_key(&secp, &secret_key))
 }

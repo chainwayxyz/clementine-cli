@@ -4,10 +4,10 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::CliConfig,
     debug, deposit,
-    mnemonic::{
-        create_encrypted_wallet_with_address, import_wallet_from_mnemonic, show_mnemonic_secure,
+    mnemonic::show_mnemonic_secure,
+    wallet::{
+        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity
     },
-    wallet::{delete_wallet, verify_wallet_integrity},
     withdrawal,
 };
 
@@ -50,11 +50,8 @@ enum WalletCommands {
     BackupWallet {
         /// Destination path for wallet backup
         destination: String,
-    },
-    /// Import wallet from specified filename.
-    ImportWallet {
-        /// Filename to import wallet from
-        filename: String,
+        /// Address of the wallet to backup
+        address: String,
     },
     /// Show mnemonic with interactive terminal.
     ShowMnemonic {
@@ -69,6 +66,7 @@ enum WalletCommands {
         /// Filename to import wallet from
         filename: String,
     },
+    ImportFromPrivateKey {},
     /// Delete a wallet by address.
     DeleteWallet {
         /// Bitcoin address of the wallet to delete
@@ -76,20 +74,16 @@ enum WalletCommands {
     },
     /// Verify integrity of wallet registry and files.
     VerifyIntegrity,
+    /// List all wallet addresses.
+    ListAddresses,
+    ExportPrivateKey {
+        /// Address to export private key for
+        address: String,
+    },
 }
 
 #[derive(Subcommand)]
 enum DepositCommands {
-    GenerateRecoveryKey {
-        #[arg(short, long)]
-        y: bool,
-        #[arg(long)]
-        private_key: Option<String>,
-    },
-    ExportPrivateKey {
-        taproot_address: String,
-    },
-    ListKeys,
     GetDepositAddress {
         citrea_address: String,
         recovery_taproot_address: String,
@@ -124,10 +118,6 @@ enum DepositCommands {
 
 #[derive(Subcommand)]
 enum WithdrawalCommands {
-    GenerateSignerAddress {
-        #[arg(short, long)]
-        y: bool,
-    },
     GenerateWithdrawalSignature {
         signer_address: String,
         withdrawal_address: String,
@@ -190,11 +180,14 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
-            WalletCommands::BackupWallet { destination } => {
-                unimplemented!("wallet.backup_wallet: {}", destination);
-            }
-            WalletCommands::ImportWallet { filename } => {
-                unimplemented!("wallet.import_wallet: {}", filename);
+            WalletCommands::BackupWallet {
+                destination,
+                address,
+            } => {
+                if let Err(e) = wallet::backup_wallet(&address, &destination) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
             WalletCommands::ShowMnemonic { address } => {
                 if let Err(e) = show_mnemonic_secure(&address) {
@@ -209,7 +202,16 @@ async fn main() {
                 }
             }
             WalletCommands::ImportFromFile { filename } => {
-                unimplemented!("wallet.import_from_file: {}", filename);
+                if let Err(e) = import_wallet_from_file(&filename) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
+            WalletCommands::ImportFromPrivateKey {} => {
+                if let Err(e) = wallet::import_wallet_from_private_key(config.network) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
             }
             WalletCommands::DeleteWallet { address } => {
                 if let Err(e) = delete_wallet(&address) {
@@ -223,27 +225,20 @@ async fn main() {
                     std::process::exit(1);
                 }
             }
+            WalletCommands::ListAddresses => {
+                if let Err(e) = clementine_cli::address::get_all_wallet_addresses() {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
+            WalletCommands::ExportPrivateKey { address } => {
+                if let Err(e) = wallet::export_private_key(&address, config.network) {
+                    eprintln!("Error: {e}");
+                    std::process::exit(1);
+                }
+            }
         },
         Commands::Deposit { command } => match command {
-            DepositCommands::GenerateRecoveryKey { y, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network) {
-                    eprintln!("Error: {e}");
-                    std::process::exit(1);
-                }
-            }
-            DepositCommands::ExportPrivateKey { taproot_address } => {
-                println!("Network: {}", config.network);
-                if let Err(e) = deposit::export_private_key(&taproot_address, config.network) {
-                    eprintln!("Error: {e}");
-                    std::process::exit(1);
-                }
-            }
-            DepositCommands::ListKeys => {
-                if let Err(e) = deposit::list_stored_keys() {
-                    eprintln!("Error: {e}");
-                    std::process::exit(1);
-                }
-            }
             DepositCommands::GetDepositAddress {
                 citrea_address,
                 recovery_taproot_address,
@@ -308,12 +303,6 @@ async fn main() {
             }
         },
         Commands::Withdrawal { command } => match command {
-            WithdrawalCommands::GenerateSignerAddress { y } => {
-                if let Err(e) = withdrawal::generate_signer_address(y, config.network) {
-                    eprintln!("Error: {e}");
-                    std::process::exit(1);
-                }
-            }
             WithdrawalCommands::GenerateWithdrawalSignature {
                 withdrawal_address,
                 signer_address,

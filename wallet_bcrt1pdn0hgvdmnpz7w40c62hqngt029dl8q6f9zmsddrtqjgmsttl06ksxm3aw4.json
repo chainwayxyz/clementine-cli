@@ -1,0 +1,19 @@
+{
+  "address": "bcrt1pdn0hgvdmnpz7w40c62hqngt029dl8q6f9zmsddrtqjgmsttl06ksxm3aw4",
+  "network": "regtest",
+  "encrypted_mnemonic": {
+    "ciphertext": "7a65bebf08d5447c6202538f9cf1a2abe29453d986623215c3ae5189f58c5cd16dd87c2c8ab70bb811",
+    "nonce": "6a0da846c0da63ab8e7958ab",
+    "salt": "d1fde425a9773a8444fcd2658a80091e8208642a761f2dc0905ce8fa19372c97"
+  },
+  "encrypted_private_key": {
+    "ciphertext": "b10a689dcb6ce69966e01bfb9e977a6c28795f28066f8c4f6fc67492a6bed018369f96c183437896f32054f15859c299ed3b4ed63b22eefd4921b4d0ff95ddf19e9692360824734515dfd67f2e02506f",
+    "nonce": "08ca4f288a7b662127223674",
+    "salt": "ee817f29db226384875118be5a1129c0e8a098520d4528d7fc64d497d3a5b556"
+  },
+  "created_at": "2025-08-20T03:50:01.984886375+00:00",
+  "encryption_method": "aes256_gcm_argon2_secure",
+  "data_format": "separate_encrypted_fields",
+  "imported": true,
+  "import_method": "private_key_import"
+}
