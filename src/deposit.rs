@@ -1,6 +1,5 @@
 // Deposit-related commands and logic for Clementine CLI
 
-use crate::EVMAddress;
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{
     calculate_deposit_address, confirm_private_key_storage, generate_key_and_taproot_address,
@@ -9,26 +8,37 @@ use crate::bitcoin_utils::{
     generate_keypair_and_taproot_address_from_private_key,
     sign_recovery_tx as utils_sign_recovery_tx,
 };
+use crate::config::CliConfig;
+use crate::parameters::get_citrea_deposit_params;
 use crate::storage::load_key;
 use crate::storage::store_key;
+use crate::withdrawal::{get_tx_details, get_txout_details};
+
+use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
-use bitcoin::{Address, Network, address::NetworkUnchecked};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
+use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
 use std::str::FromStr;
+
+pub fn parse_address(
+    address: &str,
+    network: Network,
+) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
+        .parse()
+        .map_err(|_| "Invalid Bitcoin address format")?;
+    let address = unchecked_address.require_network(network)?;
+    Ok(address)
+}
 
 /// Parse and validate taproot address for the specified network
 pub fn parse_taproot_address(
     address: &str,
     network: Network,
-) -> Result<Address, Box<dyn std::error::Error>> {
-    // Parse the address
-    let unchecked_address: Address<NetworkUnchecked> = address
-        .parse()
-        .map_err(|_| "Invalid Bitcoin address format")?;
-
-    let address = unchecked_address.require_network(network)?;
+) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+    let address = parse_address(address, network)?;
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
@@ -74,19 +84,24 @@ pub fn generate_recovery_key(
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    network: Network,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let citrea_address = EVMAddress::try_from(citrea_address)?;
-    let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, network)?;
+    let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
+    println!(
+        "{} {}",
+        "CITREA_ADDRESS (checksummed)".green().bold(),
+        citrea_address,
+    );
+    let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, config.network)?;
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address, network)?;
+        create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
 
     println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
     let (calculated_deposit_address, _) =
-        calculate_deposit_address(&citrea_address, &recovery_taproot_address, network)?;
+        calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
@@ -98,26 +113,55 @@ pub fn get_deposit_address(
     Ok(())
 }
 
+pub async fn get_deposit_params(
+    move_to_vault_txid: &str,
+    config: &CliConfig,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
+    // 2. Get the prepare tx details
+    let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
+        get_tx_details(&move_to_vault_txid, config).await?;
+
+    let move_to_vault_txout = get_txout_details(
+        config,
+        &move_to_vault_tx.input[0].previous_output.txid,
+        move_to_vault_tx.input[0].previous_output.vout,
+    )
+    .await?;
+
+    let deposit_params = get_citrea_deposit_params(
+        move_to_vault_txout,
+        &move_to_vault_tx,
+        &move_to_vault_block,
+        move_to_vault_block_height,
+    )?;
+
+    println!("{}", "Encoded deposit params:".blue().bold());
+    println!("{}", hex::encode(deposit_params));
+
+    Ok(())
+}
+
 #[allow(clippy::too_many_arguments)]
 pub fn sign_recovery_tx(
-    evm_address: &str,
+    citrea_address: &str,
     recovery_taproot_address: &str,
     deposit_txid: &str,
     deposit_vout: u32,
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    network: Network,
+    config: &CliConfig,
 ) -> Result<(), Box<dyn std::error::Error>> {
-    let evm_addr = EVMAddress::try_from(evm_address)?;
-    let recovery_addr = parse_taproot_address(recovery_taproot_address, network)?;
-    let claim_addr = Address::from_str(claim_address)?.require_network(network)?;
+    let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
+    let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
+    let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
     let txid = Txid::from_str(deposit_txid)?;
     let outpoint = OutPoint {
         txid,
         vout: deposit_vout,
     };
-    let keypair = load_key(recovery_taproot_address, network, None)?;
+    let keypair = load_key(recovery_taproot_address, config.network, None)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -128,13 +172,13 @@ pub fn sign_recovery_tx(
     let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
     let signed_tx = utils_sign_recovery_tx(
         &keypair,
-        &evm_addr,
+        &citrea_addr,
         &recovery_addr,
         &outpoint,
         deposit_amount,
         &claim_addr,
         fee_rate_opt,
-        network,
+        config,
     )?;
     println!(
         "Signed Recovery Transaction: {}",
@@ -146,19 +190,19 @@ pub fn sign_recovery_tx(
 #[allow(clippy::too_many_arguments)]
 pub fn verify_recovery_tx(
     recovery_tx: &str,
-    evm_address: &str,
+    citrea_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    network: Network,
-) -> Result<(Txid, Address, Amount), Box<dyn std::error::Error>> {
+    config: &CliConfig,
+) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         &recovery_tx,
-        &EVMAddress::try_from(evm_address)?,
-        &parse_taproot_address(recovery_taproot_address, network)?,
+        &parse_citrea_address(citrea_address)?,
+        &parse_taproot_address(recovery_taproot_address, config.network)?,
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
-        network,
+        config,
     )?;
 
     println!(
@@ -175,8 +219,6 @@ pub fn verify_recovery_tx(
 
     Ok((txid, address, amount))
 }
-
-// TODO: Implement deposit.deposit_status
 
 #[cfg(test)]
 mod tests {

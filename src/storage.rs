@@ -1,18 +1,20 @@
 // Key storage functionality for Clementine CLI
 
+use bitcoin::Network;
 use bitcoin::secp256k1::Keypair;
-use bitcoin::{Address, Network};
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+
+use crate::BitcoinAddress;
 
 /// Store a keypair and its corresponding taproot address
 pub fn store_key(
     keypair: &Keypair,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<Address, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
         return Err("Passphrase encryption is not yet implemented".into());
@@ -25,7 +27,7 @@ pub fn store_key(
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    // Store the keypair in plaintext (TODO: implement encryption)
+    // Store the keypair in plaintext (see #12)
     let key_file = storage_dir.join(format!("key_{}.json", address));
     let key_data = serde_json::json!({
         "network": network.to_string(),
@@ -34,7 +36,16 @@ pub fn store_key(
         "public_key": keypair.public_key().to_string(),
         "stored_at": chrono::Utc::now().to_rfc3339()
     });
-    fs::write(key_file, serde_json::to_string_pretty(&key_data)?)?;
+    fs::write(&key_file, serde_json::to_string_pretty(&key_data)?)?;
+
+    // Set file permissions to 700 (rwx------)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&key_file)?.permissions();
+        perms.set_mode(0o700);
+        fs::set_permissions(&key_file, perms)?;
+    }
 
     // Store address in plaintext for easy lookup
     let address_file = storage_dir.join("addresses.json");
@@ -77,7 +88,8 @@ pub fn load_key(
     }
 
     // Parse the address to validate it
-    let unchecked_address: Address<bitcoin::address::NetworkUnchecked> = taproot_address.parse()?;
+    let unchecked_address: BitcoinAddress<bitcoin::address::NetworkUnchecked> =
+        taproot_address.parse()?;
     let address = unchecked_address.assume_checked();
 
     // Load the keypair from storage
