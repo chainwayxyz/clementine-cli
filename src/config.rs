@@ -44,7 +44,7 @@ impl CliConfig {
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> Result<Self, std::io::Error> {
+    pub fn try_parse_file(path: PathBuf) -> Result<Self, anyhow::Error> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
@@ -55,11 +55,8 @@ impl CliConfig {
 
     /// Try to parse a [`CliConfig`] from given TOML formatted string and
     /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> Result<Self, std::io::Error> {
-        match toml::from_str::<Self>(&input) {
-            Ok(c) => Ok(c),
-            Err(e) => Err(std::io::Error::other(e)),
-        }
+    pub fn try_parse_from(input: String) -> Result<Self, anyhow::Error> {
+        toml::from_str::<Self>(&input).map_err(|e| anyhow!("Failed to parse config: {}", e))
     }
 
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, anyhow::Error> {

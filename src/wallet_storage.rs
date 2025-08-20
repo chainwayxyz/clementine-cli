@@ -30,7 +30,7 @@ pub fn store_wallet_data(
     imported: bool,
     import_method: Option<&str>,
 ) -> Result<(), anyhow::Error> {
-    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
@@ -80,7 +80,7 @@ pub fn update_wallets_registry(
     imported: bool,
     import_method: Option<&str>,
 ) -> Result<(), anyhow::Error> {
-    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
     let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
@@ -111,7 +111,7 @@ pub fn update_wallets_registry(
 
 /// Load generic wallet data from file
 pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, anyhow::Error> {
-    let storage_dir = get_storage_dir().map_err(|e| anyhow::Error::msg(e.to_string()))?;
+    let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
     if !wallet_file.exists() {
