@@ -364,6 +364,7 @@ pub fn verify_wallet_integrity() -> Result<(), anyhow::Error> {
 /// Helper function to parse network string into Network enum
 fn parse_network(network_str: &str) -> Network {
     match network_str {
+        "testnet4" => Network::Testnet4,
         "testnet" => Network::Testnet,
         "regtest" => Network::Regtest,
         "signet" => Network::Signet,
