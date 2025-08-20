@@ -1,6 +1,6 @@
 use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
-use rand::{RngCore, rng};
+use rand::rngs::OsRng;
 use secrecy::ExposeSecret;
 
 use zeroize::Zeroize;
@@ -21,17 +21,11 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
 }
 
 pub fn generate_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
-    const ENTROPY_BITS: usize = 128; // 128 bits of entropy for 12-word mnemonic
-
-    let mut entropy = vec![0u8; ENTROPY_BITS / 8];
-    rng().fill_bytes(&mut entropy);
-
-    let mut mnemonic = Mnemonic::from_entropy_in(Language::English, &entropy)?;
+    let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)?;
 
     let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
 
     mnemonic.zeroize();
-    entropy.zeroize();
 
     Ok(safe_mnemonic)
 }

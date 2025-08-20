@@ -1,7 +1,7 @@
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use anyhow::anyhow;
-use rand::{RngCore, rng};
+use getrandom;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -35,8 +35,8 @@ pub fn aes_encrypt_secure(
 ) -> Result<EncryptedData, anyhow::Error> {
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
-    rng().fill_bytes(&mut salt);
-    rng().fill_bytes(&mut nonce_bytes);
+    getrandom::fill(&mut salt).map_err(|e| anyhow!("Failed to generate random salt: {}", e))?;
+    getrandom::fill(&mut nonce_bytes).map_err(|e| anyhow!("Failed to generate random nonce: {}", e))?;
 
     let secure_key = derive_key_from_passphrase(
         &secure_passphrase,
