@@ -242,20 +242,20 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 .map_err(|e| eyre!("Failed to poll for input: {}", e))?
             {
                 let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
-                if let Event::Key(key_event) = event {
-                    if key_event.kind == KeyEventKind::Press {
-                        match key_event.code {
-                            KeyCode::Enter => {
-                                // User pressed Enter, proceed to next word
-                                return Ok(());
-                            }
-                            KeyCode::Esc => {
-                                return Err(eyre!("User cancelled mnemonic display"));
-                            }
-                            _ => {
-                                // Ignore other keys
-                                continue;
-                            }
+                if let Event::Key(key_event) = event
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    match key_event.code {
+                        KeyCode::Enter => {
+                            // User pressed Enter, proceed to next word
+                            return Ok(());
+                        }
+                        KeyCode::Esc => {
+                            return Err(eyre!("User cancelled mnemonic display"));
+                        }
+                        _ => {
+                            // Ignore other keys
+                            continue;
                         }
                     }
                 }
@@ -314,10 +314,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 .map_err(|e| eyre!("Failed to poll for input: {}", e))?
             {
                 let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
-                if let Event::Key(key_event) = event {
-                    if key_event.kind == KeyEventKind::Press {
-                        return Ok(());
-                    }
+                if let Event::Key(key_event) = event
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    return Ok(());
                 }
             }
         }
@@ -593,10 +593,10 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
 
         if poll(Duration::from_millis(100))? {
             let event = event::read()?;
-            if let Event::Key(key_event) = event {
-                if key_event.kind == KeyEventKind::Press {
-                    break;
-                }
+            if let Event::Key(key_event) = event
+                && key_event.kind == KeyEventKind::Press
+            {
+                break;
             }
         }
     }
