@@ -11,8 +11,8 @@ use serde_json::json;
 pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: &CliConfig,
-) -> Result<BitcoinAddress> {
+    config: &BridgeCliConfig,
+) -> Result<BitcoinAddress, BridgeCliError> {
     let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
 
     // Prepare request body
@@ -50,6 +50,7 @@ pub fn create_deposit_account(
         // parse the json and get the taproot_addr and parse it to an address
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
         let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
+
         Ok(taproot_addr)
     } else {
         let status = response.status();
@@ -57,8 +58,12 @@ pub fn create_deposit_account(
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
-        Err(eyre!(
-            "Backend request failed with status: {status} {error_text}",
-        ))
+
+        Err(eyre::eyre!(
+            "Backend request failed with status: {} {}",
+            status,
+            error_text
+        )
+        .into())
     }
 }
