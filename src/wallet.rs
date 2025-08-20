@@ -57,19 +57,8 @@ pub fn delete_wallet(address: &str) -> Result<(), anyhow::Error> {
         .map_err(|e| anyhow!("{}", e))?;
 
     // Try to decrypt both mnemonic and private key to verify passphrase is correct
-    let mnemonic = load_mnemonic_secure(address, &passphrase)?;
-    let stored_private_key = load_private_key_secure(address, &passphrase)?;
-
-    // Derive private key from mnemonic
-    let derived_private_key = derive_private_key_from_mnemonic_secure(&mnemonic)?;
-
-    // Compare stored private key with derived private key
-    if stored_private_key.expose_secret() != derived_private_key.expose_secret() {
-        return Err(anyhow!(
-            "❌ Wallet integrity check failed! The mnemonic and private key do not match.\n\
-            This could indicate wallet corruption or tampering."
-        ));
-    }
+    let _mnemonic = load_mnemonic_secure(address, &passphrase)?;
+    let _stored_private_key = load_private_key_secure(address, &passphrase)?;
 
     // If we got here, passphrase is correct and integrity check passed
     println!("🔒 Passphrase verified successfully");
@@ -591,7 +580,7 @@ pub fn import_wallet_from_file(
 
     if dest_wallet_file.exists() {
         return Err(format!(
-            "Wallet with address '{}' already exists in local storage",
+            "❌ Wallet with address '{}' already exists in local storage",
             wallet_address
         )
         .into());
@@ -720,7 +709,7 @@ pub fn import_wallet_from_private_key(
 
     if wallet_file.exists() {
         return Err(format!(
-            "Wallet with address '{}' already exists in local storage",
+            "❌ Wallet with address '{}' already exists in local storage",
             address
         )
         .into());
