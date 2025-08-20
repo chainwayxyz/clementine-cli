@@ -1,4 +1,3 @@
-use crate::debug;
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
 use alloy_sol_types::private;
 use alloy_sol_types::{SolCall, sol};
@@ -54,7 +53,7 @@ pub fn encode_citrea_deposit_params(
 
     // Return the encoded calldata (without the function selector)
     let data = call.abi_encode();
-    debug!("data: {:?}", data);
+    tracing::debug!("data: {:?}", data);
     data[4..].to_vec()
 }
 

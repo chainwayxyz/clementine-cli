@@ -81,13 +81,10 @@ pub fn store_key(
 
     fs::write(address_file, serde_json::to_string_pretty(&addresses)?)?;
 
-    debug!("{} Key stored successfully", "SUCCESS".green().bold());
-    debug!("{} {}", "ADDRESS".cyan().bold(), address);
-    debug!("{} {}", "NETWORK".blue().bold(), network);
-    debug!(
-        "{} Key stored in plaintext (no encryption)",
-        "WARNING".yellow().bold()
-    );
+    tracing::info!("Key stored successfully");
+    tracing::debug!("Address: {}", address);
+    tracing::debug!("Network: {}", network);
+    tracing::warn!("Key stored in plaintext (no encryption)",);
 
     Ok(address)
 }
@@ -125,13 +122,10 @@ pub fn load_key(
     let secret_key = bitcoin::secp256k1::SecretKey::from_str(private_key_str)?;
     let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &secret_key);
 
-    debug!("{} Key loaded successfully", "SUCCESS".green().bold());
-    debug!("{} {}", "ADDRESS".cyan().bold(), address);
-    debug!("{} {}", "NETWORK".blue().bold(), network);
-    debug!(
-        "{} Key loaded from plaintext storage",
-        "WARNING".yellow().bold()
-    );
+    tracing::info!("Key loaded successfully");
+    tracing::debug!("Address: {}", address);
+    tracing::debug!("Network: {}", network);
+    tracing::warn!("Key loaded from plaintext storage");
 
     Ok(keypair)
 }

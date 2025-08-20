@@ -1,7 +1,5 @@
 use clap::{Parser, Subcommand};
-use clementine_cli::{
-    config::BridgeCliConfig, debug, deposit, utils::initialize_logger, withdrawal,
-};
+use clementine_cli::{config::BridgeCliConfig, deposit, utils::initialize_logger, withdrawal};
 use std::path::PathBuf;
 use tracing::level_filters::LevelFilter;
 
@@ -126,19 +124,21 @@ async fn main() {
     let cli = Cli::parse();
 
     let level_filter = if cli.verbose {
-        Some(LevelFilter::INFO)
+        Some(LevelFilter::DEBUG)
     } else {
         None
     };
     initialize_logger(level_filter).unwrap();
 
     let config = if let Some(config_file_path) = cli.config_file {
-        debug!("Config file {config_file_path:?} is going to be used...");
+        tracing::debug!("Config file {config_file_path:?} is going to be used...");
         BridgeCliConfig::try_parse_file(config_file_path).unwrap()
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
-        debug!("No config file given, looking for the current directory: {current_dir:?}...");
+        tracing::debug!(
+            "No config file given, looking for the current directory: {current_dir:?}..."
+        );
         BridgeCliConfig::try_parse_file(current_dir).unwrap()
     };
 

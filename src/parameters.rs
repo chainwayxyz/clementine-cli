@@ -275,7 +275,7 @@ pub fn get_citrea_safe_withdraw_params(
         .copied()
         .collect::<Vec<u8>>();
 
-    debug!(
+    tracing::debug!(
         "{:#?}",
         (
             prepare_tx_struct.clone(),

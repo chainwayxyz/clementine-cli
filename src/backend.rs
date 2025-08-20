@@ -21,8 +21,8 @@ pub fn create_deposit_account(
         "recovery_taproot_addr": recovery_taproot_address.to_string()
     });
 
-    debug!("Making request to: {}", url);
-    debug!(
+    tracing::debug!("Making request to: {}", url);
+    tracing::debug!(
         "Request body: {}",
         serde_json::to_string_pretty(&request_body)?
     );
@@ -39,11 +39,11 @@ pub fn create_deposit_account(
 
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json()?;
-        println!(
+        tracing::info!(
             "{} Deposit address request successful",
             "SUCCESS".green().bold(),
         );
-        debug!(
+        tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
         );
@@ -57,7 +57,7 @@ pub fn create_deposit_account(
         let error_text = response.text()?;
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
-        debug!("Error response: {}", error_text);
+        tracing::debug!("Error response: {}", error_text);
 
         Err(eyre::eyre!(
             "Backend request failed with status: {} {}",
