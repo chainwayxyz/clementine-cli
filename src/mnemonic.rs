@@ -136,14 +136,6 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
             println!("Invalid word entered. Please try again.");
             println!("Hint: Words should be lowercase English BIP-39 words.");
         }
-
-        // Safety check - prevent extremely long inputs
-        if words.len() != MNEMONIC_WORD_COUNT {
-            return Err(anyhow!(
-                "Too many words entered. This wallet only supports {}-word mnemonics.",
-                MNEMONIC_WORD_COUNT
-            ));
-        }
     }
 
     // Validate final mnemonic length

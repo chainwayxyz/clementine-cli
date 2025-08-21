@@ -27,14 +27,14 @@ pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
 
     // Check if wallet exists
     if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+        return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
 
     // Load wallet data to verify it exists and get the address
     let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
     let address = wallet_data["address"]
         .as_str()
-        .ok_or_else(|| anyhow!("Invalid wallet file: missing address field"))?;
+        .ok_or_else(|| eyre!("Invalid wallet file: missing address field"))?;
 
     println!("{}", "Wallet Deletion".red().bold());
     println!(
