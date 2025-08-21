@@ -101,8 +101,10 @@ pub fn aes_encrypt_secure(
     // Generate fresh random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
-    getrandom::fill(&mut salt).map_err(|e| BridgeCliError::RandomSaltGenerationError(e.to_string()))?;
-    getrandom::fill(&mut nonce_bytes).map_err(|e| BridgeCliError::RandomNonceGenerationError(e.to_string()))?;
+    getrandom::fill(&mut salt)
+        .map_err(|e| BridgeCliError::RandomSaltGenerationError(e.to_string()))?;
+    getrandom::fill(&mut nonce_bytes)
+        .map_err(|e| BridgeCliError::RandomNonceGenerationError(e.to_string()))?;
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
@@ -154,8 +156,8 @@ pub fn aes_decrypt_secure(
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
         .map_err(|e| BridgeCliError::DecryptionError(e.to_string()))?;
 
-    let plaintext_string =
-        String::from_utf8(plaintext.clone()).map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
+    let plaintext_string = String::from_utf8(plaintext.clone())
+        .map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
     plaintext.zeroize();

@@ -613,13 +613,11 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
             // Basic validation: should have words separated by spaces
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
-                return Err(BridgeCliError::MnemonicParseError(
-                    format!(
-                        "Invalid mnemonic length: expected {} words, got {}",
-                        MNEMONIC_WORD_COUNT,
-                        words.len()
-                    ),
-                ));
+                return Err(BridgeCliError::MnemonicParseError(format!(
+                    "Invalid mnemonic length: expected {} words, got {}",
+                    MNEMONIC_WORD_COUNT,
+                    words.len()
+                )));
             }
 
             // Validate wallet data based on import type
