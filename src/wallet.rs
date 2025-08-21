@@ -15,7 +15,7 @@ use crate::mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
     prompt_mnemonic_secure,
 };
-use crate::passphrase::prompt_unlock_passphrase;
+use crate::passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
 use crate::wallet_storage::get_storage_dir;
@@ -33,13 +33,10 @@ pub fn create_encrypted_wallet_with_address(
     let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
-    println!("Generated address: {}", address.green());
-
     // Prompt for passphrase
-    let passphrase = get_validated_passphrase("Enter passphrase to encrypt the wallet: ", true)?;
+    let passphrase = prompt_passphrase(true)?;
 
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
+    println!("Generated address: {}", address.green());
 
     // Encrypt mnemonic and private key separately with different nonces
     let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
@@ -235,10 +232,8 @@ pub fn import_wallet_from_mnemonic(
     // Securely prompt for passphrase
     println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
     println!("Enter a strong passphrase to encrypt your imported wallet:");
-    let passphrase = get_validated_passphrase("Passphrase: ", true)?;
+    let passphrase = prompt_passphrase(false)?;
 
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
     println!("Passphrase created successfully!");
     println!();
 
@@ -630,11 +625,7 @@ pub fn import_wallet_from_private_key(
         return Err(BridgeCliError::WalletAlreadyExists(address.to_string()));
     }
 
-    let passphrase =
-        get_validated_passphrase("Enter passphrase to encrypt the imported wallet: ", true)?;
-
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
+    let passphrase = prompt_passphrase(false)?;
 
     let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
 
@@ -774,59 +765,6 @@ fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
         "signet" => Ok(Network::Signet),
         "bitcoin" => Ok(Network::Bitcoin),
         _ => Err(BridgeCliError::UnsupportedNetwork),
-    }
-}
-
-/// Helper function to get a valid passphrase from user with validation
-fn get_validated_passphrase(
-    prompt: &str,
-    require_length: bool,
-) -> Result<SecureString, BridgeCliError> {
-    loop {
-        print!("{}", prompt);
-        io::stdout().flush()?;
-        let passphrase_input = rpassword::read_password()?;
-
-        if passphrase_input.is_empty() {
-            println!("Passphrase cannot be empty for security reasons");
-            continue;
-        }
-
-        if require_length && passphrase_input.len() < 8 {
-            println!("Passphrase must be at least 8 characters long for security");
-            continue;
-        }
-
-        return Ok(SecureString::init_with(|| passphrase_input));
-    }
-}
-
-/// Helper function to securely confirm passphrases without exposing secrets
-fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliError> {
-    loop {
-        print!("Confirm passphrase: ");
-        io::stdout().flush()?;
-        let mut confirm_input = rpassword::read_password()?;
-
-        // Use constant-time comparison to avoid timing attacks
-        let matches = {
-            let passphrase_bytes = passphrase.expose_secret().as_bytes();
-            let confirm_bytes = confirm_input.as_bytes();
-
-            use subtle::ConstantTimeEq;
-            if passphrase_bytes.len() != confirm_bytes.len() {
-                false
-            } else {
-                passphrase_bytes.ct_eq(confirm_bytes).into()
-            }
-        };
-
-        // Immediately zeroize the confirmation input
-        confirm_input.zeroize();
-
-        if matches {
-            return Ok(());
-        }
     }
 }
 
