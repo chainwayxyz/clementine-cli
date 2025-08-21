@@ -6,7 +6,10 @@ use bitcoin::{
 
 use crate::CitreaAddress;
 
-pub(crate) fn recover_script(recovery_taproot_address: XOnlyPublicKey, timelock_amount: u64) -> ScriptBuf {
+pub(crate) fn recover_script(
+    recovery_taproot_address: XOnlyPublicKey,
+    timelock_amount: u64,
+) -> ScriptBuf {
     Builder::new()
         .push_int(timelock_amount as i64)
         .push_opcode(OP_CSV)
@@ -16,7 +19,10 @@ pub(crate) fn recover_script(recovery_taproot_address: XOnlyPublicKey, timelock_
         .into_script()
 }
 
-pub(crate) fn deposit_script(citrea_address: CitreaAddress, nofn_xonly_pk: XOnlyPublicKey) -> ScriptBuf {
+pub(crate) fn deposit_script(
+    citrea_address: CitreaAddress,
+    nofn_xonly_pk: XOnlyPublicKey,
+) -> ScriptBuf {
     let citrea: [u8; 6] = "citrea".as_bytes().try_into().expect("length == 6");
 
     Builder::new()
