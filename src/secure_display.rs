@@ -1,5 +1,4 @@
 use crate::secure_structs::SecureString;
-use anyhow::{Result, anyhow};
 use bitcoin::secp256k1::SecretKey;
 use colored::*;
 use crossterm::{
@@ -9,6 +8,7 @@ use crossterm::{
     style::{Color, Print, SetForegroundColor},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
@@ -93,7 +93,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
-            .map_err(|e| anyhow!("Failed to read user input: {}", e))?;
+            .map_err(|e| eyre!("Failed to read user input: {}", e))?;
 
         Ok(())
     }
@@ -102,13 +102,11 @@ impl<'a> SecureMnemonicDisplay<'a> {
     fn enter_alternate_screen(&mut self) -> Result<()> {
         // Check if we're in a real terminal first
         if !self.is_alternate_screen_supported() {
-            return Err(anyhow!(
-                "Terminal does not support alternate screen features"
-            ));
+            return Err(eyre!("Terminal does not support alternate screen features"));
         }
 
         // Try to enable raw mode first (safer to fail here than after screen change)
-        terminal::enable_raw_mode().map_err(|e| anyhow!("Failed to enable raw mode: {}", e))?;
+        terminal::enable_raw_mode().map_err(|e| eyre!("Failed to enable raw mode: {}", e))?;
 
         // Only enter alternate screen if raw mode worked
         match execute!(io::stdout(), EnterAlternateScreen) {
@@ -119,7 +117,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Err(e) => {
                 // Clean up raw mode if alternate screen failed
                 let _ = terminal::disable_raw_mode();
-                Err(anyhow!("Failed to enter alternate screen: {}", e))
+                Err(eyre!("Failed to enter alternate screen: {}", e))
             }
         }
     }
@@ -156,7 +154,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             terminal::Clear(terminal::ClearType::All),
             cursor::MoveTo(0, 0)
         )
-        .map_err(|e| anyhow!("Failed to clear screen: {}", e))?;
+        .map_err(|e| eyre!("Failed to clear screen: {}", e))?;
         Ok(())
     }
 
@@ -172,7 +170,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to display header: {}", e))?;
+        .map_err(|e| eyre!("Failed to display header: {}", e))?;
         Ok(())
     }
 
@@ -211,11 +209,11 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 ),
                 SetForegroundColor(Color::Reset)
             )
-            .map_err(|e| anyhow!("Failed to display word {}: {}", word_num, e))?;
+            .map_err(|e| eyre!("Failed to display word {}: {}", word_num, e))?;
 
             // Wait for user input or timeout (30 seconds per word)
             if let Err(e) = self.wait_for_word_confirmation() {
-                return Err(anyhow!("Error during word display: {}", e));
+                return Err(eyre!("Error during word display: {}", e));
             }
         }
 
@@ -241,22 +239,24 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
             // Check for user input with a short timeout
             if poll(Duration::from_millis(100))
-                .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
-                && key_event.kind == KeyEventKind::Press
+                .map_err(|e| eyre!("Failed to poll for input: {}", e))?
             {
-                match key_event.code {
-                    KeyCode::Enter => {
-                        // User pressed Enter, proceed to next word
-                        return Ok(());
-                    }
-                    KeyCode::Esc => {
-                        return Err(anyhow!("User cancelled mnemonic display"));
-                    }
-                    _ => {
-                        // Ignore other keys
-                        continue;
+                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
+                if let Event::Key(key_event) = event
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    match key_event.code {
+                        KeyCode::Enter => {
+                            // User pressed Enter, proceed to next word
+                            return Ok(());
+                        }
+                        KeyCode::Esc => {
+                            return Err(eyre!("User cancelled mnemonic display"));
+                        }
+                        _ => {
+                            // Ignore other keys
+                            continue;
+                        }
                     }
                 }
             }
@@ -277,7 +277,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("| Press Enter to continue immediately | Press ESC to cancel"),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to update word countdown: {}", e))?;
+        .map_err(|e| eyre!("Failed to update word countdown: {}", e))?;
 
         Ok(())
     }
@@ -306,17 +306,19 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("\r\nPress any key to exit..."),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to display completion message: {}", e))?;
+        .map_err(|e| eyre!("Failed to display completion message: {}", e))?;
 
         // Wait for final confirmation
         loop {
             if poll(Duration::from_millis(100))
-                .map_err(|e| anyhow!("Failed to poll for input: {}", e))?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| anyhow!("Failed to read user input: {}", e))?
-                && key_event.kind == KeyEventKind::Press
+                .map_err(|e| eyre!("Failed to poll for input: {}", e))?
             {
-                return Ok(());
+                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
+                if let Event::Key(key_event) = event
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    return Ok(());
+                }
             }
         }
     }
@@ -392,7 +394,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
             // Wait for user input or timeout for each word
             if let Err(e) = self.fallback_word_timeout_wait() {
-                return Err(anyhow!("Error during word display: {}", e));
+                return Err(eyre!("Error during word display: {}", e));
             }
         }
 
@@ -412,7 +414,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         let mut input = String::new();
         io::stdin()
             .read_line(&mut input)
-            .map_err(|e| anyhow!("Failed to read user input: {}", e))?;
+            .map_err(|e| eyre!("Failed to read user input: {}", e))?;
 
         Ok(())
     }
@@ -426,7 +428,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         print!("Press Enter to continue... ");
         io::stdout()
             .flush()
-            .map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
+            .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
 
         // Use a separate thread to handle the timeout
         let (tx, rx) = std::sync::mpsc::channel();
@@ -473,7 +475,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             print!("\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... ");
             io::stdout()
                 .flush()
-                .map_err(|e| anyhow!("Failed to flush stdout: {}", e))?;
+                .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
 
             std::thread::sleep(Duration::from_millis(1000));
         }
@@ -557,7 +559,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         Print(format!("   {}\r\n\r\n", private_key.display_secret())),
         SetForegroundColor(Color::Red),
         Print("⚠️  WARNING: Anyone with this private key can access your funds!\r\n"),
-        Print("⚠️  Never share this key or store it in unsecure locations!\r\n\r\n"),
+        Print("⚠️  Never share this key or store it in insecure locations!\r\n\r\n"),
         SetForegroundColor(Color::Green),
         Print("Press any key to clear and exit (auto-close in 30 seconds)..."),
         SetForegroundColor(Color::Reset)
@@ -589,11 +591,13 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
             SetForegroundColor(Color::Reset)
         )?;
 
-        if poll(Duration::from_millis(100))?
-            && let Event::Key(key_event) = event::read()?
-            && key_event.kind == KeyEventKind::Press
-        {
-            break;
+        if poll(Duration::from_millis(100))? {
+            let event = event::read()?;
+            if let Event::Key(key_event) = event
+                && key_event.kind == KeyEventKind::Press
+            {
+                break;
+            }
         }
     }
 
@@ -607,7 +611,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     println!();
     println!("{}", "⚠️  CRITICAL SECURITY WARNING ⚠️".red().bold());
     println!("Anyone with this private key can access your funds!");
-    println!("Never share this key or store it in unsecure locations!");
+    println!("Never share this key or store it in insecure locations!");
     println!();
     println!("{}", "Private Key:".cyan().bold());
     println!("   {}", private_key.display_secret());

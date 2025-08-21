@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    config::CliConfig,
+    config::BridgeCliConfig,
     debug, deposit,
     mnemonic::show_mnemonic_secure,
     wallet::{
@@ -16,7 +16,7 @@ use clementine_cli::{
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
 struct Cli {
-    /// Path to config file. If not given, current directory will be searched for the cli_config.toml file
+    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
     #[arg(long)]
     config_file: Option<PathBuf>,
 
@@ -165,12 +165,12 @@ async fn main() {
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
-        CliConfig::try_parse_file(config_file_path).unwrap()
+        BridgeCliConfig::try_parse_file(config_file_path).unwrap()
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
-        current_dir.push("cli_config.toml");
+        current_dir.push("bridge_cli_config.toml");
         debug!("No config file given, looking for the current directory: {current_dir:?}...");
-        CliConfig::try_parse_file(current_dir).unwrap()
+        BridgeCliConfig::try_parse_file(current_dir).unwrap()
     };
 
     match cli.command {
