@@ -8,21 +8,20 @@ pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, Bridg
     Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
 }
 
-pub fn initialize_logger(level: Option<LevelFilter>) -> Result<(), BridgeCliError> {
+pub fn initialize_logger(level: Option<LevelFilter>) {
     let filter = match level {
         Some(lvl) => EnvFilter::builder()
             .with_default_directive(lvl.into())
             .from_env_lossy(),
-        None => EnvFilter::from_default_env(),
+        None => EnvFilter::builder()
+            .with_default_directive(LevelFilter::OFF.into())
+            .from_env_lossy(),
     };
 
     let standard_layer = fmt::layer()
         .with_test_writer()
-        // .with_timer(time::UtcTime::rfc_3339())
         .with_file(true)
         .with_line_number(true)
-        // To see how long each span takes, uncomment this.
-        // .with_span_events(FmtSpan::CLOSE)
         .with_target(true);
 
     let _ = tracing::subscriber::set_global_default(
@@ -30,6 +29,4 @@ pub fn initialize_logger(level: Option<LevelFilter>) -> Result<(), BridgeCliErro
             .with(standard_layer)
             .with(filter),
     );
-
-    Ok(())
 }

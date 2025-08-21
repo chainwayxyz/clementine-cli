@@ -130,7 +130,7 @@ async fn main() {
     } else {
         None
     };
-    initialize_logger(level_filter).unwrap();
+    initialize_logger(level_filter);
 
     let config = if let Some(config_file_path) = cli.config_file {
         tracing::debug!("Config file {config_file_path:?} is going to be used...");
