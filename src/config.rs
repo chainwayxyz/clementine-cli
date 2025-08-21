@@ -161,7 +161,6 @@ impl BridgeCliConfig {
             Network::Testnet | Network::Testnet4 => "https://citrea.xyz/withdrawal/sign", // #43
             Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign",
             Network::Regtest => "http://127.0.0.1:12345",
-            _ => unimplemented!(),
         }
     }
 }
