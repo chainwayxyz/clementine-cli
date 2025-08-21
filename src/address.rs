@@ -72,7 +72,7 @@ pub fn extract_address_from_wallet(
 }
 
 /// Helper function to process a wallet file and extract its address
-fn process_wallet_file(file_path: &std::path::Path, file_name: &str) -> Option<String> {
+fn process_wallet_file(file_path: &std::path::Path) -> Option<String> {
     use std::fs;
 
     let wallet_content = fs::read_to_string(file_path).ok()?;
@@ -81,6 +81,10 @@ fn process_wallet_file(file_path: &std::path::Path, file_name: &str) -> Option<S
     match extract_address_from_wallet(&wallet_data) {
         Ok(address) => Some(address),
         Err(e) => {
+            let file_name = file_path
+                .file_name()
+                .map(|n| n.to_string_lossy())
+                .unwrap_or_else(|| "unknown".into());
             eprintln!(
                 "Warning: Failed to extract address from {}: {}",
                 file_name, e
@@ -90,8 +94,8 @@ fn process_wallet_file(file_path: &std::path::Path, file_name: &str) -> Option<S
     }
 }
 
-/// Get all wallet addresses from storage and print them
-pub fn get_all_wallet_addresses() -> Result<(), BridgeCliError> {
+/// Get all wallets with their names and addresses from storage and print them
+pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     use std::fs;
 
     let storage_dir = crate::wallet_storage::get_storage_dir()
@@ -102,33 +106,41 @@ pub fn get_all_wallet_addresses() -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
-    let addresses: Vec<String> = fs::read_dir(&storage_dir)
+    let wallets: Vec<(String, String)> = fs::read_dir(&storage_dir)
         .map_err(|e| BridgeCliError::StorageReadError(e.to_string()))?
         .filter_map(|entry| entry.ok())
         .filter_map(|entry| {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            // Check if it's a wallet file (wallet_ADDRESS.json)
+            // Check if it's a wallet file (wallet_NAME.json)
             if file_name_str.starts_with("wallet_")
                 && file_name_str.ends_with(".json")
                 && file_name_str != "wallets.json"
             {
-                process_wallet_file(&entry.path(), &file_name_str)
+                // Extract wallet name from filename (remove "wallet_" prefix and ".json" suffix)
+                let wallet_name = file_name_str
+                    .strip_prefix("wallet_")
+                    .and_then(|s| s.strip_suffix(".json"))
+                    .unwrap_or(&file_name_str)
+                    .to_string();
+
+                // Get the address from the wallet file
+                process_wallet_file(&entry.path()).map(|address| (wallet_name, address))
             } else {
                 None
             }
         })
         .collect();
 
-    // Print the addresses
-    if addresses.is_empty() {
+    // Print the wallets with names and addresses
+    if wallets.is_empty() {
         println!("No wallets found in storage.");
     } else {
-        println!("Found {} wallet(s):", addresses.len());
+        println!("Found {} wallet(s):", wallets.len());
         println!();
-        for (index, address) in addresses.iter().enumerate() {
-            println!("{}. {}", index + 1, address);
+        for (index, (name, address)) in wallets.iter().enumerate() {
+            println!("{}. {} → {}", index + 1, name, address);
         }
     }
 

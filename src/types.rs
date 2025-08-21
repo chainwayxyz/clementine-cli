@@ -1,7 +1,8 @@
 use crate::debug;
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
-use alloy_sol_types::private;
-use alloy_sol_types::{SolCall, sol};
+use alloy::sol;
+use alloy::sol_types::SolCall;
+use alloy::sol_types::private;
 
 sol! {
     #[derive(Debug)]

@@ -4,14 +4,14 @@ use zeroize::Zeroize;
 
 use crate::encryption::aes_decrypt_secure;
 use crate::errors::BridgeCliError;
-use crate::passphrase::prompt_passphrase;
+use crate::passphrase::prompt_unlock_passphrase;
 use crate::secure_display::display_mnemonic_securely;
 use crate::secure_structs::SecureString;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
-    let passphrase = prompt_passphrase()?;
+    let passphrase = prompt_unlock_passphrase()?;
     let mnemonic = load_mnemonic_secure(address, &passphrase)?;
     display_mnemonic_securely(&mnemonic)?;
 
@@ -91,10 +91,15 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     use zeroize::Zeroize;
 
     println!("{}", "Secure Mnemonic Input".blue().bold());
-    println!("Enter your mnemonic phrase word by word.");
+    println!(
+        "Enter your {}-word mnemonic phrase word by word.",
+        MNEMONIC_WORD_COUNT
+    );
     println!("Each word will be validated against the BIP-39 wordlist.");
-    println!("Valid lengths: 12 words");
-    println!("Type 'done' when you've entered all words, or just press Enter on an empty line.");
+    println!(
+        "The system will automatically proceed after {} words are entered.",
+        MNEMONIC_WORD_COUNT
+    );
     println!();
 
     let mut words: Vec<String> = Vec::new();

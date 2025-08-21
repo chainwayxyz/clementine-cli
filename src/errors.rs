@@ -113,10 +113,6 @@ pub enum BridgeCliError {
     PrivateKeyEncryptionFailed(String),
     #[error("Failed to store wallet: {0}")]
     WalletStorageFailed(String),
-    #[error("Maximum attempts exceeded. Operation cancelled for security.")]
-    MaxAttemptsExceeded,
-    #[error("Maximum attempts exceeded for passphrase confirmation.")]
-    PassphraseConfirmationMaxAttemptsExceeded,
     #[error("Network mismatch: wallet is {0}, expected {1}")]
     NetworkMismatch(String, String),
     #[error("Invalid private key: {0}")]
