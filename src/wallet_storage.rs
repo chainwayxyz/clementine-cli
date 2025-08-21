@@ -20,6 +20,7 @@ pub struct GenericWalletData {
     pub import_method: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 /// Generic function to store encrypted wallet data
 pub fn store_wallet_data(
     address: &str,
@@ -29,13 +30,12 @@ pub fn store_wallet_data(
     data_format: &str,
     imported: bool,
     import_method: Option<&str>,
-    custom_filename: Option<&str>,
+    custom_filename: &str,
 ) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    let filename = custom_filename.unwrap_or(address);
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", filename));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", custom_filename));
 
     if wallet_file.exists() {
         return Err(BridgeCliError::WalletAlreadyExists(address.to_string()));
