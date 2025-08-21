@@ -81,7 +81,7 @@ pub(crate) fn derive_key_from_passphrase(
 }
 
 /// Prompt user for a passphrase with confirmation for new keys
-pub(crate) fn prompt_passphrase() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase protection:".blue().bold());
     println!("Enter a passphrase to encrypt your private key.");
 
@@ -97,13 +97,14 @@ pub(crate) fn prompt_passphrase() -> Result<SecureString, BridgeCliError> {
     }
 
     // Confirm passphrase
-    let mut confirm = rpassword::prompt_password("Confirm passphrase: ")?;
+    if confirm {
+        let mut confirm = rpassword::prompt_password("Confirm passphrase: ")?;
 
-    if passphrase != confirm {
-        return Err(BridgeCliError::PassphraseMismatch);
+        if passphrase != confirm {
+            return Err(BridgeCliError::PassphraseMismatch);
+        }
+        confirm.zeroize();
     }
-
-    confirm.zeroize(); // Clear confirmation from memory
 
     println!(
         "{} Private key will be encrypted with AES-256-GCM",
