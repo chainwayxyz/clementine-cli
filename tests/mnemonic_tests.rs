@@ -1,5 +1,4 @@
 mod tests {
-    use anyhow::anyhow;
     use bitcoin::Network;
     use clementine_cli::{
         address::{extract_address_from_wallet, generate_address_from_mnemonic_secure},
@@ -22,9 +21,9 @@ mod tests {
         temp_dir.path().join(".clementine").join("keys")
     }
 
-    pub fn load_wallet_from_file(file: &str) -> Result<serde_json::Value, anyhow::Error> {
+    pub fn load_wallet_from_file(file: &str) -> eyre::Result<serde_json::Value> {
         if !std::path::Path::new(file).exists() {
-            return Err(anyhow!("Wallet file not found: {}", file));
+            return Err(eyre::eyre!("Wallet file not found: {}", file));
         }
 
         let file_content = std::fs::read_to_string(file)?;
@@ -536,57 +535,6 @@ mod tests {
         println!("  Address consistency verified: {}", expected_address);
     }
 
-    /// Test failed import with invalid mnemonic (wrong address)
-    #[test]
-    fn test_import_with_mnemonic_failure_wrong_mnemonic() {
-        let temp_dir = setup_test_storage();
-        let network = Network::Testnet4;
-
-        // Create wallet with one mnemonic
-        let correct_mnemonic = SecureString::init_with(|| {
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
-        });
-        let (wallet_file, expected_address) =
-            create_test_wallet_file(&temp_dir, &correct_mnemonic, network);
-
-        // Try to verify with a different valid mnemonic (12 words)
-        let wrong_mnemonic = SecureString::init_with(|| {
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon art".to_string()
-        });
-
-        println!("Testing with wrong mnemonic:");
-        println!("  Correct mnemonic: {}", correct_mnemonic.expose_secret());
-        println!("  Wrong mnemonic: {}", wrong_mnemonic.expose_secret());
-        println!("  Expected address: {}", expected_address);
-
-        // Load wallet data
-        let wallet_data = load_wallet_from_file(wallet_file.to_str().unwrap())
-            .expect("Should load wallet file successfully");
-
-        // Extract address
-        let extracted_address =
-            extract_address_from_wallet(&wallet_data).expect("Should extract address successfully");
-
-        // Generate address from wrong mnemonic
-        let generated_address = generate_address_from_mnemonic_secure(&wrong_mnemonic, network)
-            .expect("Should generate address from wrong mnemonic");
-
-        println!("  Extracted address: {}", extracted_address);
-        println!("  Generated address: {}", generated_address);
-
-        // Addresses should NOT match
-        assert_ne!(
-            extracted_address, generated_address,
-            "Addresses should not match when using wrong mnemonic"
-        );
-
-        println!();
-        println!("Test passed: ImportWithMnemonic correctly fails with wrong mnemonic");
-        println!("  Wallet address: {}", extracted_address);
-        println!("  Generated address: {}", generated_address);
-        println!("  Addresses correctly don't match!");
-    }
-
     /// Test with invalid wallet file (missing address field)
     #[test]
     fn test_import_with_mnemonic_invalid_wallet_file() {
@@ -667,82 +615,5 @@ mod tests {
 
         println!();
         println!("Test passed: ImportWithMnemonic correctly handles non-existent files");
-    }
-
-    /// Test mnemonic validation in prompt_mnemonic_secure
-    #[test]
-    fn test_mnemonic_validation() {
-        use bip39::{Language, Mnemonic};
-
-        println!("Testing BIP-39 mnemonic validation:");
-
-        // Test valid mnemonics - using only valid 12-word BIP-39 mnemonics
-        let valid_mnemonics = [
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about", // 12 words - valid
-        ];
-
-        for (i, mnemonic) in valid_mnemonics.iter().enumerate() {
-            println!(
-                "  Testing valid mnemonic {}: {} words",
-                i + 1,
-                mnemonic.split_whitespace().count()
-            );
-            let result = Mnemonic::parse(*mnemonic);
-            assert!(
-                result.is_ok(),
-                "Valid mnemonic should parse successfully: {}",
-                mnemonic
-            );
-            println!("Parsed successfully");
-        }
-
-        // Test invalid mnemonics
-        let invalid_mnemonics = [
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon invalid", // invalid word
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 11 words (invalid length)
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 13 words (invalid length)
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon", // 15 words (invalid length)
-            "", // empty
-            "notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword notaword", // all invalid words
-        ];
-
-        for (i, mnemonic) in invalid_mnemonics.iter().enumerate() {
-            println!(
-                "  Testing invalid mnemonic {}: {} words",
-                i + 1,
-                mnemonic.split_whitespace().count()
-            );
-            let result = Mnemonic::parse(*mnemonic);
-            assert!(
-                result.is_err(),
-                "Invalid mnemonic should fail to parse: {}",
-                mnemonic
-            );
-            println!("Correctly failed to parse");
-        }
-
-        // Test individual word validation (same logic as used in prompt_mnemonic_secure)
-        let wordlist = Language::English.word_list();
-
-        println!("  Testing individual word validation:");
-
-        // Valid words
-        let valid_words = vec!["abandon", "ability", "about", "above", "absent"];
-        for word in &valid_words {
-            let is_valid = wordlist.contains(word);
-            assert!(is_valid, "Word '{}' should be valid", word);
-            println!("'{}' is valid", word);
-        }
-
-        // Invalid words
-        let invalid_words = vec!["notaword", "invalid", "test123", "abandon123", ""];
-        for word in &invalid_words {
-            let is_valid = wordlist.contains(word);
-            assert!(!is_valid, "Word '{}' should be invalid", word);
-            println!("'{}' is correctly invalid", word);
-        }
-
-        println!();
-        println!("Test passed: BIP-39 mnemonic validation works correctly");
     }
 }

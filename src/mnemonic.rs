@@ -1,17 +1,16 @@
-use anyhow::anyhow;
 use bip39::{Language, Mnemonic};
 use secrecy::ExposeSecret;
-
 use zeroize::Zeroize;
 
 use crate::encryption::aes_decrypt_secure;
+use crate::errors::BridgeCliError;
 use crate::passphrase::prompt_unlock_passphrase;
 use crate::secure_display::display_mnemonic_securely;
 use crate::secure_structs::SecureString;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
+pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
     let passphrase = prompt_unlock_passphrase()?;
     let mnemonic = load_mnemonic_secure(address, &passphrase)?;
     display_mnemonic_securely(&mnemonic)?;
@@ -19,8 +18,9 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-pub fn generate_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
-    let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)?;
+pub fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+    let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
+        .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
 
     let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
 
@@ -32,8 +32,9 @@ pub fn generate_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
 /// Generate master seed from mnemonic phrase
 pub fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &SecureString,
-) -> Result<[u8; 32], anyhow::Error> {
-    let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())?;
+) -> Result<[u8; 32], BridgeCliError> {
+    let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
+        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
 
     // Generate seed (64 bytes)
     let mut seed = mnemonic.to_seed("");
@@ -51,13 +52,13 @@ pub fn get_master_seed_from_mnemonic(
 pub fn load_mnemonic_secure(
     wallet_name: &str,
     passphrase: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
+) -> Result<SecureString, BridgeCliError> {
     let wallet_data = crate::wallet_storage::load_wallet_data(wallet_name)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         crate::encryption::encrypted_data_from_hex(encrypted_mnemonic)?
     } else {
-        return Err(anyhow!("No encrypted mnemonic found in wallet data"));
+        return Err(BridgeCliError::MissingEncryptedMnemonic);
     };
 
     let secure_mnemonic = aes_decrypt_secure(&encrypted_data, passphrase)?;
@@ -67,12 +68,11 @@ pub fn load_mnemonic_secure(
 
 pub fn derive_private_key_from_mnemonic_secure(
     mnemonic: &SecureString,
-) -> Result<SecureString, anyhow::Error> {
+) -> Result<SecureString, BridgeCliError> {
     use bitcoin::secp256k1::SecretKey;
 
     // Generate master seed from mnemonic using BIP-39
-    let master_seed = get_master_seed_from_mnemonic(mnemonic)
-        .map_err(|e| anyhow!("Failed to generate master seed from mnemonic: {}", e))?;
+    let master_seed = get_master_seed_from_mnemonic(mnemonic)?;
 
     let mut master_private_key = SecretKey::from_slice(&master_seed)?;
 
@@ -85,7 +85,7 @@ pub fn derive_private_key_from_mnemonic_secure(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
-pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
+pub fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     use bip39::{Language, Mnemonic};
     use colored::Colorize;
     use zeroize::Zeroize;
@@ -110,7 +110,8 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
 
     loop {
         let mut word =
-            rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))?
+            rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))
+                .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?
                 .trim()
                 .to_lowercase();
 
@@ -151,10 +152,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         for mut word in words {
             word.zeroize();
         }
-        return Err(anyhow!(
-            "Invalid mnemonic length: {} words. Must be 12 words.",
-            word_count
-        ));
+        return Err(BridgeCliError::InvalidMnemonicLength(word_count));
     }
 
     // Join words and validate complete mnemonic
@@ -186,7 +184,7 @@ pub fn prompt_mnemonic_secure() -> Result<SecureString, anyhow::Error> {
         Err(e) => {
             mnemonic_phrase.zeroize();
             // This shouldn't happen since we validated each word, but safety check
-            Err(anyhow!("Mnemonic validation failed: {}", e))
+            Err(BridgeCliError::MnemonicValidationFailed(e.to_string()))
         }
     }
 }

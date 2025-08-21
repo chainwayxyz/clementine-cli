@@ -1,10 +1,10 @@
-use anyhow::anyhow;
 use bitcoin::Network;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
+use crate::errors::BridgeCliError;
 
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -30,7 +30,7 @@ pub fn store_wallet_data(
     imported: bool,
     import_method: Option<&str>,
     custom_filename: Option<&str>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
@@ -38,10 +38,7 @@ pub fn store_wallet_data(
     let wallet_file = storage_dir.join(format!("wallet_{}.json", filename));
 
     if wallet_file.exists() {
-        return Err(anyhow!(
-            "Wallet with filename '{}' already exists. Choose a different name or use a different function to overwrite.",
-            filename
-        ));
+        return Err(BridgeCliError::WalletAlreadyExists(address.to_string()));
     }
 
     let wallet_data = GenericWalletData {
@@ -81,7 +78,7 @@ pub fn update_wallets_registry(
     network: Network,
     imported: bool,
     import_method: Option<&str>,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
@@ -112,12 +109,12 @@ pub fn update_wallets_registry(
 }
 
 /// Load generic wallet data from file
-pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, anyhow::Error> {
+pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
     if !wallet_file.exists() {
-        return Err(anyhow!("No wallet found with address: {}", address));
+        return Err(BridgeCliError::WalletNotFound(address.to_string()));
     }
 
     let json_data = fs::read_to_string(&wallet_file)?;
@@ -127,7 +124,7 @@ pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, anyhow::Erro
 }
 
 /// Get the storage directory path
-pub fn get_storage_dir() -> Result<PathBuf, anyhow::Error> {
-    let home_dir = dirs::home_dir().ok_or(anyhow!("Could not determine home directory"))?;
+pub fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine").join("keys"))
 }

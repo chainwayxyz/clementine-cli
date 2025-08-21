@@ -1,9 +1,12 @@
-use anyhow::anyhow;
+use eyre::Result;
 use std::env;
 use std::str::FromStr;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
+use eyre::Context;
+
+use crate::errors::BridgeCliError;
 
 pub type CitreaAddress = alloy::primitives::Address;
 
@@ -45,6 +48,7 @@ pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
 pub mod encryption;
+pub mod errors;
 pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
@@ -58,8 +62,6 @@ pub mod wallet;
 pub mod wallet_storage;
 pub mod withdrawal;
 
-pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, anyhow::Error> {
-    let citrea_address: CitreaAddress = CitreaAddress::from_str(citrea_address)
-        .map_err(|_| anyhow!("Invalid Citrea address format"))?;
-    Ok(citrea_address)
+pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
+    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
 }

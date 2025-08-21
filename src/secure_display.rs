@@ -1,7 +1,6 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
 use crate::secure_structs::SecureString;
-use anyhow::{Result, anyhow};
 use bitcoin::secp256k1::SecretKey;
 use colored::*;
 use crossterm::{
@@ -11,6 +10,7 @@ use crossterm::{
     style::{Color, Print, SetForegroundColor},
     terminal::{self, EnterAlternateScreen, LeaveAlternateScreen},
 };
+use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
@@ -306,6 +306,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
         io::stdout().flush()?;
 
         let mut input = String::new();
+        io::stdin()
+            .read_line(&mut input)
+            .map_err(|e| eyre!("Failed to read user input: {}", e))?;
+
         io::stdin().read_line(&mut input)?;
         Ok(())
     }
@@ -354,11 +358,11 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 Print("Press Enter to continue..."),
                 SetForegroundColor(Color::Reset)
             )
-            .map_err(|e| anyhow!("Failed to display word {}: {}", word_num, e))?;
+            .map_err(|e| eyre!("Failed to display word {}: {}", word_num, e))?;
 
             // Wait for user input or timeout (30 seconds per word)
             if let Err(e) = self.wait_for_word_confirmation() {
-                return Err(anyhow!("Error during word display: {}", e));
+                return Err(eyre!("Error during word display: {}", e));
             }
         }
 
@@ -418,7 +422,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("| Press Enter to continue immediately | Press ESC to cancel"),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to update word countdown: {}", e))?;
+        .map_err(|e| eyre!("Failed to update word countdown: {}", e))?;
 
         Ok(())
     }
@@ -436,7 +440,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("Press any key to exit..."),
             SetForegroundColor(Color::Reset)
         )
-        .map_err(|e| anyhow!("Failed to display completion message: {}", e))?;
+        .map_err(|e| eyre!("Failed to display completion message: {}", e))?;
 
         // Wait for final confirmation
         loop {

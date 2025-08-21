@@ -3,7 +3,8 @@
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::calculate_deposit_address;
 use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
+use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::passphrase::prompt_unlock_passphrase;
 use crate::wallet::load_key;
@@ -13,6 +14,7 @@ use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
+use eyre::Result;
 use std::str::FromStr;
 
 use crate::address::parse_taproot_address;
@@ -21,8 +23,8 @@ use crate::address::parse_taproot_address;
 pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
-    config: &CliConfig,
-) -> Result<(), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     println!(
         "{} {}",
@@ -47,13 +49,14 @@ pub fn get_deposit_address(
         "Deposit address:".blue().bold(),
         calculated_deposit_address
     );
+
     Ok(())
 }
 
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
-    config: &CliConfig,
-) -> Result<(), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
@@ -88,8 +91,8 @@ pub fn sign_recovery_tx(
     claim_address: &str,
     fee_rate: Option<u64>,
     amount: Option<f64>,
-    config: &CliConfig,
-) -> Result<(), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -133,8 +136,8 @@ pub fn verify_recovery_tx(
     citrea_address: &str,
     recovery_taproot_address: &str,
     amount: Option<f64>,
-    config: &CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
@@ -159,8 +162,6 @@ pub fn verify_recovery_tx(
 
     Ok((txid, address, amount))
 }
-
-// TODO: Implement deposit.deposit_status
 
 #[cfg(test)]
 mod tests {

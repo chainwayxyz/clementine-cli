@@ -2,7 +2,8 @@
 
 use crate::address::{parse_address, parse_taproot_address};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
+use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::passphrase::prompt_unlock_passphrase;
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
@@ -12,10 +13,10 @@ use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
-use anyhow::anyhow;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
+use eyre::Context;
 use reqwest::Url;
 use serde_json::Value;
 use std::str::FromStr;
@@ -26,7 +27,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> Result<(), anyhow::Error> {
+) -> Result<(), BridgeCliError> {
     println!("Please enter the passphrase for the signer key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
     let keypair = load_key(signer_address, network, &secure_passphrase)?;
@@ -55,34 +56,34 @@ pub fn generate_withdrawal_signature(
 
 pub async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
-    config: &CliConfig,
-) -> Result<(Transaction, Block, u32), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .map_err(|e| anyhow!("Failed to fetch transaction hex: {e}"))?;
+        .map_err(|e| eyre::eyre!("Failed to fetch transaction hex: {e}"))?;
     let tx_hex = response
         .text()
         .await
-        .map_err(|e| anyhow!("Failed to read transaction hex response: {e}"))?;
+        .map_err(|e| eyre::eyre!("Failed to read transaction hex response: {e}"))?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
     let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .map_err(|e| anyhow!("Failed to fetch transaction data: {e}"))?;
+        .wrap_err("Failed to fetch transaction data: {}")?;
     let tx_data: Value = response
         .json()
         .await
-        .map_err(|e| anyhow!("Failed to parse transaction data: {e}"))?;
+        .wrap_err("Failed to parse transaction data: {}")?;
     debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
-        .ok_or(anyhow!("Block hash not found"))?;
+        .ok_or(eyre::eyre!("Block hash not found"))?;
     let block_height = tx_data["status"]["block_height"]
         .as_u64()
-        .ok_or(anyhow!("Block height not found"))?;
+        .ok_or(eyre::eyre!("Block height not found"))?;
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
@@ -98,11 +99,11 @@ pub async fn get_tx_details_from_mempool(
 pub async fn get_tx_details_from_rpc(
     rpc: &Client,
     prepare_txid: &Txid,
-) -> Result<(Transaction, Block, u32), anyhow::Error> {
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let tx = rpc.get_raw_transaction(prepare_txid, None).await?;
     let tx_info = rpc.get_raw_transaction_info(prepare_txid, None).await?;
     if tx_info.blockhash.is_none() {
-        return Err(anyhow!("Block hash not found, maybe not confirmed yet"));
+        return Err(eyre::eyre!("Block hash not found, maybe not confirmed yet").into());
     }
     let block = rpc.get_block(&tx_info.blockhash.unwrap()).await?;
     let block_height = rpc
@@ -117,22 +118,23 @@ pub async fn get_tx_details_from_rpc(
 }
 
 pub async fn get_txout_details(
-    config: &CliConfig,
+    config: &BridgeCliConfig,
     txid: &Txid,
     vout: u32,
-) -> Result<TxOut, anyhow::Error> {
+) -> Result<TxOut, BridgeCliError> {
     let (tx, _, _) = get_tx_details(txid, config).await?;
     let txout = tx
         .output
         .get(vout as usize)
-        .ok_or(anyhow!("Txout not found"))?;
+        .ok_or::<BridgeCliError>(eyre::eyre!("Txout not found").into())?;
+
     Ok(txout.clone())
 }
 
 pub async fn get_tx_details(
     prepare_txid: &Txid,
-    config: &CliConfig,
-) -> Result<(Transaction, Block, u32), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(Transaction, Block, u32), BridgeCliError> {
     match config.bitcoin_config {
         Some(_) => {
             let rpc = config.connect_to_bitcoin_rpc().await?;
@@ -148,13 +150,14 @@ pub async fn safe_withdraw(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    config: &CliConfig,
-) -> Result<(), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
+    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
+        .wrap_err("Can't parse taproot signature")?;
     let signer_address = parse_taproot_address(signer_address, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
@@ -192,7 +195,9 @@ pub async fn safe_withdraw(
         "INFO".yellow().bold()
     );
     let mut input = String::new();
-    std::io::stdin().read_line(&mut input)?;
+    std::io::stdin()
+        .read_line(&mut input)
+        .wrap_err("Can't read key stroke")?;
 
     if let Err(e) = open::that(withdrawal_ui_url) {
         println!(
@@ -213,12 +218,14 @@ pub async fn send_safe_withdrawal(
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
-    config: &CliConfig,
-) -> Result<(), anyhow::Error> {
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let secret_key = std::env::var("SECRET_KEY").map_err(|_| anyhow!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
-    let signer: PrivateKeySigner = secret_key.parse()?;
+    let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
+    let signer: PrivateKeySigner = secret_key
+        .parse()
+        .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
@@ -227,13 +234,14 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(&config.citrea_rpc_url)?);
+        .connect_http(Url::parse(&config.citrea_rpc_url).wrap_err("Can't parse url")?);
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
+    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
+        .wrap_err("Can't parse signature")?;
     let signer_address = parse_taproot_address(signer_address, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
@@ -290,8 +298,11 @@ pub async fn send_safe_withdrawal(
         .send()
         .await?;
 
-    let receipt = citrea_withdrawal_tx.get_receipt().await?;
-    println!("Citrea withdrawal tx receipt: {receipt:?}");
+    let receipt = citrea_withdrawal_tx
+        .get_receipt()
+        .await
+        .wrap_err("Can't get receipt")?;
+    println!("Citrea withdrawal tx receipt: {:?}", receipt);
 
     Ok(())
 }
