@@ -52,7 +52,7 @@ use crate::secure_structs::{SecureByteSlice, SecureString};
 ///
 /// Uses memory-hard Argon2id algorithm to transform passphrase + salt into encryption key.
 /// Same passphrase + salt always produces the same key (required for decryption).
-pub fn derive_key_from_passphrase(
+pub(crate) fn derive_key_from_passphrase(
     passphrase: &SecureString,
     salt: &[u8],
     iterations: u32,
@@ -81,7 +81,7 @@ pub fn derive_key_from_passphrase(
 }
 
 /// Prompt user for a passphrase with confirmation for new keys
-pub fn prompt_passphrase() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn prompt_passphrase() -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase protection:".blue().bold());
     println!("Enter a passphrase to encrypt your private key.");
 
@@ -116,7 +116,7 @@ pub fn prompt_passphrase() -> Result<SecureString, BridgeCliError> {
 }
 
 /// Prompt user for a passphrase to unlock existing encrypted key
-pub fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
     let passphrase = rpassword::prompt_password("Enter passphrase to unlock key: ")?;
 
     if passphrase.is_empty() {
