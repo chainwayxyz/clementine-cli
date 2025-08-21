@@ -60,7 +60,6 @@
 
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
-use getrandom;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
