@@ -1,23 +1,39 @@
 // Key storage functionality for Clementine CLI
 
+use crate::BitcoinAddress;
 use bitcoin::Network;
 use bitcoin::secp256k1::Keypair;
 use std::collections::HashMap;
 use std::fs;
 use std::path::PathBuf;
 use std::str::FromStr;
+use thiserror::Error;
 
-use crate::BitcoinAddress;
+/// Errors generated while storing/restoring secrets.
+#[derive(Debug, Error)]
+pub enum StorageError {
+    #[error("Unsupported network")]
+    SerializationError(#[from] serde_json::Error),
+    #[error("Error while interacting with input/output stream: {0}")]
+    InputOutputError(#[from] std::io::Error),
+    #[error("{0}")]
+    BitcoinSecp256k1Error(#[from] bitcoin::secp256k1::Error),
+    #[error("{0}")]
+    BitcoinParseError(#[from] bitcoin::address::ParseError),
+
+    #[error(transparent)]
+    Eyre(#[from] eyre::Report),
+}
 
 /// Store a keypair and its corresponding taproot address
 pub fn store_key(
     keypair: &Keypair,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
+) -> Result<BitcoinAddress, StorageError> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
-        return Err("Passphrase encryption is not yet implemented".into());
+        return Err(eyre::eyre!("Passphrase encryption is not yet implemented").into());
     }
 
     // Calculate the taproot address for this keypair
@@ -81,10 +97,10 @@ pub fn load_key(
     taproot_address: &str,
     network: Network,
     passphrase: Option<&str>,
-) -> Result<Keypair, Box<dyn std::error::Error>> {
+) -> Result<Keypair, StorageError> {
     // Check if passphrase encryption is requested
     if passphrase.is_some() {
-        return Err("Passphrase encryption is not yet implemented".into());
+        return Err(eyre::eyre!("Passphrase encryption is not yet implemented").into());
     }
 
     // Parse the address to validate it
@@ -97,13 +113,13 @@ pub fn load_key(
     let key_file = storage_dir.join(format!("key_{}.json", address));
 
     if !key_file.exists() {
-        return Err(format!("No key found for address: {}", address).into());
+        return Err(eyre::eyre!("No key found for address: {}", address).into());
     }
 
     let key_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(key_file)?)?;
     let private_key_str = key_data["private_key"]
         .as_str()
-        .ok_or("Invalid key file format: missing private_key")?;
+        .ok_or(eyre::eyre!("Invalid key file format: missing private_key"))?;
 
     // Parse the private key
     let secret_key = bitcoin::secp256k1::SecretKey::from_str(private_key_str)?;
@@ -121,7 +137,7 @@ pub fn load_key(
 }
 
 /// Get the storage directory path
-fn get_storage_dir() -> Result<PathBuf, Box<dyn std::error::Error>> {
-    let home_dir = dirs::home_dir().ok_or("Could not determine home directory")?;
+fn get_storage_dir() -> Result<PathBuf, StorageError> {
+    let home_dir = dirs::home_dir().ok_or(eyre::eyre!("Could not determine home directory"))?;
     Ok(home_dir.join(".clementine").join("keys"))
 }

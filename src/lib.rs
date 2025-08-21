@@ -3,6 +3,9 @@ use std::str::FromStr;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
+use eyre::Context;
+
+use crate::errors::BridgeCliError;
 
 pub type CitreaAddress = alloy::primitives::Address;
 
@@ -42,6 +45,7 @@ pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
+pub mod errors;
 pub mod musig2;
 pub mod parameters;
 pub mod script;
@@ -49,10 +53,6 @@ pub mod storage;
 pub mod types;
 pub mod withdrawal;
 
-pub fn parse_citrea_address(
-    citrea_address: &str,
-) -> Result<CitreaAddress, Box<dyn std::error::Error>> {
-    let citrea_address: CitreaAddress =
-        CitreaAddress::from_str(citrea_address).map_err(|_| "Invalid Citrea address format")?;
-    Ok(citrea_address)
+pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
+    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
 }

@@ -1,7 +1,8 @@
 // Backend communication logic for Clementine CLI
 
-use crate::config::CliConfig;
+use crate::config::BridgeCliConfig;
 use crate::deposit::parse_taproot_address;
+use crate::errors::BridgeCliError;
 use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
 use serde_json::json;
@@ -10,9 +11,9 @@ use serde_json::json;
 pub fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: &CliConfig,
-) -> Result<BitcoinAddress, Box<dyn std::error::Error>> {
-    let url = config.citrea_backend_endpoint.join("deposit-accounts")?;
+    config: &BridgeCliConfig,
+) -> Result<BitcoinAddress, BridgeCliError> {
+    let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
 
     // Prepare request body
     let request_body = json!({
@@ -49,6 +50,7 @@ pub fn create_deposit_account(
         // parse the json and get the taproot_addr and parse it to an address
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
         let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
+
         Ok(taproot_addr)
     } else {
         let status = response.status();
@@ -56,9 +58,11 @@ pub fn create_deposit_account(
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
-        Err(format!(
+
+        Err(eyre::eyre!(
             "Backend request failed with status: {} {}",
-            status, error_text
+            status,
+            error_text
         )
         .into())
     }

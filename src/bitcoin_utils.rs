@@ -1,5 +1,11 @@
 // Bitcoin utility functions for Clementine CLI
 
+use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::errors::BridgeCliError;
+use crate::musig2::AggregateFromPublicKeys;
+use crate::script::{deposit_script, recover_script};
+use crate::{BitcoinAddress, CitreaAddress};
+use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
@@ -7,15 +13,10 @@ use bitcoin::{
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
 use colored::*;
+use eyre::Context;
 use std::io::{self, Write};
 use std::str::FromStr;
 use std::sync::LazyLock;
-
-use crate::config::{CliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::musig2::AggregateFromPublicKeys;
-use crate::script::{deposit_script, recover_script};
-use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::hashes::Hash;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
@@ -26,26 +27,26 @@ pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> Bitcoin
 }
 
 /// Generate a new random secret key and calculate its corresponding taproot address
-pub fn generate_key_and_taproot_address(
-    network: Network,
-) -> Result<(Keypair, BitcoinAddress), Box<dyn std::error::Error>> {
+pub fn generate_keypair_and_taproot_address(network: Network) -> (Keypair, BitcoinAddress) {
     let keypair = Keypair::new(&SECP, &mut bitcoin::secp256k1::rand::thread_rng());
     let address = calculate_taproot_address(&keypair, network);
-    Ok((keypair, address))
+
+    (keypair, address)
 }
 
 pub fn generate_keypair_and_taproot_address_from_private_key(
     private_key: &str,
     network: Network,
-) -> Result<(Keypair, BitcoinAddress), Box<dyn std::error::Error>> {
+) -> Result<(Keypair, BitcoinAddress), BridgeCliError> {
     let sk = SecretKey::from_str(private_key)?;
     let keypair = Keypair::from_secret_key(&SECP, &sk);
     let address = calculate_taproot_address(&keypair, network);
+
     Ok((keypair, address))
 }
 
 /// Prompt user for confirmation about storing private key
-pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::error::Error>> {
+pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliError> {
     if auto_yes {
         return Ok(true);
     }
@@ -58,10 +59,12 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::
     println!("   Make sure you're running this in a secure environment.");
     println!();
     print!("Are you sure you want to continue? (y/N): ");
-    io::stdout().flush()?;
+    io::stdout().flush().wrap_err("Can flush stdout")?;
 
     let mut input = String::new();
-    io::stdin().read_line(&mut input)?;
+    io::stdin()
+        .read_line(&mut input)
+        .wrap_err("Can't read private key")?;
 
     Ok(input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes")
 }
@@ -70,8 +73,8 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, Box<dyn std::
 pub fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
-    config: &CliConfig,
-) -> Result<(BitcoinAddress, TaprootSpendInfo), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
     debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
     debug!("agg_pk: {:?}", agg_pk.to_string());
@@ -134,8 +137,8 @@ pub fn sign_recovery_tx(
     deposit_amount: Option<Amount>,
     claim_address: &BitcoinAddress,
     fee_rate: Option<FeeRate>,
-    config: &CliConfig,
-) -> Result<Transaction, Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
@@ -175,10 +178,10 @@ pub fn sign_recovery_tx(
         let fee = fee_rate.fee_wu(weight).expect("fee is valid");
         let output_amount: Amount = match input_amount.checked_sub(fee) {
             Some(amt) => amt,
-            None => return Err("Insufficient funds for fee".into()),
+            None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
         };
         if output_amount < Amount::from_sat(546) {
-            return Err("Output amount below dust threshold".into());
+            return Err(eyre::eyre!("Output amount below dust threshold").into());
         }
         recovery_tx.output[0].value = output_amount;
     }
@@ -251,26 +254,28 @@ pub fn verify_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     input_amount: Option<Amount>,
-    config: &CliConfig,
-) -> Result<(Txid, BitcoinAddress, Amount), Box<dyn std::error::Error>> {
+    config: &BridgeCliConfig,
+) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     // sanity check input count
     if recovery_tx.input.len() != 1 {
-        return Err("Recovery transaction must have exactly one input".into());
+        return Err(eyre::eyre!("Recovery transaction must have exactly one input").into());
     }
 
     // sanity check output count
     if recovery_tx.output.len() != 1 {
-        return Err("Recovery transaction must have exactly one output".into());
+        return Err(eyre::eyre!("Recovery transaction must have exactly one output").into());
     }
 
     // sanity check that the input has a witness
     if recovery_tx.input[0].witness.is_empty() {
-        return Err("Recovery transaction input must have a witness".into());
+        return Err(eyre::eyre!("Recovery transaction input must have a witness").into());
     }
 
     // sanity check that the witness has 3 items
     if recovery_tx.input[0].witness.len() != 3 {
-        return Err("Recovery transaction input witness must have exactly 3 items".into());
+        return Err(
+            eyre::eyre!("Recovery transaction input witness must have exactly 3 items").into(),
+        );
     }
 
     let (deposit_address, taproot_spend_info) =
@@ -283,7 +288,9 @@ pub fn verify_recovery_tx(
 
     // 1. check that the second element of the witness is the recovery script
     if recovery_tx.input[0].witness[1] != recovery_script.as_script().to_bytes() {
-        return Err("Recovery transaction input witness second element is not the correct recovery script, may be a different recovery script".into());
+        return Err(eyre::eyre!(
+            "Recovery transaction input witness second element is not the correct recovery script, may be a different recovery script"
+        ).into());
     }
 
     // 2. check that the third element of the witness is the spend control block
@@ -293,15 +300,15 @@ pub fn verify_recovery_tx(
             .unwrap()
             .serialize()
     {
-        return Err("Recovery transaction input witness third element is not the correct spend control block, may be a different spend control block".into());
+        return Err(eyre::eyre!(
+            "Recovery transaction input witness third element is not the correct spend control block, may be a different spend control block"
+        ).into());
     }
 
-    let taproot_signature = bitcoin::taproot::Signature::from_slice(
-        &recovery_tx.input[0].witness[0],
-    )
-    .map_err(|_| -> Box<dyn std::error::Error> {
-        "Recovery transaction input witness first element is not a valid taproot signature".into()
-    })?;
+    let taproot_signature =
+        bitcoin::taproot::Signature::from_slice(&recovery_tx.input[0].witness[0]).wrap_err(
+            "Recovery transaction input witness first element is not a valid taproot signature",
+        )?;
 
     let sighash_type =
         if taproot_signature.sighash_type == bitcoin::TapSighashType::SinglePlusAnyoneCanPay {
@@ -311,7 +318,7 @@ pub fn verify_recovery_tx(
         {
             bitcoin::TapSighashType::Default
         } else {
-            return Err("Signature type not supported".into());
+            return Err(eyre::eyre!("Signature type not supported").into());
         };
 
     let input_amount = input_amount.unwrap_or(config.bridge_amount);
@@ -354,17 +361,17 @@ pub fn verify_recovery_tx(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &recovery_key,
     )
-    .map_err(|_| -> Box<dyn std::error::Error> {
-        "Signature verification failed. Possible causes include an incorrect input amount, an invalid signature, or a mismatched public key.".into()
-    })?;
+    .wrap_err(
+        "Signature verification failed. Possible causes include an incorrect input amount, an invalid signature, or a mismatched public key."
+    )?;
 
     let output_address = BitcoinAddress::from_script(
         &recovery_tx.output[0].script_pubkey,
         config.network,
     )
-    .map_err(|_| -> Box<dyn std::error::Error> {
-        "Recovery transaction output script pubkey is not a valid address, may be a different address".into()
-    })?;
+    .wrap_err(
+        "Recovery transaction output script pubkey is not a valid address, may be a different address"
+    )?;
 
     Ok((
         recovery_tx.input[0].previous_output.txid,
@@ -379,7 +386,7 @@ pub fn sign_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> Result<bitcoin::taproot::Signature, Box<dyn std::error::Error>> {
+) -> Result<bitcoin::taproot::Signature, BridgeCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -430,7 +437,7 @@ pub fn verify_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
     amount: Amount,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), BridgeCliError> {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -470,7 +477,7 @@ pub fn verify_withdrawal_signature(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &XOnlyPublicKey::from_slice(&signer_address.script_pubkey().to_bytes()[2..34])?,
     )
-    .map_err(|_| -> Box<dyn std::error::Error> { "Signature verification failed".into() })?;
+    .wrap_err("Signature verification failed")?;
 
     Ok(())
 }
@@ -491,7 +498,7 @@ mod tests {
 
     #[test]
     fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_key_and_taproot_address(Network::Testnet).unwrap();
+        let (keypair, address) = generate_keypair_and_taproot_address(Network::Testnet);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
         // Verify that the address matches the keypair
         assert_eq!(
