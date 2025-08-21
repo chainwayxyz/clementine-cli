@@ -73,13 +73,19 @@ enum WalletCommands {
     },
     /// Import wallet using secure mnemonic input.
     ImportFromMnemonic {
-        // No file parameter - uses secure step-by-step mnemonic input
+        /// Name for the imported wallet
+        name: String,
     },
     ImportFromFile {
         /// Filename to import wallet from
         filename: String,
+        /// Name for the imported wallet
+        name: String,
     },
-    ImportFromPrivateKey {},
+    ImportFromPrivateKey {
+        /// Name for the imported wallet
+        name: String,
+    },
     /// Delete a wallet by name.
     DeleteWallet {
         /// Name of the wallet to delete
@@ -199,14 +205,17 @@ async fn main() {
             WalletCommands::ShowMnemonic { address } => {
                 handle_or_exit!(show_mnemonic_secure(&address));
             }
-            WalletCommands::ImportFromMnemonic {} => {
-                handle_or_exit!(import_wallet_from_mnemonic(config.network));
+            WalletCommands::ImportFromMnemonic { name } => {
+                handle_or_exit!(import_wallet_from_mnemonic(config.network, &name));
             }
-            WalletCommands::ImportFromFile { filename } => {
-                handle_or_exit!(import_wallet_from_file(&filename));
+            WalletCommands::ImportFromFile { filename, name } => {
+                handle_or_exit!(import_wallet_from_file(&filename, &name));
             }
-            WalletCommands::ImportFromPrivateKey {} => {
-                handle_or_exit!(wallet::import_wallet_from_private_key(config.network));
+            WalletCommands::ImportFromPrivateKey { name } => {
+                handle_or_exit!(wallet::import_wallet_from_private_key(
+                    config.network,
+                    &name
+                ));
             }
             WalletCommands::DeleteWallet { name } => {
                 handle_or_exit!(delete_wallet(&name));

@@ -134,7 +134,10 @@ pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(),
 }
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
-pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, BridgeCliError> {
+pub fn import_wallet_from_mnemonic(
+    network: Network,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
     println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
@@ -190,8 +193,8 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, BridgeCli
         &encrypted_private_key,
         "separate_encrypted_fields",
         true,
-        Some("secure_mnemonic_input"),
-        None,
+        Some("mnemonic_import"),
+        wallet_name,
     )
     .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
 
@@ -526,7 +529,10 @@ fn validate_mnemonic_import(
 }
 
 /// Import a wallet from a file path
-pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError> {
+pub fn import_wallet_from_file(
+    file_path: &str,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
     let source_path = std::path::Path::new(file_path);
 
     if !source_path.exists() {
@@ -653,7 +659,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
         data_format,
         true,
         Some("file_import"),
-        None,
+        wallet_name,
     )?;
 
     println!(
@@ -667,7 +673,10 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
 }
 
 /// Import a wallet from a private key
-pub fn import_wallet_from_private_key(network: Network) -> Result<String, BridgeCliError> {
+pub fn import_wallet_from_private_key(
+    network: Network,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
     use crate::bitcoin_utils::calculate_taproot_address;
     use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -730,7 +739,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
         "separate_encrypted_fields",
         true,
         Some("private_key_import"),
-        None,
+        wallet_name,
     )
     .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to store wallet: {}", e)))?;
 
@@ -790,7 +799,7 @@ pub fn create_encrypted_wallet_with_address(
         "separate_encrypted_fields",
         false,
         None,
-        Some(&name),
+        &name,
     )?;
 
     let storage_dir = get_storage_dir()?;
