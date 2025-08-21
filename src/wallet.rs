@@ -15,26 +15,31 @@ use crate::mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
     prompt_mnemonic_secure,
 };
+use crate::passphrase::prompt_unlock_passphrase;
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
 use crate::wallet_storage::get_storage_dir;
 
-pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
+pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
     let wallets_file = storage_dir.join("wallets.json");
 
     // Check if wallet exists
     if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+        return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
 
-    // Load wallet data to verify it exists
-    let _wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
+    // Load wallet data to verify it exists and get the address
+    let wallet_data: serde_json::Value = serde_json::from_str(&fs::read_to_string(&wallet_file)?)?;
+    let address = wallet_data["address"]
+        .as_str()
+        .ok_or_else(|| eyre!("Invalid wallet file: missing address field"))?;
 
     println!("{}", "Wallet Deletion".red().bold());
     println!(
-        "You are about to delete the wallet with address: {}",
+        "You are about to delete the wallet '{}' with address: {}",
+        wallet_name.cyan(),
         address.yellow()
     );
     println!("{}", "This action cannot be undone!".red().bold());
@@ -52,7 +57,6 @@ pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
-    println!("Wallet integrity check passed");
     println!("Deleting wallet...");
 
     // Delete wallet file
@@ -130,13 +134,11 @@ pub fn backup_wallet(wallet_address: &str, destination_path: &str) -> Result<(),
 }
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
-pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, BridgeCliError> {
-    println!("{}", "Import Wallet with Secure Input".blue().bold());
-    println!("This process will:");
-    println!("- Securely collect your mnemonic phrase word by word");
-    println!("- Create a secure passphrase to encrypt the wallet");
-    println!("- Derive and store the wallet with full encryption");
-    println!();
+pub fn import_wallet_from_mnemonic(
+    network: Network,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
+    println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
     println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
@@ -191,7 +193,8 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, BridgeCli
         &encrypted_private_key,
         "separate_encrypted_fields",
         true,
-        Some("secure_mnemonic_input"),
+        Some("mnemonic_import"),
+        wallet_name,
     )
     .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
 
@@ -220,12 +223,6 @@ pub fn import_wallet_from_mnemonic(network: Network) -> Result<String, BridgeCli
     println!("Location: {}", storage_dir.display().to_string().cyan());
     println!("Address: {}", address.to_string().green());
     println!();
-    println!("{}", "Security Features Applied:".green());
-    println!("- Mnemonic handled securely and zeroized from memory");
-    println!("- Passphrase stored securely and zeroized from memory");
-    println!("- AES-256-GCM authenticated encryption");
-    println!("- Separate encryption for mnemonic and private key");
-    println!("- Secure file permissions applied");
 
     Ok(address.to_string())
 }
@@ -258,20 +255,42 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
 
-            // Check if it's a wallet file (wallet_ADDRESS.json)
+            // Check if it's a wallet file (wallet_*.json)
             if file_name_str.starts_with("wallet_")
                 && file_name_str.ends_with(".json")
                 && file_name_str != "wallets.json"
             {
-                // Extract address from filename
-                let address = file_name_str
-                    .strip_prefix("wallet_")
-                    .and_then(|s| s.strip_suffix(".json"))
-                    .unwrap_or("")
-                    .to_string();
-
-                if !address.is_empty() {
-                    file_wallets.insert(address);
+                // Read the wallet file and extract address from JSON content
+                let wallet_file_path = entry.path();
+                match fs::read_to_string(&wallet_file_path) {
+                    Ok(wallet_content) => {
+                        match serde_json::from_str::<serde_json::Value>(&wallet_content) {
+                            Ok(wallet_data) => {
+                                if let Some(address) = wallet_data["address"].as_str() {
+                                    file_wallets.insert(address.to_string());
+                                } else {
+                                    println!(
+                                        "Warning: Wallet file {} is missing address field",
+                                        file_name_str.yellow()
+                                    );
+                                }
+                            }
+                            Err(e) => {
+                                println!(
+                                    "Warning: Failed to parse wallet file {}: {}",
+                                    file_name_str.yellow(),
+                                    e
+                                );
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        println!(
+                            "Warning: Failed to read wallet file {}: {}",
+                            file_name_str.yellow(),
+                            e
+                        );
+                    }
                 }
             }
         }
@@ -374,52 +393,28 @@ fn get_validated_passphrase(
     prompt: &str,
     require_length: bool,
 ) -> Result<SecureString, BridgeCliError> {
-    let mut attempts = 0;
-    const MAX_ATTEMPTS: usize = 5;
-
-    while attempts < MAX_ATTEMPTS {
+    loop {
         print!("{}", prompt);
         io::stdout().flush()?;
         let passphrase_input = rpassword::read_password()?;
 
         if passphrase_input.is_empty() {
             println!("Passphrase cannot be empty for security reasons");
-            attempts += 1;
-            if attempts < MAX_ATTEMPTS {
-                println!(
-                    "Attempt {} of {}. Please try again.",
-                    attempts + 1,
-                    MAX_ATTEMPTS
-                );
-            }
             continue;
         }
 
         if require_length && passphrase_input.len() < 8 {
             println!("Passphrase must be at least 8 characters long for security");
-            attempts += 1;
-            if attempts < MAX_ATTEMPTS {
-                println!(
-                    "Attempt {} of {}. Please try again.",
-                    attempts + 1,
-                    MAX_ATTEMPTS
-                );
-            }
             continue;
         }
 
         return Ok(SecureString::init_with(|| passphrase_input));
     }
-
-    Err(BridgeCliError::MaxAttemptsExceeded)
 }
 
 /// Helper function to securely confirm passphrases without exposing secrets
 fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliError> {
-    let mut attempts = 0;
-    const MAX_ATTEMPTS: usize = 3;
-
-    while attempts < MAX_ATTEMPTS {
+    loop {
         print!("Confirm passphrase: ");
         io::stdout().flush()?;
         let mut confirm_input = rpassword::read_password()?;
@@ -443,19 +438,7 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliE
         if matches {
             return Ok(());
         }
-
-        attempts += 1;
-        println!("Passphrases do not match");
-        if attempts < MAX_ATTEMPTS {
-            println!(
-                "Attempt {} of {}. Please try again.",
-                attempts + 1,
-                MAX_ATTEMPTS
-            );
-        }
     }
-
-    Err(BridgeCliError::PassphraseConfirmationMaxAttemptsExceeded)
 }
 
 /// Helper function to validate private key imports during wallet import
@@ -546,7 +529,10 @@ fn validate_mnemonic_import(
 }
 
 /// Import a wallet from a file path
-pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError> {
+pub fn import_wallet_from_file(
+    file_path: &str,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
     let source_path = std::path::Path::new(file_path);
 
     if !source_path.exists() {
@@ -590,7 +576,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
     println!("To import this wallet, you must provide the correct passphrase to verify access.");
 
     // Prompt for passphrase to verify the user can decrypt the wallet
-    let passphrase = get_validated_passphrase("Enter the passphrase for this wallet: ", true)?;
+    let passphrase = prompt_unlock_passphrase()?;
 
     // Verify passphrase by attempting to decrypt the wallet data
     println!("Verifying passphrase...");
@@ -673,6 +659,7 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
         data_format,
         true,
         Some("file_import"),
+        wallet_name,
     )?;
 
     println!(
@@ -686,7 +673,10 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
 }
 
 /// Import a wallet from a private key
-pub fn import_wallet_from_private_key(network: Network) -> Result<String, BridgeCliError> {
+pub fn import_wallet_from_private_key(
+    network: Network,
+    wallet_name: &str,
+) -> Result<String, BridgeCliError> {
     use crate::bitcoin_utils::calculate_taproot_address;
     use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -749,6 +739,7 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
         "separate_encrypted_fields",
         true,
         Some("private_key_import"),
+        wallet_name,
     )
     .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to store wallet: {}", e)))?;
 
@@ -774,15 +765,8 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
 
 pub fn create_encrypted_wallet_with_address(
     network: Network,
+    name: String,
 ) -> Result<SecureString, BridgeCliError> {
-    println!("Creating new wallet with maximum security protection");
-    println!();
-    println!("{}", "Security Features:".yellow());
-    println!("- Secure terminal input (no echo)");
-    println!("- Industry-standard secret handling (secrecy crate)");
-    println!("- Memory zeroization");
-    println!("- AES-256-GCM authenticated encryption");
-    println!("- Argon2 key derivation");
     println!();
 
     // Generate mnemonic
@@ -815,12 +799,13 @@ pub fn create_encrypted_wallet_with_address(
         "separate_encrypted_fields",
         false,
         None,
+        &name,
     )?;
 
     let storage_dir = get_storage_dir()?;
     println!(
         "Wallet encrypted and stored securely as wallet_{}.json",
-        address
+        name
     );
     println!(
         "Generated address: {} at directory: {}",
@@ -849,7 +834,7 @@ pub fn create_encrypted_wallet_with_address(
     Ok(secure_mnemonic)
 }
 
-pub fn export_private_key(address: &str, network: Network) -> Result<(), BridgeCliError> {
+pub fn show_private_key(address: &str, network: Network) -> Result<(), BridgeCliError> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
@@ -858,7 +843,7 @@ pub fn export_private_key(address: &str, network: Network) -> Result<(), BridgeC
         return Err(BridgeCliError::WalletNotFound(address.to_string()));
     }
 
-    let passphrase = get_validated_passphrase("Enter passphrase to decrypt private key: ", true)?;
+    let passphrase = prompt_unlock_passphrase()?;
 
     let mut keypair = load_key(address, network, &passphrase)?;
 

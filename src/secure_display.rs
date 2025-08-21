@@ -1,3 +1,5 @@
+//! Secure display for sensitive cryptographic data (mnemonics and private keys).
+
 use crate::secure_structs::SecureString;
 use bitcoin::secp256k1::SecretKey;
 use colored::*;
@@ -12,6 +14,21 @@ use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
+
+/// Display timeout for individual words (30 seconds)
+const WORD_TIMEOUT_SECS: u64 = 30;
+const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(WORD_TIMEOUT_SECS);
+
+/// Display timeout for private keys (30 seconds)
+const PRIVATE_KEY_TIMEOUT_SECS: u64 = 30;
+const PRIVATE_KEY_TIMEOUT_DURATION: Duration = Duration::from_secs(PRIVATE_KEY_TIMEOUT_SECS);
+
+/// Polling interval for event checking (100ms)
+const POLL_INTERVAL: Duration = Duration::from_millis(100);
+
+/// Position for countdown display in alternate screen
+const COUNTDOWN_CURSOR_Y: u16 = 15;
+const PRIVATE_KEY_COUNTDOWN_Y: u16 = 12;
 
 /// Secure display manager for sensitive information like mnemonic phrases
 /// Uses alternate screen to prevent shell history contamination
@@ -220,9 +237,8 @@ impl<'a> SecureMnemonicDisplay<'a> {
         Ok(())
     }
 
-    /// Wait for user confirmation for each word with 30-second timeout
+    /// Wait for user confirmation for each word with timeout
     fn wait_for_word_confirmation(&self) -> Result<()> {
-        const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
         let start_time = Instant::now();
 
         loop {
@@ -238,25 +254,22 @@ impl<'a> SecureMnemonicDisplay<'a> {
             self.update_word_countdown_display(remaining)?;
 
             // Check for user input with a short timeout
-            if poll(Duration::from_millis(100))
-                .map_err(|e| eyre!("Failed to poll for input: {}", e))?
+            if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
+                && let Event::Key(key_event) =
+                    event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
+                && key_event.kind == KeyEventKind::Press
             {
-                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
-                if let Event::Key(key_event) = event
-                    && key_event.kind == KeyEventKind::Press
-                {
-                    match key_event.code {
-                        KeyCode::Enter => {
-                            // User pressed Enter, proceed to next word
-                            return Ok(());
-                        }
-                        KeyCode::Esc => {
-                            return Err(eyre!("User cancelled mnemonic display"));
-                        }
-                        _ => {
-                            // Ignore other keys
-                            continue;
-                        }
+                match key_event.code {
+                    KeyCode::Enter => {
+                        // User pressed Enter, proceed to next word
+                        return Ok(());
+                    }
+                    KeyCode::Esc => {
+                        return Err(eyre!("User cancelled mnemonic display"));
+                    }
+                    _ => {
+                        // Ignore other keys
+                        continue;
                     }
                 }
             }
@@ -270,7 +283,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         // Position cursor at bottom of screen for countdown
         execute!(
             io::stdout(),
-            cursor::MoveTo(0, 15), // Move to countdown area
+            cursor::MoveTo(0, COUNTDOWN_CURSOR_Y),
             SetForegroundColor(Color::Yellow),
             Print(format!("⏰ Auto-advance in {seconds_left} seconds ")),
             SetForegroundColor(Color::Blue),
@@ -297,8 +310,6 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("║  🔒 IMPORTANT REMINDERS:                                                     ║\r\n"),
             Print("║  • Store your written mnemonic in a secure location                          ║\r\n"),
             Print("║  • Never share it with anyone                                                ║\r\n"),
-            // Print("║  • This is the only way to recover your wallet                               ║\r\n"),
-            // Print("║  • Test recovery with a small amount first                                   ║\r\n"),
             Print("║                                                                              ║\r\n"),
             Print("║  The display will now close and clear from memory.                           ║\r\n"),
             Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
@@ -310,15 +321,12 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
         // Wait for final confirmation
         loop {
-            if poll(Duration::from_millis(100))
-                .map_err(|e| eyre!("Failed to poll for input: {}", e))?
+            if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
+                && let Event::Key(key_event) =
+                    event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
+                && key_event.kind == KeyEventKind::Press
             {
-                let event = event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?;
-                if let Event::Key(key_event) = event
-                    && key_event.kind == KeyEventKind::Press
-                {
-                    return Ok(());
-                }
+                return Ok(());
             }
         }
     }
@@ -365,7 +373,6 @@ impl<'a> SecureMnemonicDisplay<'a> {
         for (index, word) in words.iter().enumerate() {
             let word_num = index + 1;
             let total_words = words.len();
-
             let word = word.expose_secret();
 
             println!();
@@ -421,7 +428,6 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
     /// Handle timeout for each word in fallback mode
     fn fallback_word_timeout_wait(&self) -> Result<()> {
-        const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(30);
         let start_time = Instant::now();
 
         println!();
@@ -489,12 +495,6 @@ impl<'a> Drop for SecureMnemonicDisplay<'a> {
         self.cleanup_alternate_screen();
         // SecureString handles its own zeroization
     }
-}
-
-/// Convenience function to display a mnemonic securely
-pub fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
-    let mut display = SecureMnemonicDisplay::new(mnemonic);
-    display.display_securely()
 }
 
 /// Simple secure display for private keys
@@ -565,13 +565,12 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         SetForegroundColor(Color::Reset)
     )?;
 
-    // Wait for key press with 30-second timeout
-    const DISPLAY_TIMEOUT: Duration = Duration::from_secs(30);
+    // Wait for key press with timeout
     let start_time = Instant::now();
 
     loop {
         let elapsed = start_time.elapsed();
-        let remaining = DISPLAY_TIMEOUT.saturating_sub(elapsed);
+        let remaining = PRIVATE_KEY_TIMEOUT_DURATION.saturating_sub(elapsed);
 
         if remaining.is_zero() {
             // Timeout reached, automatically close
@@ -582,7 +581,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         let seconds_left = remaining.as_secs();
         execute!(
             io::stdout(),
-            cursor::MoveTo(0, 12), // Position cursor for countdown
+            cursor::MoveTo(0, PRIVATE_KEY_COUNTDOWN_Y),
             SetForegroundColor(Color::Yellow),
             Print(format!(
                 "⏰ Auto-close in {} seconds | Press any key to close immediately   ",
@@ -591,7 +590,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
             SetForegroundColor(Color::Reset)
         )?;
 
-        if poll(Duration::from_millis(100))? {
+        if poll(POLL_INTERVAL)? {
             let event = event::read()?;
             if let Event::Key(key_event) = event
                 && key_event.kind == KeyEventKind::Press
@@ -622,7 +621,6 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     );
 
     // Use the same timeout pattern as the fallback_word_timeout_wait function
-    const DISPLAY_TIMEOUT: Duration = Duration::from_secs(30);
     let start_time = Instant::now();
 
     print!("Press Enter to continue... ");
@@ -642,14 +640,14 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
 
     // Spawn thread for timeout
     std::thread::spawn(move || {
-        std::thread::sleep(DISPLAY_TIMEOUT);
+        std::thread::sleep(PRIVATE_KEY_TIMEOUT_DURATION);
         let _ = tx.send(false);
     });
 
     // Update countdown while waiting
     loop {
         let elapsed = start_time.elapsed();
-        let remaining = DISPLAY_TIMEOUT.saturating_sub(elapsed);
+        let remaining = PRIVATE_KEY_TIMEOUT_DURATION.saturating_sub(elapsed);
 
         if remaining.is_zero() {
             println!();
@@ -680,6 +678,12 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Convenience function to display a mnemonic securely
+pub fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
+    let mut display = SecureMnemonicDisplay::new(mnemonic);
+    display.display_securely()
 }
 
 #[cfg(test)]
