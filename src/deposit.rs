@@ -100,9 +100,9 @@ pub fn get_deposit_address(
 pub async fn get_deposit_params(
     move_to_vault_txid: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<Vec<u8>, BridgeCliError> {
     let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
-    // 2. Get the prepare tx details
+
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
         get_tx_details(&move_to_vault_txid, config).await?;
 
@@ -120,9 +120,7 @@ pub async fn get_deposit_params(
         move_to_vault_block_height,
     )?;
 
-    tracing::info!("Encoded deposit params: {}", hex::encode(deposit_params));
-
-    Ok(())
+    Ok(deposit_params)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -135,7 +133,7 @@ pub fn sign_recovery_tx(
     fee_rate: Option<u64>,
     amount: Option<f64>,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<Transaction, BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
@@ -163,11 +161,8 @@ pub fn sign_recovery_tx(
         fee_rate_opt,
         config,
     )?;
-    tracing::info!(
-        "Signed Recovery Transaction: {}",
-        hex::encode(bitcoin::consensus::serialize(&signed_tx))
-    );
-    Ok(())
+
+    Ok(signed_tx)
 }
 
 #[allow(clippy::too_many_arguments)]

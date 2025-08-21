@@ -184,7 +184,7 @@ async fn main() {
                 fee_rate,
                 amount,
             } => {
-                if let Err(e) = deposit::sign_recovery_tx(
+                match deposit::sign_recovery_tx(
                     &evm_address,
                     &recovery_taproot_address,
                     &deposit_txid,
@@ -194,8 +194,13 @@ async fn main() {
                     amount,
                     &config,
                 ) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                    Ok(tx) => {
+                        println!("{}", hex::encode(bitcoin::consensus::serialize(&tx)))
+                    }
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             DepositCommands::VerifyRecoveryTx {
@@ -219,9 +224,12 @@ async fn main() {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
-                if let Err(e) = deposit::get_deposit_params(&move_to_vault_txid, &config).await {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                match deposit::get_deposit_params(&move_to_vault_txid, &config).await {
+                    Ok(deposit_params) => println!("{}", hex::encode(deposit_params)),
+                    Err(e) => {
+                        eprintln!("Error: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
         },
