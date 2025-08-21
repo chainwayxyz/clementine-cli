@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::{config::ConfigErrors, storage::StorageError};
+use crate::config::ConfigErrors;
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -32,11 +32,119 @@ pub enum BridgeCliError {
     #[error("Unsupported network")]
     UnsupportedNetwork,
 
+    // Address-related errors
+    #[error("Failed to generate master seed from mnemonic: {0}")]
+    MnemonicToSeedError(String),
+    #[error("Address is not a taproot (P2TR) address")]
+    NotTaprootAddress,
+    #[error("Address field not found or invalid in wallet data")]
+    MissingWalletAddress,
+    #[error("Failed to get storage directory: {0}")]
+    StorageDirectoryError(String),
+    #[error("Failed to read storage directory: {0}")]
+    StorageReadError(String),
+
+    // Encryption-related errors
+    #[error("Failed to generate random salt: {0}")]
+    RandomSaltGenerationError(String),
+    #[error("Failed to generate random nonce: {0}")]
+    RandomNonceGenerationError(String),
+    #[error("Key derivation failed: {0}")]
+    KeyDerivationError(String),
+    #[error("Encryption failed: {0}")]
+    EncryptionError(String),
+    #[error("Decryption failed: {0}")]
+    DecryptionError(String),
+    #[error("Decryption produced invalid UTF-8: {0}")]
+    InvalidUtf8Error(String),
+    #[error("Invalid nonce length: {0}")]
+    InvalidNonceLength(usize),
+    #[error("Invalid salt length: {0}")]
+    InvalidSaltLength(usize),
+
+    // Mnemonic-related errors
+    #[error("Failed to generate mnemonic: {0}")]
+    MnemonicGenerationError(String),
+    #[error("Failed to parse mnemonic: {0}")]
+    MnemonicParseError(String),
+    #[error("No encrypted mnemonic found in wallet data")]
+    MissingEncryptedMnemonic,
+    #[error("Invalid mnemonic length: {0} words. Must be 12 words")]
+    InvalidMnemonicLength(usize),
+    #[error("Mnemonic validation failed: {0}")]
+    MnemonicValidationFailed(String),
+    #[error("Failed to encrypt placeholder mnemonic: {0}")]
+    PlaceholderMnemonicEncryptionFailed(String),
+
+    // Passphrase-related errors
+    #[error("Invalid Argon2 parameters: {0}")]
+    InvalidArgon2Parameters(String),
+    #[error("Passphrase not provided for encrypted key")]
+    PassphraseNotProvided,
+    #[error("Invalid passphrase")]
+    InvalidPassphrase,
+    #[error("Passphrase cannot be empty")]
+    EmptyPassphrase,
+    #[error("Passphrase is too short (minimum 8 characters)")]
+    PassphraseTooShort,
+    #[error("Passphrases do not match")]
+    PassphraseMismatch,
+
+    // Private key related errors
+    #[error("No encrypted private key found in wallet data")]
+    NoEncryptedPrivateKeyFound,
+
+    // Wallet storage related errors
+    #[error("Wallet with address '{0}' already exists")]
+    WalletAlreadyExists(String),
+    #[error("No wallet found with address: {0}")]
+    WalletNotFound(String),
+    #[error("Could not determine home directory")]
+    HomeDirectoryNotFound,
+
+    // Wallet operation related errors
+    #[error("Failed to generate address from mnemonic: {0}")]
+    AddressGenerationFromMnemonicFailed(String),
+    #[error("Failed to derive private key from mnemonic: {0}")]
+    PrivateKeyDerivationFromMnemonicFailed(String),
+    #[error("Failed to encrypt mnemonic: {0}")]
+    MnemonicEncryptionFailed(String),
+    #[error("Failed to encrypt private key: {0}")]
+    PrivateKeyEncryptionFailed(String),
+    #[error("Failed to store wallet: {0}")]
+    WalletStorageFailed(String),
+    #[error("Maximum attempts exceeded. Operation cancelled for security.")]
+    MaxAttemptsExceeded,
+    #[error("Maximum attempts exceeded for passphrase confirmation.")]
+    PassphraseConfirmationMaxAttemptsExceeded,
+    #[error("Network mismatch: wallet is {0}, expected {1}")]
+    NetworkMismatch(String, String),
+    #[error("Invalid private key: {0}")]
+    InvalidPrivateKey(String),
+    #[error("Failed to parse wallets.json: {0}")]
+    WalletsJsonParseFailed(String),
+    #[error("Wallet file does not exist: {0}")]
+    WalletFileNotFound(String),
+    #[error("Path is not a file: {0}")]
+    PathNotAFile(String),
+    #[error("Invalid wallet file: missing network field")]
+    MissingNetworkField,
+    #[error("Invalid wallet file: missing encrypted_mnemonic field")]
+    MissingEncryptedMnemonicField,
+    #[error("Failed to parse encrypted private key structure: {0}")]
+    EncryptedPrivateKeyParseError(String),
+    #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
+    AddressMismatch,
+
+    #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
+    MissingEncryptedPrivateKeyField,
+
+    #[error("Incorrect passphrase! Cannot decrypt wallet data.")]
+    IncorrectPassphrase,
+
     // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),
-    #[error("Can't store/restore secret: {0}")]
-    StorageError(#[from] StorageError),
 
     // External crate error wrappers
     #[error("Failed to convert hex string: {0}")]
@@ -69,6 +177,10 @@ pub enum BridgeCliError {
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
     #[error("{0}")]
     BitcoinParseOutpiontError(#[from] bitcoin::transaction::ParseOutPointError),
+
+    // IO errors (from rpassword and file operations)
+    #[error("IO error: {0}")]
+    IoError(#[from] std::io::Error),
 
     // Base wrapper for eyre
     #[error(transparent)]

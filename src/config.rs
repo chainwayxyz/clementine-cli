@@ -7,6 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use eyre::Result;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
 use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
@@ -148,7 +149,7 @@ impl BridgeCliConfig {
                     .unwrap(),
                 ];
             }
-            _ => panic!("Network {} is not supported!", network), // This will only happen if [`Network`] has new fields
+            _ => panic!("Network {network} is not supported!"), // This will only happen if [`Network`] has new fields
         };
 
         config

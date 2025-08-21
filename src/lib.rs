@@ -1,3 +1,4 @@
+use eyre::Result;
 use std::env;
 use std::str::FromStr;
 
@@ -40,17 +41,25 @@ macro_rules! debug_colored {
     };
 }
 
+pub mod address;
 pub mod backend;
 pub mod bitcoin_merkle;
 pub mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
+pub mod encryption;
 pub mod errors;
+pub mod mnemonic;
 pub mod musig2;
 pub mod parameters;
+pub mod passphrase;
+pub mod private_key;
 pub mod script;
-pub mod storage;
+pub mod secure_display;
+pub mod secure_structs;
 pub mod types;
+pub mod wallet;
+pub mod wallet_storage;
 pub mod withdrawal;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {

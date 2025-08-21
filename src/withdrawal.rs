@@ -1,15 +1,13 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::bitcoin_utils::{
-    confirm_private_key_storage, generate_keypair_and_taproot_address, sign_withdrawal_signature,
-    verify_withdrawal_signature,
-};
+use crate::address::{parse_address, parse_taproot_address};
+use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
-use crate::deposit::{parse_address, parse_taproot_address};
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::storage::{load_key, store_key};
+use crate::passphrase::prompt_unlock_passphrase;
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
+use crate::wallet::load_key;
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -25,40 +23,6 @@ use serde_json::{Value, json};
 use std::str::FromStr;
 use urlencoding::encode;
 
-/// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), BridgeCliError> {
-    // Confirm with user about private key storage
-    if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
-    }
-
-    // Generate the key and address
-    let (keypair, address) = generate_keypair_and_taproot_address(network);
-
-    // Store the key securely
-    let stored_address = store_key(&keypair, network, None)?;
-
-    // Verify the stored address matches the generated one
-    if stored_address != address {
-        return Err(eyre::eyre!("Address mismatch after storage").into());
-    }
-
-    // println!(
-    //     "{} Signer key generated and stored successfully",
-    //     "SUCCESS".green().bold()
-    // );
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-    // println!("{} ~/.clementine/keys/", "STORAGE".magenta().bold());
-    println!(
-        "{} Please send 0.0000033 BTC (330 sats) to this address.",
-        "INFO".yellow().bold()
-    );
-
-    Ok(())
-}
-
 pub fn generate_withdrawal_signature(
     signer_address: &str,
     claim_address: &str,
@@ -66,7 +30,9 @@ pub fn generate_withdrawal_signature(
     amount: f64,
     network: Network,
 ) -> Result<(), BridgeCliError> {
-    let keypair = load_key(signer_address, network, None)?;
+    println!("Please enter the passphrase for the signer key:");
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let keypair = load_key(signer_address, network, &secure_passphrase)?;
 
     let signer_address = parse_taproot_address(signer_address, network)?;
     let claim_address = parse_address(claim_address, network)?;
@@ -97,11 +63,11 @@ pub async fn get_tx_details_from_mempool(
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .wrap_err("Failed to fetch transaction hex: {}")?;
+        .map_err(|e| eyre::eyre!("Failed to fetch transaction hex: {e}"))?;
     let tx_hex = response
         .text()
         .await
-        .wrap_err("Failed to read transaction hex response: {}")?;
+        .map_err(|e| eyre::eyre!("Failed to read transaction hex response: {e}"))?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
@@ -266,8 +232,10 @@ pub async fn send_safe_withdrawal(
 ) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let secret_key = std::env::var("SECRET_KEY").wrap_err("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
-    let signer: PrivateKeySigner = secret_key.parse().wrap_err("Can't parse secret key")?;
+    let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
+    let signer: PrivateKeySigner = secret_key
+        .parse()
+        .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
