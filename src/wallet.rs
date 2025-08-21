@@ -390,52 +390,28 @@ fn get_validated_passphrase(
     prompt: &str,
     require_length: bool,
 ) -> Result<SecureString, BridgeCliError> {
-    let mut attempts = 0;
-    const MAX_ATTEMPTS: usize = 5;
-
-    while attempts < MAX_ATTEMPTS {
+    loop {
         print!("{}", prompt);
         io::stdout().flush()?;
         let passphrase_input = rpassword::read_password()?;
 
         if passphrase_input.is_empty() {
             println!("Passphrase cannot be empty for security reasons");
-            attempts += 1;
-            if attempts < MAX_ATTEMPTS {
-                println!(
-                    "Attempt {} of {}. Please try again.",
-                    attempts + 1,
-                    MAX_ATTEMPTS
-                );
-            }
             continue;
         }
 
         if require_length && passphrase_input.len() < 8 {
             println!("Passphrase must be at least 8 characters long for security");
-            attempts += 1;
-            if attempts < MAX_ATTEMPTS {
-                println!(
-                    "Attempt {} of {}. Please try again.",
-                    attempts + 1,
-                    MAX_ATTEMPTS
-                );
-            }
             continue;
         }
 
         return Ok(SecureString::init_with(|| passphrase_input));
     }
-
-    Err(BridgeCliError::MaxAttemptsExceeded)
 }
 
 /// Helper function to securely confirm passphrases without exposing secrets
 fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliError> {
-    let mut attempts = 0;
-    const MAX_ATTEMPTS: usize = 3;
-
-    while attempts < MAX_ATTEMPTS {
+    loop {
         print!("Confirm passphrase: ");
         io::stdout().flush()?;
         let mut confirm_input = rpassword::read_password()?;
@@ -459,19 +435,7 @@ fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliE
         if matches {
             return Ok(());
         }
-
-        attempts += 1;
-        println!("Passphrases do not match");
-        if attempts < MAX_ATTEMPTS {
-            println!(
-                "Attempt {} of {}. Please try again.",
-                attempts + 1,
-                MAX_ATTEMPTS
-            );
-        }
     }
-
-    Err(BridgeCliError::PassphraseConfirmationMaxAttemptsExceeded)
 }
 
 /// Helper function to validate private key imports during wallet import
