@@ -15,10 +15,78 @@ use crate::mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
     prompt_mnemonic_secure,
 };
-use crate::passphrase::prompt_unlock_passphrase;
+use crate::passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::secure_structs::SecureString;
 use crate::wallet_storage::get_storage_dir;
+
+pub fn create_encrypted_wallet_with_address(
+    network: Network,
+    name: String,
+) -> Result<SecureString, BridgeCliError> {
+    println!();
+
+    // Generate mnemonic
+    let secure_mnemonic = generate_mnemonic_secure()?;
+
+    // Generate address from mnemonic using helper function
+    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+        .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+
+    // Prompt for passphrase
+    let passphrase = prompt_passphrase(true)?;
+
+    println!("Generated address: {}", address.green());
+
+    // Encrypt mnemonic and private key separately with different nonces
+    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
+
+    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
+
+    // Store encrypted wallet with separate encrypted fields
+    crate::wallet_storage::store_wallet_data(
+        &address.to_string(),
+        network,
+        &encrypted_mnemonic,
+        &encrypted_private_key,
+        "separate_encrypted_fields",
+        false,
+        None,
+        &name,
+    )?;
+
+    let storage_dir = get_storage_dir()?;
+    println!(
+        "Wallet encrypted and stored securely as wallet_{}.json",
+        name
+    );
+    println!(
+        "Generated address: {} at directory: {}",
+        address.to_string().green(),
+        storage_dir.display().to_string().cyan()
+    );
+    println!();
+
+    match display_mnemonic_securely(&secure_mnemonic) {
+        Ok(()) => {
+            println!("{}", "Mnemonic displayed securely".green());
+        }
+        Err(e) => {
+            eprintln!(
+                "{} Failed to display mnemonic securely: {}",
+                "ERROR".red().bold(),
+                e
+            );
+            eprintln!(
+                "{} The wallet is still safely stored encrypted.",
+                "INFO".blue().bold()
+            );
+        }
+    }
+
+    Ok(secure_mnemonic)
+}
 
 pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
@@ -164,10 +232,8 @@ pub fn import_wallet_from_mnemonic(
     // Securely prompt for passphrase
     println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
     println!("Enter a strong passphrase to encrypt your imported wallet:");
-    let passphrase = get_validated_passphrase("Passphrase: ", true)?;
+    let passphrase = prompt_passphrase(false)?;
 
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
     println!("Passphrase created successfully!");
     println!();
 
@@ -376,158 +442,6 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-/// Helper function to parse network string into Network enum
-fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
-    match network_str {
-        "testnet4" => Ok(Network::Testnet4),
-        "testnet" => Ok(Network::Testnet),
-        "regtest" => Ok(Network::Regtest),
-        "signet" => Ok(Network::Signet),
-        "bitcoin" => Ok(Network::Bitcoin),
-        _ => Err(BridgeCliError::UnsupportedNetwork),
-    }
-}
-
-/// Helper function to get a valid passphrase from user with validation
-fn get_validated_passphrase(
-    prompt: &str,
-    require_length: bool,
-) -> Result<SecureString, BridgeCliError> {
-    loop {
-        print!("{}", prompt);
-        io::stdout().flush()?;
-        let passphrase_input = rpassword::read_password()?;
-
-        if passphrase_input.is_empty() {
-            println!("Passphrase cannot be empty for security reasons");
-            continue;
-        }
-
-        if require_length && passphrase_input.len() < 8 {
-            println!("Passphrase must be at least 8 characters long for security");
-            continue;
-        }
-
-        return Ok(SecureString::init_with(|| passphrase_input));
-    }
-}
-
-/// Helper function to securely confirm passphrases without exposing secrets
-fn confirm_passphrase_secure(passphrase: &SecureString) -> Result<(), BridgeCliError> {
-    loop {
-        print!("Confirm passphrase: ");
-        io::stdout().flush()?;
-        let mut confirm_input = rpassword::read_password()?;
-
-        // Use constant-time comparison to avoid timing attacks
-        let matches = {
-            let passphrase_bytes = passphrase.expose_secret().as_bytes();
-            let confirm_bytes = confirm_input.as_bytes();
-
-            use subtle::ConstantTimeEq;
-            if passphrase_bytes.len() != confirm_bytes.len() {
-                false
-            } else {
-                passphrase_bytes.ct_eq(confirm_bytes).into()
-            }
-        };
-
-        // Immediately zeroize the confirmation input
-        confirm_input.zeroize();
-
-        if matches {
-            return Ok(());
-        }
-    }
-}
-
-/// Helper function to validate private key imports during wallet import
-fn validate_private_key_import(
-    wallet_data: &serde_json::Value,
-    passphrase: &SecureString,
-    wallet_address: &str,
-) -> Result<(), BridgeCliError> {
-    use bitcoin::secp256k1::SecretKey;
-    use std::str::FromStr;
-
-    if wallet_data["encrypted_private_key"].as_object().is_some() {
-        let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
-            serde_json::from_value(wallet_data["encrypted_private_key"].clone()).map_err(|e| {
-                BridgeCliError::Eyre(eyre!(
-                    "Failed to parse encrypted private key structure: {}",
-                    e
-                ))
-            })?;
-
-        let encrypted_private_data = crate::encryption::encrypted_data_from_hex(
-            &encrypted_private_key_hex,
-        )
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
-
-        // Decrypt and validate the private key
-        match aes_decrypt_secure(&encrypted_private_data, passphrase) {
-            Ok(decrypted_private_key) => {
-                let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
-                let network = parse_network(network_str)?;
-
-                // Validate the private key format and derive address to verify
-                match SecretKey::from_str(decrypted_private_key.expose_secret()) {
-                    Ok(mut private_key) => {
-                        let keypair =
-                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key);
-                        let derived_address = calculate_taproot_address(&keypair, network);
-
-                        // Zeroize the private key after use
-                        private_key.non_secure_erase();
-
-                        if derived_address.to_string() != wallet_address {
-                            return Err(BridgeCliError::AddressMismatch);
-                        }
-                        println!(
-                            "Passphrase verified successfully! Private key address confirmed."
-                        );
-                    }
-                    Err(_) => {
-                        return Err(BridgeCliError::InvalidPrivateKey(
-                            "Invalid private key format".to_string(),
-                        ));
-                    }
-                }
-            }
-            Err(_) => {
-                return Err(BridgeCliError::IncorrectPassphrase);
-            }
-        }
-    } else {
-        return Err(BridgeCliError::MissingEncryptedPrivateKeyField);
-    }
-
-    Ok(())
-}
-
-/// Helper function to validate mnemonic imports during wallet import
-fn validate_mnemonic_import(
-    decrypted_mnemonic: &SecureString,
-    wallet_data: &serde_json::Value,
-    wallet_address: &str,
-) -> Result<(), BridgeCliError> {
-    let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
-    let network = parse_network(network_str)?;
-
-    // Generate address from mnemonic to verify it matches
-    match crate::address::generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
-        Ok(derived_address) => {
-            if derived_address != wallet_address {
-                return Err(BridgeCliError::AddressMismatch);
-            }
-            println!("Passphrase verified successfully! Address confirmed.");
-        }
-        Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
-    }
-
-    Ok(())
-}
-
 /// Import a wallet from a file path
 pub fn import_wallet_from_file(
     file_path: &str,
@@ -711,11 +625,7 @@ pub fn import_wallet_from_private_key(
         return Err(BridgeCliError::WalletAlreadyExists(address.to_string()));
     }
 
-    let passphrase =
-        get_validated_passphrase("Enter passphrase to encrypt the imported wallet: ", true)?;
-
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
+    let passphrase = prompt_passphrase(false)?;
 
     let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
 
@@ -763,77 +673,6 @@ pub fn import_wallet_from_private_key(
     Ok(address.to_string())
 }
 
-pub fn create_encrypted_wallet_with_address(
-    network: Network,
-    name: String,
-) -> Result<SecureString, BridgeCliError> {
-    println!();
-
-    // Generate mnemonic
-    let secure_mnemonic = generate_mnemonic_secure()?;
-
-    // Generate address from mnemonic using helper function
-    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
-        .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
-
-    println!("Generated address: {}", address.green());
-
-    // Prompt for passphrase
-    let passphrase = get_validated_passphrase("Enter passphrase to encrypt the wallet: ", true)?;
-
-    // Confirm passphrase using secure comparison
-    confirm_passphrase_secure(&passphrase)?;
-
-    // Encrypt mnemonic and private key separately with different nonces
-    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
-
-    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
-    let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
-
-    // Store encrypted wallet with separate encrypted fields
-    crate::wallet_storage::store_wallet_data(
-        &address.to_string(),
-        network,
-        &encrypted_mnemonic,
-        &encrypted_private_key,
-        "separate_encrypted_fields",
-        false,
-        None,
-        &name,
-    )?;
-
-    let storage_dir = get_storage_dir()?;
-    println!(
-        "Wallet encrypted and stored securely as wallet_{}.json",
-        name
-    );
-    println!(
-        "Generated address: {} at directory: {}",
-        address.to_string().green(),
-        storage_dir.display().to_string().cyan()
-    );
-    println!();
-
-    match display_mnemonic_securely(&secure_mnemonic) {
-        Ok(()) => {
-            println!("{}", "Mnemonic displayed securely".green());
-        }
-        Err(e) => {
-            eprintln!(
-                "{} Failed to display mnemonic securely: {}",
-                "ERROR".red().bold(),
-                e
-            );
-            eprintln!(
-                "{} The wallet is still safely stored encrypted.",
-                "INFO".blue().bold()
-            );
-        }
-    }
-
-    Ok(secure_mnemonic)
-}
-
 pub fn show_private_key(address: &str, network: Network) -> Result<(), BridgeCliError> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
@@ -855,7 +694,7 @@ pub fn show_private_key(address: &str, network: Network) -> Result<(), BridgeCli
 }
 
 /// Securely load a key from wallet storage - always requires a passphrase
-pub fn load_key(
+pub(crate) fn load_key(
     address: &str,
     network: Network,
     passphrase: &SecureString,
@@ -892,6 +731,105 @@ pub fn load_key(
     let secp = Secp256k1::new();
     let secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
     Ok(Keypair::from_secret_key(&secp, &secret_key))
+}
+
+/// Helper function to validate mnemonic imports during wallet import
+fn validate_mnemonic_import(
+    decrypted_mnemonic: &SecureString,
+    wallet_data: &serde_json::Value,
+    wallet_address: &str,
+) -> Result<(), BridgeCliError> {
+    let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
+    let network = parse_network(network_str)?;
+
+    // Generate address from mnemonic to verify it matches
+    match crate::address::generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
+        Ok(derived_address) => {
+            if derived_address != wallet_address {
+                return Err(BridgeCliError::AddressMismatch);
+            }
+            println!("Passphrase verified successfully! Address confirmed.");
+        }
+        Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
+    }
+
+    Ok(())
+}
+
+/// Helper function to parse network string into Network enum
+fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
+    match network_str {
+        "testnet4" => Ok(Network::Testnet4),
+        "testnet" => Ok(Network::Testnet),
+        "regtest" => Ok(Network::Regtest),
+        "signet" => Ok(Network::Signet),
+        "bitcoin" => Ok(Network::Bitcoin),
+        _ => Err(BridgeCliError::UnsupportedNetwork),
+    }
+}
+
+/// Helper function to validate private key imports during wallet import
+fn validate_private_key_import(
+    wallet_data: &serde_json::Value,
+    passphrase: &SecureString,
+    wallet_address: &str,
+) -> Result<(), BridgeCliError> {
+    use bitcoin::secp256k1::SecretKey;
+    use std::str::FromStr;
+
+    if wallet_data["encrypted_private_key"].as_object().is_some() {
+        let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
+            serde_json::from_value(wallet_data["encrypted_private_key"].clone()).map_err(|e| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse encrypted private key structure: {}",
+                    e
+                ))
+            })?;
+
+        let encrypted_private_data = crate::encryption::encrypted_data_from_hex(
+            &encrypted_private_key_hex,
+        )
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+
+        // Decrypt and validate the private key
+        match aes_decrypt_secure(&encrypted_private_data, passphrase) {
+            Ok(decrypted_private_key) => {
+                let network_str = wallet_data["network"].as_str().unwrap_or("mainnet");
+                let network = parse_network(network_str)?;
+
+                // Validate the private key format and derive address to verify
+                match SecretKey::from_str(decrypted_private_key.expose_secret()) {
+                    Ok(mut private_key) => {
+                        let keypair =
+                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key);
+                        let derived_address = calculate_taproot_address(&keypair, network);
+
+                        // Zeroize the private key after use
+                        private_key.non_secure_erase();
+
+                        if derived_address.to_string() != wallet_address {
+                            return Err(BridgeCliError::AddressMismatch);
+                        }
+                        println!(
+                            "Passphrase verified successfully! Private key address confirmed."
+                        );
+                    }
+                    Err(_) => {
+                        return Err(BridgeCliError::InvalidPrivateKey(
+                            "Invalid private key format".to_string(),
+                        ));
+                    }
+                }
+            }
+            Err(_) => {
+                return Err(BridgeCliError::IncorrectPassphrase);
+            }
+        }
+    } else {
+        return Err(BridgeCliError::MissingEncryptedPrivateKeyField);
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]

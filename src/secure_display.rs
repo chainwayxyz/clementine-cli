@@ -32,7 +32,7 @@ const PRIVATE_KEY_COUNTDOWN_Y: u16 = 12;
 
 /// Secure display manager for sensitive information like mnemonic phrases
 /// Uses alternate screen to prevent shell history contamination
-pub struct SecureMnemonicDisplay<'a> {
+struct SecureMnemonicDisplay<'a> {
     /// The secure mnemonic phrase to display
     mnemonic: &'a SecureString,
     /// Whether alternate screen is currently active
@@ -41,7 +41,7 @@ pub struct SecureMnemonicDisplay<'a> {
 
 impl<'a> SecureMnemonicDisplay<'a> {
     /// Create a new secure display instance
-    pub fn new(mnemonic: &'a SecureString) -> Self {
+    fn new(mnemonic: &'a SecureString) -> Self {
         Self {
             mnemonic,
             alternate_screen_active: false,
@@ -49,7 +49,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
     }
 
     /// Display the mnemonic in a secure alternate screen
-    pub fn display_securely(&mut self) -> Result<()> {
+    fn display_securely(&mut self) -> Result<()> {
         // Show pre-display warning
         self.show_timeout_warning()?;
 
@@ -497,8 +497,14 @@ impl<'a> Drop for SecureMnemonicDisplay<'a> {
     }
 }
 
+/// Convenience function to display a mnemonic securely
+pub(crate) fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
+    let mut display = SecureMnemonicDisplay::new(mnemonic);
+    display.display_securely()
+}
+
 /// Simple secure display for private keys
-pub fn display_private_key_securely(private_key: &SecretKey) -> Result<()> {
+pub(crate) fn display_private_key_securely(private_key: &SecretKey) -> Result<()> {
     // Check if terminal supports alternate screen
     if !std::io::stdout().is_terminal() {
         return display_private_key_fallback(private_key);
@@ -678,12 +684,6 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Convenience function to display a mnemonic securely
-pub fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
-    let mut display = SecureMnemonicDisplay::new(mnemonic);
-    display.display_securely()
 }
 
 #[cfg(test)]

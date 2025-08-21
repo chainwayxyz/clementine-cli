@@ -61,7 +61,7 @@ fn get_block_merkle_proof(
 }
 
 #[derive(Clone)]
-pub struct CitreaTransaction {
+pub(crate) struct CitreaTransaction {
     pub version: [u8; 4],
     pub flag: [u8; 2],
     pub vin: Vec<u8>,
@@ -148,7 +148,7 @@ fn get_transaction_details_for_citrea(
 }
 
 #[derive(Clone)]
-pub struct CitreaMerkleProof {
+pub(crate) struct CitreaMerkleProof {
     pub intermediate_nodes: Vec<u8>,
     pub block_height: u32,
     pub index: usize,
@@ -183,7 +183,7 @@ fn get_transaction_merkle_proof_for_citrea(
     })
 }
 
-pub fn get_citrea_deposit_params(
+pub(crate) fn get_citrea_deposit_params(
     prevout: TxOut,
     move_to_vault_tx: &Transaction,
     move_to_vault_block: &Block,
@@ -221,7 +221,7 @@ pub fn get_citrea_deposit_params(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn get_citrea_safe_withdraw_params(
+pub(crate) fn get_citrea_safe_withdraw_params(
     withdrawal_utxo: &OutPoint,
     payout_output: &bitcoin::TxOut,
     sig: &bitcoin::taproot::Signature,

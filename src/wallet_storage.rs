@@ -8,7 +8,7 @@ use crate::errors::BridgeCliError;
 
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GenericWalletData {
+pub(crate) struct GenericWalletData {
     pub address: String,
     pub network: String,
     pub encrypted_mnemonic: Option<EncryptedDataHex>,
@@ -22,7 +22,7 @@ pub struct GenericWalletData {
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
-pub fn store_wallet_data(
+pub(crate) fn store_wallet_data(
     address: &str,
     network: Network,
     encrypted_mnemonic: &EncryptedData,
@@ -73,7 +73,7 @@ pub fn store_wallet_data(
 }
 
 /// Update the wallets.json registry
-pub fn update_wallets_registry(
+fn update_wallets_registry(
     address: &str,
     network: Network,
     imported: bool,
@@ -109,7 +109,7 @@ pub fn update_wallets_registry(
 }
 
 /// Load generic wallet data from file
-pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, BridgeCliError> {
+pub(crate) fn load_wallet_data(address: &str) -> Result<GenericWalletData, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
@@ -124,7 +124,7 @@ pub fn load_wallet_data(address: &str) -> Result<GenericWalletData, BridgeCliErr
 }
 
 /// Get the storage directory path
-pub fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
+pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
     let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine").join("keys"))
 }

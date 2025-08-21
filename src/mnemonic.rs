@@ -18,7 +18,7 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-pub fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
         .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
 
@@ -30,7 +30,7 @@ pub fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
 }
 
 /// Generate master seed from mnemonic phrase
-pub fn get_master_seed_from_mnemonic(
+pub(crate) fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &SecureString,
 ) -> Result<[u8; 32], BridgeCliError> {
     let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
@@ -49,7 +49,7 @@ pub fn get_master_seed_from_mnemonic(
     Ok(master_seed)
 }
 
-pub fn load_mnemonic_secure(
+fn load_mnemonic_secure(
     wallet_name: &str,
     passphrase: &SecureString,
 ) -> Result<SecureString, BridgeCliError> {
@@ -66,7 +66,7 @@ pub fn load_mnemonic_secure(
     Ok(secure_mnemonic)
 }
 
-pub fn derive_private_key_from_mnemonic_secure(
+pub(crate) fn derive_private_key_from_mnemonic_secure(
     mnemonic: &SecureString,
 ) -> Result<SecureString, BridgeCliError> {
     use bitcoin::secp256k1::SecretKey;
@@ -85,7 +85,7 @@ pub fn derive_private_key_from_mnemonic_secure(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
-pub fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     use bip39::{Language, Mnemonic};
     use colored::Colorize;
     use zeroize::Zeroize;
