@@ -126,10 +126,7 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
                     .to_string();
 
                 // Get the address from the wallet file
-                match process_wallet_file(&entry.path()) {
-                    Some(address) => Some((wallet_name, address)),
-                    None => None,
-                }
+                process_wallet_file(&entry.path()).map(|address| (wallet_name, address))
             } else {
                 None
             }

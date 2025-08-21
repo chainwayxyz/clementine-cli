@@ -21,6 +21,7 @@ pub struct GenericWalletData {
 }
 
 /// Generic function to store encrypted wallet data
+#[allow(clippy::too_many_arguments)]
 pub fn store_wallet_data(
     address: &str,
     network: Network,
