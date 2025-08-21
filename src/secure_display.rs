@@ -686,7 +686,6 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     Ok(())
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
