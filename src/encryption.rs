@@ -101,8 +101,8 @@ pub fn aes_encrypt_secure(
     // Generate fresh random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
-    getrandom::fill(&mut salt).map_err(|_| BridgeCliError::RandomSaltGenerationError)?;
-    getrandom::fill(&mut nonce_bytes).map_err(|_| BridgeCliError::RandomNonceGenerationError)?;
+    getrandom::fill(&mut salt).map_err(|e| BridgeCliError::RandomSaltGenerationError(e.to_string()))?;
+    getrandom::fill(&mut nonce_bytes).map_err(|e| BridgeCliError::RandomNonceGenerationError(e.to_string()))?;
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
@@ -112,7 +112,7 @@ pub fn aes_encrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|_| BridgeCliError::KeyDerivationError)?;
+    .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
 
     // Encrypt with AES-256-GCM
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -120,7 +120,7 @@ pub fn aes_encrypt_secure(
 
     let ciphertext = cipher
         .encrypt(nonce, secure_plaintext.expose_secret().as_bytes())
-        .map_err(|_| BridgeCliError::EncryptionError)?;
+        .map_err(|e| BridgeCliError::EncryptionError(e.to_string()))?;
 
     Ok(EncryptedData {
         ciphertext,
@@ -144,7 +144,7 @@ pub fn aes_decrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|_| BridgeCliError::KeyDerivationError)?;
+    .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
 
     // Decrypt with AES-256-GCM (verifies authentication)
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -152,10 +152,10 @@ pub fn aes_decrypt_secure(
 
     let mut plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-        .map_err(|_| BridgeCliError::DecryptionError)?;
+        .map_err(|e| BridgeCliError::DecryptionError(e.to_string()))?;
 
     let plaintext_string =
-        String::from_utf8(plaintext.clone()).map_err(|_| BridgeCliError::InvalidUtf8Error)?;
+        String::from_utf8(plaintext.clone()).map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
     plaintext.zeroize();
@@ -178,9 +178,9 @@ pub fn encrypted_data_from_hex(data: &EncryptedDataHex) -> Result<EncryptedData,
         ciphertext: hex::decode(&data.ciphertext)?,
         nonce: hex::decode(&data.nonce)?
             .try_into()
-            .map_err(|_| BridgeCliError::InvalidNonceLength)?,
+            .map_err(|e: Vec<u8>| BridgeCliError::InvalidNonceLength(e.len()))?,
         salt: hex::decode(&data.salt)?
             .try_into()
-            .map_err(|_| BridgeCliError::InvalidSaltLength)?,
+            .map_err(|e: Vec<u8>| BridgeCliError::InvalidSaltLength(e.len()))?,
     })
 }

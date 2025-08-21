@@ -539,7 +539,7 @@ fn validate_mnemonic_import(
             }
             println!("Passphrase verified successfully! Address confirmed.");
         }
-        Err(_) => return Err(BridgeCliError::MnemonicParseError),
+        Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
     }
 
     Ok(())
@@ -613,7 +613,13 @@ pub fn import_wallet_from_file(file_path: &str) -> Result<String, BridgeCliError
             // Basic validation: should have words separated by spaces
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
-                return Err(BridgeCliError::MnemonicParseError);
+                return Err(BridgeCliError::MnemonicParseError(
+                    format!(
+                        "Invalid mnemonic length: expected {} words, got {}",
+                        MNEMONIC_WORD_COUNT,
+                        words.len()
+                    ),
+                ));
             }
 
             // Validate wallet data based on import type
@@ -732,7 +738,8 @@ pub fn import_wallet_from_private_key(network: Network) -> Result<String, Bridge
     master_private_key.non_secure_erase();
 
     let encrypted_mnemonic = aes_encrypt_secure(&placeholder_mnemonic, &passphrase)
-        .map_err(|_| BridgeCliError::PlaceholderMnemonicEncryptionFailed)?;
+        .map_err(|e| BridgeCliError::PlaceholderMnemonicEncryptionFailed(e.to_string()))?;
+
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
         .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
 

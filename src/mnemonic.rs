@@ -20,7 +20,7 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
 
 pub fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
-        .map_err(|_| BridgeCliError::MnemonicGenerationError)?;
+        .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
 
     let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
 
@@ -34,7 +34,7 @@ pub fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &SecureString,
 ) -> Result<[u8; 32], BridgeCliError> {
     let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
-        .map_err(|_| BridgeCliError::MnemonicParseError)?;
+        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
 
     // Generate seed (64 bytes)
     let mut seed = mnemonic.to_seed("");

@@ -65,7 +65,7 @@ pub fn derive_key_from_passphrase(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
         argon2::Params::new(memory, iterations, parallelism, Some(32))
-            .map_err(|_| BridgeCliError::InvalidArgon2Parameters)?,
+            .map_err(|e| BridgeCliError::InvalidArgon2Parameters(e.to_string()))?,
     );
 
     let mut key = [0u8; 32];
@@ -73,7 +73,7 @@ pub fn derive_key_from_passphrase(
     // Passphrase + salt → 32-byte key via memory-hard computation
     argon2
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
-        .map_err(|_| BridgeCliError::KeyDerivationError)?;
+        .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
 
     println!("Key derived successfully.");
 

@@ -33,54 +33,52 @@ pub enum BridgeCliError {
     UnsupportedNetwork,
 
     // Address-related errors
-    #[error("Failed to generate master seed from mnemonic")]
-    MnemonicToSeedError,
-    #[error("Invalid Bitcoin address format")]
-    InvalidAddressFormat,
+    #[error("Failed to generate master seed from mnemonic: {0}")]
+    MnemonicToSeedError(String),
     #[error("Address is not a taproot (P2TR) address")]
     NotTaprootAddress,
     #[error("Address field not found or invalid in wallet data")]
     MissingWalletAddress,
-    #[error("Failed to get storage directory")]
-    StorageDirectoryError,
-    #[error("Failed to read storage directory")]
-    StorageReadError,
+    #[error("Failed to get storage directory: {0}")]
+    StorageDirectoryError(String),
+    #[error("Failed to read storage directory: {0}")]
+    StorageReadError(String),
 
     // Encryption-related errors
-    #[error("Failed to generate random salt")]
-    RandomSaltGenerationError,
-    #[error("Failed to generate random nonce")]
-    RandomNonceGenerationError,
-    #[error("Key derivation failed")]
-    KeyDerivationError,
-    #[error("Encryption failed")]
-    EncryptionError,
-    #[error("Decryption failed: Incorrect passphrase")]
-    DecryptionError,
-    #[error("Decryption produced invalid UTF-8")]
-    InvalidUtf8Error,
-    #[error("Invalid nonce length")]
-    InvalidNonceLength,
-    #[error("Invalid salt length")]
-    InvalidSaltLength,
+    #[error("Failed to generate random salt: {0}")]
+    RandomSaltGenerationError(String),
+    #[error("Failed to generate random nonce: {0}")]
+    RandomNonceGenerationError(String),
+    #[error("Key derivation failed: {0}")]
+    KeyDerivationError(String),
+    #[error("Encryption failed: {0}")]
+    EncryptionError(String),
+    #[error("Decryption failed: {0}")]
+    DecryptionError(String),
+    #[error("Decryption produced invalid UTF-8: {0}")]
+    InvalidUtf8Error(String),
+    #[error("Invalid nonce length: {0}")]
+    InvalidNonceLength(usize),
+    #[error("Invalid salt length: {0}")]
+    InvalidSaltLength(usize),
 
     // Mnemonic-related errors
-    #[error("Failed to generate mnemonic")]
-    MnemonicGenerationError,
-    #[error("Failed to parse mnemonic")]
-    MnemonicParseError,
+    #[error("Failed to generate mnemonic: {0}")]
+    MnemonicGenerationError(String),
+    #[error("Failed to parse mnemonic: {0}")]
+    MnemonicParseError(String),
     #[error("No encrypted mnemonic found in wallet data")]
     MissingEncryptedMnemonic,
     #[error("Invalid mnemonic length: {0} words. Must be 12 words")]
     InvalidMnemonicLength(usize),
     #[error("Mnemonic validation failed: {0}")]
     MnemonicValidationFailed(String),
-    #[error("Failed to encrypt placeholder mnemonic")]
-    PlaceholderMnemonicEncryptionFailed,
+    #[error("Failed to encrypt placeholder mnemonic: {0}")]
+    PlaceholderMnemonicEncryptionFailed(String),
 
     // Passphrase-related errors
-    #[error("Invalid Argon2 parameters")]
-    InvalidArgon2Parameters,
+    #[error("Invalid Argon2 parameters: {0}")]
+    InvalidArgon2Parameters(String),
     #[error("Passphrase not provided for encrypted key")]
     PassphraseNotProvided,
     #[error("Invalid passphrase")]
