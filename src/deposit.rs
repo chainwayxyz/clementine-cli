@@ -15,7 +15,6 @@ use crate::storage::load_key;
 use crate::storage::store_key;
 use crate::utils::parse_citrea_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
-
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::AddressType;
 use bitcoin::consensus::deserialize;
@@ -24,11 +23,9 @@ use bitcoin::{Network, address::NetworkUnchecked};
 use std::str::FromStr;
 
 pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
-    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
-        .parse()
-        .map_err(|_| eyre::eyre!("Invalid Bitcoin address format"))?;
-    let address = unchecked_address.require_network(network)?;
-    Ok(address)
+    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address.parse()?;
+
+    Ok(unchecked_address.require_network(network)?)
 }
 
 /// Parse and validate taproot address for the specified network
@@ -51,11 +48,12 @@ pub fn generate_recovery_key(
     auto_yes: bool,
     private_key: Option<String>,
     network: Network,
-) -> Result<(), BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     // Confirm with user about private key storage
     if !confirm_private_key_storage(auto_yes)? {
-        tracing::info!("Operation cancelled by user.");
-        return Ok(());
+        tracing::error!("Operation cancelled by user.");
+
+        return Err(BridgeCliError::OperationCancelled);
     }
 
     let (keypair, address) = if let Some(private_key) = private_key {
@@ -72,10 +70,7 @@ pub fn generate_recovery_key(
         return Err(eyre::eyre!("Address mismatch after storage").into());
     }
 
-    tracing::debug!("Address: {}", address);
-    tracing::debug!("Network: {}", network);
-
-    Ok(())
+    Ok(address)
 }
 
 /// Get deposit address from backend
@@ -83,25 +78,23 @@ pub fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
-    tracing::info!("CITREA_ADDRESS (checksummed): {}", citrea_address,);
+    tracing::debug!("CITREA_ADDRESS (checksummed): {}", citrea_address,);
     let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, config.network)?;
 
     // Call backend to create deposit account
     let deposit_address =
         create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
 
-    tracing::info!("DEPOSIT_ADDRESS: {}", deposit_address);
+    tracing::debug!("DEPOSIT_ADDRESS: {}", deposit_address);
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
-    tracing::info!("Deposit address: {}", calculated_deposit_address);
-
-    Ok(())
+    Ok(calculated_deposit_address)
 }
 
 pub async fn get_deposit_params(

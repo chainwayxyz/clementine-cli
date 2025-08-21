@@ -50,10 +50,8 @@ pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliErro
         return Ok(true);
     }
 
-    tracing::warn!(
-        "This command will save a private key to your computer.\n
-        \tAnyone with access to this computer could potentially spend your funds.\n
-        \tMake sure you're running this in a secure environment.\n",
+    println!(
+        "This command will save a private key to your computer. Anyone with access to this computer could potentially spend your funds. Make sure you're running this in a secure environment.\n",
     );
     // Don't print new line for the question.
     print!("Are you sure you want to continue? (y/N): ");

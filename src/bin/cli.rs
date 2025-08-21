@@ -35,12 +35,14 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum DepositCommands {
+    /// Generates a random key pair, stores it in secure storage and prints the new generated address
     GenerateRecoveryKey {
         #[arg(short, long)]
         y: bool,
         #[arg(long)]
         private_key: Option<String>,
     },
+    /// Gets the deposit address from Citrea
     GetDepositAddress {
         citrea_address: String,
         recovery_taproot_address: String,
@@ -145,22 +147,32 @@ async fn main() {
     match cli.command {
         Commands::Deposit { command } => match command {
             DepositCommands::GenerateRecoveryKey { y, private_key } => {
-                if let Err(e) = deposit::generate_recovery_key(y, private_key, config.network) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                match deposit::generate_recovery_key(y, private_key, config.network) {
+                    Ok(address) => {
+                        println!("{address}");
+                    }
+                    Err(e) => {
+                        eprintln!("Error while generating recovery key: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             DepositCommands::GetDepositAddress {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                if let Err(e) = deposit::get_deposit_address(
+                match deposit::get_deposit_address(
                     &citrea_address,
                     &recovery_taproot_address,
                     &config,
                 ) {
-                    eprintln!("Error: {}", e);
-                    std::process::exit(1);
+                    Ok(address) => {
+                        println!("{address}");
+                    }
+                    Err(e) => {
+                        eprintln!("Error while generating deposit address: {}", e);
+                        std::process::exit(1);
+                    }
                 }
             }
             DepositCommands::SignRecoveryTx {
