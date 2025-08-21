@@ -163,8 +163,6 @@ pub fn verify_recovery_tx(
     Ok((txid, address, amount))
 }
 
-// TODO: Implement deposit.deposit_status
-
 #[cfg(test)]
 mod tests {
     use super::*;
