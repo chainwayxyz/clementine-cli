@@ -1,7 +1,7 @@
 use bitcoin::{
     ScriptBuf, XOnlyPublicKey,
     opcodes::{OP_FALSE, all::*},
-    script::{Builder, PushBytesBuf},
+    script::Builder,
 };
 
 use crate::CitreaAddress;
@@ -25,6 +25,10 @@ pub(crate) fn deposit_script(
 ) -> ScriptBuf {
     let citrea: [u8; 6] = "citrea".as_bytes().try_into().expect("length == 6");
 
+    // TODO: remove this: only testing if endiannes is correct
+    let mut add = citrea_address.0;
+    add.reverse();
+
     Builder::new()
         .push_x_only_key(&nofn_xonly_pk)
         .push_opcode(OP_CHECKSIG)
@@ -32,7 +36,7 @@ pub(crate) fn deposit_script(
         .push_opcode(OP_IF)
         .push_slice(citrea)
         .push_slice(*citrea_address.0)
-        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap())
+        // .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap()) // TODO will remove
         .push_opcode(OP_ENDIF)
         .into_script()
 }
