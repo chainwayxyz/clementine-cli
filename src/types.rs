@@ -41,7 +41,7 @@ sol! {
     }
 }
 
-pub fn encode_citrea_deposit_params(
+pub(crate) fn encode_citrea_deposit_params(
     move_tx: &CitreaTransaction,
     proof: &CitreaMerkleProof,
     sha_script_pubkeys: [u8; 32],
@@ -82,7 +82,7 @@ impl From<&CitreaMerkleProof> for MerkleProof {
     }
 }
 
-pub fn prepare_safe_withdraw_params(
+pub(crate) fn prepare_safe_withdraw_params(
     prepare_tx: &CitreaTransaction,
     prepare_proof: &CitreaMerkleProof,
     payout_tx: &CitreaTransaction,

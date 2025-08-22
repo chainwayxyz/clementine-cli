@@ -12,8 +12,7 @@ macro_rules! handle_or_exit {
 }
 use clementine_cli::{
     config::BridgeCliConfig,
-    debug, deposit,
-    mnemonic::show_mnemonic_secure,
+    debug, deposit, show_mnemonic_secure,
     wallet::{
         self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
         import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -224,7 +223,7 @@ async fn main() {
                 handle_or_exit!(verify_wallet_integrity());
             }
             WalletCommands::ListWalletsWithAddresses => {
-                handle_or_exit!(clementine_cli::address::get_all_wallets_with_addresses());
+                handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
                 handle_or_exit!(wallet::show_private_key(&address, config.network));

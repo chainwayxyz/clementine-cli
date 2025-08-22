@@ -56,7 +56,7 @@ pub fn generate_withdrawal_signature(
     Ok(())
 }
 
-pub async fn get_tx_details_from_mempool(
+async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
@@ -98,7 +98,7 @@ pub async fn get_tx_details_from_mempool(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_tx_details_from_rpc(
+async fn get_tx_details_from_rpc(
     rpc: &Client,
     prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
@@ -119,7 +119,7 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_txout_details(
+pub(crate) async fn get_txout_details(
     config: &BridgeCliConfig,
     txid: &Txid,
     vout: u32,
@@ -133,7 +133,7 @@ pub async fn get_txout_details(
     Ok(txout.clone())
 }
 
-pub async fn get_tx_details(
+pub(crate) async fn get_tx_details(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {

@@ -10,7 +10,7 @@ use crate::mnemonic::get_master_seed_from_mnemonic;
 use crate::secure_structs::SecureString;
 
 /// Generate a Bitcoin address from a mnemonic phrase
-pub fn generate_address_from_mnemonic_secure(
+pub(crate) fn generate_address_from_mnemonic_secure(
     secure_mnemonic: &SecureString,
     network: Network,
 ) -> Result<String, BridgeCliError> {
@@ -29,7 +29,10 @@ pub fn generate_address_from_mnemonic_secure(
 }
 
 /// Parse a Bitcoin address string into a proper Address object
-pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
+pub(crate) fn parse_address(
+    address: &str,
+    network: Network,
+) -> Result<BitcoinAddress, BridgeCliError> {
     use crate::{BitcoinAddress, NetworkUnchecked};
 
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
@@ -41,7 +44,7 @@ pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, 
 }
 
 /// Parse a taproot address specifically and validate it's the correct type
-pub fn parse_taproot_address(
+pub(crate) fn parse_taproot_address(
     address: &str,
     network: Network,
 ) -> Result<BitcoinAddress, BridgeCliError> {
@@ -58,9 +61,7 @@ pub fn parse_taproot_address(
 }
 
 /// Extract address from wallet JSON data
-pub fn extract_address_from_wallet(
-    wallet_data: &serde_json::Value,
-) -> Result<String, BridgeCliError> {
+fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<String, BridgeCliError> {
     // Try to get the address field from the wallet data
     if let Some(address) = wallet_data.get("address")
         && let Some(address_str) = address.as_str()

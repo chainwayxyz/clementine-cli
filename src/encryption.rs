@@ -60,7 +60,6 @@
 
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
-use getrandom;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
@@ -77,7 +76,7 @@ const ARGON2_PARALLELISM: u32 = 1;
 
 /// Complete encrypted data package: ciphertext + nonce + salt
 #[derive(Debug, Clone)]
-pub struct EncryptedData {
+pub(crate) struct EncryptedData {
     pub ciphertext: Vec<u8>,
     pub nonce: [u8; 12], // AES-GCM nonce
     pub salt: [u8; 32],  // Argon2id salt
@@ -85,7 +84,7 @@ pub struct EncryptedData {
 
 /// Hex-encoded version of EncryptedData for JSON serialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EncryptedDataHex {
+pub(crate) struct EncryptedDataHex {
     pub ciphertext: String,
     pub nonce: String,
     pub salt: String,
@@ -94,7 +93,7 @@ pub struct EncryptedDataHex {
 /// Encrypts plaintext with AES-256-GCM using passphrase-derived key
 ///
 /// Process: passphrase + fresh salt → Argon2id → AES key → GCM encryption with fresh nonce
-pub fn aes_encrypt_secure(
+pub(crate) fn aes_encrypt_secure(
     secure_plaintext: &SecureString,
     secure_passphrase: &SecureString,
 ) -> Result<EncryptedData, BridgeCliError> {
@@ -134,7 +133,7 @@ pub fn aes_encrypt_secure(
 /// Decrypts AES-256-GCM ciphertext using passphrase-derived key
 ///
 /// Process: passphrase + stored salt → Argon2id → same AES key → GCM decryption
-pub fn aes_decrypt_secure(
+pub(crate) fn aes_decrypt_secure(
     encrypted_data: &EncryptedData,
     secure_passphrase: &SecureString,
 ) -> Result<SecureString, BridgeCliError> {
@@ -166,7 +165,7 @@ pub fn aes_decrypt_secure(
 }
 
 /// Generic function to convert binary EncryptedData to hex format for JSON
-pub fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
+pub(crate) fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
     EncryptedDataHex {
         ciphertext: hex::encode(&data.ciphertext),
         nonce: hex::encode(data.nonce),
@@ -175,7 +174,9 @@ pub fn encrypted_data_to_hex(data: &EncryptedData) -> EncryptedDataHex {
 }
 
 /// Generic function to convert hex EncryptedDataHex back to binary
-pub fn encrypted_data_from_hex(data: &EncryptedDataHex) -> Result<EncryptedData, BridgeCliError> {
+pub(crate) fn encrypted_data_from_hex(
+    data: &EncryptedDataHex,
+) -> Result<EncryptedData, BridgeCliError> {
     Ok(EncryptedData {
         ciphertext: hex::decode(&data.ciphertext)?,
         nonce: hex::decode(&data.nonce)?

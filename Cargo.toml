@@ -49,9 +49,6 @@ subtle = "2.6.1"
 thiserror = "2.0.14"
 
 
-[dev-dependencies]
-tempfile = "3.8"
-
 
 [patch.crates-io]
 secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc" }

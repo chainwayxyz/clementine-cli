@@ -9,7 +9,7 @@ use eyre::Result;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
-pub fn create_deposit_account(
+pub(crate) fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,

@@ -183,7 +183,7 @@ fn get_transaction_merkle_proof_for_citrea(
     })
 }
 
-pub fn get_citrea_deposit_params(
+pub(crate) fn get_citrea_deposit_params(
     prevout: TxOut,
     move_to_vault_tx: &Transaction,
     move_to_vault_block: &Block,
@@ -221,7 +221,7 @@ pub fn get_citrea_deposit_params(
 }
 
 #[allow(clippy::type_complexity)]
-pub fn get_citrea_safe_withdraw_params(
+pub(crate) fn get_citrea_safe_withdraw_params(
     withdrawal_utxo: &OutPoint,
     payout_output: &bitcoin::TxOut,
     sig: &bitcoin::taproot::Signature,
