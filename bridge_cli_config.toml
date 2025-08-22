@@ -3,6 +3,7 @@ network = "regtest"
 verifiers_pks = []
 user_takes_after = 200
 bridge_amount = 1000000000
+bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://127.0.0.1/"
 

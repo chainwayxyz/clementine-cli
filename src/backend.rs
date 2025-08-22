@@ -1,14 +1,15 @@
 // Backend communication logic for Clementine CLI
 
 use crate::config::BridgeCliConfig;
-use crate::deposit::parse_taproot_address;
 use crate::errors::BridgeCliError;
+use crate::wallet::address::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
+use eyre::Result;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
-pub fn create_deposit_account(
+pub(crate) fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,

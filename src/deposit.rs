@@ -1,82 +1,24 @@
 // Deposit-related commands and logic for Clementine CLI
 
 use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::{
-    calculate_deposit_address, confirm_private_key_storage, generate_keypair_and_taproot_address,
-};
-use crate::bitcoin_utils::{
-    generate_keypair_and_taproot_address_from_private_key,
-    sign_recovery_tx as utils_sign_recovery_tx,
-};
+use crate::bitcoin_utils::calculate_deposit_address;
+use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
-use crate::storage::load_key;
-use crate::storage::store_key;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_utils::load_address;
+use crate::wallet::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
-
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-use bitcoin::AddressType;
+
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
-use bitcoin::{Network, address::NetworkUnchecked};
 use colored::*;
+use eyre::Result;
 use std::str::FromStr;
 
-pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
-    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
-        .parse()
-        .map_err(|_| eyre::eyre!("Invalid Bitcoin address format"))?;
-    let address = unchecked_address.require_network(network)?;
-    Ok(address)
-}
-
-/// Parse and validate taproot address for the specified network
-pub fn parse_taproot_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress, BridgeCliError> {
-    let address = parse_address(address, network)?;
-
-    // Verify it's a taproot (P2TR) address
-    if address.address_type() != Some(AddressType::P2tr) {
-        return Err(eyre::eyre!("Address is not a taproot (P2TR) address").into());
-    }
-
-    Ok(address)
-}
-
-/// Generate a new recovery key and taproot address for deposit operations
-pub fn generate_recovery_key(
-    auto_yes: bool,
-    private_key: Option<String>,
-    network: Network,
-) -> Result<(), BridgeCliError> {
-    // Confirm with user about private key storage
-    if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
-    }
-
-    let (keypair, address) = if let Some(private_key) = private_key {
-        generate_keypair_and_taproot_address_from_private_key(&private_key, network)
-    } else {
-        Ok(generate_keypair_and_taproot_address(network))
-    }?;
-
-    // Store the key securely
-    let stored_address = store_key(&keypair, network, None)?;
-
-    // Verify the stored address matches the generated one
-    if stored_address != address {
-        return Err(eyre::eyre!("Address mismatch after storage").into());
-    }
-
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-
-    Ok(())
-}
+use crate::wallet::address::parse_taproot_address;
 
 /// Get deposit address from backend
 pub fn get_deposit_address(
@@ -144,7 +86,7 @@ pub async fn get_deposit_params(
 #[allow(clippy::too_many_arguments)]
 pub fn sign_recovery_tx(
     citrea_address: &str,
-    recovery_taproot_address: &str,
+    wallet_name: &str,
     deposit_txid: &str,
     deposit_vout: u32,
     claim_address: &str,
@@ -153,14 +95,17 @@ pub fn sign_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
-    let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
     let txid = Txid::from_str(deposit_txid)?;
     let outpoint = OutPoint {
         txid,
         vout: deposit_vout,
     };
-    let keypair = load_key(recovery_taproot_address, config.network, None)?;
+    // Always prompt for passphrase for maximum security
+    println!("Please enter the passphrase for the recovery key:");
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let (keypair, recovery_addr) =
+        load_key_and_address(wallet_name, config.network, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -190,16 +135,18 @@ pub fn sign_recovery_tx(
 pub fn verify_recovery_tx(
     recovery_tx: &str,
     citrea_address: &str,
-    recovery_taproot_address: &str,
+    wallet_name: &str,
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
+    let recovery_taproot_address = load_address(wallet_name, None, config.network)?;
+
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         &recovery_tx,
         &parse_citrea_address(citrea_address)?,
-        &parse_taproot_address(recovery_taproot_address, config.network)?,
+        &recovery_taproot_address,
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
         config,
     )?;
@@ -222,6 +169,7 @@ pub fn verify_recovery_tx(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bitcoin::{AddressType, Network};
 
     #[test]
     fn test_parse_taproot_address_valid() {
@@ -233,18 +181,18 @@ mod tests {
     #[test]
     fn test_parse_taproot_address_invalid_type() {
         let non_taproot = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"; // P2WPKH
-        assert!(parse_taproot_address(non_taproot, Network::Testnet).is_err());
+        assert!(parse_taproot_address(non_taproot, Network::Testnet4).is_err());
     }
 
     #[test]
     fn test_parse_taproot_address_wrong_network() {
         let mainnet_addr = "bc1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c";
-        assert!(parse_taproot_address(mainnet_addr, Network::Testnet).is_err());
+        assert!(parse_taproot_address(mainnet_addr, Network::Testnet4).is_err());
     }
 
     #[test]
     fn test_parse_taproot_address_invalid_format() {
         let invalid = "invalid_address";
-        assert!(parse_taproot_address(invalid, Network::Testnet).is_err());
+        assert!(parse_taproot_address(invalid, Network::Testnet4).is_err());
     }
 }

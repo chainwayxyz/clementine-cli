@@ -7,6 +7,7 @@ use bitcoin::{
     secp256k1::{Parity, PublicKey},
 };
 use bitcoincore_rpc::{Auth, Client, RpcApi};
+use eyre::Result;
 use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -41,6 +42,7 @@ pub struct BridgeCliConfig {
     pub citrea_backend_endpoint: Url,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
+    pub bridge_contract_address: String,
     pub bitcoin_config: Option<BitcoinConfig>,
 }
 
@@ -154,10 +156,19 @@ impl BridgeCliConfig {
                     .unwrap(),
                 ];
             }
-            _ => panic!("Network {} is not supported!", network), // This will only happen if [`Network`] has new fields
+            _ => panic!("Network {network} is not supported!"), // This will only happen if [`Network`] has new fields
         };
 
         config
+    }
+
+    pub fn get_withdrawal_sign_url(&self) -> &'static str {
+        match self.network {
+            Network::Bitcoin => "https://citrea.xyz/withdrawal/sign",
+            Network::Testnet | Network::Testnet4 => "https://citrea.xyz/withdrawal/sign", // #43
+            Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign",
+            Network::Regtest => "http://127.0.0.1:12345",
+        }
     }
 }
 
@@ -190,6 +201,7 @@ impl Default for BridgeCliConfig {
             citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
+            bridge_contract_address: "0x3100000000000000000000000000000000000002".to_string(),
             bitcoin_config: None,
         }
     }
@@ -223,7 +235,7 @@ mod tests {
 
         // Read first example test file use for this test.
         let base_path = env!("CARGO_MANIFEST_DIR");
-        let config_path = format!("{}/tests/data/bridge_cli_config.toml", base_path);
+        let config_path = format!("{}/bridge_cli_config.toml", base_path);
         let content = fs::read_to_string(config_path).unwrap();
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
