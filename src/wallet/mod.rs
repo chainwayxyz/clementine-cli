@@ -1,3 +1,13 @@
+pub(crate) mod address;
+mod encryption;
+mod mnemonic;
+pub(crate) mod passphrase;
+mod wallet_storage;
+pub(crate) mod wallet_utils;
+
+pub use address::get_all_wallets_with_addresses;
+pub use mnemonic::show_mnemonic_secure;
+
 use bitcoin::Network;
 use colored::Colorize;
 use eyre::eyre;
@@ -7,17 +17,20 @@ use std::fs;
 use std::io::{self, Write};
 use zeroize::Zeroize;
 
-use crate::encryption::{aes_decrypt_secure, aes_encrypt_secure};
+use crate::bitcoin_utils::{SECP, calculate_taproot_address};
+use bitcoin::secp256k1::{Keypair, SecretKey};
+
 use crate::errors::BridgeCliError;
-use crate::mnemonic::{
+use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
+use crate::structs::SecureString;
+use encryption::{aes_decrypt_secure, aes_encrypt_secure};
+use mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
     prompt_mnemonic_secure,
 };
-use crate::passphrase::{prompt_passphrase, prompt_unlock_passphrase};
-use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
-use crate::structs::SecureString;
-use crate::wallet_storage::get_storage_dir;
-use crate::wallet_utils::{
+use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
+use wallet_storage::get_storage_dir;
+use wallet_utils::{
     load_key_and_address, parse_network, validate_mnemonic_import, validate_private_key_import,
     wallet_exists,
 };
@@ -36,7 +49,7 @@ pub fn create_encrypted_wallet_with_address(
     let secure_mnemonic = generate_mnemonic_secure()?;
 
     // Generate address from mnemonic using helper function
-    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+    let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     // Prompt for passphrase
@@ -49,7 +62,7 @@ pub fn create_encrypted_wallet_with_address(
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
 
     // Store encrypted wallet with separate encrypted fields
-    crate::wallet_storage::store_wallet_data(
+    wallet_storage::store_wallet_data(
         &address.to_string(),
         network,
         &encrypted_mnemonic,
@@ -207,7 +220,7 @@ pub fn import_wallet_from_mnemonic(
     let secure_mnemonic = prompt_mnemonic_secure()?;
 
     // Generate address from mnemonic using helper function
-    let address = crate::address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+    let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     println!();
@@ -242,7 +255,7 @@ pub fn import_wallet_from_mnemonic(
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
         .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
 
-    crate::wallet_storage::store_wallet_data(
+    wallet_storage::store_wallet_data(
         &address.to_string(),
         network,
         &encrypted_mnemonic,
@@ -464,12 +477,12 @@ pub fn import_wallet_from_file(
     println!("Verifying passphrase...");
 
     // Parse encrypted mnemonic as EncryptedDataHex
-    let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
+    let encrypted_mnemonic_hex: encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_mnemonic"].clone()).map_err(|e| {
             BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic structure: {}", e))
         })?;
 
-    let encrypted_data = crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
+    let encrypted_data = encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
 
     // Try to decrypt mnemonic to verify passphrase
@@ -510,30 +523,28 @@ pub fn import_wallet_from_file(
         .unwrap_or("separate_encrypted_fields");
 
     // Extract and convert encrypted data from the original wallet
-    let encrypted_mnemonic_hex: crate::encryption::EncryptedDataHex =
+    let encrypted_mnemonic_hex: encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_mnemonic"].clone()).map_err(|e| {
             BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e))
         })?;
 
-    let encrypted_private_key_hex: crate::encryption::EncryptedDataHex =
+    let encrypted_private_key_hex: encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_private_key"].clone()).map_err(|e| {
             BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
         })?;
 
     // Convert hex structures to EncryptedData
-    let encrypted_mnemonic_data =
-        crate::encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex).map_err(|e| {
-            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
-        })?;
+    let encrypted_mnemonic_data = encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e)))?;
 
     let encrypted_private_key_data =
-        crate::encryption::encrypted_data_from_hex(&encrypted_private_key_hex).map_err(|e| {
+        encryption::encrypted_data_from_hex(&encrypted_private_key_hex).map_err(|e| {
             BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
         })?;
 
     // Use store_wallet_data function for consistent storage
     let network_enum = parse_network(network)?;
-    crate::wallet_storage::store_wallet_data(
+    wallet_storage::store_wallet_data(
         wallet_address,
         network_enum,
         &encrypted_mnemonic_data,
@@ -552,9 +563,6 @@ pub fn import_wallet_from_private_key(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-    use crate::bitcoin_utils::calculate_taproot_address;
-    use bitcoin::secp256k1::{Keypair, SecretKey};
-
     if wallet_exists(wallet_name)? {
         return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
     }
@@ -578,7 +586,7 @@ pub fn import_wallet_from_private_key(
     })?;
     private_key_bytes.zeroize();
 
-    let keypair = Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &master_private_key);
+    let keypair = Keypair::from_secret_key(&SECP, &master_private_key);
     let address = calculate_taproot_address(&keypair, network);
 
     let passphrase = prompt_passphrase(false)?;
@@ -597,7 +605,7 @@ pub fn import_wallet_from_private_key(
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
         .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
 
-    crate::wallet_storage::store_wallet_data(
+    wallet_storage::store_wallet_data(
         &address.to_string(),
         network,
         &encrypted_mnemonic,
@@ -642,7 +650,7 @@ pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), Bridg
 
 #[cfg(test)]
 pub mod tests {
-    use crate::passphrase::derive_key_from_passphrase;
+    use passphrase::derive_key_from_passphrase;
 
     use super::*;
 

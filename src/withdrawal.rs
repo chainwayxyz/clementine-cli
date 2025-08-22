@@ -1,14 +1,14 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::address::parse_address;
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::passphrase::prompt_unlock_passphrase;
 use crate::structs::AddressExt;
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
-use crate::wallet_utils::{load_address, load_key_and_address};
+use crate::wallet::address::parse_address;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_utils::{load_address, load_key_and_address};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;

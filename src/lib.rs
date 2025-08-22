@@ -40,30 +40,24 @@ macro_rules! debug_colored {
         }
     };
 }
-mod address;
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
-mod encryption;
 pub mod errors;
-mod mnemonic;
 mod musig2;
 mod parameters;
-mod passphrase;
 mod script;
 mod secure_display;
 mod structs;
 pub mod types;
 pub mod wallet;
-mod wallet_storage;
-mod wallet_utils;
 pub mod withdrawal;
 
 // Re-export commonly used address functions for public API
-pub use address::get_all_wallets_with_addresses;
-pub use mnemonic::show_mnemonic_secure;
+pub use wallet::get_all_wallets_with_addresses;
+pub use wallet::show_mnemonic_secure;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
     Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)

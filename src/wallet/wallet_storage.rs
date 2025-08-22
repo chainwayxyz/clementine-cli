@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::{collections::HashMap, path::PathBuf};
 
-use crate::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 use crate::errors::BridgeCliError;
+use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
