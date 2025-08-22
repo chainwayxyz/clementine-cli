@@ -17,7 +17,9 @@ use std::fs;
 use std::io::{self, Write};
 use zeroize::Zeroize;
 
+use crate::BitcoinAddress;
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
+use crate::wallet::address::parse_address;
 use crate::wallet::wallet_utils::load_key;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -270,30 +272,42 @@ pub fn import_wallet_from_mnemonic(
     Ok(address.to_string())
 }
 
-pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
+pub fn get_registry_wallet_map()
+-> Result<HashMap<String, (Network, BitcoinAddress)>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
-    println!("{}", "Verifying Wallet Integrity".blue().bold());
-    println!("Storage directory: {}", storage_dir.display());
-    println!();
-
-    // Read wallets.json registry
-    let registry_wallets: HashSet<String> = if wallets_file.exists() {
+    let registry_wallet_data = if wallets_file.exists() {
         let wallets_content = fs::read_to_string(&wallets_file)?;
         let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)
             .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
-        wallets.keys().cloned().collect()
+        wallets
     } else {
         println!("wallets.json not found - no registered wallets");
-        HashSet::new()
+        HashMap::new()
     };
 
-    // Scan for actual wallet files in storage directory
-    let mut file_wallets: HashSet<String> = HashSet::new();
+    let mut wallet_map: HashMap<String, (Network, BitcoinAddress)> = HashMap::new();
+
+    for (wallet_name, wallet_data) in registry_wallet_data {
+        if let Some(address_str) = wallet_data["address"].as_str()
+            && let Some(network_str) = wallet_data["network"].as_str()
+        {
+            let network = parse_network(network_str)?;
+            wallet_map.insert(wallet_name, (network, parse_address(address_str, network)?));
+        }
+    }
+
+    Ok(wallet_map)
+}
+
+/// Scans the wallet files in the specified directory.
+fn scan_wallet_files() -> Result<HashMap<String, (Network, BitcoinAddress)>, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let mut file_wallets: HashMap<String, (Network, BitcoinAddress)> = HashMap::new();
 
     if storage_dir.exists() {
-        for entry in fs::read_dir(&storage_dir)? {
+        for entry in fs::read_dir(storage_dir)? {
             let entry = entry?;
             let file_name = entry.file_name();
             let file_name_str = file_name.to_string_lossy();
@@ -302,49 +316,36 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
             if file_name_str.starts_with("wallet_")
                 && file_name_str.ends_with(".json")
                 && file_name_str != "wallets.json"
+                && let Some(wallet_name) = file_name_str
+                    .strip_prefix("wallet_")
+                    .and_then(|s| s.strip_suffix(".json"))
+                && let Ok(wallet_content) = fs::read_to_string(entry.path())
+                && let Ok(wallet_data) = serde_json::from_str::<serde_json::Value>(&wallet_content)
+                && let Some(address_str) = wallet_data["address"].as_str()
+                && let Some(network_str) = wallet_data["network"].as_str()
             {
-                // Read the wallet file and extract address from JSON content
-                let wallet_file_path = entry.path();
-                match fs::read_to_string(&wallet_file_path) {
-                    Ok(wallet_content) => {
-                        match serde_json::from_str::<serde_json::Value>(&wallet_content) {
-                            Ok(wallet_data) => {
-                                if let Some(address) = wallet_data["address"].as_str() {
-                                    file_wallets.insert(address.to_string());
-                                } else {
-                                    println!(
-                                        "Warning: Wallet file {} is missing address field",
-                                        file_name_str.yellow()
-                                    );
-                                }
-                            }
-                            Err(e) => {
-                                println!(
-                                    "Warning: Failed to parse wallet file {}: {}",
-                                    file_name_str.yellow(),
-                                    e
-                                );
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        println!(
-                            "Warning: Failed to read wallet file {}: {}",
-                            file_name_str.yellow(),
-                            e
-                        );
-                    }
-                }
+                let network = parse_network(network_str)?;
+                file_wallets.insert(
+                    wallet_name.to_string(),
+                    (network, parse_address(address_str, network)?),
+                );
             }
         }
-    } else {
-        println!("Storage directory does not exist");
     }
 
-    // Compare registry vs files
-    let registry_only: HashSet<_> = registry_wallets.difference(&file_wallets).collect();
-    let files_only: HashSet<_> = file_wallets.difference(&registry_wallets).collect();
-    let matching: HashSet<_> = registry_wallets.intersection(&file_wallets).collect();
+    Ok(file_wallets)
+}
+
+fn report_integrity_results(
+    registry_wallets: &HashMap<String, (Network, BitcoinAddress)>,
+    file_wallets: &HashMap<String, (Network, BitcoinAddress)>,
+) {
+    let registry_keys: HashSet<_> = registry_wallets.keys().cloned().collect();
+    let file_keys: HashSet<_> = file_wallets.keys().cloned().collect();
+
+    let registry_only: HashSet<_> = registry_keys.difference(&file_keys).cloned().collect();
+    let files_only: HashSet<_> = file_keys.difference(&registry_keys).cloned().collect();
+    let matching: HashSet<_> = registry_keys.intersection(&file_keys).cloned().collect();
 
     // Report results
     println!("Integrity Verification Results:");
@@ -359,11 +360,11 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     if !registry_only.is_empty() {
         has_issues = true;
         println!("Wallets in registry but missing files:");
-        for address in &registry_only {
+        for wallet_name in &registry_only {
             println!(
                 "  - {} (file: wallet_{}.json not found)",
-                address.yellow(),
-                address
+                wallet_name.yellow(),
+                wallet_name
             );
         }
         println!();
@@ -373,11 +374,11 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     if !files_only.is_empty() {
         has_issues = true;
         println!("Wallet files not in registry:");
-        for address in &files_only {
+        for wallet_name in &files_only {
             println!(
                 "  - {} (wallet_{}.json exists but not registered)",
-                address.yellow(),
-                address
+                wallet_name.yellow(),
+                wallet_name
             );
         }
         println!();
@@ -386,8 +387,8 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     // Report successful matches
     if !matching.is_empty() {
         println!("Properly registered wallets:");
-        for address in &matching {
-            println!("  - {}", address.green());
+        for wallet_name in &matching {
+            println!("  - {}", wallet_name.green());
         }
         println!();
     }
@@ -415,6 +416,23 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
                 .bold()
         );
     }
+}
+
+pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+
+    println!("{}", "Verifying Wallet Integrity".blue().bold());
+    println!("Storage directory: {}", storage_dir.display());
+    println!();
+
+    // Load registered wallets from wallets.json
+    let registry_wallets = get_registry_wallet_map()?;
+
+    // Scan for actual wallet files in storage directory
+    let file_wallets = scan_wallet_files()?;
+
+    // Report integrity results
+    report_integrity_results(&registry_wallets, &file_wallets);
 
     Ok(())
 }
