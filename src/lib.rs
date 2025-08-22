@@ -1,13 +1,12 @@
+use crate::errors::BridgeCliError;
+use eyre::Context;
 use eyre::Result;
 use std::env;
 use std::str::FromStr;
 
-pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
-use eyre::Context;
 
-use crate::errors::BridgeCliError;
-
+pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
 
 /// Check if debug mode is enabled via CLEMENTINE_DEBUG environment variable
@@ -40,6 +39,7 @@ macro_rules! debug_colored {
         }
     };
 }
+
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;

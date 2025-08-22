@@ -6,28 +6,27 @@ use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
+use crate::wallet::address::parse_taproot_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::load_address;
 use crate::wallet::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-
+use bitcoin::Address;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
 use eyre::Result;
 use std::str::FromStr;
 
-use crate::wallet::address::parse_taproot_address;
-
 /// Get deposit address from backend
-pub fn get_deposit_address(
+pub async fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<Address, BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
-    println!(
+    tracing::debug!(
         "{} {}",
         "CITREA_ADDRESS (checksummed)".green().bold(),
         citrea_address,
@@ -36,22 +35,16 @@ pub fn get_deposit_address(
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address, config)?;
+        create_deposit_account(&citrea_address, &recovery_taproot_address, config).await?;
 
-    println!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
+    tracing::debug!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
-    println!(
-        "{} {}",
-        "Deposit address:".blue().bold(),
-        calculated_deposit_address
-    );
-
-    Ok(())
+    Ok(calculated_deposit_address)
 }
 
 pub async fn get_deposit_params(

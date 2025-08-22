@@ -1,16 +1,4 @@
-use std::path::PathBuf;
-
 use clap::{Parser, Subcommand};
-use colored::Colorize;
-
-macro_rules! handle_or_exit {
-    ($expr:expr) => {
-        if let Err(e) = $expr {
-            eprintln!("{} {e}", "Error:".red().bold());
-            std::process::exit(1);
-        }
-    };
-}
 use clementine_cli::{
     config::BridgeCliConfig,
     debug, deposit, show_mnemonic_secure,
@@ -20,6 +8,29 @@ use clementine_cli::{
     },
     withdrawal,
 };
+use colored::Colorize;
+use std::path::PathBuf;
+
+macro_rules! handle_or_exit {
+    ($expr:expr) => {
+        if let Err(e) = $expr {
+            eprintln!("{} {e}", "Error:".red().bold());
+            std::process::exit(1);
+        }
+    };
+}
+
+macro_rules! print_or_exit {
+    ($expr:expr) => {
+        // match $expr {
+        println!("{}", $expr.unwrap());
+        //     Err(e) => {
+        //         eprintln!("{} {e}", "Error:".red().bold());
+        //         std::process::exit(1);
+        //     }
+        // }
+    };
+}
 
 #[derive(Parser)]
 #[command(name = "clementine")]
@@ -183,18 +194,23 @@ async fn main() {
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|_| {
+        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
             panic!(
-                "Failed to read config file: {:?}",
-                config_file_path.display()
+                "Failed to read config file {:?}: {:?}",
+                config_file_path.display(),
+                e
             )
         })
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
         debug!("No config file given, looking for the current directory: {current_dir:?}...");
-        BridgeCliConfig::try_parse_file(current_dir.clone())
-            .unwrap_or_else(|_| panic!("Failed to read config file: {:?}", current_dir.display()))
+        BridgeCliConfig::try_parse_file(current_dir.clone()).unwrap_or_else(|e| {
+            panic!(
+                "Failed to read config file: {:?}: {e}",
+                current_dir.display()
+            )
+        })
     };
 
     match cli.command {
@@ -247,11 +263,14 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                handle_or_exit!(deposit::get_deposit_address(
-                    &citrea_address,
-                    &recovery_taproot_address,
-                    &config,
-                ));
+                print_or_exit!(
+                    deposit::get_deposit_address(
+                        &citrea_address,
+                        &recovery_taproot_address,
+                        &config,
+                    )
+                    .await
+                );
             }
             DepositCommands::SignRecoveryTx {
                 wallet_name,

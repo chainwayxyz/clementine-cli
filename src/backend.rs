@@ -9,7 +9,7 @@ use eyre::Result;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
-pub(crate) fn create_deposit_account(
+pub(crate) async fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
@@ -29,17 +29,18 @@ pub(crate) fn create_deposit_account(
     );
 
     // Create HTTP client
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
     // Make POST request
     let response = client
         .post(url.as_str())
         .header("Content-Type", "application/json")
         .json(&request_body)
-        .send()?;
+        .send()
+        .await?;
 
     if response.status().is_success() {
-        let response_body: serde_json::Value = response.json()?;
+        let response_body: serde_json::Value = response.json().await?;
         println!(
             "{} Deposit address request successful",
             "SUCCESS".green().bold(),
@@ -55,7 +56,7 @@ pub(crate) fn create_deposit_account(
         Ok(taproot_addr)
     } else {
         let status = response.status();
-        let error_text = response.text()?;
+        let error_text = response.text().await?;
         println!("{} Deposit address request failed", "ERROR".red().bold());
         println!("{} {}", "STATUS".red().bold(), status);
         debug!("Error response: {}", error_text);
