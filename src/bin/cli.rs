@@ -6,10 +6,7 @@ use colored::Colorize;
 macro_rules! handle_or_exit {
     ($expr:expr) => {
         if let Err(e) = $expr {
-            eprintln!("{}", "Error".red().bold());
-            // Use eyre's formatting which includes source locations when available
-            let report: eyre::Report = e.into();
-            eprintln!("{report:?}");
+            eprintln!("{} {:?}", "Error:".red().bold(), eyre::Report::from(e));
             std::process::exit(1);
         }
     };
