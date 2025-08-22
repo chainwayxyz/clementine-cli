@@ -66,11 +66,10 @@ async fn get_tx_details_from_mempool(
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .map_err(|e| eyre::eyre!("Failed to fetch transaction hex: {e}"))?;
-    let tx_hex = response
-        .text()
-        .await
-        .map_err(|e| eyre::eyre!("Failed to read transaction hex response: {e}"))?;
+        .map_err(|e| eyre::eyre!("Failed to fetch transaction hex for {prepare_txid}: {e}"))?;
+    let tx_hex = response.text().await.map_err(|e| {
+        eyre::eyre!("Failed to read transaction hex response for {prepare_txid}: {e}")
+    })?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
