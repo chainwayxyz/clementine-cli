@@ -12,7 +12,7 @@ citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
 citrea_chain_id = 5115
 
 [bitcoin_config]
-url = "http://127.0.0.1:48332"
-port = 48332
+url = "http://127.0.0.1:18443"
+port = 18443
 user = "admin"
 password = "admin"
