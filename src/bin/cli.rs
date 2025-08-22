@@ -6,7 +6,7 @@ use colored::Colorize;
 macro_rules! handle_or_exit {
     ($expr:expr) => {
         if let Err(e) = $expr {
-            eprintln!("{} {e}", "Error:".red().bold());
+            eprintln!("{} {e:?}", "Error:".red().bold());
             std::process::exit(1);
         }
     };

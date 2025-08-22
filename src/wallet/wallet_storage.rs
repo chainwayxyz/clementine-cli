@@ -104,7 +104,6 @@ fn update_wallets_registry(
         "address": address.to_string(),
         "network": network.to_string(),
         "created_at": chrono::Utc::now().to_rfc3339(),
-        "secure": true,
     });
 
     if imported {
