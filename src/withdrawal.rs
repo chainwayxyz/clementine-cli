@@ -200,7 +200,7 @@ pub async fn safe_withdraw(
 
     // Prompt user to open the withdrawal UI
     let query = format!(
-        "?tx={}&btc={}",
+        "?transaction_request={}&withdrawal_address={}",
         encode(&tx_json),
         encode(&withdrawal_address.to_string())
     );
