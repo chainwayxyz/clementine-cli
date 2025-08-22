@@ -108,25 +108,20 @@ fn update_wallets_registry(
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
-    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+    let mut wallets: HashMap<String, WalletRegistryEntry> = if wallets_file.exists() {
         serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
     } else {
         HashMap::new()
     };
 
-    let mut wallet_entry = serde_json::json!({
-        "address": address.to_string(),
-        "network": network.to_string(),
-        "created_at": chrono::Utc::now().to_rfc3339(),
-    });
-
-    if imported {
-        wallet_entry["imported"] = serde_json::json!(true);
-        wallet_entry["imported_at"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
-        if let Some(method) = import_method {
-            wallet_entry["import_method"] = serde_json::json!(method);
-        }
-    }
+    let wallet_entry = WalletRegistryEntry {
+        address: address.to_string(),
+        network: network.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        imported: if imported { Some(true) } else { None },
+        imported_at: if imported { Some(chrono::Utc::now().to_rfc3339()) } else { None },
+        import_method: if imported { import_method.map(|s| s.to_string()) } else { None },
+    };
 
     wallets.insert(wallet_name.to_string(), wallet_entry);
     fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;

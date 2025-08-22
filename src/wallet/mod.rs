@@ -141,7 +141,7 @@ pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
 
     // Remove from wallets.json registry
     if wallets_file.exists() {
-        let mut wallets: HashMap<String, serde_json::Value> = {
+        let mut wallets: HashMap<String, wallet_storage::WalletRegistryEntry> = {
             let wallets_content = fs::read_to_string(&wallets_file)?;
             serde_json::from_str(&wallets_content)?
         };
@@ -289,7 +289,7 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     // Read wallets.json registry
     let registry_wallets: HashSet<String> = if wallets_file.exists() {
         let wallets_content = fs::read_to_string(&wallets_file)?;
-        let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)
+        let wallets: HashMap<String, wallet_storage::WalletRegistryEntry> = serde_json::from_str(&wallets_content)
             .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
         wallets.keys().cloned().collect()
     } else {
