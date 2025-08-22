@@ -31,8 +31,8 @@ pub(crate) fn calculate_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
-    debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
-    debug!("agg_pk: {:?}", agg_pk.to_string());
+    tracing::debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
+    tracing::debug!("agg_pk: {:?}", agg_pk.to_string());
     let deposit_script = deposit_script(*citrea_address, agg_pk);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
@@ -154,14 +154,14 @@ pub(crate) fn sign_recovery_tx(
             .unwrap()
     };
 
-    debug!("sighash: {:?}", sighash);
-    debug!("keypair: {:?}", keypair);
-    debug!("recovery_script: {:?}", recovery_script);
-    debug!(
+    tracing::debug!("sighash: {:?}", sighash);
+    tracing::debug!("keypair: {:?}", keypair);
+    tracing::debug!("recovery_script: {:?}", recovery_script);
+    tracing::debug!(
         "recovery key: {:?}",
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])
     );
-    debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("input_amount: {:?}", input_amount);
 
     let sig = sign_with_tweak(*keypair, sighash, None);
 
@@ -185,12 +185,12 @@ pub(crate) fn sign_recovery_tx(
 
     recovery_tx.input[0].witness = witness;
 
-    debug!(
+    tracing::debug!(
         "recovery_tx: {:?}",
         hex::encode(bitcoin::consensus::serialize(&recovery_tx))
     );
     let weight = recovery_tx.weight();
-    debug!("weight: {:?}", weight);
+    tracing::debug!("weight: {:?}", weight);
 
     Ok(recovery_tx)
 }
@@ -296,10 +296,10 @@ pub(crate) fn verify_recovery_tx(
             .unwrap()
     };
 
-    debug!("sighash: {:?}", sighash);
-    debug!("taproot_signature: {:?}", taproot_signature);
-    debug!("recovery_key: {:?}", recovery_key);
-    debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("sighash: {:?}", sighash);
+    tracing::debug!("taproot_signature: {:?}", taproot_signature);
+    tracing::debug!("recovery_key: {:?}", recovery_key);
+    tracing::debug!("input_amount: {:?}", input_amount);
 
     // verify the signature
     SECP.verify_schnorr(

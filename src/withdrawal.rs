@@ -73,7 +73,7 @@ async fn get_tx_details_from_mempool(
         eyre::eyre!("Failed to read transaction hex response for {prepare_txid}: {e}")
     })?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
-    debug!("tx: {:?}", tx);
+    tracing::debug!("tx: {:?}", tx);
 
     let url = config
         .mempool_api_url
@@ -86,15 +86,15 @@ async fn get_tx_details_from_mempool(
         .json()
         .await
         .wrap_err("Failed to parse transaction data: {}")?;
-    debug!("tx_data: {:?}", tx_data);
+    tracing::debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
         .ok_or(eyre::eyre!("Block hash not found"))?;
     let block_height = tx_data["status"]["block_height"]
         .as_u64()
         .ok_or(eyre::eyre!("Block height not found"))?;
-    debug!("block_hash: {:?}", block_hash);
-    debug!("block_height: {:?}", block_height);
+    tracing::debug!("block_hash: {:?}", block_hash);
+    tracing::debug!("block_height: {:?}", block_height);
 
     let url = config
         .mempool_api_url
@@ -102,9 +102,9 @@ async fn get_tx_details_from_mempool(
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
-    debug!("block_raw: {:?}", block_raw);
+    tracing::debug!("block_raw: {:?}", block_raw);
     let block: Block = bitcoin::consensus::deserialize(&block_raw)?;
-    debug!("block: {:?}", block);
+    tracing::debug!("block: {:?}", block);
     Ok((tx, block, block_height as u32))
 }
 
@@ -122,9 +122,9 @@ async fn get_tx_details_from_rpc(
         .get_block_header_info(&tx_info.blockhash.unwrap())
         .await?
         .height;
-    debug!("tx_info: {:?}", tx_info);
-    debug!("block: {:?}", block);
-    debug!("block_height: {:?}", block_height);
+    tracing::debug!("tx_info: {:?}", tx_info);
+    tracing::debug!("block: {:?}", block);
+    tracing::debug!("block_height: {:?}", block_height);
 
     Ok((tx, block, block_height as u32))
 }
@@ -262,7 +262,7 @@ pub async fn send_safe_withdrawal(
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
 
-    debug!("Wallet address: {}", wallet_address);
+    tracing::debug!("Wallet address: {}", wallet_address);
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))

@@ -1,7 +1,7 @@
 use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::BridgeCliConfig,
-    debug, deposit, show_mnemonic_secure,
+    deposit, show_mnemonic_secure,
     wallet::{
         self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
         import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -24,17 +24,19 @@ macro_rules! handle_or_exit {
 
 macro_rules! print_or_exit {
     ($expr:expr) => {
-        // match $expr {
-        println!("{}", $expr.unwrap());
-        //     Err(e) => {
-        //         eprintln!("{} {e}", "Error:".red().bold());
-        //         std::process::exit(1);
-        //     }
-        // }
+        match $expr {
+            Ok(result) => println!("{result}"),
+            Err(e) => {
+                eprintln!("{} {e}", "Error:".red().bold());
+                std::process::exit(1);
+            }
+        }
     };
 }
 
-pub fn initialize_logger(is_verbose: bool) {
+/// Initializes tracing to `Debug` level if verbose flag is given. If not,
+/// defaults to `RUST_LOG` env variable.
+pub(crate) fn initialize_logger(is_verbose: bool) {
     let level = if is_verbose {
         Some(LevelFilter::DEBUG)
     } else {
@@ -45,9 +47,7 @@ pub fn initialize_logger(is_verbose: bool) {
         Some(lvl) => EnvFilter::builder()
             .with_default_directive(lvl.into())
             .from_env_lossy(),
-        None => EnvFilter::builder()
-            .with_default_directive(LevelFilter::OFF.into())
-            .from_env_lossy(),
+        None => EnvFilter::from_default_env(),
     };
 
     let standard_layer = fmt::layer()
@@ -230,7 +230,7 @@ async fn main() {
     initialize_logger(cli.verbose);
 
     let config = if let Some(config_file_path) = cli.config_file {
-        debug!("Config file {config_file_path:?} is going to be used...");
+        tracing::info!("Config file {config_file_path:?} is going to be used...");
         BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
             panic!(
                 "Failed to read config file {:?}: {:?}",
@@ -241,7 +241,9 @@ async fn main() {
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
-        debug!("No config file given, looking for the current directory: {current_dir:?}...");
+        tracing::info!(
+            "No config file given, looking for the current directory: {current_dir:?}..."
+        );
         BridgeCliConfig::try_parse_file(current_dir.clone()).unwrap_or_else(|e| {
             panic!(
                 "Failed to read config file: {:?}: {e}",

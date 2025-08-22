@@ -14,19 +14,6 @@ pub fn is_debug_enabled() -> bool {
     env::var("CLEMENTINE_DEBUG").is_ok()
 }
 
-/// Debug macro that only prints when CLEMENTINE_DEBUG is set
-#[macro_export]
-macro_rules! debug {
-    ($($arg:tt)*) => {
-        {
-            use colored::*;
-            if $crate::is_debug_enabled() {
-                println!("{} {}", "DEBUG".magenta().bold(), format!($($arg)*));
-            }
-        }
-    };
-}
-
 /// Debug macro for colored output that only prints when CLEMENTINE_DEBUG is set
 #[macro_export]
 macro_rules! debug_colored {
