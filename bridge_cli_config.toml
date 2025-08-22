@@ -1,4 +1,4 @@
-network = "signet"
+network = "regtest"
 
 verifiers_pks = []
 user_takes_after = 200

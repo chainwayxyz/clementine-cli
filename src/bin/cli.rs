@@ -55,50 +55,50 @@ enum Commands {
 #[derive(Subcommand)]
 enum WalletCommands {
     /// Create a new wallet with mnemonic display.
-    CreateWallet {
+    Create {
         /// Name for the wallet file
         wallet_name: String,
     },
     /// Backup wallet to specified destination.
-    BackupWallet {
+    Backup {
         /// Destination path for wallet backup
         destination: String,
         /// Name of the wallet to backup
         wallet_name: String,
     },
+    /// Delete a wallet by name.
+    Delete {
+        /// Name of the wallet to delete
+        wallet_name: String,
+    },
     /// Show mnemonic with interactive terminal.
     ShowMnemonic {
-        /// Name of the wallet to show mnemonic for
+        /// Wallet name to show mnemonic for
+        wallet_name: String,
+    },
+    ShowPrivateKey {
+        /// Wallet name to show private key for.
         wallet_name: String,
     },
     /// Import wallet using secure mnemonic input.
-    ImportFromMnemonic {
+    ImportMnemonic {
         /// Name for the imported wallet
         wallet_name: String,
     },
-    ImportFromFile {
+    ImportPrivateKey {
+        /// Name for the imported wallet
+        wallet_name: String,
+    },
+    ImportFile {
         /// Filename to import wallet from
         filename: String,
         /// Name for the imported wallet
         wallet_name: String,
     },
-    ImportFromPrivateKey {
-        /// Name for the imported wallet
-        wallet_name: String,
-    },
-    /// Delete a wallet by name.
-    DeleteWallet {
-        /// Name of the wallet to delete
-        wallet_name: String,
-    },
     /// Verify integrity of wallet registry and files.
     VerifyIntegrity,
     /// List all wallets with their addresses.
-    ListWalletsWithAddresses,
-    ShowPrivateKey {
-        /// Name of the wallet to export private key for
-        wallet_name: String,
-    },
+    List,
 }
 
 #[derive(Subcommand)]
@@ -183,23 +183,29 @@ async fn main() {
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path).unwrap()
+        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|_| {
+            panic!(
+                "Failed to read config file: {:?}",
+                config_file_path.display()
+            )
+        })
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
         debug!("No config file given, looking for the current directory: {current_dir:?}...");
-        BridgeCliConfig::try_parse_file(current_dir).unwrap()
+        BridgeCliConfig::try_parse_file(current_dir.clone())
+            .unwrap_or_else(|_| panic!("Failed to read config file: {:?}", current_dir.display()))
     };
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::CreateWallet { wallet_name } => {
+            WalletCommands::Create { wallet_name } => {
                 handle_or_exit!(create_encrypted_wallet_with_address(
                     config.network,
                     wallet_name
                 ));
             }
-            WalletCommands::BackupWallet {
+            WalletCommands::Backup {
                 destination,
                 wallet_name,
             } => {
@@ -208,28 +214,28 @@ async fn main() {
             WalletCommands::ShowMnemonic { wallet_name } => {
                 handle_or_exit!(show_mnemonic_secure(&wallet_name));
             }
-            WalletCommands::ImportFromMnemonic { wallet_name } => {
+            WalletCommands::ImportMnemonic { wallet_name } => {
                 handle_or_exit!(import_wallet_from_mnemonic(config.network, &wallet_name));
             }
-            WalletCommands::ImportFromFile {
+            WalletCommands::ImportFile {
                 filename,
                 wallet_name,
             } => {
                 handle_or_exit!(import_wallet_from_file(&filename, &wallet_name));
             }
-            WalletCommands::ImportFromPrivateKey { wallet_name } => {
+            WalletCommands::ImportPrivateKey { wallet_name } => {
                 handle_or_exit!(wallet::import_wallet_from_private_key(
                     config.network,
                     &wallet_name
                 ));
             }
-            WalletCommands::DeleteWallet { wallet_name } => {
+            WalletCommands::Delete { wallet_name } => {
                 handle_or_exit!(delete_wallet(&wallet_name));
             }
             WalletCommands::VerifyIntegrity => {
                 handle_or_exit!(verify_wallet_integrity());
             }
-            WalletCommands::ListWalletsWithAddresses => {
+            WalletCommands::List => {
                 handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { wallet_name } => {
