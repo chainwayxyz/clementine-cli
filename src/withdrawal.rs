@@ -19,7 +19,6 @@ use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
 use eyre::Context;
 use open;
-use reqwest::Url;
 use serde_json::{Value, json};
 use std::str::FromStr;
 use urlencoding::encode;
@@ -63,7 +62,10 @@ async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
+    let url = config
+        .mempool_api_url
+        .join(&format!("tx/{prepare_txid}/hex"))
+        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| eyre::eyre!("Failed to fetch transaction hex for {prepare_txid}: {e}"))?;
@@ -73,7 +75,10 @@ async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
-    let url = format!("{}tx/{prepare_txid}", config.mempool_api_url);
+    let url = config
+        .mempool_api_url
+        .join(&format!("tx/{prepare_txid}"))
+        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url)
         .await
         .wrap_err("Failed to fetch transaction data: {}")?;
@@ -91,7 +96,10 @@ async fn get_tx_details_from_mempool(
     debug!("block_hash: {:?}", block_hash);
     debug!("block_height: {:?}", block_height);
 
-    let url = format!("{}block/{block_hash}/raw", config.mempool_api_url);
+    let url = config
+        .mempool_api_url
+        .join(&format!("block/{block_hash}/raw"))
+        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
     debug!("block_raw: {:?}", block_raw);
@@ -258,7 +266,7 @@ pub async fn send_safe_withdrawal(
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(Url::parse(&config.citrea_rpc_url).wrap_err("Can't parse url")?);
+        .connect_http(config.citrea_rpc_url.clone());
 
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;

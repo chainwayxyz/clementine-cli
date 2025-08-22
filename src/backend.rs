@@ -33,7 +33,7 @@ pub(crate) fn create_deposit_account(
 
     // Make POST request
     let response = client
-        .post(&url)
+        .post(url.as_str())
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()?;

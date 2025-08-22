@@ -43,6 +43,7 @@ crossterm = "0.28"
 
 alloy = { version = "1.0.23", features = ["contract", "sol-types", "transports", "json-rpc", "providers"] }
 toml = "0.9.5"
+url = { version = "2.5", features = ["serde"] }
 secrecy = { version = "0.10.0", features = ["serde"] }
 urlencoding = "2.1"
 subtle = "2.6.1"
