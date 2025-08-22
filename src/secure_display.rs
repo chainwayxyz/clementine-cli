@@ -1,6 +1,6 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
-use crate::secure_structs::SecureString;
+use crate::structs::SecureString;
 use bitcoin::secp256k1::SecretKey;
 use colored::*;
 use crossterm::{
@@ -78,27 +78,27 @@ impl<'a> SecureMnemonicDisplay<'a> {
     /// Show timeout warning before displaying the mnemonic
     fn show_timeout_warning(&self) -> Result<()> {
         println!();
-        println!("{}", "⚠️  IMPORTANT SECURITY NOTICE ⚠️".red().bold());
+        println!("{}", "IMPORTANT SECURITY NOTICE".red().bold());
         println!();
-        println!("{}", "🕐 STEP-BY-STEP DISPLAY MODE:".yellow().bold());
+        println!("{}", " STEP-BY-STEP DISPLAY MODE:".yellow().bold());
         println!(
-            "   • The mnemonic will be displayed {} at a time",
+            "   - The mnemonic will be displayed {} at a time",
             "ONE WORD".red().bold()
         );
         println!(
-            "   • Each word has a {} timeout before auto-advancing",
+            "   - Each word has a {} timeout before auto-advancing",
             "30-second".red().bold()
         );
-        println!("   • Press Enter to advance immediately to the next word");
-        println!("   • Write down each word as it appears");
-        println!("   • This is a security feature to prevent prolonged exposure");
+        println!("   - Press Enter to advance immediately to the next word");
+        println!("   - Write down each word as it appears");
+        println!("   - This is a security feature to prevent prolonged exposure");
         println!();
-        println!("{}", "📝 PREPARATION CHECKLIST:".cyan().bold());
-        println!("   ✓ Have pen and paper ready");
-        println!("   ✓ Ensure you have good lighting");
-        println!("   ✓ Find a private, secure location");
-        println!("   ✓ Remove any recording devices or cameras");
-        println!("   ✓ Be ready to write quickly and legibly");
+        println!("{}", "  PREPARATION CHECKLIST:".cyan().bold());
+        println!("   - Have pen and paper ready");
+        println!("   - Ensure you have good lighting");
+        println!("   - Find a private, secure location");
+        println!("   - Remove any recording devices or cameras");
+        println!("   - Be ready to write quickly and legibly");
         println!();
         println!(
             "{}",
@@ -181,9 +181,9 @@ impl<'a> SecureMnemonicDisplay<'a> {
             io::stdout(),
             SetForegroundColor(Color::Red),
             Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
-            Print("║                          🔐 SECURE MNEMONIC DISPLAY 🔐                       ║\r\n"),
+            Print("║                           SECURE MNEMONIC DISPLAY                            ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"),
+            Print("║           CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE           ║\r\n"),
             Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
             SetForegroundColor(Color::Reset)
         )
@@ -218,12 +218,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 SetForegroundColor(Color::Cyan),
                 Print(format!("   {word_num:2}. {word}\r\n\r\n")),
                 SetForegroundColor(Color::Green),
-                Print("📝 Write down this word and press Enter to continue\r\n"),
+                Print("  Write down this word and press Enter to continue\r\n"),
                 Print("   (or wait 30 seconds for automatic progression)\r\n\r\n"),
                 SetForegroundColor(Color::Red),
-                Print(
-                    "⚠️  Remember: Anyone with your complete mnemonic can access your funds!\r\n"
-                ),
+                Print("   Remember: Anyone with your complete mnemonic can access your funds!\r\n"),
                 SetForegroundColor(Color::Reset)
             )
             .map_err(|e| eyre!("Failed to display word {}: {}", word_num, e))?;
@@ -303,15 +301,15 @@ impl<'a> SecureMnemonicDisplay<'a> {
             io::stdout(),
             SetForegroundColor(Color::Green),
             Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
-            Print("║                    ✅ MNEMONIC DISPLAY COMPLETED ✅                          ║\r\n"),
+            Print("║                          MNEMONIC DISPLAY COMPLETED                          ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  All words have been displayed. Please verify you have written them down.    ║\r\n"),
+            Print("║  All words have been displayed. Please verify you have written them down.   ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  🔒 IMPORTANT REMINDERS:                                                     ║\r\n"),
-            Print("║  • Store your written mnemonic in a secure location                          ║\r\n"),
-            Print("║  • Never share it with anyone                                                ║\r\n"),
+            Print("║    IMPORTANT REMINDERS:                                                      ║\r\n"),
+            Print("║  - Store your written mnemonic in a secure location                          ║\r\n"),
+            Print("║  - Never share it with anyone                                                ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  The display will now close and clear from memory.                           ║\r\n"),
+            Print("║  The display will now close and clear from memory.                          ║\r\n"),
             Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
             SetForegroundColor(Color::Yellow),
             Print("\r\nPress any key to exit..."),
@@ -354,7 +352,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         println!();
         println!(
             "{}",
-            "🔐 MNEMONIC PHRASE (STEP-BY-STEP DISPLAY) 🔐".red().bold()
+            "  MNEMONIC PHRASE (STEP-BY-STEP DISPLAY)  ".red().bold()
         );
         println!();
         println!(
@@ -387,7 +385,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             println!();
             println!(
                 "{}",
-                "📝 Write down this word and press Enter to continue".green()
+                "  Write down this word and press Enter to continue".green()
             );
             println!(
                 "{}",
@@ -396,7 +394,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             println!();
             println!(
                 "{}",
-                "⚠️  Remember: Anyone with your complete mnemonic can access your funds!".red()
+                "   Remember: Anyone with your complete mnemonic can access your funds!".red()
             );
 
             // Wait for user input or timeout for each word
@@ -406,7 +404,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
         }
 
         println!();
-        println!("{}", "✅ All words have been displayed!".green().bold());
+        println!("{}", "  All words have been displayed!".green().bold());
         println!(
             "{}",
             "Store your written mnemonic in a secure location.".yellow()
@@ -549,13 +547,13 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
             "╔══════════════════════════════════════════════════════════════════════════════╗\r\n"
         ),
         Print(
-            "║                          🔐 SECURE PRIVATE KEY DISPLAY 🔐                    ║\r\n"
+            "║                          SECURE PRIVATE KEY DISPLAY                          ║\r\n"
         ),
         Print(
             "║                                                                              ║\r\n"
         ),
         Print(
-            "║  ⚠️  CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE  ⚠️              ║\r\n"
+            "║           CRITICAL SECURITY INFORMATION - HANDLE WITH EXTREME CARE           ║\r\n"
         ),
         Print(
             "╚══════════════════════════════════════════════════════════════════════════════╝\r\n\r\n"
@@ -564,8 +562,8 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         Print("Private Key:\r\n\r\n"),
         Print(format!("   {}\r\n\r\n", private_key.display_secret())),
         SetForegroundColor(Color::Red),
-        Print("⚠️  WARNING: Anyone with this private key can access your funds!\r\n"),
-        Print("⚠️  Never share this key or store it in insecure locations!\r\n\r\n"),
+        Print("   WARNING: Anyone with this private key can access your funds!\r\n"),
+        Print("   Never share this key or store it in insecure locations!\r\n\r\n"),
         SetForegroundColor(Color::Green),
         Print("Press any key to clear and exit (auto-close in 30 seconds)..."),
         SetForegroundColor(Color::Reset)
@@ -612,9 +610,9 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
 /// Fallback display for private key when alternate screen is not available
 fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     println!();
-    println!("{}", "🔐 PRIVATE KEY DISPLAY 🔐".red().bold());
+    println!("{}", "  PRIVATE KEY DISPLAY  ".red().bold());
     println!();
-    println!("{}", "⚠️  CRITICAL SECURITY WARNING ⚠️".red().bold());
+    println!("{}", "   CRITICAL SECURITY WARNING  ".red().bold());
     println!("Anyone with this private key can access your funds!");
     println!("Never share this key or store it in insecure locations!");
     println!();
@@ -657,7 +655,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
 
         if remaining.is_zero() {
             println!();
-            println!("{}", "⏰ Auto-closing...".yellow());
+            println!("{}", " Auto-closing...".yellow());
             break;
         }
 
@@ -667,7 +665,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
                 println!("{}", "Closing...".green());
             } else {
                 println!();
-                println!("{}", "⏰ Auto-closing...".yellow());
+                println!("{}", " Auto-closing...".yellow());
             }
             break;
         }
@@ -675,7 +673,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
         // Update countdown every second
         let seconds_left = remaining.as_secs();
         print!(
-            "\r⏰ Auto-close in {} seconds - Press Enter to close... ",
+            "\r Auto-close in {} seconds - Press Enter to close... ",
             seconds_left
         );
         io::stdout().flush()?;

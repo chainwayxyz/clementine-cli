@@ -65,7 +65,7 @@ use serde::{Deserialize, Serialize};
 use zeroize::Zeroize;
 
 use crate::{
-    errors::BridgeCliError, passphrase::derive_key_from_passphrase, secure_structs::SecureString,
+    errors::BridgeCliError, passphrase::derive_key_from_passphrase, structs::SecureString,
 };
 
 // Argon2id parameters: 3 iterations, 64MB memory, 1 thread

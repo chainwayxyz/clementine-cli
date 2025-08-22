@@ -1,4 +1,5 @@
 use bitcoin::Network;
+use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::{collections::HashMap, path::PathBuf};
@@ -30,15 +31,15 @@ pub(crate) fn store_wallet_data(
     data_format: &str,
     imported: bool,
     import_method: Option<&str>,
-    custom_filename: &str,
+    wallet_name: &str,
 ) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     fs::create_dir_all(&storage_dir)?;
 
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", custom_filename));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
 
     if wallet_file.exists() {
-        return Err(BridgeCliError::WalletAlreadyExists(address.to_string()));
+        return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
     }
 
     let wallet_data = GenericWalletData {
@@ -67,13 +68,24 @@ pub(crate) fn store_wallet_data(
     }
 
     // Update wallets registry
-    update_wallets_registry(address, network, imported, import_method)?;
+    update_wallets_registry(wallet_name, address, network, imported, import_method)?;
+
+    println!(
+        "Wallet data for '{}' stored successfully in '{}'",
+        wallet_name.blue().bold(),
+        wallet_file.display()
+    );
+    println!(
+        "You can now use this wallet with the address: {}",
+        address.to_string().green()
+    );
 
     Ok(())
 }
 
 /// Update the wallets.json registry
 fn update_wallets_registry(
+    wallet_name: &str,
     address: &str,
     network: Network,
     imported: bool,
@@ -89,6 +101,7 @@ fn update_wallets_registry(
     };
 
     let mut wallet_entry = serde_json::json!({
+        "address": address.to_string(),
         "network": network.to_string(),
         "created_at": chrono::Utc::now().to_rfc3339(),
         "secure": true,
@@ -102,19 +115,19 @@ fn update_wallets_registry(
         }
     }
 
-    wallets.insert(address.to_string(), wallet_entry);
+    wallets.insert(wallet_name.to_string(), wallet_entry);
     fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
 
     Ok(())
 }
 
 /// Load generic wallet data from file
-pub(crate) fn load_wallet_data(address: &str) -> Result<GenericWalletData, BridgeCliError> {
+pub(crate) fn load_wallet_data(wallet_name: &str) -> Result<GenericWalletData, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
 
     if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+        return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
 
     let json_data = fs::read_to_string(&wallet_file)?;

@@ -46,7 +46,7 @@ use secrecy::ExposeSecret;
 use zeroize::Zeroize;
 
 use crate::errors::BridgeCliError;
-use crate::secure_structs::{SecureByteSlice, SecureString};
+use crate::structs::{SecureByteSlice, SecureString};
 
 /// Derives a 256-bit AES key from passphrase using Argon2id
 ///
@@ -59,8 +59,6 @@ pub(crate) fn derive_key_from_passphrase(
     memory: u32,
     parallelism: u32,
 ) -> Result<SecureByteSlice, BridgeCliError> {
-    println!("Deriving encryption key from passphrase...");
-
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,

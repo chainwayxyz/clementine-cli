@@ -1,11 +1,12 @@
 use std::path::PathBuf;
 
 use clap::{Parser, Subcommand};
+use colored::Colorize;
 
 macro_rules! handle_or_exit {
     ($expr:expr) => {
         if let Err(e) = $expr {
-            eprintln!("Error: {e}");
+            eprintln!("{} {e}", "Error:".red().bold());
             std::process::exit(1);
         }
     };
@@ -53,50 +54,50 @@ enum Commands {
 
 #[derive(Subcommand)]
 enum WalletCommands {
-    /// Create a new wallet with optional mnemonic display.
+    /// Create a new wallet with mnemonic display.
     CreateWallet {
         /// Name for the wallet file
-        name: String,
+        wallet_name: String,
     },
     /// Backup wallet to specified destination.
     BackupWallet {
         /// Destination path for wallet backup
         destination: String,
-        /// Address of the wallet to backup
-        address: String,
+        /// Name of the wallet to backup
+        wallet_name: String,
     },
     /// Show mnemonic with interactive terminal.
     ShowMnemonic {
-        /// Bitcoin address to show mnemonic for
-        address: String,
+        /// Name of the wallet to show mnemonic for
+        wallet_name: String,
     },
     /// Import wallet using secure mnemonic input.
     ImportFromMnemonic {
         /// Name for the imported wallet
-        name: String,
+        wallet_name: String,
     },
     ImportFromFile {
         /// Filename to import wallet from
         filename: String,
         /// Name for the imported wallet
-        name: String,
+        wallet_name: String,
     },
     ImportFromPrivateKey {
         /// Name for the imported wallet
-        name: String,
+        wallet_name: String,
     },
     /// Delete a wallet by name.
     DeleteWallet {
         /// Name of the wallet to delete
-        name: String,
+        wallet_name: String,
     },
     /// Verify integrity of wallet registry and files.
     VerifyIntegrity,
     /// List all wallets with their addresses.
     ListWalletsWithAddresses,
     ShowPrivateKey {
-        /// Address to export private key for
-        address: String,
+        /// Name of the wallet to export private key for
+        wallet_name: String,
     },
 }
 
@@ -107,8 +108,8 @@ enum DepositCommands {
         recovery_taproot_address: String,
     },
     SignRecoveryTx {
+        wallet_name: String,
         evm_address: String,
-        recovery_taproot_address: String,
         deposit_txid: String,
         deposit_vout: u32,
         claim_address: String,
@@ -121,7 +122,7 @@ enum DepositCommands {
     VerifyRecoveryTx {
         recovery_tx: String,
         evm_address: String,
-        recovery_taproot_address: String,
+        wallet_name: String,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
@@ -137,20 +138,20 @@ enum DepositCommands {
 #[derive(Subcommand)]
 enum WithdrawalCommands {
     GenerateWithdrawalSignature {
-        signer_address: String,
+        wallet_name: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
     },
     SafeWithdraw {
-        signer_address: String,
+        wallet_name: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
         signature: String,
     },
     SendSafeWithdrawal {
-        signer_address: String,
+        wallet_name: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
@@ -160,15 +161,15 @@ enum WithdrawalCommands {
         withdrawal_index: u32,
     },
     GenerateOperatorWithdrawalSignatures {
+        wallet_name: String,
         withdrawal_address: String,
-        signer_address: String,
         withdrawal_utxo_txid: String,
         withdrawal_utxo_vout: u32,
         withdrawal_amount: u64,
     },
     SendWithdrawalSignaturesToOperators {
+        wallet_name: String,
         withdrawal_address: String,
-        signer_address: String,
         withdrawal_utxo_txid: String,
         withdrawal_utxo_vout: u32,
         withdrawal_index: u32,
@@ -192,32 +193,38 @@ async fn main() {
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::CreateWallet { name } => {
-                handle_or_exit!(create_encrypted_wallet_with_address(config.network, name));
+            WalletCommands::CreateWallet { wallet_name } => {
+                handle_or_exit!(create_encrypted_wallet_with_address(
+                    config.network,
+                    wallet_name
+                ));
             }
             WalletCommands::BackupWallet {
                 destination,
-                address,
+                wallet_name,
             } => {
-                handle_or_exit!(wallet::backup_wallet(&address, &destination));
+                handle_or_exit!(wallet::backup_wallet(&wallet_name, &destination));
             }
-            WalletCommands::ShowMnemonic { address } => {
-                handle_or_exit!(show_mnemonic_secure(&address));
+            WalletCommands::ShowMnemonic { wallet_name } => {
+                handle_or_exit!(show_mnemonic_secure(&wallet_name));
             }
-            WalletCommands::ImportFromMnemonic { name } => {
-                handle_or_exit!(import_wallet_from_mnemonic(config.network, &name));
+            WalletCommands::ImportFromMnemonic { wallet_name } => {
+                handle_or_exit!(import_wallet_from_mnemonic(config.network, &wallet_name));
             }
-            WalletCommands::ImportFromFile { filename, name } => {
-                handle_or_exit!(import_wallet_from_file(&filename, &name));
+            WalletCommands::ImportFromFile {
+                filename,
+                wallet_name,
+            } => {
+                handle_or_exit!(import_wallet_from_file(&filename, &wallet_name));
             }
-            WalletCommands::ImportFromPrivateKey { name } => {
+            WalletCommands::ImportFromPrivateKey { wallet_name } => {
                 handle_or_exit!(wallet::import_wallet_from_private_key(
                     config.network,
-                    &name
+                    &wallet_name
                 ));
             }
-            WalletCommands::DeleteWallet { name } => {
-                handle_or_exit!(delete_wallet(&name));
+            WalletCommands::DeleteWallet { wallet_name } => {
+                handle_or_exit!(delete_wallet(&wallet_name));
             }
             WalletCommands::VerifyIntegrity => {
                 handle_or_exit!(verify_wallet_integrity());
@@ -225,8 +232,8 @@ async fn main() {
             WalletCommands::ListWalletsWithAddresses => {
                 handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
             }
-            WalletCommands::ShowPrivateKey { address } => {
-                handle_or_exit!(wallet::show_private_key(&address, config.network));
+            WalletCommands::ShowPrivateKey { wallet_name } => {
+                handle_or_exit!(wallet::show_private_key(&wallet_name, config.network));
             }
         },
         Commands::Deposit { command } => match command {
@@ -241,8 +248,8 @@ async fn main() {
                 ));
             }
             DepositCommands::SignRecoveryTx {
+                wallet_name,
                 evm_address,
-                recovery_taproot_address,
                 deposit_txid,
                 deposit_vout,
                 claim_address,
@@ -251,7 +258,7 @@ async fn main() {
             } => {
                 handle_or_exit!(deposit::sign_recovery_tx(
                     &evm_address,
-                    &recovery_taproot_address,
+                    &wallet_name,
                     &deposit_txid,
                     deposit_vout,
                     &claim_address,
@@ -263,13 +270,13 @@ async fn main() {
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
                 evm_address,
-                recovery_taproot_address,
+                wallet_name,
                 amount,
             } => {
                 handle_or_exit!(deposit::verify_recovery_tx(
                     &recovery_tx,
                     &evm_address,
-                    &recovery_taproot_address,
+                    &wallet_name,
                     amount,
                     &config,
                 ));
@@ -283,13 +290,13 @@ async fn main() {
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateWithdrawalSignature {
+                wallet_name,
                 withdrawal_address,
-                signer_address,
                 withdrawal_utxo,
                 amount,
             } => {
                 handle_or_exit!(withdrawal::generate_withdrawal_signature(
-                    &signer_address,
+                    &wallet_name,
                     &withdrawal_address,
                     &withdrawal_utxo,
                     amount,
@@ -297,7 +304,7 @@ async fn main() {
                 ));
             }
             WithdrawalCommands::SafeWithdraw {
-                signer_address,
+                wallet_name,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
@@ -305,7 +312,7 @@ async fn main() {
             } => {
                 handle_or_exit!(
                     withdrawal::safe_withdraw(
-                        &signer_address,
+                        &wallet_name,
                         &withdrawal_address,
                         &withdrawal_utxo,
                         amount,
@@ -316,7 +323,7 @@ async fn main() {
                 );
             }
             WithdrawalCommands::SendSafeWithdrawal {
-                signer_address,
+                wallet_name,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
@@ -324,7 +331,7 @@ async fn main() {
             } => {
                 handle_or_exit!(
                     withdrawal::send_safe_withdrawal(
-                        &signer_address,
+                        &wallet_name,
                         &withdrawal_address,
                         &withdrawal_utxo,
                         amount,
@@ -339,7 +346,7 @@ async fn main() {
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
-                signer_address,
+                wallet_name,
                 withdrawal_utxo_txid,
                 withdrawal_utxo_vout,
                 withdrawal_amount,
@@ -347,7 +354,7 @@ async fn main() {
                 unimplemented!(
                     "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {} {}",
                     withdrawal_address,
-                    signer_address,
+                    wallet_name,
                     withdrawal_utxo_txid,
                     withdrawal_utxo_vout,
                     withdrawal_amount
@@ -355,7 +362,7 @@ async fn main() {
             }
             WithdrawalCommands::SendWithdrawalSignaturesToOperators {
                 withdrawal_address,
-                signer_address,
+                wallet_name,
                 withdrawal_utxo_txid,
                 withdrawal_utxo_vout,
                 withdrawal_index,
@@ -364,7 +371,7 @@ async fn main() {
                 unimplemented!(
                     "withdrawal.send_withdrawal_signatures_to_operators: {} {} {} {} {} {}",
                     withdrawal_address,
-                    signer_address,
+                    wallet_name,
                     withdrawal_utxo_txid,
                     withdrawal_utxo_vout,
                     withdrawal_index,

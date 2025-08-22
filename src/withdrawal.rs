@@ -1,13 +1,14 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::address::{parse_address, parse_taproot_address};
+use crate::address::parse_address;
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::passphrase::prompt_unlock_passphrase;
+use crate::structs::AddressExt;
 use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
-use crate::wallet::load_key;
+use crate::wallet_utils::{load_address, load_key_and_address};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -24,17 +25,19 @@ use std::str::FromStr;
 use urlencoding::encode;
 
 pub fn generate_withdrawal_signature(
-    signer_address: &str,
+    wallet_name: &str,
     claim_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
 ) -> Result<(), BridgeCliError> {
-    println!("Please enter the passphrase for the signer key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(signer_address, network, &secure_passphrase)?;
+    let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
 
-    let signer_address = parse_taproot_address(signer_address, network)?;
+    if !signer_address.is_taproot() {
+        return Err(BridgeCliError::NotTaprootAddress);
+    }
+
     let claim_address = parse_address(claim_address, network)?;
     let withdrawal_utxo = OutPoint::from_str(withdrawal_utxo)?;
     let amount = Amount::from_btc(amount)?;
@@ -147,7 +150,7 @@ pub(crate) async fn get_tx_details(
 }
 
 pub async fn safe_withdraw(
-    signer_address: &str,
+    wallet_name: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
@@ -160,7 +163,7 @@ pub async fn safe_withdraw(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse taproot signature")?;
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
@@ -223,7 +226,7 @@ pub async fn safe_withdraw(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_safe_withdrawal(
-    signer_address: &str,
+    wallet_name: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
@@ -252,7 +255,7 @@ pub async fn send_safe_withdrawal(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse signature")?;
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
