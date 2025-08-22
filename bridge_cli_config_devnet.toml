@@ -1,6 +1,6 @@
-network = "testnet4"
+network = "signet"
 
-aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
+aggregated_public_key = "3b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1d"
 
 user_takes_after = 200
 bridge_amount = 1000000000
@@ -8,9 +8,9 @@ bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://mempool.space/testnet4/api/"
 
-citrea_backend_endpoint = "https://api.testnet.citrea.xyz"
-citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
-citrea_chain_id = 5115
+citrea_backend_endpoint = "https://api.devnet.citrea.xyz"
+citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
+citrea_chain_id = 62297
 
 [bitcoin_config]
 url = "http://127.0.0.1:18443/"

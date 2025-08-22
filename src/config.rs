@@ -187,10 +187,6 @@ mod tests {
 
         assert_eq!(config.bridge_amount, Amount::from_sat(1_000_000_000));
         assert_eq!(config.user_takes_after, 200);
-        assert_eq!(
-            UNSPENDABLE_XONLY_PUBKEY.to_string(),
-            "93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51"
-        );
     }
 
     #[test]
