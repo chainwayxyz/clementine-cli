@@ -183,12 +183,12 @@ async fn main() {
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path).unwrap()
+        BridgeCliConfig::try_parse_file(config_file_path).expect("Failed to read config file")
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
         debug!("No config file given, looking for the current directory: {current_dir:?}...");
-        BridgeCliConfig::try_parse_file(current_dir).unwrap()
+        BridgeCliConfig::try_parse_file(current_dir).expect("Failed to read config file")
     };
 
     match cli.command {
