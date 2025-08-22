@@ -32,6 +32,15 @@ macro_rules! print_or_exit {
             }
         }
     };
+    ($expr:expr, $wrapper:expr) => {
+        match $expr {
+            Ok(result) => println!("{}", $wrapper(result)),
+            Err(e) => {
+                eprintln!("{} {e}", "Error:".red().bold());
+                std::process::exit(1);
+            }
+        }
+    };
 }
 
 /// Initializes tracing to `Debug` level if verbose flag is given. If not,
@@ -320,16 +329,23 @@ async fn main() {
                 fee_rate,
                 amount,
             } => {
-                handle_or_exit!(deposit::sign_recovery_tx(
-                    &evm_address,
-                    &wallet_name,
-                    &deposit_txid,
-                    deposit_vout,
-                    &claim_address,
-                    fee_rate,
-                    amount,
-                    &config,
-                ));
+                fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
+                    hex::encode(bitcoin::consensus::serialize(&tx))
+                }
+
+                print_or_exit!(
+                    deposit::sign_recovery_tx(
+                        &evm_address,
+                        &wallet_name,
+                        &deposit_txid,
+                        deposit_vout,
+                        &claim_address,
+                        fee_rate,
+                        amount,
+                        &config,
+                    ),
+                    serialize_and_encode
+                );
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
@@ -349,7 +365,10 @@ async fn main() {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
-                handle_or_exit!(deposit::get_deposit_params(&move_to_vault_txid, &config).await);
+                print_or_exit!(
+                    deposit::get_deposit_params(&move_to_vault_txid, &config).await,
+                    hex::encode
+                );
             }
         },
         Commands::Withdrawal { command } => match command {
