@@ -5,7 +5,7 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::structs::AddressExt;
-use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
+use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::{load_address, load_key_and_address};
@@ -184,7 +184,7 @@ pub async fn safe_withdraw(
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
-    let calldata_hex = get_citrea_safe_withdraw_params(
+    let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
         &payout_output,
         &sig,
@@ -193,10 +193,22 @@ pub async fn safe_withdraw(
         prepare_tx_block_height,
     )?;
 
+    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
+    let params = prepare_safe_withdraw_params(
+        &prepare_tx,
+        &prepare_proof,
+        &payout_tx_params,
+        &block_header,
+        &output_script_pk,
+    );
+
+    let calldata_hex =
+        encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
+
     let tx_json = json!({
         "to": config.bridge_contract_address,
-        "data": calldata_hex,
-        "value": "0x0",
+        "data": hex::encode(calldata_hex),
+        "value": "0x8AC7230489E80000",
         "chainId": config.citrea_chain_id,
     })
     .to_string();

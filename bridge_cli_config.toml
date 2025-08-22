@@ -1,18 +1,18 @@
-network = "regtest"
+network = "testnet4"
 
 verifiers_pks = []
 user_takes_after = 200
 bridge_amount = 1000000000
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
-mempool_api_url = "https://127.0.0.1"
+mempool_api_url = "https://mempool.space/testnet4/"
 
-citrea_backend_endpoint = "https://127.0.0.1"
-citrea_rpc_url = "https://127.0.0.1"
-citrea_chain_id = 12345
+citrea_backend_endpoint = "https://api.devnet.citrea.xyz/"
+citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
+citrea_chain_id = 5115
 
 [bitcoin_config]
-url = "http://127.0.0.1"
-port = 18443
+url = "http://127.0.0.1:48332"
+port = 48332
 user = "admin"
 password = "admin"
