@@ -6,7 +6,10 @@ use colored::Colorize;
 macro_rules! handle_or_exit {
     ($expr:expr) => {
         if let Err(e) = $expr {
-            eprintln!("{} {e:?}", "Error:".red().bold());
+            eprintln!("{}", "Error".red().bold());
+            // Use eyre's formatting which includes source locations when available
+            let report: eyre::Report = e.into();
+            eprintln!("{report:?}");
             std::process::exit(1);
         }
     };
@@ -179,6 +182,15 @@ enum WithdrawalCommands {
 
 #[tokio::main]
 async fn main() {
+    color_eyre::install().expect("Failed to install color-eyre");
+
+    // Enable backtrace for better error debugging
+    if std::env::var("RUST_BACKTRACE").is_err() {
+        unsafe {
+            std::env::set_var("RUST_BACKTRACE", "1");
+        }
+    }
+
     let cli = Cli::parse();
 
     let config = if let Some(config_file_path) = cli.config_file {
