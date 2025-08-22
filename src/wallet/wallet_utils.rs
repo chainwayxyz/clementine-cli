@@ -48,27 +48,6 @@ pub(crate) fn load_key(
     Ok(keypair)
 }
 
-// pub(crate) fn load_address(
-//     wallet_name: &str,
-//     generic_wallet_data: Option<GenericWalletData>,
-//     network: Network,
-// ) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
-//     let wallet_data = if let Some(data) = generic_wallet_data {
-//         data
-//     } else {
-//         crate::wallet::wallet_storage::load_wallet_data(wallet_name)?
-//     };
-
-//     let wallet_network = parse_network(wallet_data.network.as_str())?;
-//     check_network_compatibility(wallet_network, network)?;
-
-//     let address_str = wallet_data.address.as_str();
-//     let address = str_to_address(address_str, network)
-//         .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid wallet address: {}", e)))?;
-
-//     Ok(address)
-// }
-
 /// Helper function to validate mnemonic imports during wallet import
 pub(crate) fn validate_mnemonic_import(
     decrypted_mnemonic: &SecureString,
@@ -93,19 +72,19 @@ pub(crate) fn validate_mnemonic_import(
     Ok(())
 }
 
-// fn check_network_compatibility(
-//     wallet_network: Network,
-//     network: Network,
-// ) -> Result<(), BridgeCliError> {
-//     if wallet_network != network {
-//         return Err(BridgeCliError::NetworkMismatch(
-//             wallet_network.to_string(),
-//             network.to_string(),
-//         ));
-//     }
+fn check_network_compatibility(
+    wallet_network: Network,
+    network: Network,
+) -> Result<(), BridgeCliError> {
+    if wallet_network != network {
+        return Err(BridgeCliError::NetworkMismatch(
+            wallet_network.to_string(),
+            network.to_string(),
+        ));
+    }
 
-//     Ok(())
-// }
+    Ok(())
+}
 
 /// Helper function to parse network string into Network enum
 pub(crate) fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
@@ -227,10 +206,12 @@ pub(crate) fn load_address_from_registry(
     let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
 
     if let Some(wallet_data) = wallets.get(wallet_name)
-        && let Some(address) = wallet_data.get("address").and_then(|a| a.as_str())
+        && let Some(address_str) = wallet_data.get("address").and_then(|a| a.as_str())
+        && let Some(network_str) = wallet_data.get("network").and_then(|n| n.as_str())
     {
-        // TODO: Will use check_network_compatibility once the registry has network information
-        return parse_address(address, network);
+        let wallet_network = parse_network(network_str)?;
+        check_network_compatibility(wallet_network, network)?;
+        return parse_address(address_str, network);
     }
 
     Err(BridgeCliError::WalletNotFound(wallet_name.to_string()))

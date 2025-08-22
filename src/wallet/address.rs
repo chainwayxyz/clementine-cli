@@ -94,17 +94,3 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
 
     Ok(())
 }
-
-// pub(crate) fn str_to_address(
-//     address: &str,
-//     network: Network,
-// ) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
-//     let wallet_address = BitcoinAddress::from_str(address)
-//         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid wallet address: {}", e)))?;
-
-//     let wallet_address = wallet_address
-//         .require_network(network)
-//         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Address does not match network: {}", e)))?;
-
-//     Ok(wallet_address)
-// }
