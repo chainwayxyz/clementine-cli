@@ -202,10 +202,10 @@ pub(crate) fn is_wallet_address(address: &str) -> Result<bool, BridgeCliError> {
     let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
 
     for (_wallet_name, wallet_data) in wallets {
-        if let Some(wallet_address) = wallet_data.get("address").and_then(|a| a.as_str()) {
-            if wallet_address == address {
-                return Ok(true);
-            }
+        if let Some(wallet_address) = wallet_data.get("address").and_then(|a| a.as_str())
+            && wallet_address == address
+        {
+            return Ok(true);
         }
     }
 
@@ -226,11 +226,11 @@ pub(crate) fn load_address_from_registry(
     let wallets_content = std::fs::read_to_string(&wallets_file)?;
     let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
 
-    if let Some(wallet_data) = wallets.get(wallet_name) {
-        if let Some(address) = wallet_data.get("address").and_then(|a| a.as_str()) {
-            // TODO: Will use check_network_compatibility once the registry has network information
-            return Ok(parse_address(address, network)?);
-        }
+    if let Some(wallet_data) = wallets.get(wallet_name)
+        && let Some(address) = wallet_data.get("address").and_then(|a| a.as_str())
+    {
+        // TODO: Will use check_network_compatibility once the registry has network information
+        return parse_address(address, network);
     }
 
     Err(BridgeCliError::WalletNotFound(wallet_name.to_string()))
