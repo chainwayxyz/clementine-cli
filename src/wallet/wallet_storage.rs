@@ -119,8 +119,16 @@ fn update_wallets_registry(
         network: network.to_string(),
         created_at: chrono::Utc::now().to_rfc3339(),
         imported: if imported { Some(true) } else { None },
-        imported_at: if imported { Some(chrono::Utc::now().to_rfc3339()) } else { None },
-        import_method: if imported { import_method.map(|s| s.to_string()) } else { None },
+        imported_at: if imported {
+            Some(chrono::Utc::now().to_rfc3339())
+        } else {
+            None
+        },
+        import_method: if imported {
+            import_method.map(|s| s.to_string())
+        } else {
+            None
+        },
     };
 
     wallets.insert(wallet_name.to_string(), wallet_entry);

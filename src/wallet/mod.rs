@@ -210,7 +210,6 @@ pub fn import_wallet_from_mnemonic(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-
     validate_wallet_availability(
         Some(wallet_name),
         None,
@@ -289,8 +288,9 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     // Read wallets.json registry
     let registry_wallets: HashSet<String> = if wallets_file.exists() {
         let wallets_content = fs::read_to_string(&wallets_file)?;
-        let wallets: HashMap<String, wallet_storage::WalletRegistryEntry> = serde_json::from_str(&wallets_content)
-            .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
+        let wallets: HashMap<String, wallet_storage::WalletRegistryEntry> =
+            serde_json::from_str(&wallets_content)
+                .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
         wallets.keys().cloned().collect()
     } else {
         println!("wallets.json not found - no registered wallets");
@@ -578,7 +578,7 @@ pub fn import_wallet_from_private_key(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-        validate_wallet_availability(
+    validate_wallet_availability(
         Some(wallet_name),
         None,
         None,
