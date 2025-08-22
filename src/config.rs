@@ -2,10 +2,7 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use bitcoin::{
-    Amount, Network, XOnlyPublicKey,
-    secp256k1::{Parity, PublicKey},
-};
+use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::Result;
 use reqwest::Url;
@@ -35,7 +32,7 @@ pub enum ConfigErrors {
 #[derive(Debug, Clone, Deserialize)]
 pub struct BridgeCliConfig {
     pub network: Network,
-    pub verifiers_pks: Vec<PublicKey>,
+    pub aggregated_public_key: XOnlyPublicKey,
     pub mempool_api_url: Url,
     pub citrea_chain_id: u64,
     pub citrea_rpc_url: Url,
@@ -111,7 +108,10 @@ impl BridgeCliConfig {
                 config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
                     Url::parse("https://mempool.space/api/").expect("Valid url");
-                config.verifiers_pks = vec![];
+                config.aggregated_public_key = XOnlyPublicKey::from_str(
+                    "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+                )
+                .unwrap();
             }
             Network::Testnet4 => {
                 config.citrea_chain_id = 1;
@@ -121,13 +121,10 @@ impl BridgeCliConfig {
                     Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
                     Url::parse("https://mempool.space/testnet4/api/").expect("Valid url");
-                config.verifiers_pks = vec![
-                    XOnlyPublicKey::from_str(
-                        "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
-                    )
-                    .unwrap()
-                    .public_key(Parity::Odd),
-                ];
+                config.aggregated_public_key = XOnlyPublicKey::from_str(
+                    "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+                )
+                .unwrap();
             }
             Network::Signet => {
                 config.citrea_chain_id = 62298;
@@ -137,24 +134,10 @@ impl BridgeCliConfig {
                     Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
                     Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url");
-                config.verifiers_pks = vec![
-                    PublicKey::from_str(
-                        "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
-                    )
-                    .unwrap(),
-                    PublicKey::from_str(
-                        "02466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
-                    )
-                    .unwrap(),
-                    PublicKey::from_str(
-                        "023c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
-                    )
-                    .unwrap(),
-                    PublicKey::from_str(
-                        "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
-                    )
-                    .unwrap(),
-                ];
+                config.aggregated_public_key = XOnlyPublicKey::from_str(
+                    "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+                )
+                .unwrap();
             }
             _ => panic!("Network {network} is not supported!"), // This will only happen if [`Network`] has new fields
         };
@@ -177,24 +160,10 @@ impl Default for BridgeCliConfig {
     fn default() -> Self {
         Self {
             network: Network::Regtest,
-            verifiers_pks: vec![
-                PublicKey::from_str(
-                    "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
-                )
-                .unwrap(),
-                PublicKey::from_str(
-                    "02466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
-                )
-                .unwrap(),
-                PublicKey::from_str(
-                    "023c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
-                )
-                .unwrap(),
-                PublicKey::from_str(
-                    "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
-                )
-                .unwrap(),
-            ],
+            aggregated_public_key: XOnlyPublicKey::from_str(
+                "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+            )
+            .unwrap(),
             mempool_api_url: Url::parse("https://127.0.0.1/").unwrap(),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),

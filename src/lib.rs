@@ -33,7 +33,6 @@ mod bitcoin_utils;
 pub mod config;
 pub mod deposit;
 pub mod errors;
-mod musig2;
 mod parameters;
 mod script;
 mod secure_display;
