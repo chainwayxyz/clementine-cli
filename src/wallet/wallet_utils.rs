@@ -168,8 +168,6 @@ pub(crate) fn wallet_exists(wallet_name: &str) -> Result<bool, BridgeCliError> {
 
 /// Check if the given address belongs to any wallet in the wallet registry
 pub(crate) fn is_wallet_address(address: &str) -> Result<bool, BridgeCliError> {
-    use std::collections::HashMap;
-
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
