@@ -467,15 +467,6 @@ pub fn import_wallet_from_file(
         ));
     }
 
-    println!("{}", "Passphrase Verification Required".yellow().bold());
-    println!("To import this wallet, you must provide the correct passphrase to verify access.");
-
-    // Prompt for passphrase to verify the user can decrypt the wallet
-    let passphrase = prompt_unlock_passphrase()?;
-
-    // Verify passphrase by attempting to decrypt the wallet data
-    println!("Verifying passphrase...");
-
     // Parse encrypted mnemonic as EncryptedDataHex
     let encrypted_mnemonic_hex: encryption::EncryptedDataHex =
         serde_json::from_value(wallet_data["encrypted_mnemonic"].clone()).map_err(|e| {
@@ -484,6 +475,15 @@ pub fn import_wallet_from_file(
 
     let encrypted_data = encryption::encrypted_data_from_hex(&encrypted_mnemonic_hex)
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
+
+    println!("{}", "Passphrase Verification Required".yellow().bold());
+    println!("To import this wallet, you must provide the correct passphrase to verify access.");
+
+    // Prompt for passphrase to verify the user can decrypt the wallet
+    let passphrase = prompt_unlock_passphrase()?;
+
+    // Verify passphrase by attempting to decrypt the wallet data
+    println!("Verifying passphrase...");
 
     // Try to decrypt mnemonic to verify passphrase
     match aes_decrypt_secure(&encrypted_data, &passphrase) {
