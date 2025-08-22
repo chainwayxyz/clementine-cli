@@ -587,10 +587,9 @@ pub fn import_wallet_from_private_key(
     let address = calculate_taproot_address(&keypair, network);
 
     // Check if address already exists
-    validate_wallet_availability(wallet_name, &address.to_string(), network)
-        .inspect_err(|_| {
-            master_private_key.non_secure_erase();
-        })?;
+    validate_wallet_availability(wallet_name, &address.to_string(), network).inspect_err(|_| {
+        master_private_key.non_secure_erase();
+    })?;
 
     let passphrase = prompt_passphrase(false)?;
 
