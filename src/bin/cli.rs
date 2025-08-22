@@ -10,6 +10,8 @@ use clementine_cli::{
 };
 use colored::Colorize;
 use std::path::PathBuf;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
 macro_rules! handle_or_exit {
     ($expr:expr) => {
@@ -32,6 +34,35 @@ macro_rules! print_or_exit {
     };
 }
 
+pub fn initialize_logger(is_verbose: bool) {
+    let level = if is_verbose {
+        Some(LevelFilter::DEBUG)
+    } else {
+        None
+    };
+
+    let filter = match level {
+        Some(lvl) => EnvFilter::builder()
+            .with_default_directive(lvl.into())
+            .from_env_lossy(),
+        None => EnvFilter::builder()
+            .with_default_directive(LevelFilter::OFF.into())
+            .from_env_lossy(),
+    };
+
+    let standard_layer = fmt::layer()
+        .with_test_writer()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(true);
+
+    let _ = tracing::subscriber::set_global_default(
+        tracing_subscriber::registry()
+            .with(standard_layer)
+            .with(filter),
+    );
+}
+
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
@@ -39,6 +70,10 @@ struct Cli {
     /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
     #[arg(long)]
     config_file: Option<PathBuf>,
+
+    /// Turns verbose logging on
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    verbose: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -191,6 +226,8 @@ enum WithdrawalCommands {
 #[tokio::main]
 async fn main() {
     let cli = Cli::parse();
+
+    initialize_logger(cli.verbose);
 
     let config = if let Some(config_file_path) = cli.config_file {
         debug!("Config file {config_file_path:?} is going to be used...");
