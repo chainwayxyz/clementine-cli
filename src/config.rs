@@ -213,7 +213,7 @@ mod tests {
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
-        assert_eq!(read_config.network, Network::Regtest);
+        assert_eq!(read_config.network, Network::Testnet4);
         assert_eq!(
             read_config.bitcoin_config.unwrap().url.as_str(),
             "http://127.0.0.1:18443/"
