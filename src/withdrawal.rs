@@ -12,8 +12,10 @@ use crate::wallet::wallet_utils::{load_address, load_key_and_address};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
+use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
+use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
@@ -29,7 +31,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> Result<(), BridgeCliError> {
+) -> Result<Signature, BridgeCliError> {
     let secure_passphrase = prompt_unlock_passphrase()?;
     let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
 
@@ -49,13 +51,7 @@ pub fn generate_withdrawal_signature(
         amount,
     )?;
 
-    println!(
-        "{} {}",
-        "SIGNATURE".cyan().bold(),
-        hex::encode(signature.serialize())
-    );
-
-    Ok(())
+    Ok(signature)
 }
 
 async fn get_tx_details_from_mempool(
@@ -251,10 +247,10 @@ pub async fn send_safe_withdrawal(
     amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<TransactionReceipt, BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
+    let secret_key = std::env::var("SECRET_KEY").map_err(|e| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable: {e}"))?;
     let signer: PrivateKeySigner = secret_key
         .parse()
         .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
@@ -334,7 +330,6 @@ pub async fn send_safe_withdrawal(
         .get_receipt()
         .await
         .wrap_err("Can't get receipt")?;
-    println!("Citrea withdrawal tx receipt: {:?}", receipt);
 
-    Ok(())
+    Ok(receipt)
 }

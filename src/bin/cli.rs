@@ -1,3 +1,4 @@
+use bitcoin::taproot::Signature;
 use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::BridgeCliConfig,
@@ -25,7 +26,7 @@ macro_rules! handle_or_exit {
 macro_rules! print_or_exit {
     ($expr:expr) => {
         match $expr {
-            Ok(result) => println!("{result}"),
+            Ok(result) => println!("{result:?}"),
             Err(e) => {
                 eprintln!("{} {e}", "Error:".red().bold());
                 std::process::exit(1);
@@ -34,7 +35,7 @@ macro_rules! print_or_exit {
     };
     ($expr:expr, $wrapper:expr) => {
         match $expr {
-            Ok(result) => println!("{}", $wrapper(result)),
+            Ok(result) => println!("{:?}", $wrapper(result)),
             Err(e) => {
                 eprintln!("{} {e}", "Error:".red().bold());
                 std::process::exit(1);
@@ -378,13 +379,20 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
             } => {
-                handle_or_exit!(withdrawal::generate_withdrawal_signature(
-                    &wallet_name,
-                    &withdrawal_address,
-                    &withdrawal_utxo,
-                    amount,
-                    config.network,
-                ));
+                fn serialize_and_encode(signature: Signature) -> String {
+                    hex::encode(signature.serialize())
+                }
+
+                print_or_exit!(
+                    withdrawal::generate_withdrawal_signature(
+                        &wallet_name,
+                        &withdrawal_address,
+                        &withdrawal_utxo,
+                        amount,
+                        config.network,
+                    ),
+                    serialize_and_encode
+                );
             }
             WithdrawalCommands::SafeWithdraw {
                 wallet_name,
@@ -412,7 +420,7 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                handle_or_exit!(
+                print_or_exit!(
                     withdrawal::send_safe_withdrawal(
                         &wallet_name,
                         &withdrawal_address,
