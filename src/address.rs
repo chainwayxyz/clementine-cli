@@ -1,13 +1,15 @@
 use bitcoin::Network;
+use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
-use eyre::Context;
+use colored::Colorize;
 use zeroize::Zeroize;
 
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
 use crate::mnemonic::get_master_seed_from_mnemonic;
-use crate::secure_structs::SecureString;
+use crate::structs::SecureString;
+use std::str::FromStr;
 
 /// Generate a Bitcoin address from a mnemonic phrase
 pub(crate) fn generate_address_from_mnemonic_secure(
@@ -37,7 +39,7 @@ pub(crate) fn parse_address(
 
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
-        .wrap_err("Failed to parse Bitcoin address")?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e)))?;
 
     let address = unchecked_address.require_network(network)?;
     Ok(address)
@@ -60,41 +62,6 @@ pub(crate) fn parse_taproot_address(
     Ok(address)
 }
 
-/// Extract address from wallet JSON data
-fn extract_address_from_wallet(wallet_data: &serde_json::Value) -> Result<String, BridgeCliError> {
-    // Try to get the address field from the wallet data
-    if let Some(address) = wallet_data.get("address")
-        && let Some(address_str) = address.as_str()
-    {
-        return Ok(address_str.to_string());
-    }
-
-    Err(BridgeCliError::MissingWalletAddress)
-}
-
-/// Helper function to process a wallet file and extract its address
-fn process_wallet_file(file_path: &std::path::Path) -> Option<String> {
-    use std::fs;
-
-    let wallet_content = fs::read_to_string(file_path).ok()?;
-    let wallet_data: serde_json::Value = serde_json::from_str(&wallet_content).ok()?;
-
-    match extract_address_from_wallet(&wallet_data) {
-        Ok(address) => Some(address),
-        Err(e) => {
-            let file_name = file_path
-                .file_name()
-                .map(|n| n.to_string_lossy())
-                .unwrap_or_else(|| "unknown".into());
-            eprintln!(
-                "Warning: Failed to extract address from {}: {}",
-                file_name, e
-            );
-            None
-        }
-    }
-}
-
 /// Get all wallets with their names and addresses from storage and print them
 pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     use std::fs;
@@ -103,47 +70,45 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         .map_err(|e| BridgeCliError::StorageDirectoryError(e.to_string()))?;
 
     if !storage_dir.exists() {
-        println!("No wallets found in storage.");
+        println!(
+            "Storage directory does not exist: {}",
+            storage_dir.display()
+        );
         return Ok(());
     }
 
-    let wallets: Vec<(String, String)> = fs::read_dir(&storage_dir)
-        .map_err(|e| BridgeCliError::StorageReadError(e.to_string()))?
-        .filter_map(|entry| entry.ok())
-        .filter_map(|entry| {
-            let file_name = entry.file_name();
-            let file_name_str = file_name.to_string_lossy();
+    let wallets_file = storage_dir.join("wallets.json");
+    if wallets_file.exists() {
+        let wallets_content = fs::read_to_string(&wallets_file)
+            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets file: {}", e)))?;
 
-            // Check if it's a wallet file (wallet_NAME.json)
-            if file_name_str.starts_with("wallet_")
-                && file_name_str.ends_with(".json")
-                && file_name_str != "wallets.json"
-            {
-                // Extract wallet name from filename (remove "wallet_" prefix and ".json" suffix)
-                let wallet_name = file_name_str
-                    .strip_prefix("wallet_")
-                    .and_then(|s| s.strip_suffix(".json"))
-                    .unwrap_or(&file_name_str)
-                    .to_string();
+        let wallets: serde_json::Value = serde_json::from_str(&wallets_content).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets JSON: {}", e))
+        })?;
 
-                // Get the address from the wallet file
-                process_wallet_file(&entry.path()).map(|address| (wallet_name, address))
+        for (name, wallet) in wallets.as_object().unwrap_or(&serde_json::Map::new()) {
+            if let Some(address) = wallet.get("address").and_then(|a| a.as_str()) {
+                println!("Wallet: {} -> Address: {}", name.blue(), address.green());
             } else {
-                None
+                eprintln!("Warning: Wallet '{}' does not have an address field", name);
             }
-        })
-        .collect();
-
-    // Print the wallets with names and addresses
-    if wallets.is_empty() {
-        println!("No wallets found in storage.");
-    } else {
-        println!("Found {} wallet(s):", wallets.len());
-        println!();
-        for (index, (name, address)) in wallets.iter().enumerate() {
-            println!("{}. {} → {}", index + 1, name, address);
         }
+        return Ok(());
     }
 
     Ok(())
+}
+
+pub(crate) fn str_to_address(
+    address: &str,
+    network: Network,
+) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
+    let wallet_address = BitcoinAddress::from_str(address)
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid wallet address: {}", e)))?;
+
+    let wallet_address = wallet_address
+        .require_network(network)
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Address does not match network: {}", e)))?;
+
+    Ok(wallet_address)
 }

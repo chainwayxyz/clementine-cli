@@ -6,7 +6,7 @@ use crate::encryption::aes_decrypt_secure;
 use crate::errors::BridgeCliError;
 use crate::passphrase::prompt_unlock_passphrase;
 use crate::secure_display::display_mnemonic_securely;
-use crate::secure_structs::SecureString;
+use crate::structs::SecureString;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 

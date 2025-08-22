@@ -7,7 +7,8 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::passphrase::prompt_unlock_passphrase;
-use crate::wallet::load_key;
+use crate::wallet_utils::load_address;
+use crate::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 
@@ -85,7 +86,7 @@ pub async fn get_deposit_params(
 #[allow(clippy::too_many_arguments)]
 pub fn sign_recovery_tx(
     citrea_address: &str,
-    recovery_taproot_address: &str,
+    wallet_name: &str,
     deposit_txid: &str,
     deposit_vout: u32,
     claim_address: &str,
@@ -94,7 +95,6 @@ pub fn sign_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
-    let recovery_addr = parse_taproot_address(recovery_taproot_address, config.network)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
     let txid = Txid::from_str(deposit_txid)?;
     let outpoint = OutPoint {
@@ -104,7 +104,8 @@ pub fn sign_recovery_tx(
     // Always prompt for passphrase for maximum security
     println!("Please enter the passphrase for the recovery key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(recovery_taproot_address, config.network, &secure_passphrase)?;
+    let (keypair, recovery_addr) =
+        load_key_and_address(wallet_name, config.network, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -134,16 +135,18 @@ pub fn sign_recovery_tx(
 pub fn verify_recovery_tx(
     recovery_tx: &str,
     citrea_address: &str,
-    recovery_taproot_address: &str,
+    wallet_name: &str,
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
+    let recovery_taproot_address = load_address(wallet_name, None, config.network)?;
+
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         &recovery_tx,
         &parse_citrea_address(citrea_address)?,
-        &parse_taproot_address(recovery_taproot_address, config.network)?,
+        &recovery_taproot_address,
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
         config,
     )?;

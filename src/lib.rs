@@ -54,10 +54,11 @@ mod parameters;
 mod passphrase;
 mod script;
 mod secure_display;
-mod secure_structs;
+mod structs;
 pub mod types;
 pub mod wallet;
 mod wallet_storage;
+mod wallet_utils;
 pub mod withdrawal;
 
 // Re-export commonly used address functions for public API
