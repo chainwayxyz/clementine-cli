@@ -103,3 +103,22 @@ pub(crate) fn prepare_safe_withdraw_params(
         private::Bytes::from(withdrawal_address_pubkey.to_vec()),
     )
 }
+
+pub(crate) fn encode_safe_withdraw_params(
+    prepare_tx: &Transaction,
+    prepare_proof: &MerkleProof,
+    payout_tx: &Transaction,
+    block_header: private::Bytes,
+    output_script_pk: private::Bytes,
+) -> Vec<u8> {
+    let call = BRIDGE_CONTRACT::safeWithdrawCall {
+        prepareTx: prepare_tx.clone(),
+        prepareProof: prepare_proof.clone(),
+        payoutTx: payout_tx.clone(),
+        blockHeader: block_header,
+        withdrawalAddressPubKey: output_script_pk,
+    };
+
+    let data = call.abi_encode();
+    data.to_vec()
+}
