@@ -5,7 +5,7 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::structs::AddressExt;
-use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
+use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::{load_address, load_key_and_address};
@@ -18,9 +18,11 @@ use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
 use eyre::Context;
+use open;
 use reqwest::Url;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::str::FromStr;
+use urlencoding::encode;
 
 pub fn generate_withdrawal_signature(
     wallet_name: &str,
@@ -181,7 +183,7 @@ pub async fn safe_withdraw(
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
-    get_citrea_safe_withdraw_params(
+    let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
         &payout_output,
         &sig,
@@ -190,24 +192,44 @@ pub async fn safe_withdraw(
         prepare_tx_block_height,
     )?;
 
-    // Prompt user to open the withdrawal UI
-    let withdrawal_ui_url = "https://i-explorer.devnet.citrea.xyz/address/0x3100000000000000000000000000000000000002?tab=write_proxy#9072f747";
-    println!(
-        "\n{} Press Enter to open the withdrawal UI in your default browser...",
-        "INFO".yellow().bold()
+    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
+    let params = prepare_safe_withdraw_params(
+        &prepare_tx,
+        &prepare_proof,
+        &payout_tx_params,
+        &block_header,
+        &output_script_pk,
     );
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .wrap_err("Can't read key stroke")?;
 
-    if let Err(e) = open::that(withdrawal_ui_url) {
+    let calldata_hex =
+        encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
+
+    let tx_json = json!({
+        "to": config.bridge_contract_address,
+        "data": hex::encode(calldata_hex),
+        "value": "0x8AC7230489E80000",
+        "chainId": config.citrea_chain_id,
+    })
+    .to_string();
+
+    // Prompt user to open the withdrawal UI
+    let query = format!(
+        "?transaction_request={}&withdrawal_address={}",
+        encode(&tx_json),
+        encode(&withdrawal_address.to_string())
+    );
+    let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
+    println!(
+        "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
+        "INFO".green().bold()
+    );
+
+    if let Err(e) = open::that(&withdrawal_ui_url) {
+        println!("{} Failed to open browser: {}", "ERROR".red().bold(), e);
         println!(
-            "{} Failed to open browser: {}",
-            "WARNING".yellow().bold(),
-            e
+            "Please visit the following URL manually: {}",
+            withdrawal_ui_url
         );
-        println!("Please visit the following URL manually:\n{withdrawal_ui_url}",);
     }
 
     Ok(())

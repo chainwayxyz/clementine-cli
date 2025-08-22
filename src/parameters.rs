@@ -60,7 +60,7 @@ fn get_block_merkle_proof(
     Ok((txid_index, witness_idx_path.into_iter().flatten().collect()))
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct CitreaTransaction {
     pub version: [u8; 4],
     pub flag: [u8; 2],
@@ -147,7 +147,7 @@ fn get_transaction_details_for_citrea(
     })
 }
 
-#[derive(Clone)]
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
 pub(crate) struct CitreaMerkleProof {
     pub intermediate_nodes: Vec<u8>,
     pub block_height: u32,
