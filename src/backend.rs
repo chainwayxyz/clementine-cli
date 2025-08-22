@@ -1,8 +1,8 @@
 // Backend communication logic for Clementine CLI
 
-use crate::address::parse_taproot_address;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
+use crate::wallet::address::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
 use colored::*;
 use eyre::Result;

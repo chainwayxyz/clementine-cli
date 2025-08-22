@@ -6,9 +6,9 @@ use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
-use crate::passphrase::prompt_unlock_passphrase;
-use crate::wallet_utils::load_address;
-use crate::wallet_utils::load_key_and_address;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_utils::load_address;
+use crate::wallet::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 
@@ -18,7 +18,7 @@ use colored::*;
 use eyre::Result;
 use std::str::FromStr;
 
-use crate::address::parse_taproot_address;
+use crate::wallet::address::parse_taproot_address;
 
 /// Get deposit address from backend
 pub fn get_deposit_address(
