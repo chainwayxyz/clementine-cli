@@ -6,7 +6,7 @@ pub struct BitcoinMerkleTree {
     nodes: Vec<Vec<[u8; 32]>>,
 }
 
-pub fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
+fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
     let mut hasher = Sha256::default();
     hasher.update(input);
     let result = hasher.finalize_reset();
@@ -75,11 +75,13 @@ impl BitcoinMerkleTree {
     }
 
     // Returns the Merkle root
+    #[allow(dead_code)]
     pub fn root(&self) -> [u8; 32] {
         self.nodes[self.nodes.len() - 1][0]
     }
 
-    pub fn _get_element(&self, level: u32, index: u32) -> [u8; 32] {
+    #[allow(dead_code)]
+    pub fn get_element(&self, level: u32, index: u32) -> [u8; 32] {
         self.nodes[level as usize][index as usize]
     }
 

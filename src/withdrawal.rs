@@ -1,15 +1,14 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::bitcoin_utils::{
-    confirm_private_key_storage, generate_keypair_and_taproot_address, sign_withdrawal_signature,
-    verify_withdrawal_signature,
-};
+use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
-use crate::deposit::{parse_address, parse_taproot_address};
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::storage::{load_key, store_key};
-use crate::types::{BRIDGE_CONTRACT, prepare_safe_withdraw_params};
+use crate::structs::AddressExt;
+use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
+use crate::wallet::address::parse_address;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_utils::{load_address, load_key_and_address};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -19,54 +18,26 @@ use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
 use eyre::Context;
+use open;
 use reqwest::Url;
-use serde_json::Value;
+use serde_json::{Value, json};
 use std::str::FromStr;
-
-/// Generate a new signer key and taproot address for withdrawal operations
-pub fn generate_signer_address(auto_yes: bool, network: Network) -> Result<(), BridgeCliError> {
-    // Confirm with user about private key storage
-    if !confirm_private_key_storage(auto_yes)? {
-        println!("Operation cancelled by user.");
-        return Ok(());
-    }
-
-    // Generate the key and address
-    let (keypair, address) = generate_keypair_and_taproot_address(network);
-
-    // Store the key securely
-    let stored_address = store_key(&keypair, network, None)?;
-
-    // Verify the stored address matches the generated one
-    if stored_address != address {
-        return Err(eyre::eyre!("Address mismatch after storage").into());
-    }
-
-    // println!(
-    //     "{} Signer key generated and stored successfully",
-    //     "SUCCESS".green().bold()
-    // );
-    println!("{} {}", "ADDRESS".cyan().bold(), address);
-    println!("{} {}", "NETWORK".blue().bold(), network);
-    // println!("{} ~/.clementine/keys/", "STORAGE".magenta().bold());
-    println!(
-        "{} Please send 0.0000033 BTC (330 sats) to this address.",
-        "INFO".yellow().bold()
-    );
-
-    Ok(())
-}
+use urlencoding::encode;
 
 pub fn generate_withdrawal_signature(
-    signer_address: &str,
+    wallet_name: &str,
     claim_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
 ) -> Result<(), BridgeCliError> {
-    let keypair = load_key(signer_address, network, None)?;
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
 
-    let signer_address = parse_taproot_address(signer_address, network)?;
+    if !signer_address.is_taproot() {
+        return Err(BridgeCliError::NotTaprootAddress);
+    }
+
     let claim_address = parse_address(claim_address, network)?;
     let withdrawal_utxo = OutPoint::from_str(withdrawal_utxo)?;
     let amount = Amount::from_btc(amount)?;
@@ -88,18 +59,17 @@ pub fn generate_withdrawal_signature(
     Ok(())
 }
 
-pub async fn get_tx_details_from_mempool(
+async fn get_tx_details_from_mempool(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
     let url = format!("{}tx/{prepare_txid}/hex", config.mempool_api_url);
     let response = reqwest::get(url)
         .await
-        .wrap_err("Failed to fetch transaction hex: {}")?;
-    let tx_hex = response
-        .text()
-        .await
-        .wrap_err("Failed to read transaction hex response: {}")?;
+        .map_err(|e| eyre::eyre!("Failed to fetch transaction hex for {prepare_txid}: {e}"))?;
+    let tx_hex = response.text().await.map_err(|e| {
+        eyre::eyre!("Failed to read transaction hex response for {prepare_txid}: {e}")
+    })?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     debug!("tx: {:?}", tx);
 
@@ -130,7 +100,7 @@ pub async fn get_tx_details_from_mempool(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_tx_details_from_rpc(
+async fn get_tx_details_from_rpc(
     rpc: &Client,
     prepare_txid: &Txid,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
@@ -151,7 +121,7 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-pub async fn get_txout_details(
+pub(crate) async fn get_txout_details(
     config: &BridgeCliConfig,
     txid: &Txid,
     vout: u32,
@@ -165,7 +135,7 @@ pub async fn get_txout_details(
     Ok(txout.clone())
 }
 
-pub async fn get_tx_details(
+pub(crate) async fn get_tx_details(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
@@ -179,7 +149,7 @@ pub async fn get_tx_details(
 }
 
 pub async fn safe_withdraw(
-    signer_address: &str,
+    wallet_name: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
@@ -192,7 +162,7 @@ pub async fn safe_withdraw(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse taproot signature")?;
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
@@ -213,7 +183,7 @@ pub async fn safe_withdraw(
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
-    get_citrea_safe_withdraw_params(
+    let params = get_citrea_safe_withdraw_params(
         &withdrawal_outpoint,
         &payout_output,
         &sig,
@@ -222,25 +192,42 @@ pub async fn safe_withdraw(
         prepare_tx_block_height,
     )?;
 
-    // Prompt user to open the withdrawal UI
-    let withdrawal_ui_url = "https://i-explorer.devnet.citrea.xyz/address/0x3100000000000000000000000000000000000002?tab=write_proxy#9072f747";
-    println!(
-        "\n{} Press Enter to open the withdrawal UI in your default browser...",
-        "INFO".yellow().bold()
+    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
+    let params = prepare_safe_withdraw_params(
+        &prepare_tx,
+        &prepare_proof,
+        &payout_tx_params,
+        &block_header,
+        &output_script_pk,
     );
-    let mut input = String::new();
-    std::io::stdin()
-        .read_line(&mut input)
-        .wrap_err("Can't read key stroke")?;
 
-    if let Err(e) = open::that(withdrawal_ui_url) {
+    let calldata_hex =
+        encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
+
+    let tx_json = json!({
+        "to": config.bridge_contract_address,
+        "data": hex::encode(calldata_hex),
+        "value": "0x8AC7230489E80000",
+        "chainId": config.citrea_chain_id,
+    })
+    .to_string();
+
+    // Prompt user to open the withdrawal UI
+    let query = format!(
+        "?transaction_request={}&withdrawal_address={}",
+        encode(&tx_json),
+        encode(&withdrawal_address.to_string())
+    );
+    let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
+    println!(
+        "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
+        "INFO".green().bold()
+    );
+
+    if let Err(e) = open::that(&withdrawal_ui_url) {
+        println!("{} Failed to open browser: {}", "ERROR".red().bold(), e);
         println!(
-            "{} Failed to open browser: {}",
-            "WARNING".yellow().bold(),
-            e
-        );
-        println!(
-            "Please visit the following URL manually:\n{}",
+            "Please visit the following URL manually: {}",
             withdrawal_ui_url
         );
     }
@@ -250,7 +237,7 @@ pub async fn safe_withdraw(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_safe_withdrawal(
-    signer_address: &str,
+    wallet_name: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
@@ -259,8 +246,10 @@ pub async fn send_safe_withdrawal(
 ) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let secret_key = std::env::var("SECRET_KEY").wrap_err("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable")?;
-    let signer: PrivateKeySigner = secret_key.parse().wrap_err("Can't parse secret key")?;
+    let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
+    let signer: PrivateKeySigner = secret_key
+        .parse()
+        .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
@@ -277,7 +266,7 @@ pub async fn send_safe_withdrawal(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse signature")?;
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {

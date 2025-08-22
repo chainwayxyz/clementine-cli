@@ -1,76 +1,31 @@
 // Bitcoin utility functions for Clementine CLI
 
-use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::errors::BridgeCliError;
-use crate::musig2::AggregateFromPublicKeys;
-use crate::script::{deposit_script, recover_script};
-use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
-use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, schnorr};
+use bitcoin::secp256k1::{Keypair, Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
     Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use colored::*;
-use eyre::Context;
-use std::io::{self, Write};
-use std::str::FromStr;
+use eyre::{Context, Result};
 use std::sync::LazyLock;
+
+use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::errors::BridgeCliError;
+use crate::musig2::AggregateFromPublicKeys;
+use crate::script::{deposit_script, recover_script};
+use crate::{BitcoinAddress, CitreaAddress};
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
 /// Calculate taproot address from a keypair
-pub fn calculate_taproot_address(keypair: &Keypair, network: Network) -> BitcoinAddress {
+pub(crate) fn calculate_taproot_address(keypair: &Keypair, network: Network) -> BitcoinAddress {
     let (xonly_public_key, _parity) = keypair.public_key().x_only_public_key();
     BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
 
-/// Generate a new random secret key and calculate its corresponding taproot address
-pub fn generate_keypair_and_taproot_address(network: Network) -> (Keypair, BitcoinAddress) {
-    let keypair = Keypair::new(&SECP, &mut bitcoin::secp256k1::rand::thread_rng());
-    let address = calculate_taproot_address(&keypair, network);
-
-    (keypair, address)
-}
-
-pub fn generate_keypair_and_taproot_address_from_private_key(
-    private_key: &str,
-    network: Network,
-) -> Result<(Keypair, BitcoinAddress), BridgeCliError> {
-    let sk = SecretKey::from_str(private_key)?;
-    let keypair = Keypair::from_secret_key(&SECP, &sk);
-    let address = calculate_taproot_address(&keypair, network);
-
-    Ok((keypair, address))
-}
-
-/// Prompt user for confirmation about storing private key
-pub fn confirm_private_key_storage(auto_yes: bool) -> Result<bool, BridgeCliError> {
-    if auto_yes {
-        return Ok(true);
-    }
-
-    println!(
-        "{} This command will save a private key to your computer.",
-        "WARNING".red().bold()
-    );
-    println!("   Anyone with access to this computer could potentially spend your funds.");
-    println!("   Make sure you're running this in a secure environment.");
-    println!();
-    print!("Are you sure you want to continue? (y/N): ");
-    io::stdout().flush().wrap_err("Can flush stdout")?;
-
-    let mut input = String::new();
-    io::stdin()
-        .read_line(&mut input)
-        .wrap_err("Can't read private key")?;
-
-    Ok(input.trim().to_lowercase() == "y" || input.trim().to_lowercase() == "yes")
-}
-
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
-pub fn calculate_deposit_address(
+pub(crate) fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
@@ -100,16 +55,7 @@ pub fn calculate_deposit_address(
     Ok((deposit_address, taproot_spend_info))
 }
 
-/// Sign a taproot script spend with a given keypair and sighash
-pub fn schnorr_sign(keypair: Keypair, sighash: TapSighash) -> schnorr::Signature {
-    use bitcoin::hashes::Hash;
-    SECP.sign_schnorr(
-        &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
-        &keypair,
-    )
-}
-
-pub fn sign_with_tweak(
+fn sign_with_tweak(
     keypair: Keypair,
     sighash: TapSighash,
     merkle_root: Option<TapNodeHash>,
@@ -129,7 +75,7 @@ pub fn sign_with_tweak(
 
 #[allow(clippy::too_many_arguments)]
 /// Sign a recovery transaction with a given keypair, Citrea address, recovery taproot address, deposit outpoint, deposit amount, claim address, fee rate, and network
-pub fn sign_recovery_tx(
+pub(crate) fn sign_recovery_tx(
     keypair: &Keypair,
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
@@ -249,7 +195,7 @@ pub fn sign_recovery_tx(
     Ok(recovery_tx)
 }
 
-pub fn verify_recovery_tx(
+pub(crate) fn verify_recovery_tx(
     recovery_tx: &Transaction,
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
@@ -380,7 +326,7 @@ pub fn verify_recovery_tx(
     ))
 }
 
-pub fn sign_withdrawal_signature(
+pub(crate) fn sign_withdrawal_signature(
     keypair: &Keypair,
     signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -431,7 +377,7 @@ pub fn sign_withdrawal_signature(
     Ok(taproot_signature)
 }
 
-pub fn verify_withdrawal_signature(
+pub(crate) fn verify_withdrawal_signature(
     sig: &bitcoin::taproot::Signature,
     signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -492,23 +438,7 @@ mod tests {
     fn test_calculate_taproot_address() {
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
-        let address = calculate_taproot_address(&keypair, Network::Testnet);
+        let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
-    }
-
-    #[test]
-    fn test_generate_key_and_taproot_address() {
-        let (keypair, address) = generate_keypair_and_taproot_address(Network::Testnet);
-        assert_eq!(address.address_type(), Some(AddressType::P2tr));
-        // Verify that the address matches the keypair
-        assert_eq!(
-            calculate_taproot_address(&keypair, Network::Testnet),
-            address
-        );
-    }
-
-    #[test]
-    fn test_confirm_private_key_storage_auto_yes() {
-        assert!(confirm_private_key_storage(true).unwrap());
     }
 }

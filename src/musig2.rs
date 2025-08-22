@@ -4,22 +4,11 @@
 
 use crate::errors::BridgeCliError;
 use bitcoin::{XOnlyPublicKey, secp256k1::PublicKey};
-use secp256k1::{
-    SECP256K1,
-    musig::{KeyAggCache, PublicNonce, SecretNonce},
-};
+use eyre::Result;
+use secp256k1::{SECP256K1, musig::KeyAggCache};
 
-pub type MuSigNoncePair = (SecretNonce, PublicNonce);
-
-pub fn from_secp_xonly(xpk: secp256k1::XOnlyPublicKey) -> XOnlyPublicKey {
-    XOnlyPublicKey::from_slice(&xpk.serialize()).expect("serialized pubkey is valid")
-}
-
-pub fn to_secp_pk(pk: PublicKey) -> secp256k1::PublicKey {
+fn to_secp_pk(pk: PublicKey) -> secp256k1::PublicKey {
     secp256k1::PublicKey::from_slice(&pk.serialize()).expect("serialized pubkey is valid")
-}
-pub fn from_secp_pk(pk: secp256k1::PublicKey) -> PublicKey {
-    PublicKey::from_slice(&pk.serialize()).expect("serialized pubkey is valid")
 }
 
 fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, BridgeCliError> {
@@ -35,7 +24,7 @@ fn create_key_agg_cache(public_keys: &[PublicKey]) -> Result<KeyAggCache, Bridge
     Ok(musig_key_agg_cache)
 }
 
-pub trait AggregateFromPublicKeys {
+pub(crate) trait AggregateFromPublicKeys {
     fn from_musig2_pks(pks: &[PublicKey]) -> Result<XOnlyPublicKey, BridgeCliError>;
 }
 
