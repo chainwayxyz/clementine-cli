@@ -190,7 +190,7 @@ pub(crate) fn wallet_exists(wallet_name: &str) -> Result<bool, BridgeCliError> {
 pub(crate) fn address_exists(address: &str, network: Network) -> Result<bool, BridgeCliError> {
     // Use the registry to check all wallets efficiently
     let wallets = crate::wallet::wallet_storage::get_wallets_from_registry()?;
-    
+
     for (_wallet_name, wallet_entry) in wallets {
         if wallet_entry.address == address {
             let wallet_network = parse_network(&wallet_entry.network)?;
@@ -199,7 +199,7 @@ pub(crate) fn address_exists(address: &str, network: Network) -> Result<bool, Br
             }
         }
     }
-    
+
     Ok(false)
 }
 

@@ -72,7 +72,7 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     let wallets = get_wallets_from_registry()?;
-    
+
     if wallets.is_empty() {
         println!("No wallets found.");
         return Ok(());
@@ -89,13 +89,15 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         } else {
             "".to_string()
         };
-        
-        println!("Wallet: {} -> Address: {}{}", 
-                 name.blue(), 
-                 wallet_entry.address.green(), 
-                 import_info.cyan());
+
+        println!(
+            "Wallet: {} -> Address: {}{}",
+            name.blue(),
+            wallet_entry.address.green(),
+            import_info.cyan()
+        );
     }
-    
+
     Ok(())
 }
 

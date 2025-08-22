@@ -32,7 +32,7 @@ use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use wallet_storage::get_storage_dir;
 use wallet_utils::{
     load_key_and_address, parse_network, validate_mnemonic_import, validate_private_key_import,
-    wallet_exists, validate_wallet_availability,
+    validate_wallet_availability, wallet_exists,
 };
 
 pub fn create_encrypted_wallet_with_address(
@@ -451,8 +451,6 @@ pub fn import_wallet_from_file(
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(wallet_name, wallet_address, network)?;
 
-
-
     // Check if encrypted data exists (new format with separate encrypted fields)
     if !wallet_data["encrypted_mnemonic"].is_object() {
         return Err(BridgeCliError::MissingEncryptedMnemonicField);
@@ -518,7 +516,9 @@ pub fn import_wallet_from_file(
     fs::create_dir_all(&storage_dir)?;
 
     // Create new wallet content instead of copying
-    let network = wallet_data["network"].as_str().expect("network field checked above");
+    let network = wallet_data["network"]
+        .as_str()
+        .expect("network field checked above");
     let data_format = wallet_data["data_format"]
         .as_str()
         .unwrap_or("separate_encrypted_fields");
@@ -564,7 +564,6 @@ pub fn import_wallet_from_private_key(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-
     let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
 
@@ -589,9 +588,8 @@ pub fn import_wallet_from_private_key(
 
     // Check if address already exists
     validate_wallet_availability(wallet_name, &address.to_string(), network)
-        .map_err(|e| {
+        .inspect_err(|_| {
             master_private_key.non_secure_erase();
-            e
         })?;
 
     let passphrase = prompt_passphrase(false)?;

@@ -156,21 +156,23 @@ pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
 }
 
 /// Get wallets from the registry (wallets.json)
-pub(crate) fn get_wallets_from_registry() -> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
+pub(crate) fn get_wallets_from_registry()
+-> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
-    
+
     if !wallets_file.exists() {
         // Return empty HashMap if registry doesn't exist yet
         return Ok(HashMap::new());
     }
-    
+
     let wallets_content = fs::read_to_string(&wallets_file)
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
-    
+
     let wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e)))?;
-    
+        .map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e))
+        })?;
+
     Ok(wallets)
 }
-
