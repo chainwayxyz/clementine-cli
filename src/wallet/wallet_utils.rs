@@ -186,3 +186,37 @@ pub(crate) fn wallet_exists(wallet_name: &str) -> Result<bool, BridgeCliError> {
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
     Ok(wallet_file.exists())
 }
+
+pub(crate) fn address_exists(address: &str, network: Network) -> Result<bool, BridgeCliError> {
+    // Use the registry to check all wallets efficiently
+    let wallets = crate::wallet::wallet_storage::get_wallets_from_registry()?;
+    
+    for (_wallet_name, wallet_entry) in wallets {
+        if wallet_entry.address == address {
+            let wallet_network = parse_network(&wallet_entry.network)?;
+            if wallet_network == network {
+                return Ok(true);
+            }
+        }
+    }
+    
+    Ok(false)
+}
+
+/// Combined validation function to check for conflicts during wallet operations
+/// Always checks both wallet name and address availability
+pub(crate) fn validate_wallet_availability(
+    wallet_name: &str,
+    address: &str,
+    network: Network,
+) -> Result<(), BridgeCliError> {
+    if wallet_exists(wallet_name)? {
+        return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
+    }
+
+    if address_exists(address, network)? {
+        return Err(BridgeCliError::AddressAlreadyExists(address.to_string()));
+    }
+
+    Ok(())
+}

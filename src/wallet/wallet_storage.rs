@@ -7,6 +7,20 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::errors::BridgeCliError;
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 
+/// Registry entry for a wallet stored in wallets.json
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct WalletRegistryEntry {
+    pub address: String,
+    pub network: String,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imported: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imported_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_method: Option<String>,
+}
+
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GenericWalletData {
@@ -140,3 +154,23 @@ pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
     let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine").join("keys"))
 }
+
+/// Get wallets from the registry (wallets.json)
+pub(crate) fn get_wallets_from_registry() -> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+    
+    if !wallets_file.exists() {
+        // Return empty HashMap if registry doesn't exist yet
+        return Ok(HashMap::new());
+    }
+    
+    let wallets_content = fs::read_to_string(&wallets_file)
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
+    
+    let wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e)))?;
+    
+    Ok(wallets)
+}
+

@@ -32,7 +32,7 @@ use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use wallet_storage::get_storage_dir;
 use wallet_utils::{
     load_key_and_address, parse_network, validate_mnemonic_import, validate_private_key_import,
-    wallet_exists,
+    wallet_exists, validate_wallet_availability,
 };
 
 pub fn create_encrypted_wallet_with_address(
@@ -41,16 +41,15 @@ pub fn create_encrypted_wallet_with_address(
 ) -> Result<SecureString, BridgeCliError> {
     println!();
 
-    if wallet_exists(&name)? {
-        return Err(BridgeCliError::WalletAlreadyExists(name));
-    }
-
     // Generate mnemonic
     let secure_mnemonic = generate_mnemonic_secure()?;
 
     // Generate address from mnemonic using helper function
     let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+
+    // Validate that both wallet name and address don't already exist
+    validate_wallet_availability(&name, &address.to_string(), network)?;
 
     // Prompt for passphrase
     let passphrase = prompt_passphrase(true)?;
@@ -210,9 +209,6 @@ pub fn import_wallet_from_mnemonic(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-    if wallet_exists(wallet_name)? {
-        return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
-    }
     println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
@@ -222,6 +218,9 @@ pub fn import_wallet_from_mnemonic(
     // Generate address from mnemonic using helper function
     let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+
+    // Validate that both wallet name and address don't already exist
+    validate_wallet_availability(wallet_name, &address.to_string(), network)?;
 
     println!();
     println!("Mnemonic processed successfully!");
@@ -424,10 +423,6 @@ pub fn import_wallet_from_file(
     file_path: &str,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-    if wallet_exists(wallet_name)? {
-        return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
-    }
-
     let source_path = std::path::Path::new(file_path);
 
     if !source_path.exists() {
@@ -447,10 +442,16 @@ pub fn import_wallet_from_file(
         .as_str()
         .ok_or_else(|| BridgeCliError::MissingWalletAddress)?;
 
-    // Validate required fields
-    if wallet_data["network"].is_null() {
-        return Err(BridgeCliError::MissingNetworkField);
-    }
+    let network = parse_network(
+        wallet_data["network"]
+            .as_str()
+            .ok_or_else(|| BridgeCliError::MissingNetworkField)?,
+    )?;
+
+    // Validate that both wallet name and address don't already exist
+    validate_wallet_availability(wallet_name, wallet_address, network)?;
+
+
 
     // Check if encrypted data exists (new format with separate encrypted fields)
     if !wallet_data["encrypted_mnemonic"].is_object() {
@@ -517,7 +518,7 @@ pub fn import_wallet_from_file(
     fs::create_dir_all(&storage_dir)?;
 
     // Create new wallet content instead of copying
-    let network = wallet_data["network"].as_str().unwrap_or("mainnet");
+    let network = wallet_data["network"].as_str().expect("network field checked above");
     let data_format = wallet_data["data_format"]
         .as_str()
         .unwrap_or("separate_encrypted_fields");
@@ -563,9 +564,6 @@ pub fn import_wallet_from_private_key(
     network: Network,
     wallet_name: &str,
 ) -> Result<String, BridgeCliError> {
-    if wallet_exists(wallet_name)? {
-        return Err(BridgeCliError::WalletAlreadyExists(wallet_name.to_string()));
-    }
 
     let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
@@ -588,6 +586,13 @@ pub fn import_wallet_from_private_key(
 
     let keypair = Keypair::from_secret_key(&SECP, &master_private_key);
     let address = calculate_taproot_address(&keypair, network);
+
+    // Check if address already exists
+    validate_wallet_availability(wallet_name, &address.to_string(), network)
+        .map_err(|e| {
+            master_private_key.non_secure_erase();
+            e
+        })?;
 
     let passphrase = prompt_passphrase(false)?;
 

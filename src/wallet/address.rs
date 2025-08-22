@@ -8,9 +8,9 @@ use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::errors::BridgeCliError;
 use crate::structs::SecureString;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
-use crate::wallet::wallet_storage::get_storage_dir;
+use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::{BitcoinAddress, NetworkUnchecked};
-use std::{fs, str::FromStr};
+use std::str::FromStr;
 
 /// Generate a Bitcoin address from a mnemonic phrase
 pub(crate) fn generate_address_from_mnemonic_secure(
@@ -61,8 +61,7 @@ pub(crate) fn parse_taproot_address(
 
 /// Get all wallets with their names and addresses from storage and print them
 pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
-    let storage_dir =
-        get_storage_dir().map_err(|e| BridgeCliError::StorageDirectoryError(e.to_string()))?;
+    let storage_dir = get_storage_dir()?;
 
     if !storage_dir.exists() {
         println!(
@@ -72,25 +71,31 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
-    let wallets_file = storage_dir.join("wallets.json");
-    if wallets_file.exists() {
-        let wallets_content = fs::read_to_string(&wallets_file)
-            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets file: {}", e)))?;
-
-        let wallets: serde_json::Value = serde_json::from_str(&wallets_content).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets JSON: {}", e))
-        })?;
-
-        for (name, wallet) in wallets.as_object().unwrap_or(&serde_json::Map::new()) {
-            if let Some(address) = wallet.get("address").and_then(|a| a.as_str()) {
-                println!("Wallet: {} -> Address: {}", name.blue(), address.green());
-            } else {
-                eprintln!("Warning: Wallet '{}' does not have an address field", name);
-            }
-        }
+    let wallets = get_wallets_from_registry()?;
+    
+    if wallets.is_empty() {
+        println!("No wallets found.");
         return Ok(());
     }
 
+    println!("Found {} wallet(s):", wallets.len());
+    for (name, wallet_entry) in &wallets {
+        let import_info = if let Some(true) = wallet_entry.imported {
+            if let Some(method) = &wallet_entry.import_method {
+                format!(" (Imported via {})", method)
+            } else {
+                " (Imported)".to_string()
+            }
+        } else {
+            "".to_string()
+        };
+        
+        println!("Wallet: {} -> Address: {}{}", 
+                 name.blue(), 
+                 wallet_entry.address.green(), 
+                 import_info.cyan());
+    }
+    
     Ok(())
 }
 
