@@ -239,7 +239,7 @@ async fn main() {
                 handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { wallet_name } => {
-                handle_or_exit!(wallet::show_private_key(&wallet_name, config.network));
+                handle_or_exit!(wallet::show_private_key(&wallet_name));
             }
         },
         Commands::Deposit { command } => match command {

@@ -2,24 +2,24 @@ use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
 use crate::structs::SecureString;
-use crate::wallet::address::str_to_address;
+use crate::wallet::address::parse_address;
 use crate::wallet::encryption::aes_decrypt_secure;
-use crate::wallet::wallet_storage::{GenericWalletData, get_storage_dir};
+use crate::wallet::wallet_storage::get_storage_dir;
 use bitcoin::Network;
-use bitcoin::address::NetworkChecked;
+// use bitcoin::address::NetworkChecked;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
 use eyre::eyre;
 use secrecy::ExposeSecret;
+use std::collections::HashMap;
 use std::str::FromStr;
 
-/// Securely load a key from wallet storage - always requires a passphrase
-pub(crate) fn load_key_and_address(
+/// Securely load a key from wallet storage
+pub(crate) fn load_key(
     wallet_name: &str,
-    network: Network,
     passphrase: &SecureString,
-) -> Result<(Keypair, BitcoinAddress<NetworkChecked>), BridgeCliError> {
+) -> Result<Keypair, BridgeCliError> {
     if !wallet_exists(wallet_name)? {
         return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
@@ -27,7 +27,7 @@ pub(crate) fn load_key_and_address(
     // Load wallet data
     let wallet_data = crate::wallet::wallet_storage::load_wallet_data(wallet_name)?;
 
-    let wallet_address = load_address(wallet_name, Some(wallet_data.clone()), network)?;
+    // let wallet_address = load_address(wallet_name, Some(wallet_data.clone()), network)?;
 
     // Load the encrypted private key
     let encrypted_private_key = wallet_data
@@ -45,29 +45,29 @@ pub(crate) fn load_key_and_address(
 
     secret_key.non_secure_erase();
 
-    Ok((keypair, wallet_address))
+    Ok(keypair)
 }
 
-pub(crate) fn load_address(
-    wallet_name: &str,
-    generic_wallet_data: Option<GenericWalletData>,
-    network: Network,
-) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
-    let wallet_data = if let Some(data) = generic_wallet_data {
-        data
-    } else {
-        crate::wallet::wallet_storage::load_wallet_data(wallet_name)?
-    };
+// pub(crate) fn load_address(
+//     wallet_name: &str,
+//     generic_wallet_data: Option<GenericWalletData>,
+//     network: Network,
+// ) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
+//     let wallet_data = if let Some(data) = generic_wallet_data {
+//         data
+//     } else {
+//         crate::wallet::wallet_storage::load_wallet_data(wallet_name)?
+//     };
 
-    let wallet_network = parse_network(wallet_data.network.as_str())?;
-    check_network_compatibility(wallet_network, network)?;
+//     let wallet_network = parse_network(wallet_data.network.as_str())?;
+//     check_network_compatibility(wallet_network, network)?;
 
-    let address_str = wallet_data.address.as_str();
-    let address = str_to_address(address_str, network)
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid wallet address: {}", e)))?;
+//     let address_str = wallet_data.address.as_str();
+//     let address = str_to_address(address_str, network)
+//         .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid wallet address: {}", e)))?;
 
-    Ok(address)
-}
+//     Ok(address)
+// }
 
 /// Helper function to validate mnemonic imports during wallet import
 pub(crate) fn validate_mnemonic_import(
@@ -93,19 +93,19 @@ pub(crate) fn validate_mnemonic_import(
     Ok(())
 }
 
-fn check_network_compatibility(
-    wallet_network: Network,
-    network: Network,
-) -> Result<(), BridgeCliError> {
-    if wallet_network != network {
-        return Err(BridgeCliError::NetworkMismatch(
-            wallet_network.to_string(),
-            network.to_string(),
-        ));
-    }
+// fn check_network_compatibility(
+//     wallet_network: Network,
+//     network: Network,
+// ) -> Result<(), BridgeCliError> {
+//     if wallet_network != network {
+//         return Err(BridgeCliError::NetworkMismatch(
+//             wallet_network.to_string(),
+//             network.to_string(),
+//         ));
+//     }
 
-    Ok(())
-}
+//     Ok(())
+// }
 
 /// Helper function to parse network string into Network enum
 pub(crate) fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
@@ -185,4 +185,53 @@ pub(crate) fn wallet_exists(wallet_name: &str) -> Result<bool, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
     Ok(wallet_file.exists())
+}
+
+/// Check if the given address belongs to any wallet in the wallet registry
+pub(crate) fn is_wallet_address(address: &str) -> Result<bool, BridgeCliError> {
+    use std::collections::HashMap;
+
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    if !wallets_file.exists() {
+        return Ok(false);
+    }
+
+    let wallets_content = std::fs::read_to_string(&wallets_file)?;
+    let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
+
+    for (_wallet_name, wallet_data) in wallets {
+        if let Some(wallet_address) = wallet_data.get("address").and_then(|a| a.as_str()) {
+            if wallet_address == address {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+pub(crate) fn load_address_from_registry(
+    wallet_name: &str,
+    network: Network,
+) -> Result<BitcoinAddress, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    if !wallets_file.exists() {
+        return Err(BridgeCliError::WalletsRegistryNotFound);
+    }
+
+    let wallets_content = std::fs::read_to_string(&wallets_file)?;
+    let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
+
+    if let Some(wallet_data) = wallets.get(wallet_name) {
+        if let Some(address) = wallet_data.get("address").and_then(|a| a.as_str()) {
+            // TODO: Will use check_network_compatibility once the registry has network information
+            return Ok(parse_address(address, network)?);
+        }
+    }
+
+    Err(BridgeCliError::WalletNotFound(wallet_name.to_string()))
 }

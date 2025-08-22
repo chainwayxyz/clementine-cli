@@ -18,6 +18,7 @@ use std::io::{self, Write};
 use zeroize::Zeroize;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
+use crate::wallet::wallet_utils::load_key;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
@@ -31,8 +32,7 @@ use mnemonic::{
 use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use wallet_storage::get_storage_dir;
 use wallet_utils::{
-    load_key_and_address, parse_network, validate_mnemonic_import, validate_private_key_import,
-    wallet_exists,
+    parse_network, validate_mnemonic_import, validate_private_key_import, wallet_exists,
 };
 
 pub fn create_encrypted_wallet_with_address(
@@ -628,7 +628,7 @@ pub fn import_wallet_from_private_key(
     Ok(address.to_string())
 }
 
-pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), BridgeCliError> {
+pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
@@ -639,7 +639,7 @@ pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), Bridg
 
     let passphrase = prompt_unlock_passphrase()?;
 
-    let (mut keypair, _) = load_key_and_address(wallet_name, network, &passphrase)?;
+    let mut keypair = load_key(wallet_name, &passphrase)?;
 
     display_private_key_securely(&keypair.secret_key())?;
 

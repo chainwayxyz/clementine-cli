@@ -8,7 +8,7 @@ use crate::structs::AddressExt;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{load_address, load_key_and_address};
+use crate::wallet::wallet_utils::{is_wallet_address, load_address_from_registry, load_key};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -30,14 +30,22 @@ pub fn generate_withdrawal_signature(
     amount: f64,
     network: Network,
 ) -> Result<(), BridgeCliError> {
-    let secure_passphrase = prompt_unlock_passphrase()?;
-    let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
+    let signer_address = load_address_from_registry(wallet_name, network)?;
 
     if !signer_address.is_taproot() {
         return Err(BridgeCliError::NotTaprootAddress);
     }
 
+    // Check if the claim address belongs to any of our wallets
+    if is_wallet_address(claim_address)? {
+        return Err(BridgeCliError::ClaimAddressIsWalletAddress);
+    }
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    // let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
+    let keypair = load_key(wallet_name, &secure_passphrase)?;
+
     let claim_address = parse_address(claim_address, network)?;
+
     let withdrawal_utxo = OutPoint::from_str(withdrawal_utxo)?;
     let amount = Amount::from_btc(amount)?;
 
@@ -164,13 +172,14 @@ pub async fn safe_withdraw(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
+    let signer_address = load_address_from_registry(wallet_name, config.network)?;
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse taproot signature")?;
-    let signer_address = load_address(wallet_name, None, config.network)?;
+    // let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
@@ -254,6 +263,7 @@ pub async fn send_safe_withdrawal(
 ) -> Result<(), BridgeCliError> {
     // get the secret key from env
     // raise error if not found
+    let signer_address = load_address_from_registry(wallet_name, config.network)?;
     let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
     let signer: PrivateKeySigner = secret_key
         .parse()
@@ -274,7 +284,7 @@ pub async fn send_safe_withdrawal(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse signature")?;
-    let signer_address = load_address(wallet_name, None, config.network)?;
+    // let signer_address = load_address(wallet_name, None, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {

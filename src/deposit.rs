@@ -7,8 +7,8 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::load_address;
-use crate::wallet::wallet_utils::load_key_and_address;
+use crate::wallet::wallet_utils::load_address_from_registry;
+use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
 
@@ -94,6 +94,7 @@ pub fn sign_recovery_tx(
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
+    let recovery_addr = load_address_from_registry(wallet_name, config.network)?;
     let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
     let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
     let txid = Txid::from_str(deposit_txid)?;
@@ -104,8 +105,7 @@ pub fn sign_recovery_tx(
     // Always prompt for passphrase for maximum security
     println!("Please enter the passphrase for the recovery key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let (keypair, recovery_addr) =
-        load_key_and_address(wallet_name, config.network, &secure_passphrase)?;
+    let keypair = load_key(wallet_name, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -141,7 +141,7 @@ pub fn verify_recovery_tx(
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
-    let recovery_taproot_address = load_address(wallet_name, None, config.network)?;
+    let recovery_taproot_address = load_address_from_registry(wallet_name, config.network)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         &recovery_tx,

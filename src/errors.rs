@@ -103,6 +103,8 @@ pub enum BridgeCliError {
     WalletNotFound(String),
     #[error("Could not determine home directory")]
     HomeDirectoryNotFound,
+    #[error("Wallets registry not found")]
+    WalletsRegistryNotFound,
 
     // Wallet operation related errors
     #[error("Failed to generate address from mnemonic: {0}")]
@@ -133,6 +135,10 @@ pub enum BridgeCliError {
     EncryptedPrivateKeyParseError(String),
     #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
     AddressMismatch,
+    #[error(
+        "Claim address cannot be a wallet address. The claim address belongs to one of your wallets."
+    )]
+    ClaimAddressIsWalletAddress,
 
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
     MissingEncryptedPrivateKeyField,
