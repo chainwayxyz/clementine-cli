@@ -142,28 +142,25 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
         return Err(BridgeCliError::InvalidMnemonicLength(word_count));
     }
 
-    // Join words and validate complete mnemonic
-    let mnemonic_phrase = words.join(" ");
-    let mnemonic_validation = Mnemonic::parse(&mnemonic_phrase);
+    // Join words and validate complete mnemonic - keep it secure from the start
+    let secure_mnemonic_phrase = SecureString::init_with(|| words.join(" "));
 
-    match mnemonic_validation {
-        Ok(_mnemonic) => {
-            println!();
-            println!(
-                "{} Valid BIP-39 mnemonic phrase with {} words",
-                "SUCCESS".green().bold(),
-                mnemonic_phrase.split_whitespace().count()
-            );
-            println!("Mnemonic will be handled securely and zeroized from memory");
+    // Use SecureMnemonic for validation to ensure proper cleanup
+    let _secure_mnemonic_obj = SecureMnemonic::new(
+        Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
+            .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?,
+    );
 
-            let secure_mnemonic = SecureString::init_with(|| mnemonic_phrase);
+    println!();
+    println!(
+        "{} Valid BIP-39 mnemonic phrase with {} words",
+        "SUCCESS".green().bold(),
+        secure_mnemonic_phrase
+            .expose_secret()
+            .split_whitespace()
+            .count()
+    );
+    println!("Mnemonic will be handled securely and zeroized from memory");
 
-            Ok(secure_mnemonic)
-        }
-        Err(e) => {
-            // mnemonic_phrase is automatically cleaned up when going out of scope
-            // This shouldn't happen since we validated each word, but safety check
-            Err(BridgeCliError::MnemonicValidationFailed(e.to_string()))
-        }
-    }
+    Ok(secure_mnemonic_phrase)
 }

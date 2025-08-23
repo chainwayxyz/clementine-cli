@@ -156,14 +156,12 @@ pub(crate) fn aes_decrypt_secure(
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
         .map_err(|e| BridgeCliError::DecryptionError(e.to_string()))?;
 
-    // Create secure wrapper for plaintext bytes - automatically zeroized
     let secure_plaintext_bytes = SecureByteVec::new(Box::new(plaintext));
 
     let plaintext_string = String::from_utf8(secure_plaintext_bytes.expose_secret().clone())
         .map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
-    // secure_plaintext_bytes automatically zeroized when it goes out of scope
 
     Ok(secure_string)
 }
