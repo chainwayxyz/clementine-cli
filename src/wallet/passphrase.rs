@@ -43,7 +43,6 @@
 use argon2::Argon2;
 use colored::Colorize;
 use secrecy::ExposeSecret;
-use zeroize::Zeroize;
 
 use crate::errors::BridgeCliError;
 use crate::structs::{SecureByteSlice, SecureString};
@@ -96,12 +95,12 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 
     // Confirm passphrase
     if confirm {
-        let mut confirm = rpassword::prompt_password("Confirm passphrase: ")?;
+        let confirm_input = rpassword::prompt_password("Confirm passphrase: ")?;
+        let secure_confirm = SecureString::init_with(|| confirm_input);
 
-        if passphrase != confirm {
+        if passphrase != *secure_confirm.expose_secret() {
             return Err(BridgeCliError::PassphraseMismatch);
         }
-        confirm.zeroize();
     }
 
     println!(

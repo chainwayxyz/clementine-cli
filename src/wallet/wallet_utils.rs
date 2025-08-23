@@ -1,10 +1,10 @@
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
-use crate::structs::SecureString;
+use crate::structs::{SecureString, SecureKeypair, SecureSecretKey};
 use crate::wallet::address::str_to_address;
 use crate::wallet::encryption::aes_decrypt_secure;
-use crate::wallet::wallet_storage::{GenericWalletData, get_storage_dir};
+use crate::wallet::wallet_storage::{get_storage_dir, load_wallet_data, GenericWalletData};
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
 use bitcoin::key::Keypair;
@@ -19,13 +19,13 @@ pub(crate) fn load_key_and_address(
     wallet_name: &str,
     network: Network,
     passphrase: &SecureString,
-) -> Result<(Keypair, BitcoinAddress<NetworkChecked>), BridgeCliError> {
+) -> Result<(SecureKeypair, BitcoinAddress<NetworkChecked>), BridgeCliError> {
     if !wallet_exists(wallet_name)? {
         return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
 
     // Load wallet data
-    let wallet_data = crate::wallet::wallet_storage::load_wallet_data(wallet_name)?;
+    let wallet_data = load_wallet_data(wallet_name)?;
 
     let wallet_address = load_address(wallet_name, Some(wallet_data.clone()), network)?;
 
@@ -39,13 +39,12 @@ pub(crate) fn load_key_and_address(
     let decrypted_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
 
     let secp = Secp256k1::new();
-    let mut secret_key = SecretKey::from_str(decrypted_key.expose_secret())?;
+    let secret_key = SecureSecretKey::new(SecretKey::from_str(decrypted_key.expose_secret())?);
 
-    let keypair = Keypair::from_secret_key(&secp, &secret_key);
+    let keypair = Keypair::from_secret_key(&secp, secret_key.as_ref());
+    let secure_keypair = SecureKeypair::new(keypair);
 
-    secret_key.non_secure_erase();
-
-    Ok((keypair, wallet_address))
+    Ok((secure_keypair, wallet_address))
 }
 
 pub(crate) fn load_address(
@@ -148,13 +147,11 @@ pub(crate) fn validate_private_key_import(
 
                 // Validate the private key format and derive address to verify
                 match SecretKey::from_str(decrypted_private_key.expose_secret()) {
-                    Ok(mut private_key) => {
-                        let keypair =
-                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key);
+                    Ok(private_key) => {
+                        let keypair = SecureKeypair::new(
+                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key)
+                        );
                         let derived_address = calculate_taproot_address(&keypair, network);
-
-                        // Zeroize the private key after use
-                        private_key.non_secure_erase();
 
                         if derived_address.to_string() != wallet_address {
                             return Err(BridgeCliError::AddressMismatch);

@@ -15,14 +15,13 @@ use secrecy::ExposeSecret;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
-use zeroize::Zeroize;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
-use crate::structs::SecureString;
+use crate::structs::{SecureString, SecureSecretKey, SecureKeypair, SecureByteVec};
 use encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
@@ -585,26 +584,28 @@ pub fn import_wallet_from_private_key(
         WalletValidationMode::WalletName,
     )?;
 
-    let private_key = rpassword::prompt_password("Enter your private key (hex format): ")
+    let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
 
-    let mut private_key_bytes = hex::decode(private_key)
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?;
+    // Immediately secure the private key input
+    let secure_private_key = SecureString::init_with(|| private_key_input);
 
-    if private_key_bytes.len() != 32 {
-        private_key_bytes.zeroize();
+    let private_key_bytes = SecureByteVec::new(Box::new(
+        hex::decode(secure_private_key.expose_secret())
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?
+    ));
+
+    if private_key_bytes.expose_secret().len() != 32 {
         return Err(BridgeCliError::InvalidPrivateKey(
             "Private key must be exactly 32 bytes (64 hex characters)".to_string(),
         ));
     }
 
-    let mut master_private_key = SecretKey::from_slice(&private_key_bytes).map_err(|e| {
-        private_key_bytes.zeroize();
+    let master_private_key = SecureSecretKey::new(SecretKey::from_slice(private_key_bytes.expose_secret()).map_err(|e| {
         BridgeCliError::InvalidPrivateKey(e.to_string())
-    })?;
-    private_key_bytes.zeroize();
+    })?);
 
-    let keypair = Keypair::from_secret_key(&SECP, &master_private_key);
+    let keypair = SecureKeypair::new(Keypair::from_secret_key(&SECP, master_private_key.as_ref()));
     let address = calculate_taproot_address(&keypair, network);
 
     // Check if address already exists
@@ -613,20 +614,13 @@ pub fn import_wallet_from_private_key(
         Some(&address.to_string()),
         Some(network),
         WalletValidationMode::Address,
-    )
-    .inspect_err(|_| {
-        master_private_key.non_secure_erase();
-    })?;
+    )?;
 
     let passphrase = prompt_passphrase(false)?;
 
     let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
 
-    let mut master_private_key_str = master_private_key.display_secret().to_string();
-    let master_private_key_secure = SecureString::init_with(|| master_private_key_str.clone());
-
-    master_private_key_str.zeroize();
-    master_private_key.non_secure_erase();
+    let master_private_key_secure = SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
 
     let encrypted_mnemonic = aes_encrypt_secure(&placeholder_mnemonic, &passphrase)
         .map_err(|e| BridgeCliError::PlaceholderMnemonicEncryptionFailed(e.to_string()))?;
@@ -651,9 +645,6 @@ pub fn import_wallet_from_private_key(
         "INFO".yellow()
     );
 
-    // Note: private_key_hex (SecureString), placeholder_mnemonic (SecureString),
-    // master_private_key_secure (SecureString), and passphrase (SecretString)
-    // will all be automatically zeroized when they go out of scope
     Ok(address.to_string())
 }
 
@@ -668,11 +659,9 @@ pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), Bridg
 
     let passphrase = prompt_unlock_passphrase()?;
 
-    let (mut keypair, _) = load_key_and_address(wallet_name, network, &passphrase)?;
+    let (keypair, _) = load_key_and_address(wallet_name, network, &passphrase)?;
 
     display_private_key_securely(&keypair.secret_key())?;
-
-    keypair.non_secure_erase();
 
     Ok(())
 }
