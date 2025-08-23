@@ -14,7 +14,7 @@ pub(crate) async fn create_deposit_account(
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     let url = config
-        .citrea_backend_endpoint // As long as url is only base URL, no trailing / is needed
+        .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed
         .join("deposit-accounts")
         .wrap_err("Can't join endpoint with the URL")?;
 

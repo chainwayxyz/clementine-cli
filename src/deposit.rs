@@ -50,7 +50,12 @@ pub async fn get_deposit_address(
     let (calculated_deposit_address, _) =
         calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
-    assert_eq!(deposit_address, calculated_deposit_address);
+    if deposit_address != calculated_deposit_address {
+        return Err(BridgeCliError::CalculatedRecoveryTaprootAddressMismatch(
+            calculated_deposit_address,
+            deposit_address,
+        ));
+    }
 
     Ok(calculated_deposit_address)
 }

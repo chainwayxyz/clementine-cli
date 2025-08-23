@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::config::ConfigErrors;
+use crate::{BitcoinAddress, config::ConfigErrors};
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -143,6 +143,12 @@ pub enum BridgeCliError {
     // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),
+
+    // Deposit related errors
+    #[error(
+        "Calculated recovery taproot {0} not matches with Citrea response {1}: Please check configuration file and CLI version"
+    )]
+    CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
     // External crate error wrappers
     #[error("Failed to convert hex string: {0}")]
