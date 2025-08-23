@@ -1,6 +1,7 @@
 use bitcoin::taproot::Signature;
 use clap::{Parser, Subcommand};
 use clementine_cli::{
+    BitcoinAddress,
     config::BridgeCliConfig,
     deposit, show_mnemonic_secure,
     wallet::{
@@ -10,7 +11,7 @@ use clementine_cli::{
     withdrawal,
 };
 use colored::Colorize;
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
@@ -194,6 +195,10 @@ enum DepositCommands {
     GetDepositParams {
         move_to_vault_txid: String,
     },
+    /// Sends deposit transaction to Bitcoin and returns tx details
+    SendDepositTransaction {
+        deposit_address: String,
+    },
 }
 
 #[derive(Subcommand)]
@@ -250,7 +255,7 @@ async fn main() {
         tracing::info!("Config file {config_file_path:?} is going to be used...");
         BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
             panic!(
-                "Failed to read config file {:?}: {:?}",
+                "Failed to read config file {:?}:::::: {:?}",
                 config_file_path.display(),
                 e
             )
@@ -377,6 +382,19 @@ async fn main() {
                     deposit::get_deposit_params(&move_to_vault_txid, &config).await,
                     hex::encode
                 );
+            }
+            DepositCommands::SendDepositTransaction { deposit_address } => {
+                let deposit_address = BitcoinAddress::from_str(&deposit_address)
+                    .unwrap()
+                    .require_network(config.network)
+                    .unwrap();
+
+                let (txid, vout) = deposit::send_deposit_transaction(config, deposit_address)
+                    .await
+                    .map_err(|e| eyre::Report::from(e))
+                    .unwrap();
+
+                println!("TxId: {txid}\nVout: {vout}"); // TODO: Should this be machine friendly?
             }
         },
         Commands::Withdrawal { command } => match command {

@@ -5,7 +5,7 @@
 use crate::errors::BridgeCliError;
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use eyre::Result;
+use eyre::{Context, Result};
 use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -78,7 +78,11 @@ impl BridgeCliConfig {
                     config.password.expose_secret().into(),
                 );
                 let rpc = Client::new(config.url.as_str(), auth).await?;
-                rpc.ping().await?;
+
+                rpc.ping()
+                    .await
+                    .wrap_err("Can't connect to Bitcoin RPC; Check your configuration file!")?;
+
                 Ok(rpc)
             }
             None => Err(eyre::eyre!("Bitcoin RPC configuration not found in config").into()),

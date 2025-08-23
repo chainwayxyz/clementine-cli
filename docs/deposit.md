@@ -5,7 +5,15 @@ All the available deposit commands can be viewed using `clementine deposit` comm
 1. Get your deposit address, using your EVM address and recovery taproot address
 
    ```sh
+   # Save printed out address
    clementine --config-file <CONFIG FILE> deposit get-deposit-address <CITREA EVM ADDRESS> <RECOVERY TAPROOT ADDRESS>
+   ```
+
+2. Send 10 BTC to the deposit address, using previously generated deposit address
+
+   ```sh
+   # Save deposit tx's TxId and vout 
+   clementine --config-file <CONFIG FILE> deposit send-deposit-transaction <DEPOSIT ADDRESS>
    ```
 
 ## FAQ

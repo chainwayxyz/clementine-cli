@@ -13,8 +13,10 @@ use crate::wallet::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::Address;
+use bitcoin::Network;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
+use bitcoincore_rpc::RpcApi;
 use colored::*;
 use eyre::Context;
 use eyre::Result;
@@ -39,6 +41,14 @@ pub async fn get_deposit_address(
         recovery_taproot_address
     );
 
+    let (calculated_deposit_address, _) =
+        calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
+
+    // Because backend is not available for regtest, don't cross check.
+    if config.network == Network::Regtest {
+        return Ok(calculated_deposit_address);
+    }
+
     // Call backend to create deposit account
     let deposit_address =
         create_deposit_account(&citrea_address, &recovery_taproot_address, config).await?;
@@ -46,9 +56,6 @@ pub async fn get_deposit_address(
         "Deposit address received from Citrea backend: {}",
         deposit_address
     );
-
-    let (calculated_deposit_address, _) =
-        calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
 
     if deposit_address != calculated_deposit_address {
         return Err(BridgeCliError::CalculatedRecoveryTaprootAddressMismatch(
@@ -164,6 +171,54 @@ pub fn verify_recovery_tx(
     );
 
     Ok((txid, address, amount))
+}
+
+/// Sends `bridge_amount` to deposit address. Then, returns deposit tx's TxId
+/// and vout.
+pub async fn send_deposit_transaction(
+    config: BridgeCliConfig,
+    deposit_address: BitcoinAddress,
+) -> Result<(Txid, u32), BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+    tracing::debug!("Connected to Bitcoin RPC");
+
+    let txid = rpc
+        .send_to_address(
+            &deposit_address,
+            config.bridge_amount,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await;
+    tracing::debug!("Deposit tx txid: {txid:?}");
+
+    let txid = txid?;
+    let raw_tx = rpc.get_raw_transaction(&txid, None).await?;
+
+    // Find which txout has the deposit outpoint.
+    let mut vout: Option<u32> = None;
+    for (i, output) in raw_tx.output.iter().enumerate() {
+        let address = Address::from_script(output.script_pubkey.as_script(), config.network)
+            .inspect_err(|e| tracing::error!("Can't convert script to address: {e}"));
+
+        if let Ok(address) = address {
+            if address == deposit_address {
+                vout = Some(i as u32);
+                break;
+            }
+        }
+    }
+
+    if let Some(vout) = vout {
+        Ok((txid, vout))
+    } else {
+        // Extremely unlikely error.
+        Err(eyre::eyre!("Can't find deposit vout in deposit transaction").into())
+    }
 }
 
 #[cfg(test)]
