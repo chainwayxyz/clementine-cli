@@ -1,0 +1,20 @@
+# Values are based on the full.regtest Docker compose file located in Clementine repo
+
+network = "regtest"
+
+aggregated_public_key = "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577"
+
+user_takes_after = 200
+bridge_amount = 1000000000
+bridge_contract_address = "0x3100000000000000000000000000000000000002"
+
+mempool_api_url = ""
+
+citrea_backend_endpoint = ""
+citrea_rpc_url = "https://127.0.0.1:12345/"
+citrea_chain_id = 5655
+
+[bitcoin_config]
+url = "http://127.0.0.1:20443/"
+user = "admin"
+password = "admin"
