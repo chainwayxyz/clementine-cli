@@ -3,7 +3,9 @@ use secrecy::ExposeSecret;
 
 use crate::errors::BridgeCliError;
 use crate::secure_display::display_mnemonic_securely;
-use crate::structs::{SecureString, SecureSecretKey, SecureMnemonic, SecureByteSlice, SecureWordVec};
+use crate::structs::{
+    SecureByteSlice, SecureMnemonic, SecureSecretKey, SecureString, SecureWordVec,
+};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::load_wallet_data;
@@ -23,7 +25,7 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
 pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     let mnemonic = SecureMnemonic::new(
         Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
-            .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?
+            .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?,
     );
 
     let safe_mnemonic = SecureString::init_with(|| mnemonic.as_ref().to_string());
@@ -37,7 +39,7 @@ pub(crate) fn get_master_seed_from_mnemonic(
 ) -> Result<SecureByteSlice, BridgeCliError> {
     let mnemonic = SecureMnemonic::new(
         Mnemonic::parse(mnemonic_phrase.expose_secret())
-            .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?
+            .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?,
     );
 
     // Generate seed (64 bytes) - automatically secured
@@ -46,7 +48,7 @@ pub(crate) fn get_master_seed_from_mnemonic(
     // Extract first 32 bytes for master seed - securely
     let mut master_seed = [0u8; 32];
     master_seed.copy_from_slice(&seed.expose_secret()[0..32]);
-    
+
     let secure_master_seed = SecureByteSlice::new(Box::new(master_seed));
 
     Ok(secure_master_seed)
@@ -75,7 +77,8 @@ pub(crate) fn derive_private_key_from_mnemonic_secure(
     // Generate master seed from mnemonic using BIP-39
     let master_seed = get_master_seed_from_mnemonic(mnemonic)?;
 
-    let master_private_key = SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
+    let master_private_key =
+        SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
 
     let secure_private_key =
         SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
@@ -104,9 +107,10 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     let wordlist = Language::English.word_list();
 
     loop {
-        let word_input = rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))
-            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
-        
+        let word_input =
+            rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))
+                .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
+
         let word = word_input.trim().to_lowercase();
 
         // Validate word against BIP-39 wordlist
@@ -153,7 +157,6 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
             println!("Mnemonic will be handled securely and zeroized from memory");
 
             let secure_mnemonic = SecureString::init_with(|| mnemonic_phrase);
-
 
             Ok(secure_mnemonic)
         }

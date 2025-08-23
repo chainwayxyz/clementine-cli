@@ -64,7 +64,9 @@ use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
 
 use crate::{
-    errors::BridgeCliError, structs::{SecureString, SecureByteVec}, wallet::passphrase::derive_key_from_passphrase,
+    errors::BridgeCliError,
+    structs::{SecureByteVec, SecureString},
+    wallet::passphrase::derive_key_from_passphrase,
 };
 
 // Argon2id parameters: 3 iterations, 64MB memory, 1 thread
@@ -156,7 +158,7 @@ pub(crate) fn aes_decrypt_secure(
 
     // Create secure wrapper for plaintext bytes - automatically zeroized
     let secure_plaintext_bytes = SecureByteVec::new(Box::new(plaintext));
-    
+
     let plaintext_string = String::from_utf8(secure_plaintext_bytes.expose_secret().clone())
         .map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
 

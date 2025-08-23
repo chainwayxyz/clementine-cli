@@ -21,7 +21,7 @@ use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
 use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
-use crate::structs::{SecureString, SecureSecretKey, SecureKeypair, SecureByteVec};
+use crate::structs::{SecureByteVec, SecureKeypair, SecureSecretKey, SecureString};
 use encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use mnemonic::{
     MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
@@ -592,7 +592,7 @@ pub fn import_wallet_from_private_key(
 
     let private_key_bytes = SecureByteVec::new(Box::new(
         hex::decode(secure_private_key.expose_secret())
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?,
     ));
 
     if private_key_bytes.expose_secret().len() != 32 {
@@ -601,9 +601,10 @@ pub fn import_wallet_from_private_key(
         ));
     }
 
-    let master_private_key = SecureSecretKey::new(SecretKey::from_slice(private_key_bytes.expose_secret()).map_err(|e| {
-        BridgeCliError::InvalidPrivateKey(e.to_string())
-    })?);
+    let master_private_key = SecureSecretKey::new(
+        SecretKey::from_slice(private_key_bytes.expose_secret())
+            .map_err(|e| BridgeCliError::InvalidPrivateKey(e.to_string()))?,
+    );
 
     let keypair = SecureKeypair::new(Keypair::from_secret_key(&SECP, master_private_key.as_ref()));
     let address = calculate_taproot_address(&keypair, network);
@@ -620,7 +621,8 @@ pub fn import_wallet_from_private_key(
 
     let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
 
-    let master_private_key_secure = SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
+    let master_private_key_secure =
+        SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
 
     let encrypted_mnemonic = aes_encrypt_secure(&placeholder_mnemonic, &passphrase)
         .map_err(|e| BridgeCliError::PlaceholderMnemonicEncryptionFailed(e.to_string()))?;

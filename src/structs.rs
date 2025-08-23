@@ -1,6 +1,6 @@
-use secrecy::SecretBox;
-use bitcoin::secp256k1::{SecretKey, Keypair};
 use bip39::Mnemonic;
+use bitcoin::secp256k1::{Keypair, SecretKey};
+use secrecy::SecretBox;
 use zeroize::Zeroize;
 
 pub(crate) type SecureString = SecretBox<String>;
@@ -78,7 +78,6 @@ impl SecureSecretKey {
     pub fn as_ref(&self) -> &SecretKey {
         &self.inner
     }
-
 }
 
 impl Drop for SecureSecretKey {
@@ -104,7 +103,6 @@ impl SecureKeypair {
     pub fn secret_key(&self) -> SecureSecretKey {
         SecureSecretKey::new(self.inner.secret_key())
     }
-
 }
 
 impl Drop for SecureKeypair {

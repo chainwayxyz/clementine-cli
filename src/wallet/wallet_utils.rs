@@ -1,10 +1,10 @@
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureString, SecureKeypair, SecureSecretKey};
+use crate::structs::{SecureKeypair, SecureSecretKey, SecureString};
 use crate::wallet::address::str_to_address;
 use crate::wallet::encryption::aes_decrypt_secure;
-use crate::wallet::wallet_storage::{get_storage_dir, load_wallet_data, GenericWalletData};
+use crate::wallet::wallet_storage::{GenericWalletData, get_storage_dir, load_wallet_data};
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
 use bitcoin::key::Keypair;
@@ -148,9 +148,10 @@ pub(crate) fn validate_private_key_import(
                 // Validate the private key format and derive address to verify
                 match SecretKey::from_str(decrypted_private_key.expose_secret()) {
                     Ok(private_key) => {
-                        let keypair = SecureKeypair::new(
-                            Keypair::from_secret_key(&crate::bitcoin_utils::SECP, &private_key)
-                        );
+                        let keypair = SecureKeypair::new(Keypair::from_secret_key(
+                            &crate::bitcoin_utils::SECP,
+                            &private_key,
+                        ));
                         let derived_address = calculate_taproot_address(&keypair, network);
 
                         if derived_address.to_string() != wallet_address {

@@ -20,7 +20,10 @@ use crate::{BitcoinAddress, CitreaAddress};
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
 /// Calculate taproot address from a keypair
-pub(crate) fn calculate_taproot_address(keypair: &SecureKeypair, network: Network) -> BitcoinAddress {
+pub(crate) fn calculate_taproot_address(
+    keypair: &SecureKeypair,
+    network: Network,
+) -> BitcoinAddress {
     let (xonly_public_key, _parity) = keypair.as_ref().public_key().x_only_public_key();
     BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
@@ -64,11 +67,15 @@ fn sign_with_tweak(
     use bitcoin::hashes::Hash;
     SECP.sign_schnorr(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
-        &keypair.as_ref()
+        &keypair
+            .as_ref()
             .add_xonly_tweak(
                 &SECP,
-                &TapTweakHash::from_key_and_tweak(keypair.as_ref().x_only_public_key().0, merkle_root)
-                    .to_scalar(),
+                &TapTweakHash::from_key_and_tweak(
+                    keypair.as_ref().x_only_public_key().0,
+                    merkle_root,
+                )
+                .to_scalar(),
             )
             .unwrap(),
     )

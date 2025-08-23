@@ -1,6 +1,6 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
-use crate::structs::{SecureString, SecureSecretKey};
+use crate::structs::{SecureSecretKey, SecureString};
 use colored::*;
 use crossterm::{
     cursor,
@@ -559,7 +559,10 @@ fn display_private_key_in_alternate_screen(private_key: &SecureSecretKey) -> Res
         ),
         SetForegroundColor(Color::Cyan),
         Print("Private Key:\r\n\r\n"),
-        Print(format!("   {}\r\n\r\n", private_key.as_ref().display_secret())),
+        Print(format!(
+            "   {}\r\n\r\n",
+            private_key.as_ref().display_secret()
+        )),
         SetForegroundColor(Color::Red),
         Print("   WARNING: Anyone with this private key can access your funds!\r\n"),
         Print("   Never share this key or store it in insecure locations!\r\n\r\n"),
