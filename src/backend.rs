@@ -18,7 +18,7 @@ pub(crate) async fn create_deposit_account(
 
     // Prepare request body
     let request_body = json!({
-        "citrea_addr": citrea_address.to_string(),
+        "evm_addr": citrea_address.to_string(),
         "recovery_taproot_addr": recovery_taproot_address.to_string()
     });
 
