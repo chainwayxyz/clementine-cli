@@ -186,3 +186,70 @@ pub(crate) fn wallet_exists(wallet_name: &str) -> Result<bool, BridgeCliError> {
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
     Ok(wallet_file.exists())
 }
+
+pub(crate) fn address_exists(address: &str, network: Network) -> Result<bool, BridgeCliError> {
+    // Use the registry to check all wallets efficiently
+    let wallets = crate::wallet::wallet_storage::get_wallets_from_registry()?;
+
+    for (_wallet_name, wallet_entry) in wallets {
+        if wallet_entry.address == address {
+            let wallet_network = parse_network(&wallet_entry.network)?;
+            if wallet_network == network {
+                return Ok(true);
+            }
+        }
+    }
+
+    Ok(false)
+}
+
+/// Validation options for wallet creation and import operations
+#[derive(Debug)]
+pub enum WalletValidationMode {
+    /// Check if wallet name already exists
+    WalletName,
+    /// Check if address already exists for the given network
+    Address,
+    /// Check both wallet name and address
+    Both,
+}
+
+/// Combined validation function to check for conflicts during wallet operations
+pub(crate) fn validate_wallet_availability(
+    wallet_name: Option<&str>,
+    address: Option<&str>,
+    network: Option<Network>,
+    mode: WalletValidationMode,
+) -> Result<(), BridgeCliError> {
+    let should_check_wallet = matches!(
+        mode,
+        WalletValidationMode::WalletName | WalletValidationMode::Both
+    );
+    let should_check_address = matches!(
+        mode,
+        WalletValidationMode::Address | WalletValidationMode::Both
+    );
+
+    if should_check_wallet {
+        let name = wallet_name.ok_or_else(|| {
+            BridgeCliError::Eyre(eyre::eyre!("Wallet name is required for validation"))
+        })?;
+        if wallet_exists(name)? {
+            return Err(BridgeCliError::WalletAlreadyExists(name.to_string()));
+        }
+    }
+
+    if should_check_address {
+        let addr = address.ok_or_else(|| {
+            BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
+        })?;
+        let network = network.ok_or_else(|| {
+            BridgeCliError::Eyre(eyre::eyre!("Network is required for address validation"))
+        })?;
+        if address_exists(addr, network)? {
+            return Err(BridgeCliError::AddressAlreadyExists(addr.to_string()));
+        }
+    }
+
+    Ok(())
+}

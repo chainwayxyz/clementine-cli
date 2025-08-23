@@ -17,7 +17,7 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 macro_rules! handle_or_exit {
     ($expr:expr) => {
         if let Err(e) = $expr {
-            eprintln!("{} {e}", "Error:".red().bold());
+            eprintln!("{} {:?}", "Error:".red().bold(), eyre::Report::from(e));
             std::process::exit(1);
         }
     };
@@ -235,6 +235,8 @@ enum WithdrawalCommands {
 
 #[tokio::main]
 async fn main() {
+    color_eyre::install().expect("Failed to install color-eyre");
+
     let cli = Cli::parse();
 
     initialize_logger(cli.verbose);

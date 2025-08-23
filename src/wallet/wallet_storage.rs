@@ -7,6 +7,20 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::errors::BridgeCliError;
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 
+/// Registry entry for a wallet stored in wallets.json
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub(crate) struct WalletRegistryEntry {
+    pub address: String,
+    pub network: String,
+    pub created_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imported: Option<bool>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub imported_at: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub import_method: Option<String>,
+}
+
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct GenericWalletData {
@@ -94,26 +108,28 @@ fn update_wallets_registry(
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");
 
-    let mut wallets: HashMap<String, serde_json::Value> = if wallets_file.exists() {
+    let mut wallets: HashMap<String, WalletRegistryEntry> = if wallets_file.exists() {
         serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
     } else {
         HashMap::new()
     };
 
-    let mut wallet_entry = serde_json::json!({
-        "address": address.to_string(),
-        "network": network.to_string(),
-        "created_at": chrono::Utc::now().to_rfc3339(),
-        "secure": true,
-    });
-
-    if imported {
-        wallet_entry["imported"] = serde_json::json!(true);
-        wallet_entry["imported_at"] = serde_json::json!(chrono::Utc::now().to_rfc3339());
-        if let Some(method) = import_method {
-            wallet_entry["import_method"] = serde_json::json!(method);
-        }
-    }
+    let wallet_entry = WalletRegistryEntry {
+        address: address.to_string(),
+        network: network.to_string(),
+        created_at: chrono::Utc::now().to_rfc3339(),
+        imported: if imported { Some(true) } else { None },
+        imported_at: if imported {
+            Some(chrono::Utc::now().to_rfc3339())
+        } else {
+            None
+        },
+        import_method: if imported {
+            import_method.map(|s| s.to_string())
+        } else {
+            None
+        },
+    };
 
     wallets.insert(wallet_name.to_string(), wallet_entry);
     fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
@@ -140,4 +156,26 @@ pub(crate) fn load_wallet_data(wallet_name: &str) -> Result<GenericWalletData, B
 pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
     let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine").join("keys"))
+}
+
+/// Get wallets from the registry (wallets.json)
+pub(crate) fn get_wallets_from_registry()
+-> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    if !wallets_file.exists() {
+        // Return empty HashMap if registry doesn't exist yet
+        return Ok(HashMap::new());
+    }
+
+    let wallets_content = fs::read_to_string(&wallets_file)
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
+
+    let wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
+        .map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e))
+        })?;
+
+    Ok(wallets)
 }

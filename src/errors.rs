@@ -39,6 +39,8 @@ pub enum BridgeCliError {
     NotTaprootAddress,
     #[error("Address field not found or invalid in wallet data")]
     MissingWalletAddress,
+    #[error("Address already exists: {0}")]
+    AddressAlreadyExists(String),
     #[error("Failed to get storage directory: {0}")]
     StorageDirectoryError(String),
     #[error("Failed to read storage directory: {0}")]
