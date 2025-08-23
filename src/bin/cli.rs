@@ -75,7 +75,7 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
 
 #[derive(Parser)]
 #[command(name = "clementine")]
-#[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
+#[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
     /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
     #[arg(long)]
