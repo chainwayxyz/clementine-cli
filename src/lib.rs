@@ -1,8 +1,3 @@
-use crate::errors::BridgeCliError;
-use eyre::Context;
-use eyre::Result;
-use std::str::FromStr;
-
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;
@@ -24,7 +19,3 @@ pub use wallet::show_mnemonic_secure;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
-
-pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
-    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
-}

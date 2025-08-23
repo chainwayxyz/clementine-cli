@@ -159,8 +159,11 @@ enum WalletCommands {
 
 #[derive(Subcommand)]
 enum DepositCommands {
+    /// Fetches deposit address from Citrea backend for user's EVM address and recovery taproot address
     GetDepositAddress {
+        /// User's Citrea EVM address
         citrea_address: String,
+        /// User's recovery taproot address, generated from the EVM address and other required parameters
         recovery_taproot_address: String,
     },
     /// Signs recovery transaction and prints the hex encoded transaction

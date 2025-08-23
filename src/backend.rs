@@ -4,8 +4,7 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::wallet::address::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};
-use colored::*;
-use eyre::Result;
+use eyre::{Context, Result};
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
@@ -14,25 +13,24 @@ pub(crate) async fn create_deposit_account(
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    let url = format!("{}deposit-accounts", config.citrea_backend_endpoint);
+    let url = config
+        .citrea_backend_endpoint // As long as url is only base URL, no trailing / is needed
+        .join("deposit-accounts")
+        .wrap_err("Can't join endpoint with the URL")?;
 
-    // Prepare request body
+    // Request body for the deposit-accounts endpoint
     let request_body = json!({
         "evm_addr": citrea_address.to_string(),
         "recovery_taproot_addr": recovery_taproot_address.to_string()
     });
 
-    tracing::debug!("Making request to: {}", url);
     tracing::debug!(
-        "Request body: {}",
+        "Making request to {} with request body {}",
+        url,
         serde_json::to_string_pretty(&request_body)?
     );
 
-    // Create HTTP client
-    let client = reqwest::Client::new();
-
-    // Make POST request
-    let response = client
+    let response = reqwest::Client::new()
         .post(url.as_str())
         .header("Content-Type", "application/json")
         .json(&request_body)
@@ -42,14 +40,10 @@ pub(crate) async fn create_deposit_account(
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json().await?;
         tracing::info!(
-            "{} Deposit address request successful",
-            "SUCCESS".green().bold(),
-        );
-        tracing::debug!(
-            "Response: {}",
+            "Deposit address request successful: {}",
             serde_json::to_string_pretty(&response_body)?
         );
-        // parse the json and get the taproot_addr and parse it to an address
+
         let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
         let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
 
@@ -57,11 +51,9 @@ pub(crate) async fn create_deposit_account(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Deposit address request failed: {}", status);
-        tracing::error!("Error response: {}", error_text);
 
         Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
+            "Backend request failed with status: {}: {}",
             status,
             error_text
         )

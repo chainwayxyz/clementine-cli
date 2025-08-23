@@ -11,33 +11,41 @@ use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::load_address;
 use crate::wallet::wallet_utils::load_key_and_address;
 use crate::withdrawal::{get_tx_details, get_txout_details};
-use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::Address;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
+use eyre::Context;
 use eyre::Result;
 use std::str::FromStr;
 
-/// Get deposit address from backend
+fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
+    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
+}
+
+/// Gets deposit address from Citrea backend
 pub async fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: &BridgeCliConfig,
 ) -> Result<Address, BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
-    tracing::debug!(
-        "{} {}",
-        "CITREA_ADDRESS (checksummed)".green().bold(),
-        citrea_address,
-    );
+    tracing::debug!("Parsed Citrea address: {}", citrea_address,);
+
     let recovery_taproot_address = parse_taproot_address(recovery_taproot_address, config.network)?;
+    tracing::debug!(
+        "Parsed recovery taproot address: {}",
+        recovery_taproot_address
+    );
 
     // Call backend to create deposit account
     let deposit_address =
         create_deposit_account(&citrea_address, &recovery_taproot_address, config).await?;
-
-    tracing::debug!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
+    tracing::info!(
+        "Deposit address received from Citrea backend: {}",
+        deposit_address
+    );
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(&citrea_address, &recovery_taproot_address, config)?;
