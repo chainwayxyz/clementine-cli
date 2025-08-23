@@ -1,8 +1,8 @@
 // Deposit-related commands and logic for Clementine CLI
 
 use crate::backend::create_deposit_account;
+use crate::bitcoin_utils;
 use crate::bitcoin_utils::calculate_deposit_address;
-use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
@@ -104,7 +104,7 @@ pub fn sign_recovery_tx(
     };
 
     let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
-    let signed_tx = utils_sign_recovery_tx(
+    let signed_tx = bitcoin_utils::sign_recovery_tx(
         &keypair,
         &citrea_addr,
         &recovery_addr,

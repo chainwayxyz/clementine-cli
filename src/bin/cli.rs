@@ -163,7 +163,9 @@ enum DepositCommands {
         citrea_address: String,
         recovery_taproot_address: String,
     },
+    /// Signs recovery transaction and prints the hex encoded transaction
     SignRecoveryTx {
+        /// Local Clementine wallet name
         wallet_name: String,
         evm_address: String,
         deposit_txid: String,
