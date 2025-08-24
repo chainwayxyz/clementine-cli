@@ -119,7 +119,6 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
             println!("Word {} accepted", word_index);
             word_index += 1;
 
-            // Check if we have a valid mnemonic length and offer to finish
             if words.len() == MNEMONIC_WORD_COUNT {
                 println!();
                 println!(
@@ -138,7 +137,6 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     // Validate final mnemonic length
     let word_count = words.len();
     if word_count != MNEMONIC_WORD_COUNT {
-        // words is automatically cleaned up via Drop trait
         return Err(BridgeCliError::InvalidMnemonicLength(word_count));
     }
 

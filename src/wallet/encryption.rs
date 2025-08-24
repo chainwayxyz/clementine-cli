@@ -58,16 +58,15 @@
 //! - **Memory Protection**: All sensitive data automatically zeroized after use
 //! - **Forward Secrecy**: Compromised derived keys don't reveal original passphrase
 
-use aes_gcm::aead::generic_array::GenericArray;
-use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
-use secrecy::ExposeSecret;
-use serde::{Deserialize, Serialize};
-
 use crate::{
     errors::BridgeCliError,
     structs::{SecureByteVec, SecureString},
     wallet::passphrase::derive_key_from_passphrase,
 };
+use aes_gcm::aead::generic_array::GenericArray;
+use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
+use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 
 // Argon2id parameters: 3 iterations, 64MB memory, 1 thread
 // Balances security (GPU/ASIC resistance) with interactive performance
