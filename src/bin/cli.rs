@@ -1,4 +1,4 @@
-use bitcoin::taproot::Signature;
+use bitcoin::{Network, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::BridgeCliConfig,
@@ -77,9 +77,13 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
-    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
+    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file todo
     #[arg(long)]
     config_file: Option<PathBuf>,
+
+    /// Bitcoin network.
+    #[arg(long)]
+    network: Network,
 
     /// Turns verbose logging on
     #[arg(long, action = clap::ArgAction::SetTrue)]
@@ -241,28 +245,18 @@ async fn main() {
 
     initialize_logger(cli.verbose);
 
-    let config = if let Some(config_file_path) = cli.config_file {
-        tracing::info!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
+    let config_file_path = cli.config_file.unwrap();
+    let config = BridgeCliConfig::try_parse_file(config_file_path.clone(), cli.network)
+        .unwrap_or_else(|e| {
             panic!(
                 "Failed to read config file {:?}: {:?}",
                 config_file_path.display(),
                 e
             )
-        })
-    } else {
-        let mut current_dir = std::env::current_dir().unwrap();
-        current_dir.push("bridge_cli_config.toml");
-        tracing::info!(
-            "No config file given, looking for the current directory: {current_dir:?}..."
-        );
-        BridgeCliConfig::try_parse_file(current_dir.clone()).unwrap_or_else(|e| {
-            panic!(
-                "Failed to read config file: {:?}: {e}",
-                current_dir.display()
-            )
-        })
-    };
+        });
+
+    // let mut current_dir = std::env::current_dir().unwrap();
+    // current_dir.push("bridge_cli_config.toml");
 
     match cli.command {
         Commands::Wallet { command } => match command {

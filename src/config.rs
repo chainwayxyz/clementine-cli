@@ -32,6 +32,15 @@ pub enum ConfigErrors {
     Other(#[from] eyre::Report),
 }
 
+/// [`BridgeCliConfig`]s for each network.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NetworkConfigs {
+    pub bitcoin: BridgeCliConfig,
+    pub testnet: BridgeCliConfig,
+    pub signet: BridgeCliConfig,
+    pub regtest: BridgeCliConfig,
+}
+
 #[derive(Debug, Clone, Deserialize)]
 pub struct BridgeCliConfig {
     pub network: Network,
@@ -59,19 +68,20 @@ impl BridgeCliConfig {
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> Result<Self, ConfigErrors> {
+    pub fn try_parse_file(path: PathBuf, network: Network) -> Result<Self, ConfigErrors> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
         file.read_to_string(&mut contents)?;
 
-        Self::try_parse_from(contents)
-    }
+        let network_configs = toml::from_str::<NetworkConfigs>(&contents)?;
 
-    /// Try to parse a [`CliConfig`] from given TOML formatted string and
-    /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> Result<Self, ConfigErrors> {
-        Ok(toml::from_str::<Self>(&input)?)
+        Ok(match network {
+            Network::Bitcoin => network_configs.bitcoin,
+            Network::Testnet | Network::Testnet4 => network_configs.testnet,
+            Network::Signet => network_configs.signet,
+            Network::Regtest => network_configs.regtest,
+        })
     }
 
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {
@@ -199,7 +209,7 @@ mod tests {
         let invalid_content = "invalid file content";
         let mut file = File::create(file_name).unwrap();
         file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet).is_err());
 
         // Read first example test file use for this test.
         let base_path = env!("CARGO_MANIFEST_DIR");
@@ -208,7 +218,8 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let read_config = BridgeCliConfig::try_parse_file(file_name.into()).unwrap();
+        let read_config =
+            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet).unwrap();
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
@@ -236,7 +247,7 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Regtest).is_err());
 
         fs::remove_file(file_name).unwrap();
     }
