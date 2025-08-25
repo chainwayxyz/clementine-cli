@@ -14,10 +14,21 @@ pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
     let passphrase = prompt_unlock_passphrase()?;
-    let mnemonic = load_mnemonic_secure(address, &passphrase)?;
-    display_mnemonic_securely(&mnemonic)?;
 
-    Ok(())
+    match load_mnemonic_secure(address, &passphrase) {
+        Ok(mnemonic) => {
+            display_mnemonic_securely(&mnemonic)?;
+            Ok(())
+        }
+        Err(BridgeCliError::NoMnemonicAvailable) => {
+            println!(
+                "{}",
+                "No mnemonic available - this wallet was imported from a private key".yellow()
+            );
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
 }
 
 pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
@@ -59,6 +70,11 @@ fn load_mnemonic_secure(
     };
 
     let secure_mnemonic = aes_decrypt_secure(&encrypted_data, passphrase)?;
+
+    // Check if this wallet was imported from a private key
+    if secure_mnemonic.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
+        return Err(BridgeCliError::NoMnemonicAvailable);
+    }
 
     Ok(secure_mnemonic)
 }
@@ -135,18 +151,14 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     // Join words and validate complete mnemonic - keep it secure from the start
     let secure_mnemonic_phrase = SecureString::init_with(|| words.join(" "));
 
-    // Use SecureMnemonic for validation to ensure proper cleanup
+    // Use Mnemonic for validation to ensure proper cleanup
     let _secure_mnemonic_obj = Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
         .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
 
     println!();
     println!(
-        "{} Valid BIP-39 mnemonic phrase with {} words",
+        "{} Valid BIP-39 mnemonic phrase with 12 words",
         "SUCCESS".green().bold(),
-        secure_mnemonic_phrase
-            .expose_secret()
-            .split_whitespace()
-            .count()
     );
     println!("Mnemonic will be handled securely and zeroized from memory");
 

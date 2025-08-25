@@ -77,6 +77,8 @@ pub enum BridgeCliError {
     MnemonicValidationFailed(String),
     #[error("Failed to encrypt placeholder mnemonic: {0}")]
     PlaceholderMnemonicEncryptionFailed(String),
+    #[error("No mnemonic available - this wallet was imported from a private key")]
+    NoMnemonicAvailable,
 
     // Passphrase-related errors
     #[error("Invalid Argon2 parameters: {0}")]
@@ -85,8 +87,6 @@ pub enum BridgeCliError {
     PassphraseNotProvided,
     #[error("Invalid passphrase")]
     InvalidPassphrase,
-    #[error("Passphrase cannot be empty")]
-    EmptyPassphrase,
     #[error("Passphrase is too short (minimum 8 characters)")]
     PassphraseTooShort,
     #[error("Passphrases do not match")]
@@ -103,6 +103,8 @@ pub enum BridgeCliError {
     WalletNotFound(String),
     #[error("Could not determine home directory")]
     HomeDirectoryNotFound,
+    #[error("Wallets registry not found")]
+    WalletsRegistryNotFound,
 
     // Wallet operation related errors
     #[error("Failed to generate address from mnemonic: {0}")]
@@ -133,6 +135,10 @@ pub enum BridgeCliError {
     EncryptedPrivateKeyParseError(String),
     #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
     AddressMismatch,
+    #[error(
+        "Claim address cannot be a wallet address. The claim address belongs to one of your wallets."
+    )]
+    ClaimAddressIsWalletAddress,
 
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
     MissingEncryptedPrivateKeyField,

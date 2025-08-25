@@ -1,35 +1,38 @@
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureKeypair, SecureSecretKey, SecureString};
-use crate::wallet::address::{generate_address_from_mnemonic_secure, str_to_address};
+use crate::structs::SecureKeypair;
+use crate::structs::SecureSecretKey;
+use crate::structs::SecureString;
+use crate::wallet::address::generate_address_from_mnemonic_secure;
+use crate::wallet::address::parse_address;
+use crate::wallet::address::parse_taproot_address;
 use crate::wallet::encryption::aes_decrypt_secure;
-use crate::wallet::wallet_storage::{
-    GenericWalletData, get_storage_dir, get_wallets_from_registry, load_wallet_data,
-};
+use crate::wallet::wallet_storage::GenericWalletData;
+use crate::wallet::wallet_storage::get_storage_dir;
+use crate::wallet::wallet_storage::get_wallets_from_registry;
+use crate::wallet::wallet_storage::load_wallet_data;
 use bitcoin::Network;
-use bitcoin::address::NetworkChecked;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
 use eyre::eyre;
 use secrecy::ExposeSecret;
+use std::collections::HashMap;
+use std::collections::HashSet;
 use std::str::FromStr;
 
-/// Securely load a key from wallet storage - always requires a passphrase
-pub(crate) fn load_key_and_address(
+/// Securely load a key from wallet storage
+pub(crate) fn load_key(
     wallet_name: &str,
-    network: Network,
     passphrase: &SecureString,
-) -> Result<(SecureKeypair, BitcoinAddress<NetworkChecked>), BridgeCliError> {
+) -> Result<SecureKeypair, BridgeCliError> {
     if !wallet_exists(wallet_name)? {
         return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
 
     // Load wallet data
     let wallet_data = load_wallet_data(wallet_name)?;
-
-    let wallet_address = load_address(wallet_name, Some(wallet_data.clone()), network)?;
 
     // Load the encrypted private key
     let encrypted_private_key = wallet_data
@@ -46,37 +49,18 @@ pub(crate) fn load_key_and_address(
     let keypair = Keypair::from_secret_key(&secp, secret_key.as_ref());
     let secure_keypair = SecureKeypair::new(keypair);
 
-    Ok((secure_keypair, wallet_address))
-}
-
-pub(crate) fn load_address(
-    wallet_name: &str,
-    generic_wallet_data: Option<GenericWalletData>,
-    network: Network,
-) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
-    let wallet_data = if let Some(data) = generic_wallet_data {
-        data
-    } else {
-        crate::wallet::wallet_storage::load_wallet_data(wallet_name)?
-    };
-
-    let wallet_network = parse_network(wallet_data.network.as_str())?;
-    check_network_compatibility(wallet_network, network)?;
-
-    let address_str = wallet_data.address.as_str();
-    let address = str_to_address(address_str, network)
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid wallet address: {}", e)))?;
-
-    Ok(address)
+    Ok(secure_keypair)
 }
 
 /// Helper function to validate mnemonic imports during wallet import
 pub(crate) fn validate_mnemonic_import(
     decrypted_mnemonic: &SecureString,
     wallet_data: &GenericWalletData,
-    wallet_address: &str,
+    wallet_address_str: &str,
 ) -> Result<(), BridgeCliError> {
     let network = parse_network(&wallet_data.network)?;
+
+    let wallet_address = parse_address(wallet_address_str, network)?;
 
     // Generate address from mnemonic to verify it matches
     match generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
@@ -192,6 +176,32 @@ pub(crate) fn address_exists(address: &str, network: Network) -> Result<bool, Br
     Ok(false)
 }
 
+pub(crate) fn load_address_from_registry(
+    wallet_name: &str,
+    network: Network,
+) -> Result<BitcoinAddress, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    if !wallets_file.exists() {
+        return Err(BridgeCliError::WalletsRegistryNotFound);
+    }
+
+    let wallets_content = std::fs::read_to_string(&wallets_file)?;
+    let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)?;
+
+    if let Some(wallet_data) = wallets.get(wallet_name)
+        && let Some(address_str) = wallet_data.get("address").and_then(|a| a.as_str())
+        && let Some(network_str) = wallet_data.get("network").and_then(|n| n.as_str())
+    {
+        let wallet_network = parse_network(network_str)?;
+        check_network_compatibility(wallet_network, network)?;
+        return parse_address(address_str, network);
+    }
+
+    Err(BridgeCliError::WalletNotFound(wallet_name.to_string()))
+}
+
 /// Validation options for wallet creation and import operations
 #[derive(Debug)]
 pub enum WalletValidationMode {
@@ -243,74 +253,61 @@ pub(crate) fn validate_wallet_availability(
     Ok(())
 }
 
-pub(crate) fn report_integrity_results(
-    registry_wallets: &std::collections::HashSet<String>,
-    file_wallets: &std::collections::HashSet<String>,
-) {
-    // Compare registry vs files
-    let registry_only: std::collections::HashSet<_> =
-        registry_wallets.difference(file_wallets).collect();
-    let files_only: std::collections::HashSet<_> =
-        file_wallets.difference(registry_wallets).collect();
-    let matching: std::collections::HashSet<_> =
-        registry_wallets.intersection(file_wallets).collect();
+/// Parse and validate an imported wallet file
+pub(crate) fn parse_and_validate_imported_wallet(
+    file_path: &str,
+    wallet_name: &str,
+) -> Result<crate::wallet::wallet_storage::GenericWalletData, BridgeCliError> {
+    use std::fs;
+    use std::path::Path;
 
-    // Report results
-    println!("Integrity Verification Results:");
-    println!("  Total registered wallets: {}", registry_wallets.len());
-    println!("  Total wallet files found: {}", file_wallets.len());
-    println!("  Matching entries: {}", matching.len());
-    println!();
+    let source_path = Path::new(file_path);
 
-    print_successful_matches(&matching);
-    let has_issues = print_integrity_issues(&registry_only, &files_only);
-
-    print_integrity_summary(
-        has_issues,
-        registry_wallets.is_empty() && file_wallets.is_empty(),
-        &registry_only,
-        &files_only,
-    );
-}
-
-/// Print integrity issues (missing files and unregistered files)
-fn print_integrity_issues(
-    registry_only: &std::collections::HashSet<&String>,
-    files_only: &std::collections::HashSet<&String>,
-) -> bool {
-    use colored::Colorize;
-
-    let mut has_issues = false;
-
-    // Report wallets in registry but missing files
-    if !registry_only.is_empty() {
-        has_issues = true;
-        print_wallet_list(
-            "Wallets in registry but missing files:",
-            registry_only,
-            |address| {
-                format!(
-                    "  - {} (file: wallet_{}.json not found)",
-                    address.yellow(),
-                    address
-                )
-            },
-        );
+    if !source_path.exists() {
+        return Err(BridgeCliError::WalletFileNotFound(file_path.to_string()));
     }
 
-    // Report wallet files not in registry
-    if !files_only.is_empty() {
-        has_issues = true;
-        print_wallet_list("Wallet files not in registry:", files_only, |address| {
-            format!(
-                "  - {} (wallet_{}.json exists but not registered)",
-                address.yellow(),
-                address
-            )
-        });
+    if !source_path.is_file() {
+        return Err(BridgeCliError::PathNotAFile(file_path.to_string()));
     }
 
-    has_issues
+    // Read and parse the wallet file
+    let wallet_content = fs::read_to_string(source_path)?;
+    let wallet_data: crate::wallet::wallet_storage::GenericWalletData =
+        serde_json::from_str(&wallet_content).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to parse wallet file '{}': {}",
+                source_path.display(),
+                e
+            ))
+        })?;
+
+    // Extract and validate required fields
+    let wallet_address = wallet_data.address.clone();
+    let network = parse_network(&wallet_data.network)?;
+
+    let _address = parse_taproot_address(&wallet_address, network)?;
+
+    // Validate that both wallet name and address don't already exist
+    validate_wallet_availability(
+        Some(wallet_name),
+        Some(&wallet_address),
+        Some(network),
+        WalletValidationMode::Both,
+    )?;
+
+    // Check if encrypted data exists
+    if wallet_data.encrypted_mnemonic.is_none() {
+        return Err(BridgeCliError::MissingEncryptedMnemonicField);
+    }
+
+    if wallet_data.encrypted_private_key.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Missing encrypted private key field"
+        )));
+    }
+
+    Ok(wallet_data)
 }
 
 /// Print successful wallet matches
@@ -369,57 +366,71 @@ fn print_integrity_summary(
     }
 }
 
-/// Parse and validate an imported wallet file
-pub(crate) fn parse_and_validate_imported_wallet(
-    file_path: &str,
-    wallet_name: &str,
-) -> Result<crate::wallet::wallet_storage::GenericWalletData, BridgeCliError> {
-    use std::fs;
-    use std::path::Path;
+pub(crate) fn report_integrity_results(
+    registry_wallets: HashMap<String, (Network, BitcoinAddress)>,
+    file_wallets: HashMap<String, (Network, BitcoinAddress)>,
+) {
+    let registry_keys: HashSet<&String> = registry_wallets.keys().collect();
+    let file_keys: HashSet<&String> = file_wallets.keys().collect();
 
-    let source_path = Path::new(file_path);
+    let registry_only: HashSet<&String> = registry_keys.difference(&file_keys).copied().collect();
+    let files_only: HashSet<&String> = file_keys.difference(&registry_keys).copied().collect();
+    let matching: HashSet<&String> = registry_keys.intersection(&file_keys).copied().collect();
 
-    if !source_path.exists() {
-        return Err(BridgeCliError::WalletFileNotFound(file_path.to_string()));
+    // Report results
+    println!("Integrity Verification Results:");
+    println!("  Total registered wallets: {}", registry_wallets.len());
+    println!("  Total wallet files found: {}", file_wallets.len());
+    println!("  Matching entries: {}", matching.len());
+    println!();
+
+    print_successful_matches(&matching);
+    let has_issues = print_integrity_issues(&registry_only, &files_only);
+
+    print_integrity_summary(
+        has_issues,
+        registry_wallets.is_empty() && file_wallets.is_empty(),
+        &registry_only,
+        &files_only,
+    );
+}
+
+/// Print integrity issues (missing files and unregistered files)
+fn print_integrity_issues(
+    registry_only: &std::collections::HashSet<&String>,
+    files_only: &std::collections::HashSet<&String>,
+) -> bool {
+    use colored::Colorize;
+
+    let mut has_issues = false;
+
+    // Report wallets in registry but missing files
+    if !registry_only.is_empty() {
+        has_issues = true;
+        print_wallet_list(
+            "Wallets in registry but missing files:",
+            registry_only,
+            |address| {
+                format!(
+                    "  - {} (file: wallet_{}.json not found)",
+                    address.yellow(),
+                    address
+                )
+            },
+        );
     }
 
-    if !source_path.is_file() {
-        return Err(BridgeCliError::PathNotAFile(file_path.to_string()));
+    // Report wallet files not in registry
+    if !files_only.is_empty() {
+        has_issues = true;
+        print_wallet_list("Wallet files not in registry:", files_only, |address| {
+            format!(
+                "  - {} (wallet_{}.json exists but not registered)",
+                address.yellow(),
+                address
+            )
+        });
     }
 
-    // Read and parse the wallet file
-    let wallet_content = fs::read_to_string(source_path)?;
-    let wallet_data: crate::wallet::wallet_storage::GenericWalletData =
-        serde_json::from_str(&wallet_content).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!(
-                "Failed to parse wallet file '{}': {}",
-                source_path.display(),
-                e
-            ))
-        })?;
-
-    // Extract and validate required fields
-    let wallet_address = wallet_data.address.clone();
-    let network = parse_network(&wallet_data.network)?;
-
-    // Validate that both wallet name and address don't already exist
-    validate_wallet_availability(
-        Some(wallet_name),
-        Some(&wallet_address),
-        Some(network),
-        WalletValidationMode::Both,
-    )?;
-
-    // Check if encrypted data exists
-    if wallet_data.encrypted_mnemonic.is_none() {
-        return Err(BridgeCliError::MissingEncryptedMnemonicField);
-    }
-
-    if wallet_data.encrypted_private_key.is_none() {
-        return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Missing encrypted private key field"
-        )));
-    }
-
-    Ok(wallet_data)
+    has_issues
 }
