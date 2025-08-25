@@ -77,21 +77,14 @@ pub(crate) fn derive_key_from_passphrase(
     Ok(SecureByteSlice::init_with(|| key))
 }
 
-/// Prompt user for a passphrase with confirmation for new keys
+/// Prompt user for a passphrase with confirmation for new keys. The passphrase can be
+/// empty; however, it is recommended to use a non-empty passphrase for security, since
+/// it protects your private key from unauthorized access.
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase protection:".blue().bold());
     println!("Enter a passphrase to encrypt your private key.");
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
-
-    if passphrase.is_empty() {
-        return Err(BridgeCliError::EmptyPassphrase);
-    }
-
-    // Validate passphrase strength
-    if passphrase.len() < 8 {
-        return Err(BridgeCliError::PassphraseTooShort);
-    }
 
     // Confirm passphrase
     if confirm {
@@ -116,10 +109,6 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 /// Prompt user for a passphrase to unlock existing encrypted key
 pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
     let passphrase = rpassword::prompt_password("Enter passphrase to unlock key: ")?;
-
-    if passphrase.is_empty() {
-        return Err(BridgeCliError::EmptyPassphrase);
-    }
 
     Ok(SecureString::init_with(|| passphrase))
 }

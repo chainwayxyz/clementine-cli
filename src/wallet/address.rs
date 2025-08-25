@@ -1,4 +1,4 @@
-use bitcoin::address::NetworkChecked;
+// use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
 use colored::Colorize;
@@ -10,13 +10,12 @@ use crate::structs::{SecureKeypair, SecureSecretKey, SecureString};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::{BitcoinAddress, NetworkUnchecked};
-use std::str::FromStr;
 
 /// Generate a Bitcoin address from a mnemonic phrase
 pub(crate) fn generate_address_from_mnemonic_secure(
     secure_mnemonic: &SecureString,
     network: Network,
-) -> Result<String, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
@@ -26,7 +25,7 @@ pub(crate) fn generate_address_from_mnemonic_secure(
 
     let address = calculate_taproot_address(&keypair, network);
 
-    Ok(address.to_string())
+    Ok(address)
 }
 
 /// Parse a Bitcoin address string into a proper Address object
@@ -97,18 +96,4 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     Ok(())
-}
-
-pub(crate) fn str_to_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress<NetworkChecked>, BridgeCliError> {
-    let wallet_address = BitcoinAddress::from_str(address)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid wallet address: {}", e)))?;
-
-    let wallet_address = wallet_address
-        .require_network(network)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Address does not match network: {}", e)))?;
-
-    Ok(wallet_address)
 }

@@ -12,14 +12,15 @@ use bitcoin::Network;
 use colored::Colorize;
 use eyre::eyre;
 use secrecy::ExposeSecret;
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 
+use crate::BitcoinAddress;
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
-use crate::wallet::address::generate_address_from_mnemonic_secure;
-use crate::wallet::wallet_storage::load_wallet_data;
-use crate::wallet::wallet_utils::parse_network;
+use crate::wallet::address::{generate_address_from_mnemonic_secure, parse_address};
+use crate::wallet::wallet_storage::{load_wallet_data, scan_wallet_files};
+use crate::wallet::wallet_utils::{load_key, parse_network, report_integrity_results};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
@@ -32,19 +33,16 @@ use mnemonic::{
 };
 use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use wallet_storage::get_storage_dir;
-use wallet_storage::get_wallets_from_registry;
 use wallet_storage::remove_wallet_from_registry;
-use wallet_storage::scan_wallet_files;
 use wallet_utils::{
-    WalletValidationMode, load_key_and_address, parse_and_validate_imported_wallet,
-    report_integrity_results, validate_mnemonic_import, validate_private_key_import,
-    validate_wallet_availability, wallet_exists,
+    WalletValidationMode, parse_and_validate_imported_wallet, validate_mnemonic_import,
+    validate_private_key_import, validate_wallet_availability, wallet_exists,
 };
 
 pub fn create_encrypted_wallet_with_address(
     network: Network,
     name: String,
-) -> Result<SecureString, BridgeCliError> {
+) -> Result<(), BridgeCliError> {
     // Generate mnemonic
     let secure_mnemonic = generate_mnemonic_secure()?;
 
@@ -52,10 +50,12 @@ pub fn create_encrypted_wallet_with_address(
     let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
+    let address_str = address.to_string();
+
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(
         Some(&name),
-        Some(&address.to_string()),
+        Some(&address_str),
         Some(network),
         WalletValidationMode::Both,
     )?;
@@ -71,7 +71,7 @@ pub fn create_encrypted_wallet_with_address(
 
     // Store encrypted wallet with separate encrypted fields
     wallet_storage::store_wallet_data(
-        &address.to_string(),
+        &address_str,
         network,
         &encrypted_mnemonic,
         &encrypted_private_key,
@@ -98,7 +98,7 @@ pub fn create_encrypted_wallet_with_address(
         }
     }
 
-    Ok(secure_mnemonic)
+    Ok(())
 }
 
 pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
@@ -269,6 +269,35 @@ pub fn import_wallet_from_mnemonic(
     Ok(address.to_string())
 }
 
+pub fn get_registry_wallet_map()
+-> Result<HashMap<String, (Network, BitcoinAddress)>, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    let registry_wallet_data = if wallets_file.exists() {
+        let wallets_content = fs::read_to_string(&wallets_file)?;
+        let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)
+            .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
+        wallets
+    } else {
+        println!("wallets.json not found - no registered wallets");
+        HashMap::new()
+    };
+
+    let mut wallet_map: HashMap<String, (Network, BitcoinAddress)> = HashMap::new();
+
+    for (wallet_name, wallet_data) in registry_wallet_data {
+        if let Some(address_str) = wallet_data["address"].as_str()
+            && let Some(network_str) = wallet_data["network"].as_str()
+        {
+            let network = parse_network(network_str)?;
+            wallet_map.insert(wallet_name, (network, parse_address(address_str, network)?));
+        }
+    }
+
+    Ok(wallet_map)
+}
+
 pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
@@ -276,26 +305,14 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     println!("Storage directory: {}", storage_dir.display());
     println!();
 
-    // Read wallets.json registry using centralized function
-    let registry_wallets: HashSet<String> = match get_wallets_from_registry() {
-        Ok(wallets) => wallets.keys().cloned().collect(),
-        Err(_) => {
-            println!("wallets.json not found - no registered wallets");
-            HashSet::new()
-        }
-    };
+    // Load registered wallets from wallets.json
+    let registry_wallets = get_registry_wallet_map()?;
 
-    // Scan for actual wallet files in storage directory using centralized function
-    let file_wallets = match scan_wallet_files() {
-        Ok(wallets) => wallets,
-        Err(e) => {
-            println!("Warning: Failed to scan wallet files: {}", e);
-            HashSet::new()
-        }
-    };
+    // Scan for actual wallet files in storage directory
+    let file_wallets = scan_wallet_files()?;
 
-    // Report results using centralized function
-    report_integrity_results(&registry_wallets, &file_wallets);
+    // Report integrity results
+    report_integrity_results(registry_wallets, file_wallets);
 
     Ok(())
 }
@@ -457,7 +474,7 @@ pub fn import_wallet_from_private_key(
     Ok(address.to_string())
 }
 
-pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), BridgeCliError> {
+pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
@@ -468,7 +485,7 @@ pub fn show_private_key(wallet_name: &str, network: Network) -> Result<(), Bridg
 
     let passphrase = prompt_unlock_passphrase()?;
 
-    let (keypair, _) = load_key_and_address(wallet_name, network, &passphrase)?;
+    let keypair = load_key(wallet_name, &passphrase)?;
 
     display_private_key_securely(&keypair.secret_key())?;
 
