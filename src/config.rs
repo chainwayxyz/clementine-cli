@@ -36,7 +36,7 @@ pub enum ConfigErrors {
 #[derive(Debug, Clone, Deserialize)]
 pub struct NetworkConfigs {
     pub bitcoin: BridgeCliConfig,
-    pub testnet: BridgeCliConfig,
+    pub testnet4: BridgeCliConfig,
     pub signet: BridgeCliConfig,
     pub regtest: BridgeCliConfig,
 }
@@ -102,7 +102,7 @@ impl BridgeCliConfig {
 
         Ok(match network {
             Network::Bitcoin => network_configs.bitcoin,
-            Network::Testnet | Network::Testnet4 => network_configs.testnet,
+            Network::Testnet | Network::Testnet4 => network_configs.testnet4,
             Network::Signet => network_configs.signet,
             Network::Regtest => network_configs.regtest,
         })
@@ -233,7 +233,7 @@ mod tests {
         let invalid_content = "invalid file content";
         let mut file = File::create(file_name).unwrap();
         file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).is_err());
 
         // Read first example test file use for this test.
         let base_path = env!("CARGO_MANIFEST_DIR");
@@ -243,11 +243,11 @@ mod tests {
         file.write_all(content.as_bytes()).unwrap();
 
         let read_config =
-            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet).unwrap();
+            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).unwrap();
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
-        assert_eq!(read_config.network, Network::Testnet);
+        assert_eq!(read_config.network, Network::Testnet4);
         assert_eq!(
             read_config.bitcoin_config.unwrap().url.as_str(),
             "http://127.0.0.1:18443/"

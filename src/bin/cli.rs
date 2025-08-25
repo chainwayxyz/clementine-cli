@@ -77,7 +77,7 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
-    /// Path to config file. If not given, ~/.clementine/bridge_cli_config.toml of $PWD/bridge_cli_config.toml files will be used by that order.
+    /// Path to config file. If not given, ~/.clementine/bridge_cli_config.toml or $PWD/bridge_cli_config.toml files will be used in that order.
     #[arg(long)]
     config_file: Option<PathBuf>,
 

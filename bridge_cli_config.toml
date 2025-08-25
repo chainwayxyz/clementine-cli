@@ -19,8 +19,8 @@ user = "admin"
 password = "admin"
 
 # ------------------------------------------------------------------------------
-[testnet]
-network = "testnet"
+[testnet4]
+network = "testnet4"
 
 aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
 
@@ -34,7 +34,7 @@ citrea_backend_endpoint = "https://api.testnet.citrea.xyz"
 citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
 
-[testnet.bitcoin_config]
+[testnet4.bitcoin_config]
 url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
