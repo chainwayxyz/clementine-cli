@@ -15,6 +15,10 @@ use thiserror::Error;
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
         .unwrap()
+
+    // Old deployments
+    // XOnlyPublicKey::from_str("93c7378d96518a75448821c4f7c8f4bae7ce60f804d03d1f0628dd5dd0f5de51")
+    //     .unwrap()
 });
 
 #[derive(Debug, Error)]
