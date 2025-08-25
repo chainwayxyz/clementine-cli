@@ -12,13 +12,12 @@ use bitcoin::Network;
 use colored::Colorize;
 use eyre::eyre;
 use secrecy::ExposeSecret;
-use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::{self, Write};
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::wallet::address::generate_address_from_mnemonic_secure;
-use crate::wallet::wallet_storage::{load_wallet_data, scan_wallet_files};
+use crate::wallet::wallet_storage::{get_registry_wallet_set, load_wallet_data, scan_wallet_files};
 use crate::wallet::wallet_utils::{address_exists, load_key, parse_network};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -35,7 +34,7 @@ use wallet_storage::get_storage_dir;
 use wallet_storage::remove_wallet_from_registry;
 use wallet_utils::{
     WalletValidationMode, parse_and_validate_imported_wallet, report_integrity_results,
-    validate_mnemonic_import, validate_private_key_import, validate_wallet_availability
+    validate_mnemonic_import, validate_private_key_import, validate_wallet_availability,
 };
 
 pub fn create_encrypted_wallet_with_address(
@@ -255,38 +254,6 @@ pub fn import_wallet_from_mnemonic(
     .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
 
     Ok(address.to_string())
-}
-
-pub fn get_registry_wallet_set() -> Result<HashSet<String>, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
-    let wallets_file = storage_dir.join("wallets.json");
-
-    let registry_wallet_data = if wallets_file.exists() {
-        let wallets_content = fs::read_to_string(&wallets_file)?;
-        let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)
-            .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
-        wallets
-    } else {
-        println!("wallets.json not found - no registered wallets");
-        HashMap::new()
-    };
-
-    let mut wallet_map: HashSet<String> = HashSet::new();
-
-    for (_name, wallet_value) in registry_wallet_data {
-        match serde_json::from_value::<crate::wallet::wallet_storage::GenericWalletData>(
-            wallet_value,
-        ) {
-            Ok(wallet_struct) => {
-                wallet_map.insert(wallet_struct.address);
-            }
-            Err(e) => {
-                eprintln!("Warning: Failed to parse wallet registry entry: {}", e);
-            }
-        }
-    }
-
-    Ok(wallet_map)
 }
 
 pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {

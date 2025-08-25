@@ -219,6 +219,41 @@ pub(crate) fn remove_wallet_from_registry(address: &str) -> Result<bool, BridgeC
     Ok(was_removed)
 }
 
+pub(crate) fn get_registry_wallet_set() -> Result<HashSet<String>, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    let wallets_file = storage_dir.join("wallets.json");
+
+    let registry_wallet_data = if wallets_file.exists() {
+        let wallets_content = fs::read_to_string(&wallets_file)?;
+        let wallets: HashMap<String, serde_json::Value> = serde_json::from_str(&wallets_content)
+            .map_err(|e| BridgeCliError::WalletsJsonParseFailed(e.to_string()))?;
+        wallets
+    } else {
+        println!("wallets.json not found - no registered wallets");
+        HashMap::new()
+    };
+
+    let mut wallet_map: HashSet<String> = HashSet::new();
+
+    for (address, wallet_value) in registry_wallet_data {
+        match serde_json::from_value::<crate::wallet::wallet_storage::GenericWalletData>(
+            wallet_value,
+        ) {
+            Ok(_wallet_struct) => {
+                wallet_map.insert(address);
+            }
+            Err(e) => {
+                eprintln!(
+                    "Warning: Failed to parse wallet registry entry with address {}: {}",
+                    address, e
+                );
+            }
+        }
+    }
+
+    Ok(wallet_map)
+}
+
 /// Scans the wallet files in the specified directory.
 pub(crate) fn scan_wallet_files() -> Result<HashSet<String>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
