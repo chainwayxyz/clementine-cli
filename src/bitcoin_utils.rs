@@ -3,6 +3,7 @@
 use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::errors::BridgeCliError;
 use crate::script::{deposit_script, recover_script};
+use crate::structs::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
@@ -13,13 +14,6 @@ use bitcoin::{
 };
 use eyre::{Context, Result};
 use std::sync::LazyLock;
-
-use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::errors::BridgeCliError;
-use crate::musig2::AggregateFromPublicKeys;
-use crate::script::{deposit_script, recover_script};
-use crate::structs::SecureKeypair;
-use crate::{BitcoinAddress, CitreaAddress};
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
