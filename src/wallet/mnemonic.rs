@@ -1,10 +1,11 @@
 use bip39::{Language, Mnemonic};
 use secrecy::ExposeSecret;
-use zeroize::Zeroize;
 
 use crate::errors::BridgeCliError;
 use crate::secure_display::display_mnemonic_securely;
-use crate::structs::SecureString;
+use crate::structs::{
+    SecureByteSlice, SecureMnemonic, SecureSecretKey, SecureString, SecureWordVec,
+};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::load_wallet_data;
@@ -22,12 +23,12 @@ pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
 }
 
 pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
-    let mut mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
-        .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
+    let mnemonic = SecureMnemonic::new(
+        Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
+            .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?,
+    );
 
-    let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
-
-    mnemonic.zeroize();
+    let safe_mnemonic = SecureString::init_with(|| mnemonic.as_ref().to_string());
 
     Ok(safe_mnemonic)
 }
@@ -35,21 +36,22 @@ pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError>
 /// Generate master seed from mnemonic phrase
 pub(crate) fn get_master_seed_from_mnemonic(
     mnemonic_phrase: &SecureString,
-) -> Result<[u8; 32], BridgeCliError> {
-    let mut mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
+) -> Result<SecureByteSlice, BridgeCliError> {
+    let mnemonic = SecureMnemonic::new(
+        Mnemonic::parse(mnemonic_phrase.expose_secret())
+            .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?,
+    );
 
-    // Generate seed (64 bytes)
-    let mut seed = mnemonic.to_seed("");
+    // Generate seed (64 bytes) - automatically secured
+    let seed = mnemonic.to_seed("");
 
-    // Make this safe - secure
+    // Extract first 32 bytes for master seed - securely
     let mut master_seed = [0u8; 32];
-    master_seed.copy_from_slice(&seed[0..32]);
+    master_seed.copy_from_slice(&seed.expose_secret()[0..32]);
 
-    mnemonic.zeroize();
-    seed.zeroize();
+    let secure_master_seed = SecureByteSlice::new(Box::new(master_seed));
 
-    Ok(master_seed)
+    Ok(secure_master_seed)
 }
 
 fn load_mnemonic_secure(
@@ -75,12 +77,11 @@ pub(crate) fn derive_private_key_from_mnemonic_secure(
     // Generate master seed from mnemonic using BIP-39
     let master_seed = get_master_seed_from_mnemonic(mnemonic)?;
 
-    let mut master_private_key = SecretKey::from_slice(&master_seed)?;
+    let master_private_key =
+        SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
 
     let secure_private_key =
-        SecureString::init_with(|| master_private_key.display_secret().to_string());
-
-    master_private_key.non_secure_erase();
+        SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
 
     Ok(secure_private_key)
 }
@@ -99,27 +100,25 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     );
     println!();
 
-    let mut words: Vec<String> = Vec::new();
+    let mut words = SecureWordVec::new();
     let mut word_index = 1;
 
     // Get the BIP-39 English wordlist for validation
     let wordlist = Language::English.word_list();
 
     loop {
-        let mut word =
+        let word_input =
             rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))
-                .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?
-                .trim()
-                .to_lowercase();
+                .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
+
+        let word = word_input.trim().to_lowercase();
 
         // Validate word against BIP-39 wordlist
         if wordlist.iter().any(|&w| w == word) {
-            words.push(word.clone());
+            words.push(word);
             println!("Word {} accepted", word_index);
             word_index += 1;
-            word.zeroize(); // Clear the word from memory
 
-            // Check if we have a valid mnemonic length and offer to finish
             if words.len() == MNEMONIC_WORD_COUNT {
                 println!();
                 println!(
@@ -129,7 +128,7 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
                 break;
             }
         } else {
-            word.zeroize(); // Clear invalid word from memory
+            // word_input is automatically cleaned up
             println!("Invalid word entered. Please try again.");
             println!("Hint: Words should be lowercase English BIP-39 words.");
         }
@@ -138,42 +137,28 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     // Validate final mnemonic length
     let word_count = words.len();
     if word_count != MNEMONIC_WORD_COUNT {
-        for mut word in words {
-            word.zeroize();
-        }
         return Err(BridgeCliError::InvalidMnemonicLength(word_count));
     }
 
-    // Join words and validate complete mnemonic
-    let mut mnemonic_phrase = words.join(" ");
-    let mnemonic_validation = Mnemonic::parse(&mnemonic_phrase);
+    // Join words and validate complete mnemonic - keep it secure from the start
+    let secure_mnemonic_phrase = SecureString::init_with(|| words.join(" "));
 
-    // Clear individual words from memory
-    for mut word in words {
-        word.zeroize();
-    }
+    // Use SecureMnemonic for validation to ensure proper cleanup
+    let _secure_mnemonic_obj = SecureMnemonic::new(
+        Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
+            .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?,
+    );
 
-    match mnemonic_validation {
-        Ok(mut mnemonic) => {
-            println!();
-            println!(
-                "{} Valid BIP-39 mnemonic phrase with {} words",
-                "SUCCESS".green().bold(),
-                mnemonic_phrase.split_whitespace().count()
-            );
-            println!("Mnemonic will be handled securely and zeroized from memory");
+    println!();
+    println!(
+        "{} Valid BIP-39 mnemonic phrase with {} words",
+        "SUCCESS".green().bold(),
+        secure_mnemonic_phrase
+            .expose_secret()
+            .split_whitespace()
+            .count()
+    );
+    println!("Mnemonic will be handled securely and zeroized from memory");
 
-            // Create secure string
-            let secure_mnemonic = SecureString::init_with(|| mnemonic_phrase);
-
-            mnemonic.zeroize();
-
-            Ok(secure_mnemonic)
-        }
-        Err(e) => {
-            mnemonic_phrase.zeroize();
-            // This shouldn't happen since we validated each word, but safety check
-            Err(BridgeCliError::MnemonicValidationFailed(e.to_string()))
-        }
-    }
+    Ok(secure_mnemonic_phrase)
 }

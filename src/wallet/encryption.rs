@@ -58,15 +58,15 @@
 //! - **Memory Protection**: All sensitive data automatically zeroized after use
 //! - **Forward Secrecy**: Compromised derived keys don't reveal original passphrase
 
+use crate::{
+    errors::BridgeCliError,
+    structs::{SecureByteVec, SecureString},
+    wallet::passphrase::derive_key_from_passphrase,
+};
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
-use zeroize::Zeroize;
-
-use crate::{
-    errors::BridgeCliError, structs::SecureString, wallet::passphrase::derive_key_from_passphrase,
-};
 
 // Argon2id parameters: 3 iterations, 64MB memory, 1 thread
 // Balances security (GPU/ASIC resistance) with interactive performance
@@ -151,15 +151,16 @@ pub(crate) fn aes_decrypt_secure(
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
     let nonce = GenericArray::from_slice(&encrypted_data.nonce);
 
-    let mut plaintext = cipher
+    let plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
         .map_err(|e| BridgeCliError::DecryptionError(e.to_string()))?;
 
-    let plaintext_string = String::from_utf8(plaintext.clone())
+    let secure_plaintext_bytes = SecureByteVec::new(Box::new(plaintext));
+
+    let plaintext_string = String::from_utf8(secure_plaintext_bytes.expose_secret().clone())
         .map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
-    plaintext.zeroize();
 
     Ok(secure_string)
 }
