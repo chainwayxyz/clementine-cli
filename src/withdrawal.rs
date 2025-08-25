@@ -4,11 +4,10 @@ use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signatur
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
-use crate::structs::AddressExt;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
-use crate::wallet::address::parse_address;
+use crate::wallet::address::{parse_address, parse_taproot_address};
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{address_exists, load_address_from_registry, load_key};
+use crate::wallet::wallet_utils::{address_exists, load_key};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -26,25 +25,21 @@ use std::str::FromStr;
 use urlencoding::encode;
 
 pub fn generate_withdrawal_signature(
-    wallet_name: &str,
+    signer_address_str: &str,
     claim_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
-    let signer_address = load_address_from_registry(wallet_name, network)?;
-
-    if !signer_address.is_taproot() {
-        return Err(BridgeCliError::NotTaprootAddress);
-    }
+    let signer_address = parse_taproot_address(signer_address_str, network)?;
 
     // Check if the claim address belongs to any of our wallets
-    if address_exists(claim_address, network)? {
+    if address_exists(claim_address)? {
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
+
     let secure_passphrase = prompt_unlock_passphrase()?;
-    // let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
-    let keypair = load_key(wallet_name, &secure_passphrase)?;
+    let keypair = load_key(signer_address_str, &secure_passphrase)?;
 
     let claim_address = parse_address(claim_address, network)?;
 
@@ -161,21 +156,21 @@ pub(crate) async fn get_tx_details(
 }
 
 pub async fn safe_withdraw(
-    wallet_name: &str,
+    signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let signer_address = load_address_from_registry(wallet_name, config.network)?;
+    let signer_address = parse_taproot_address(signer_address, config.network)?;
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse taproot signature")?;
-    // let signer_address = load_address(wallet_name, None, config.network)?;
+
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
@@ -250,7 +245,7 @@ pub async fn safe_withdraw(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_safe_withdrawal(
-    wallet_name: &str,
+    signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo: &str,
     amount: f64,
@@ -259,7 +254,6 @@ pub async fn send_safe_withdrawal(
 ) -> Result<TransactionReceipt, BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let signer_address = load_address_from_registry(wallet_name, config.network)?;
     let secret_key = std::env::var("SECRET_KEY").map_err(|e| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable: {e}"))?;
     let signer: PrivateKeySigner = secret_key
         .parse()
@@ -280,7 +274,8 @@ pub async fn send_safe_withdrawal(
     // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse signature")?;
-    // let signer_address = load_address(wallet_name, None, config.network)?;
+
+    let signer_address = parse_taproot_address(signer_address, config.network)?;
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {

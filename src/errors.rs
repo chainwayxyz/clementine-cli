@@ -97,9 +97,9 @@ pub enum BridgeCliError {
     NoEncryptedPrivateKeyFound,
 
     // Wallet storage related errors
-    #[error("Wallet with name '{0}' already exists")]
-    WalletAlreadyExists(String),
-    #[error("No wallet found with name: {0}")]
+    #[error("Wallet with label '{0}' already exists")]
+    LabelAlreadyExists(String),
+    #[error("No wallet found with address: {0}")]
     WalletNotFound(String),
     #[error("Could not determine home directory")]
     HomeDirectoryNotFound,

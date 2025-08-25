@@ -58,10 +58,10 @@ pub(crate) fn get_master_seed_from_mnemonic(
 }
 
 fn load_mnemonic_secure(
-    wallet_name: &str,
+    address: &str,
     passphrase: &SecureString,
 ) -> Result<SecureString, BridgeCliError> {
-    let wallet_data = load_wallet_data(wallet_name)?;
+    let wallet_data = load_wallet_data(address)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?

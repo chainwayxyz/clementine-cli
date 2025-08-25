@@ -76,7 +76,7 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     println!("Found {} wallet(s):", wallets.len());
-    for (name, wallet_entry) in &wallets {
+    for (address, wallet_entry) in &wallets {
         let import_info = if let Some(true) = wallet_entry.imported {
             if let Some(method) = &wallet_entry.import_method {
                 format!(" (Imported via {})", method)
@@ -89,8 +89,8 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
 
         println!(
             "Wallet: {} -> Address: {}{}",
-            name.blue(),
-            wallet_entry.address.green(),
+            wallet_entry.label.blue(),
+            address.green(),
             import_info.cyan()
         );
     }

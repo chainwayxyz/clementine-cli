@@ -84,13 +84,3 @@ impl Drop for SecureKeypair {
         self.inner.non_secure_erase();
     }
 }
-
-pub(crate) trait AddressExt {
-    fn is_taproot(&self) -> bool;
-}
-
-impl AddressExt for bitcoin::Address {
-    fn is_taproot(&self) -> bool {
-        self.address_type() == Some(bitcoin::AddressType::P2tr)
-    }
-}
