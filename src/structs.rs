@@ -1,4 +1,3 @@
-use bip39::Mnemonic;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use secrecy::SecretBox;
 use zeroize::Zeroize;
@@ -37,31 +36,6 @@ impl Drop for SecureWordVec {
             word.zeroize();
         }
         self.inner.clear();
-    }
-}
-
-/// A secure wrapper for Mnemonic that automatically erases itself when dropped
-pub(crate) struct SecureMnemonic {
-    inner: Mnemonic,
-}
-
-impl SecureMnemonic {
-    pub fn new(mnemonic: Mnemonic) -> Self {
-        Self { inner: mnemonic }
-    }
-
-    pub fn as_ref(&self) -> &Mnemonic {
-        &self.inner
-    }
-
-    pub fn to_seed(&self, passphrase: &str) -> SecureSeed {
-        SecureSeed::new(Box::new(self.inner.to_seed(passphrase)))
-    }
-}
-
-impl Drop for SecureMnemonic {
-    fn drop(&mut self) {
-        self.inner.zeroize();
     }
 }
 
