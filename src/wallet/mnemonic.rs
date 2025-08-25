@@ -151,18 +151,14 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     // Join words and validate complete mnemonic - keep it secure from the start
     let secure_mnemonic_phrase = SecureString::init_with(|| words.join(" "));
 
-    // Use SecureMnemonic for validation to ensure proper cleanup
+    // Use Mnemonic for validation to ensure proper cleanup
     let _secure_mnemonic_obj = Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
         .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
 
     println!();
     println!(
-        "{} Valid BIP-39 mnemonic phrase with {} words",
+        "{} Valid BIP-39 mnemonic phrase with 12 words",
         "SUCCESS".green().bold(),
-        secure_mnemonic_phrase
-            .expose_secret()
-            .split_whitespace()
-            .count()
     );
     println!("Mnemonic will be handled securely and zeroized from memory");
 

@@ -42,7 +42,7 @@ use wallet_utils::{
 pub fn create_encrypted_wallet_with_address(
     network: Network,
     name: String,
-) -> Result<SecureString, BridgeCliError> {
+) -> Result<(), BridgeCliError> {
     // Generate mnemonic
     let secure_mnemonic = generate_mnemonic_secure()?;
 
@@ -50,10 +50,12 @@ pub fn create_encrypted_wallet_with_address(
     let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
+    let address_str = address.to_string();
+
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(
         Some(&name),
-        Some(&address.to_string()),
+        Some(&address_str),
         Some(network),
         WalletValidationMode::Both,
     )?;
@@ -69,7 +71,7 @@ pub fn create_encrypted_wallet_with_address(
 
     // Store encrypted wallet with separate encrypted fields
     wallet_storage::store_wallet_data(
-        &address.to_string(),
+        &address_str,
         network,
         &encrypted_mnemonic,
         &encrypted_private_key,
@@ -96,7 +98,7 @@ pub fn create_encrypted_wallet_with_address(
         }
     }
 
-    Ok(secure_mnemonic)
+    Ok(())
 }
 
 pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {

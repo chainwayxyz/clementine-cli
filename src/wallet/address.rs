@@ -15,7 +15,7 @@ use crate::{BitcoinAddress, NetworkUnchecked};
 pub(crate) fn generate_address_from_mnemonic_secure(
     secure_mnemonic: &SecureString,
     network: Network,
-) -> Result<String, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
@@ -25,7 +25,7 @@ pub(crate) fn generate_address_from_mnemonic_secure(
 
     let address = calculate_taproot_address(&keypair, network);
 
-    Ok(address.to_string())
+    Ok(address)
 }
 
 /// Parse a Bitcoin address string into a proper Address object

@@ -6,6 +6,7 @@ use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
 use crate::wallet::address::generate_address_from_mnemonic_secure;
 use crate::wallet::address::parse_address;
+use crate::wallet::address::parse_taproot_address;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::GenericWalletData;
 use crate::wallet::wallet_storage::get_storage_dir;
@@ -54,9 +55,11 @@ pub(crate) fn load_key(
 pub(crate) fn validate_mnemonic_import(
     decrypted_mnemonic: &SecureString,
     wallet_data: &GenericWalletData,
-    wallet_address: &str,
+    wallet_address_str: &str,
 ) -> Result<(), BridgeCliError> {
     let network = parse_network(&wallet_data.network)?;
+
+    let wallet_address = parse_address(wallet_address_str, network)?;
 
     // Generate address from mnemonic to verify it matches
     match generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
@@ -281,6 +284,8 @@ pub(crate) fn parse_and_validate_imported_wallet(
     // Extract and validate required fields
     let wallet_address = wallet_data.address.clone();
     let network = parse_network(&wallet_data.network)?;
+
+    let _address = parse_taproot_address(&wallet_address, network)?;
 
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(
