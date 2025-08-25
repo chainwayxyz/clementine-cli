@@ -8,7 +8,7 @@ use crate::structs::AddressExt;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{is_wallet_address, load_address_from_registry, load_key};
+use crate::wallet::wallet_utils::{address_exists, load_address_from_registry, load_key};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -39,7 +39,7 @@ pub fn generate_withdrawal_signature(
     }
 
     // Check if the claim address belongs to any of our wallets
-    if is_wallet_address(claim_address)? {
+    if address_exists(claim_address, network)? {
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
     let secure_passphrase = prompt_unlock_passphrase()?;

@@ -3,13 +3,17 @@ use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     path::PathBuf,
 };
 
+use crate::BitcoinAddress;
 use crate::errors::BridgeCliError;
+use crate::wallet::address::parse_address;
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
-use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
+use crate::wallet::wallet_utils::{
+    WalletValidationMode, parse_network, validate_wallet_availability,
+};
 
 /// Registry entry for a wallet stored in wallets.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -229,50 +233,48 @@ pub(crate) fn remove_wallet_from_registry(wallet_name: &str) -> Result<bool, Bri
     Ok(was_removed)
 }
 
-/// Scan the storage directory for wallet files and extract their addresses
-pub(crate) fn scan_wallet_files() -> Result<HashSet<String>, BridgeCliError> {
+/// Scans the wallet files in the specified directory.
+pub(crate) fn scan_wallet_files()
+-> Result<HashMap<String, (Network, BitcoinAddress)>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
-    let mut file_wallets: HashSet<String> = HashSet::new();
+    let mut file_wallets: HashMap<String, (Network, BitcoinAddress)> = HashMap::new();
 
-    if !storage_dir.exists() {
-        return Ok(file_wallets);
-    }
+    if storage_dir.exists() {
+        for entry in fs::read_dir(storage_dir)? {
+            let entry = entry?;
+            let file_name = entry.file_name();
+            let file_name_str = file_name.to_string_lossy();
 
-    for entry in fs::read_dir(&storage_dir)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read storage directory: {}", e)))?
-    {
-        let entry = entry.map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to read directory entry: {}", e))
-        })?;
-
-        let file_name = entry.file_name();
-        let file_name_str = file_name.to_string_lossy();
-
-        // Check if it's a wallet file (wallet_*.json but not wallets.json)
-        if file_name_str.starts_with("wallet_")
-            && file_name_str.ends_with(".json")
-            && file_name_str != "wallets.json"
-        {
-            let wallet_file_path = entry.path();
-            match fs::read_to_string(&wallet_file_path) {
-                Ok(wallet_content) => {
-                    match serde_json::from_str::<GenericWalletData>(&wallet_content) {
-                        Ok(wallet_data) => {
-                            file_wallets.insert(wallet_data.wallet_name);
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "Warning: Failed to parse wallet file {}: {}",
-                                file_name_str, e
-                            );
+            // Check if it's a wallet file (wallet_*.json)
+            if file_name_str.starts_with("wallet_")
+                && file_name_str.ends_with(".json")
+                && file_name_str != "wallets.json"
+            {
+                let wallet_file_path = entry.path();
+                match fs::read_to_string(&wallet_file_path) {
+                    Ok(wallet_content) => {
+                        match serde_json::from_str::<GenericWalletData>(&wallet_content) {
+                            Ok(wallet_data) => {
+                                let network = parse_network(&wallet_data.network)?;
+                                file_wallets.insert(
+                                    wallet_data.wallet_name,
+                                    (network, parse_address(&wallet_data.address, network)?),
+                                );
+                            }
+                            Err(e) => {
+                                eprintln!(
+                                    "Warning: Failed to parse wallet file {}: {}",
+                                    file_name_str, e
+                                );
+                            }
                         }
                     }
-                }
-                Err(e) => {
-                    eprintln!(
-                        "Warning: Failed to read wallet file {}: {}",
-                        file_name_str, e
-                    );
+                    Err(e) => {
+                        eprintln!(
+                            "Warning: Failed to read wallet file {}: {}",
+                            file_name_str, e
+                        );
+                    }
                 }
             }
         }

@@ -10,7 +10,6 @@ use crate::structs::{SecureKeypair, SecureSecretKey, SecureString};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::{BitcoinAddress, NetworkUnchecked};
-use std::{fs, str::FromStr};
 
 /// Generate a Bitcoin address from a mnemonic phrase
 pub(crate) fn generate_address_from_mnemonic_secure(
