@@ -2,10 +2,7 @@ use bitcoin::Network;
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::fs;
-use std::{
-    collections::HashMap,
-    path::PathBuf,
-};
+use std::{collections::HashMap, path::PathBuf};
 
 use crate::BitcoinAddress;
 use crate::errors::BridgeCliError;
