@@ -236,9 +236,7 @@ pub(crate) fn get_registry_wallet_set() -> Result<HashSet<String>, BridgeCliErro
     let mut wallet_map: HashSet<String> = HashSet::new();
 
     for (address, wallet_value) in registry_wallet_data {
-        match serde_json::from_value::<crate::wallet::wallet_storage::GenericWalletData>(
-            wallet_value,
-        ) {
+        match serde_json::from_value::<WalletRegistryEntry>(wallet_value) {
             Ok(_wallet_struct) => {
                 wallet_map.insert(address);
             }

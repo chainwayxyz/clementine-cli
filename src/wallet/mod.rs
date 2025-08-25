@@ -222,7 +222,7 @@ pub fn import_wallet_from_mnemonic(
     // Securely prompt for passphrase
     println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
     println!("Enter a strong passphrase to encrypt your imported wallet:");
-    let passphrase = prompt_passphrase(false)?;
+    let passphrase = prompt_passphrase(true)?;
 
     println!("Passphrase created successfully!");
     println!();
@@ -398,7 +398,7 @@ pub fn import_wallet_from_private_key(
         WalletValidationMode::Address,
     )?;
 
-    let passphrase = prompt_passphrase(false)?;
+    let passphrase = prompt_passphrase(true)?;
 
     let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
 

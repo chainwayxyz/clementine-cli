@@ -7,12 +7,17 @@ use crate::structs::{SecureByteSlice, SecureSecretKey, SecureSeed, SecureString,
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::load_wallet_data;
+use crate::wallet::wallet_utils::address_exists;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
+    if !address_exists(address)? {
+        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+    }
+
     let passphrase = prompt_unlock_passphrase()?;
 
     match load_mnemonic_secure(address, &passphrase) {
