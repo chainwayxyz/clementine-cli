@@ -1,5 +1,10 @@
 // Bitcoin utility functions for Clementine CLI
 
+use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::errors::BridgeCliError;
+use crate::script::{deposit_script, recover_script};
+use crate::structs::SecureKeypair;
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
@@ -9,13 +14,6 @@ use bitcoin::{
 };
 use eyre::{Context, Result};
 use std::sync::LazyLock;
-
-use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::errors::BridgeCliError;
-use crate::musig2::AggregateFromPublicKeys;
-use crate::script::{deposit_script, recover_script};
-use crate::structs::SecureKeypair;
-use crate::{BitcoinAddress, CitreaAddress};
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
@@ -34,10 +32,7 @@ pub(crate) fn calculate_deposit_address(
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
-    let agg_pk = XOnlyPublicKey::from_musig2_pks(config.verifiers_pks.as_slice())?;
-    debug!("verifiers_public_keys: {:?}", config.verifiers_pks);
-    debug!("agg_pk: {:?}", agg_pk.to_string());
-    let deposit_script = deposit_script(*citrea_address, agg_pk);
+    let deposit_script = deposit_script(*citrea_address, config.aggregated_public_key);
     let recovery_key =
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
     let recover_script = recover_script(recovery_key, config.user_takes_after);
@@ -162,13 +157,13 @@ pub(crate) fn sign_recovery_tx(
             .unwrap()
     };
 
-    debug!("sighash: {:?}", sighash);
-    debug!("recovery_script: {:?}", recovery_script);
-    debug!(
+    tracing::debug!("sighash: {:?}", sighash);
+    tracing::debug!("recovery_script: {:?}", recovery_script);
+    tracing::debug!(
         "recovery key: {:?}",
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])
     );
-    debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("input_amount: {:?}", input_amount);
 
     let sig = sign_with_tweak(keypair, sighash, None);
 
@@ -192,12 +187,12 @@ pub(crate) fn sign_recovery_tx(
 
     recovery_tx.input[0].witness = witness;
 
-    debug!(
+    tracing::debug!(
         "recovery_tx: {:?}",
         hex::encode(bitcoin::consensus::serialize(&recovery_tx))
     );
     let weight = recovery_tx.weight();
-    debug!("weight: {:?}", weight);
+    tracing::debug!("weight: {:?}", weight);
 
     Ok(recovery_tx)
 }
@@ -303,10 +298,10 @@ pub(crate) fn verify_recovery_tx(
             .unwrap()
     };
 
-    debug!("sighash: {:?}", sighash);
-    debug!("taproot_signature: {:?}", taproot_signature);
-    debug!("recovery_key: {:?}", recovery_key);
-    debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("sighash: {:?}", sighash);
+    tracing::debug!("taproot_signature: {:?}", taproot_signature);
+    tracing::debug!("recovery_key: {:?}", recovery_key);
+    tracing::debug!("input_amount: {:?}", input_amount);
 
     // verify the signature
     SECP.verify_schnorr(

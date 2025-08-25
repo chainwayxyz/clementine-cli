@@ -1,7 +1,7 @@
 use bitcoin::{
     ScriptBuf, XOnlyPublicKey,
     opcodes::{OP_FALSE, all::*},
-    script::{Builder, PushBytesBuf},
+    script::Builder,
 };
 
 use crate::CitreaAddress;
@@ -32,7 +32,10 @@ pub(crate) fn deposit_script(
         .push_opcode(OP_IF)
         .push_slice(citrea)
         .push_slice(*citrea_address.0)
-        .push_slice(PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap()).unwrap())
+        // .push_slice(
+        //     bitcoin::script::PushBytesBuf::try_from(hex::decode("000000003b9aca00").unwrap())
+        //         .unwrap(),
+        // ) // Enable for older deployments
         .push_opcode(OP_ENDIF)
         .into_script()
 }

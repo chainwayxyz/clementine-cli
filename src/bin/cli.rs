@@ -1,7 +1,18 @@
-use std::path::PathBuf;
-
+use bitcoin::taproot::Signature;
 use clap::{Parser, Subcommand};
+use clementine_cli::{
+    config::BridgeCliConfig,
+    deposit, show_mnemonic_secure,
+    wallet::{
+        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
+        import_wallet_from_mnemonic, verify_wallet_integrity,
+    },
+    withdrawal,
+};
 use colored::Colorize;
+use std::path::PathBuf;
+use tracing::level_filters::LevelFilter;
+use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
 macro_rules! handle_or_exit {
     ($expr:expr) => {
@@ -11,23 +22,68 @@ macro_rules! handle_or_exit {
         }
     };
 }
-use clementine_cli::{
-    config::BridgeCliConfig,
-    debug, deposit, show_mnemonic_secure,
-    wallet::{
-        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
-        import_wallet_from_mnemonic, verify_wallet_integrity,
-    },
-    withdrawal,
-};
+
+macro_rules! print_or_exit {
+    ($expr:expr) => {
+        match $expr {
+            Ok(result) => println!("{result:?}"),
+            Err(e) => {
+                eprintln!("{} {e}", "Error:".red().bold());
+                std::process::exit(1);
+            }
+        }
+    };
+    ($expr:expr, $wrapper:expr) => {
+        match $expr {
+            Ok(result) => println!("{:?}", $wrapper(result)),
+            Err(e) => {
+                eprintln!("{} {e}", "Error:".red().bold());
+                std::process::exit(1);
+            }
+        }
+    };
+}
+
+/// Initializes tracing to `Debug` level if verbose flag is given. If not,
+/// defaults to `RUST_LOG` env variable.
+pub(crate) fn initialize_logger(is_verbose: bool) {
+    let level = if is_verbose {
+        Some(LevelFilter::DEBUG)
+    } else {
+        None
+    };
+
+    let filter = match level {
+        Some(lvl) => EnvFilter::builder()
+            .with_default_directive(lvl.into())
+            .from_env_lossy(),
+        None => EnvFilter::from_default_env(),
+    };
+
+    let standard_layer = fmt::layer()
+        .with_test_writer()
+        .with_file(true)
+        .with_line_number(true)
+        .with_target(true);
+
+    let _ = tracing::subscriber::set_global_default(
+        tracing_subscriber::registry()
+            .with(standard_layer)
+            .with(filter),
+    );
+}
 
 #[derive(Parser)]
 #[command(name = "clementine")]
-#[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None)]
+#[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
     /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
     #[arg(long)]
     config_file: Option<PathBuf>,
+
+    /// Turns verbose logging on
+    #[arg(long, action = clap::ArgAction::SetTrue)]
+    verbose: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -183,20 +239,29 @@ async fn main() {
 
     let cli = Cli::parse();
 
+    initialize_logger(cli.verbose);
+
     let config = if let Some(config_file_path) = cli.config_file {
-        debug!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|_| {
+        tracing::info!("Config file {config_file_path:?} is going to be used...");
+        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
             panic!(
-                "Failed to read config file: {:?}",
-                config_file_path.display()
+                "Failed to read config file {:?}: {:?}",
+                config_file_path.display(),
+                e
             )
         })
     } else {
         let mut current_dir = std::env::current_dir().unwrap();
         current_dir.push("bridge_cli_config.toml");
-        debug!("No config file given, looking for the current directory: {current_dir:?}...");
-        BridgeCliConfig::try_parse_file(current_dir.clone())
-            .unwrap_or_else(|_| panic!("Failed to read config file: {:?}", current_dir.display()))
+        tracing::info!(
+            "No config file given, looking for the current directory: {current_dir:?}..."
+        );
+        BridgeCliConfig::try_parse_file(current_dir.clone()).unwrap_or_else(|e| {
+            panic!(
+                "Failed to read config file: {:?}: {e}",
+                current_dir.display()
+            )
+        })
     };
 
     match cli.command {
@@ -249,11 +314,14 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                handle_or_exit!(deposit::get_deposit_address(
-                    &citrea_address,
-                    &recovery_taproot_address,
-                    &config,
-                ));
+                print_or_exit!(
+                    deposit::get_deposit_address(
+                        &citrea_address,
+                        &recovery_taproot_address,
+                        &config,
+                    )
+                    .await
+                );
             }
             DepositCommands::SignRecoveryTx {
                 wallet_name,
@@ -264,16 +332,23 @@ async fn main() {
                 fee_rate,
                 amount,
             } => {
-                handle_or_exit!(deposit::sign_recovery_tx(
-                    &evm_address,
-                    &wallet_name,
-                    &deposit_txid,
-                    deposit_vout,
-                    &claim_address,
-                    fee_rate,
-                    amount,
-                    &config,
-                ));
+                fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
+                    hex::encode(bitcoin::consensus::serialize(&tx))
+                }
+
+                print_or_exit!(
+                    deposit::sign_recovery_tx(
+                        &evm_address,
+                        &wallet_name,
+                        &deposit_txid,
+                        deposit_vout,
+                        &claim_address,
+                        fee_rate,
+                        amount,
+                        &config,
+                    ),
+                    serialize_and_encode
+                );
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
@@ -293,7 +368,10 @@ async fn main() {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
-                handle_or_exit!(deposit::get_deposit_params(&move_to_vault_txid, &config).await);
+                print_or_exit!(
+                    deposit::get_deposit_params(&move_to_vault_txid, &config).await,
+                    hex::encode
+                );
             }
         },
         Commands::Withdrawal { command } => match command {
@@ -303,13 +381,20 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
             } => {
-                handle_or_exit!(withdrawal::generate_withdrawal_signature(
-                    &wallet_name,
-                    &withdrawal_address,
-                    &withdrawal_utxo,
-                    amount,
-                    config.network,
-                ));
+                fn serialize_and_encode(signature: Signature) -> String {
+                    hex::encode(signature.serialize())
+                }
+
+                print_or_exit!(
+                    withdrawal::generate_withdrawal_signature(
+                        &wallet_name,
+                        &withdrawal_address,
+                        &withdrawal_utxo,
+                        amount,
+                        config.network,
+                    ),
+                    serialize_and_encode
+                );
             }
             WithdrawalCommands::SafeWithdraw {
                 wallet_name,
@@ -337,7 +422,7 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                handle_or_exit!(
+                print_or_exit!(
                     withdrawal::send_safe_withdrawal(
                         &wallet_name,
                         &withdrawal_address,

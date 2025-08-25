@@ -12,8 +12,10 @@ use crate::wallet::wallet_utils::{load_address, load_key_and_address};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
+use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
+use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use colored::*;
@@ -29,7 +31,7 @@ pub fn generate_withdrawal_signature(
     withdrawal_utxo: &str,
     amount: f64,
     network: Network,
-) -> Result<(), BridgeCliError> {
+) -> Result<Signature, BridgeCliError> {
     let secure_passphrase = prompt_unlock_passphrase()?;
     let (keypair, signer_address) = load_key_and_address(wallet_name, network, &secure_passphrase)?;
 
@@ -49,13 +51,7 @@ pub fn generate_withdrawal_signature(
         amount,
     )?;
 
-    println!(
-        "{} {}",
-        "SIGNATURE".cyan().bold(),
-        hex::encode(signature.serialize())
-    );
-
-    Ok(())
+    Ok(signature)
 }
 
 async fn get_tx_details_from_mempool(
@@ -73,7 +69,7 @@ async fn get_tx_details_from_mempool(
         eyre::eyre!("Failed to read transaction hex response for {prepare_txid}: {e}")
     })?;
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
-    debug!("tx: {:?}", tx);
+    tracing::debug!("tx: {:?}", tx);
 
     let url = config
         .mempool_api_url
@@ -86,15 +82,15 @@ async fn get_tx_details_from_mempool(
         .json()
         .await
         .wrap_err("Failed to parse transaction data: {}")?;
-    debug!("tx_data: {:?}", tx_data);
+    tracing::debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
         .ok_or(eyre::eyre!("Block hash not found"))?;
     let block_height = tx_data["status"]["block_height"]
         .as_u64()
         .ok_or(eyre::eyre!("Block height not found"))?;
-    debug!("block_hash: {:?}", block_hash);
-    debug!("block_height: {:?}", block_height);
+    tracing::debug!("block_hash: {:?}", block_hash);
+    tracing::debug!("block_height: {:?}", block_height);
 
     let url = config
         .mempool_api_url
@@ -102,9 +98,9 @@ async fn get_tx_details_from_mempool(
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url).await.unwrap();
     let block_raw = response.bytes().await.unwrap();
-    debug!("block_raw: {:?}", block_raw);
+    tracing::debug!("block_raw: {:?}", block_raw);
     let block: Block = bitcoin::consensus::deserialize(&block_raw)?;
-    debug!("block: {:?}", block);
+    tracing::debug!("block: {:?}", block);
     Ok((tx, block, block_height as u32))
 }
 
@@ -122,9 +118,9 @@ async fn get_tx_details_from_rpc(
         .get_block_header_info(&tx_info.blockhash.unwrap())
         .await?
         .height;
-    debug!("tx_info: {:?}", tx_info);
-    debug!("block: {:?}", block);
-    debug!("block_height: {:?}", block_height);
+    tracing::debug!("tx_info: {:?}", tx_info);
+    tracing::debug!("block: {:?}", block);
+    tracing::debug!("block_height: {:?}", block_height);
 
     Ok((tx, block, block_height as u32))
 }
@@ -251,10 +247,10 @@ pub async fn send_safe_withdrawal(
     amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<TransactionReceipt, BridgeCliError> {
     // get the secret key from env
     // raise error if not found
-    let secret_key = std::env::var("SECRET_KEY").map_err(|_| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable"))?;
+    let secret_key = std::env::var("SECRET_KEY").map_err(|e| eyre::eyre!("SECRET_KEY not found, for this command, you need to set the SECRET_KEY environment variable: {e}"))?;
     let signer: PrivateKeySigner = secret_key
         .parse()
         .map_err(|e| eyre::eyre!("Failed to parse SECRET_KEY: {e}"))?;
@@ -262,7 +258,7 @@ pub async fn send_safe_withdrawal(
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
 
-    debug!("Wallet address: {}", wallet_address);
+    tracing::debug!("Wallet address: {}", wallet_address);
 
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
@@ -334,7 +330,6 @@ pub async fn send_safe_withdrawal(
         .get_receipt()
         .await
         .wrap_err("Can't get receipt")?;
-    println!("Citrea withdrawal tx receipt: {:?}", receipt);
 
-    Ok(())
+    Ok(receipt)
 }

@@ -9,7 +9,7 @@ use eyre::Result;
 use serde_json::json;
 
 /// Make a POST request to create a deposit account
-pub(crate) fn create_deposit_account(
+pub(crate) async fn create_deposit_account(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
@@ -18,33 +18,34 @@ pub(crate) fn create_deposit_account(
 
     // Prepare request body
     let request_body = json!({
-        "citrea_addr": citrea_address.to_string(),
+        "evm_addr": citrea_address.to_string(),
         "recovery_taproot_addr": recovery_taproot_address.to_string()
     });
 
-    debug!("Making request to: {}", url);
-    debug!(
+    tracing::debug!("Making request to: {}", url);
+    tracing::debug!(
         "Request body: {}",
         serde_json::to_string_pretty(&request_body)?
     );
 
     // Create HTTP client
-    let client = reqwest::blocking::Client::new();
+    let client = reqwest::Client::new();
 
     // Make POST request
     let response = client
         .post(url.as_str())
         .header("Content-Type", "application/json")
         .json(&request_body)
-        .send()?;
+        .send()
+        .await?;
 
     if response.status().is_success() {
-        let response_body: serde_json::Value = response.json()?;
-        println!(
+        let response_body: serde_json::Value = response.json().await?;
+        tracing::info!(
             "{} Deposit address request successful",
             "SUCCESS".green().bold(),
         );
-        debug!(
+        tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
         );
@@ -55,10 +56,9 @@ pub(crate) fn create_deposit_account(
         Ok(taproot_addr)
     } else {
         let status = response.status();
-        let error_text = response.text()?;
-        println!("{} Deposit address request failed", "ERROR".red().bold());
-        println!("{} {}", "STATUS".red().bold(), status);
-        debug!("Error response: {}", error_text);
+        let error_text = response.text().await?;
+        tracing::error!("Deposit address request failed: {}", status);
+        tracing::error!("Error response: {}", error_text);
 
         Err(eyre::eyre!(
             "Backend request failed with status: {} {}",
