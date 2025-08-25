@@ -1,7 +1,6 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
-use crate::structs::SecureString;
-use bitcoin::secp256k1::SecretKey;
+use crate::structs::{SecureSecretKey, SecureString};
 use colored::*;
 use crossterm::{
     cursor,
@@ -502,7 +501,7 @@ pub(crate) fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
 }
 
 /// Simple secure display for private keys
-pub(crate) fn display_private_key_securely(private_key: &SecretKey) -> Result<()> {
+pub(crate) fn display_private_key_securely(private_key: &SecureSecretKey) -> Result<()> {
     // Check if terminal supports alternate screen
     if !std::io::stdout().is_terminal() {
         return display_private_key_fallback(private_key);
@@ -531,7 +530,7 @@ pub(crate) fn display_private_key_securely(private_key: &SecretKey) -> Result<()
 }
 
 /// Display private key in alternate screen
-fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()> {
+fn display_private_key_in_alternate_screen(private_key: &SecureSecretKey) -> Result<()> {
     // Clear screen
     execute!(
         io::stdout(),
@@ -560,7 +559,10 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
         ),
         SetForegroundColor(Color::Cyan),
         Print("Private Key:\r\n\r\n"),
-        Print(format!("   {}\r\n\r\n", private_key.display_secret())),
+        Print(format!(
+            "   {}\r\n\r\n",
+            private_key.as_ref().display_secret()
+        )),
         SetForegroundColor(Color::Red),
         Print("   WARNING: Anyone with this private key can access your funds!\r\n"),
         Print("   Never share this key or store it in insecure locations!\r\n\r\n"),
@@ -608,7 +610,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecretKey) -> Result<()
 }
 
 /// Fallback display for private key when alternate screen is not available
-fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
+fn display_private_key_fallback(private_key: &SecureSecretKey) -> Result<()> {
     println!();
     println!("{}", "  PRIVATE KEY DISPLAY  ".red().bold());
     println!();
@@ -617,7 +619,7 @@ fn display_private_key_fallback(private_key: &SecretKey) -> Result<()> {
     println!("Never share this key or store it in insecure locations!");
     println!();
     println!("{}", "Private Key:".cyan().bold());
-    println!("   {}", private_key.display_secret());
+    println!("   {}", private_key.as_ref().display_secret());
     println!();
     println!(
         "{}",
