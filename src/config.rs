@@ -2,10 +2,10 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use crate::errors::BridgeCliError;
+use crate::{errors::BridgeCliError, get_clementine_home_dir};
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use eyre::Result;
+use eyre::{Context, Result};
 use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -67,8 +67,32 @@ impl BridgeCliConfig {
         BridgeCliConfig::default()
     }
 
+    /// Tries to parse config file with order:
+    ///
+    /// 1. If given, custom config path
+    /// 2. `~/.clementine/bridge_cli_config.toml`
+    /// 3. `$PWD/bridge_cli_config.toml`
+    pub fn try_parse_config(path: Option<PathBuf>, network: Network) -> Result<Self, ConfigErrors> {
+        if let Some(path) = path {
+            tracing::debug!("Using given configuration file: {path:?}");
+            return Self::try_parse_file(path, network);
+        }
+
+        let home_dir = get_clementine_home_dir().wrap_err("Can't get Clementine home directory")?;
+        let config_dir = home_dir.join("bridge_cli_config.toml");
+        if let Ok(config) = Self::try_parse_file(config_dir.clone(), network) {
+            tracing::debug!("Using home configuration file: {config_dir:?}");
+            return Ok(config);
+        }
+
+        let mut current_dir = std::env::current_dir().unwrap();
+        current_dir.push("bridge_cli_config.toml");
+        tracing::debug!("Using configuration file at the current directory: {current_dir:?}");
+        Self::try_parse_file(current_dir, network)
+    }
+
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf, network: Network) -> Result<Self, ConfigErrors> {
+    fn try_parse_file(path: PathBuf, network: Network) -> Result<Self, ConfigErrors> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
@@ -223,7 +247,7 @@ mod tests {
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
-        assert_eq!(read_config.network, Network::Testnet4);
+        assert_eq!(read_config.network, Network::Testnet);
         assert_eq!(
             read_config.bitcoin_config.unwrap().url.as_str(),
             "http://127.0.0.1:18443/"

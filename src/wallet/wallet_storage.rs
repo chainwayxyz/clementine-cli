@@ -8,6 +8,7 @@ use std::{
 };
 
 use crate::errors::BridgeCliError;
+use crate::get_clementine_home_dir;
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
 
@@ -174,8 +175,8 @@ pub(crate) fn load_wallet_data(wallet_name: &str) -> Result<GenericWalletData, B
 
 /// Get the storage directory path
 pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
-    let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
-    Ok(home_dir.join(".clementine").join("keys"))
+    let home_dir = get_clementine_home_dir()?;
+    Ok(home_dir.join("keys"))
 }
 
 /// Get wallets from the registry (wallets.json)

@@ -77,7 +77,7 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
-    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file todo
+    /// Path to config file. If not given, ~/.clementine/bridge_cli_config.toml of $PWD/bridge_cli_config.toml files will be used by that order.
     #[arg(long)]
     config_file: Option<PathBuf>,
 
@@ -245,18 +245,7 @@ async fn main() {
 
     initialize_logger(cli.verbose);
 
-    let config_file_path = cli.config_file.unwrap();
-    let config = BridgeCliConfig::try_parse_file(config_file_path.clone(), cli.network)
-        .unwrap_or_else(|e| {
-            panic!(
-                "Failed to read config file {:?}: {:?}",
-                config_file_path.display(),
-                e
-            )
-        });
-
-    // let mut current_dir = std::env::current_dir().unwrap();
-    // current_dir.push("bridge_cli_config.toml");
+    let config = BridgeCliConfig::try_parse_config(cli.config_file, cli.network).unwrap();
 
     match cli.command {
         Commands::Wallet { command } => match command {
