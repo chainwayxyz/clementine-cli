@@ -267,7 +267,7 @@ async fn main() {
     match cli.command {
         Commands::Wallet { command } => match command {
             WalletCommands::Create { wallet_name } => {
-                handle_or_exit!(create_encrypted_wallet_with_address(
+                print_or_exit!(create_encrypted_wallet_with_address(
                     config.network,
                     wallet_name
                 ));
@@ -276,7 +276,7 @@ async fn main() {
                 destination,
                 wallet_name,
             } => {
-                handle_or_exit!(wallet::backup_wallet(&wallet_name, &destination));
+                print_or_exit!(wallet::backup_wallet(&wallet_name, &destination));
             }
             WalletCommands::ShowMnemonic { wallet_name } => {
                 handle_or_exit!(show_mnemonic_secure(&wallet_name));

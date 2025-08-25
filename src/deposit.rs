@@ -12,7 +12,6 @@ use crate::wallet::wallet_utils::load_address_from_registry;
 use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-use bitcoin::Address;
 use bitcoin::consensus::deserialize;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
@@ -24,7 +23,7 @@ pub async fn get_deposit_address(
     citrea_address: &str,
     recovery_taproot_address: &str,
     config: &BridgeCliConfig,
-) -> Result<Address, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     tracing::debug!(
         "{} {}",
@@ -137,18 +136,6 @@ pub fn verify_recovery_tx(
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
         config,
     )?;
-
-    println!(
-        "{} Recovery transaction verification successful!",
-        "SUCCESS".green().bold()
-    );
-    println!("{} {}", "Output address:".blue().bold(), address);
-    println!("{} {} BTC", "Output amount:".blue().bold(), amount.to_btc());
-    println!(
-        "\n{} This transaction can be broadcast after 200 blocks from {}",
-        "NOTE:".yellow().bold(),
-        txid
-    );
 
     Ok((txid, address, amount))
 }

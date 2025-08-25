@@ -15,6 +15,7 @@ use secrecy::ExposeSecret;
 use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
@@ -42,7 +43,7 @@ use wallet_utils::{
 pub fn create_encrypted_wallet_with_address(
     network: Network,
     name: String,
-) -> Result<(), BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     // Generate mnemonic
     let secure_mnemonic = generate_mnemonic_secure()?;
 
@@ -81,24 +82,10 @@ pub fn create_encrypted_wallet_with_address(
         &name,
     )?;
 
-    match display_mnemonic_securely(&secure_mnemonic) {
-        Ok(()) => {
-            println!("{}", "Mnemonic displayed securely".green());
-        }
-        Err(e) => {
-            eprintln!(
-                "{} Failed to display mnemonic securely: {}",
-                "ERROR".red().bold(),
-                e
-            );
-            eprintln!(
-                "{} The wallet is still safely stored encrypted.",
-                "INFO".blue().bold()
-            );
-        }
-    }
+    display_mnemonic_securely(&secure_mnemonic)
+        .map_err(|e| BridgeCliError::FailedMnemonicDisplay(e.to_string()))?;
 
-    Ok(())
+    Ok(address)
 }
 
 pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
@@ -152,7 +139,7 @@ pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
 }
 
 /// Backup a wallet file to a specified destination
-pub fn backup_wallet(wallet_name: &str, destination_path: &str) -> Result<(), BridgeCliError> {
+pub fn backup_wallet(wallet_name: &str, destination_path: &str) -> Result<PathBuf, BridgeCliError> {
     if !wallet_exists(wallet_name)? {
         return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
     }
@@ -187,21 +174,14 @@ pub fn backup_wallet(wallet_name: &str, destination_path: &str) -> Result<(), Br
         fs::set_permissions(&final_dest, perms)?;
     }
 
-    println!(
-        "{} Wallet '{}' backed up successfully to: {}",
-        "SUCCESS".green(),
-        wallet_name.cyan(),
-        final_dest.display().to_string().yellow()
-    );
-
-    Ok(())
+    Ok(final_dest)
 }
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
 pub fn import_wallet_from_mnemonic(
     network: Network,
     wallet_name: &str,
-) -> Result<String, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     validate_wallet_availability(
         Some(wallet_name),
         None,
@@ -219,9 +199,11 @@ pub fn import_wallet_from_mnemonic(
     let address = generate_address_from_mnemonic_secure(&secure_mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
+    let address_str = address.to_string();
+
     validate_wallet_availability(
         None,
-        Some(&address.to_string()),
+        Some(&address_str),
         Some(network),
         WalletValidationMode::Address,
     )?;
@@ -255,7 +237,7 @@ pub fn import_wallet_from_mnemonic(
         .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
 
     wallet_storage::store_wallet_data(
-        &address.to_string(),
+        &address_str,
         network,
         &encrypted_mnemonic,
         &encrypted_private_key,
@@ -266,7 +248,7 @@ pub fn import_wallet_from_mnemonic(
     )
     .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
 
-    Ok(address.to_string())
+    Ok(address)
 }
 
 pub fn get_registry_wallet_map()
@@ -321,7 +303,7 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
 pub fn import_wallet_from_file(
     file_path: &str,
     wallet_name: &str,
-) -> Result<String, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, wallet_name)?;
 
@@ -380,6 +362,7 @@ pub fn import_wallet_from_file(
             })?;
 
     let network = parse_network(&wallet_data.network)?;
+    let address = parse_address(&wallet_data.address, network)?;
 
     // Use store_wallet_data function for consistent storage
     wallet_storage::store_wallet_data(
@@ -393,14 +376,14 @@ pub fn import_wallet_from_file(
         wallet_name,
     )?;
 
-    Ok(wallet_data.address)
+    Ok(address)
 }
 
 /// Import a wallet from a private key
 pub fn import_wallet_from_private_key(
     network: Network,
     wallet_name: &str,
-) -> Result<String, BridgeCliError> {
+) -> Result<BitcoinAddress, BridgeCliError> {
     validate_wallet_availability(
         Some(wallet_name),
         None,
@@ -433,10 +416,12 @@ pub fn import_wallet_from_private_key(
     let keypair = SecureKeypair::new(Keypair::from_secret_key(&SECP, master_private_key.as_ref()));
     let address = calculate_taproot_address(&keypair, network);
 
+    let address_str = address.to_string();
+
     // Check if address already exists
     validate_wallet_availability(
         None,
-        Some(&address.to_string()),
+        Some(&address_str),
         Some(network),
         WalletValidationMode::Address,
     )?;
@@ -455,7 +440,7 @@ pub fn import_wallet_from_private_key(
         .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
 
     wallet_storage::store_wallet_data(
-        &address.to_string(),
+        &address_str,
         network,
         &encrypted_mnemonic,
         &encrypted_private_key,
@@ -471,7 +456,7 @@ pub fn import_wallet_from_private_key(
         "INFO".yellow()
     );
 
-    Ok(address.to_string())
+    Ok(address)
 }
 
 pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
