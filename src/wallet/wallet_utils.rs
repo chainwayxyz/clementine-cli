@@ -19,6 +19,7 @@ use bitcoin::secp256k1::SecretKey;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::str::FromStr;
 
 /// Securely load a key from wallet storage
@@ -307,4 +308,129 @@ pub(crate) fn parse_and_validate_imported_wallet(
     }
 
     Ok(wallet_data)
+}
+
+/// Print successful wallet matches
+fn print_successful_matches(matching: &std::collections::HashSet<&String>) {
+    use colored::Colorize;
+
+    if !matching.is_empty() {
+        print_wallet_list("Properly registered wallets:", matching, |address| {
+            format!("  - {}", address.green())
+        });
+    }
+}
+
+/// Generic function to print a list of wallets with custom formatting
+fn print_wallet_list<F>(header: &str, wallets: &std::collections::HashSet<&String>, formatter: F)
+where
+    F: Fn(&String) -> String,
+{
+    println!("{}", header);
+    for address in wallets {
+        println!("{}", formatter(address));
+    }
+    println!();
+}
+
+/// Print the final integrity summary
+fn print_integrity_summary(
+    has_issues: bool,
+    no_wallets: bool,
+    registry_only: &std::collections::HashSet<&String>,
+    files_only: &std::collections::HashSet<&String>,
+) {
+    use colored::Colorize;
+
+    if has_issues {
+        println!("{}", "Integrity issues found!".red().bold());
+        println!("Consider:");
+        if !registry_only.is_empty() {
+            println!("- Remove orphaned registry entries or restore missing wallet files");
+        }
+        if !files_only.is_empty() {
+            println!("- Register untracked wallet files or remove them if not needed");
+        }
+    } else if no_wallets {
+        println!(
+            "{}",
+            "No wallets found (this is normal for new installations)".blue()
+        );
+    } else {
+        println!(
+            "{}",
+            "All wallets are properly registered and files exist!"
+                .green()
+                .bold()
+        );
+    }
+}
+
+pub(crate) fn report_integrity_results(
+    registry_wallets: HashMap<String, (Network, BitcoinAddress)>,
+    file_wallets: HashMap<String, (Network, BitcoinAddress)>,
+) {
+    let registry_keys: HashSet<&String> = registry_wallets.keys().collect();
+    let file_keys: HashSet<&String> = file_wallets.keys().collect();
+
+    let registry_only: HashSet<&String> = registry_keys.difference(&file_keys).copied().collect();
+    let files_only: HashSet<&String> = file_keys.difference(&registry_keys).copied().collect();
+    let matching: HashSet<&String> = registry_keys.intersection(&file_keys).copied().collect();
+
+    // Report results
+    println!("Integrity Verification Results:");
+    println!("  Total registered wallets: {}", registry_wallets.len());
+    println!("  Total wallet files found: {}", file_wallets.len());
+    println!("  Matching entries: {}", matching.len());
+    println!();
+
+    print_successful_matches(&matching);
+    let has_issues = print_integrity_issues(&registry_only, &files_only);
+
+    print_integrity_summary(
+        has_issues,
+        registry_wallets.is_empty() && file_wallets.is_empty(),
+        &registry_only,
+        &files_only,
+    );
+}
+
+/// Print integrity issues (missing files and unregistered files)
+fn print_integrity_issues(
+    registry_only: &std::collections::HashSet<&String>,
+    files_only: &std::collections::HashSet<&String>,
+) -> bool {
+    use colored::Colorize;
+
+    let mut has_issues = false;
+
+    // Report wallets in registry but missing files
+    if !registry_only.is_empty() {
+        has_issues = true;
+        print_wallet_list(
+            "Wallets in registry but missing files:",
+            registry_only,
+            |address| {
+                format!(
+                    "  - {} (file: wallet_{}.json not found)",
+                    address.yellow(),
+                    address
+                )
+            },
+        );
+    }
+
+    // Report wallet files not in registry
+    if !files_only.is_empty() {
+        has_issues = true;
+        print_wallet_list("Wallet files not in registry:", files_only, |address| {
+            format!(
+                "  - {} (wallet_{}.json exists but not registered)",
+                address.yellow(),
+                address
+            )
+        });
+    }
+
+    has_issues
 }

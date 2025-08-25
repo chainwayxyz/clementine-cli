@@ -12,7 +12,7 @@ use bitcoin::Network;
 use colored::Colorize;
 use eyre::eyre;
 use secrecy::ExposeSecret;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fs;
 use std::io::{self, Write};
 
@@ -20,7 +20,7 @@ use crate::BitcoinAddress;
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::wallet::address::{generate_address_from_mnemonic_secure, parse_address};
 use crate::wallet::wallet_storage::{load_wallet_data, scan_wallet_files};
-use crate::wallet::wallet_utils::{load_key, parse_network};
+use crate::wallet::wallet_utils::{load_key, parse_network, report_integrity_results};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
@@ -298,88 +298,6 @@ pub fn get_registry_wallet_map()
     Ok(wallet_map)
 }
 
-fn report_integrity_results(
-    registry_wallets: &HashMap<String, (Network, BitcoinAddress)>,
-    file_wallets: &HashMap<String, (Network, BitcoinAddress)>,
-) {
-    let registry_keys: HashSet<_> = registry_wallets.keys().cloned().collect();
-    let file_keys: HashSet<_> = file_wallets.keys().cloned().collect();
-
-    let registry_only: HashSet<_> = registry_keys.difference(&file_keys).cloned().collect();
-    let files_only: HashSet<_> = file_keys.difference(&registry_keys).cloned().collect();
-    let matching: HashSet<_> = registry_keys.intersection(&file_keys).cloned().collect();
-
-    // Report results
-    println!("Integrity Verification Results:");
-    println!("  Total registered wallets: {}", registry_wallets.len());
-    println!("  Total wallet files found: {}", file_wallets.len());
-    println!("  Matching entries: {}", matching.len());
-    println!();
-
-    let mut has_issues = false;
-
-    // Report wallets in registry but missing files
-    if !registry_only.is_empty() {
-        has_issues = true;
-        println!("Wallets in registry but missing files:");
-        for wallet_name in &registry_only {
-            println!(
-                "  - {} (file: wallet_{}.json not found)",
-                wallet_name.yellow(),
-                wallet_name
-            );
-        }
-        println!();
-    }
-
-    // Report wallet files not in registry
-    if !files_only.is_empty() {
-        has_issues = true;
-        println!("Wallet files not in registry:");
-        for wallet_name in &files_only {
-            println!(
-                "  - {} (wallet_{}.json exists but not registered)",
-                wallet_name.yellow(),
-                wallet_name
-            );
-        }
-        println!();
-    }
-
-    // Report successful matches
-    if !matching.is_empty() {
-        println!("Properly registered wallets:");
-        for wallet_name in &matching {
-            println!("  - {}", wallet_name.green());
-        }
-        println!();
-    }
-
-    // Summary
-    if has_issues {
-        println!("{}", "Integrity issues found!".red().bold());
-        println!("Consider:");
-        if !registry_only.is_empty() {
-            println!("- Remove orphaned registry entries or restore missing wallet files");
-        }
-        if !files_only.is_empty() {
-            println!("- Register untracked wallet files or remove them if not needed");
-        }
-    } else if registry_wallets.is_empty() && file_wallets.is_empty() {
-        println!(
-            "{}",
-            "No wallets found (this is normal for new installations)".blue()
-        );
-    } else {
-        println!(
-            "{}",
-            "All wallets are properly registered and files exist!"
-                .green()
-                .bold()
-        );
-    }
-}
-
 pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
@@ -394,7 +312,7 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
     let file_wallets = scan_wallet_files()?;
 
     // Report integrity results
-    report_integrity_results(&registry_wallets, &file_wallets);
+    report_integrity_results(registry_wallets, file_wallets);
 
     Ok(())
 }
