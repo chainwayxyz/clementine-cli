@@ -35,7 +35,7 @@ use wallet_storage::get_storage_dir;
 use wallet_storage::remove_wallet_from_registry;
 use wallet_utils::{
     WalletValidationMode, parse_and_validate_imported_wallet, report_integrity_results,
-    validate_mnemonic_import, validate_private_key_import, validate_wallet_availability,
+    validate_mnemonic_import, validate_private_key_import, validate_wallet_availability
 };
 
 pub fn create_encrypted_wallet_with_address(
