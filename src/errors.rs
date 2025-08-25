@@ -87,8 +87,6 @@ pub enum BridgeCliError {
     PassphraseNotProvided,
     #[error("Invalid passphrase")]
     InvalidPassphrase,
-    #[error("Passphrase cannot be empty")]
-    EmptyPassphrase,
     #[error("Passphrase is too short (minimum 8 characters)")]
     PassphraseTooShort,
     #[error("Passphrases do not match")]

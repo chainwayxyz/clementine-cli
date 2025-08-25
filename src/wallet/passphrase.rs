@@ -86,10 +86,6 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
 
-    if passphrase.is_empty() {
-        return Err(BridgeCliError::EmptyPassphrase);
-    }
-
     // Confirm passphrase
     if confirm {
         let confirm_input = rpassword::prompt_password("Confirm passphrase: ")?;
@@ -113,10 +109,6 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 /// Prompt user for a passphrase to unlock existing encrypted key
 pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
     let passphrase = rpassword::prompt_password("Enter passphrase to unlock key: ")?;
-
-    if passphrase.is_empty() {
-        return Err(BridgeCliError::EmptyPassphrase);
-    }
 
     Ok(SecureString::init_with(|| passphrase))
 }
