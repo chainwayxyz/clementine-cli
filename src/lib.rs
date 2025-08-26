@@ -1,6 +1,7 @@
 use crate::errors::BridgeCliError;
 use eyre::Context;
 use eyre::Result;
+use std::path::PathBuf;
 use std::str::FromStr;
 
 mod backend;
@@ -27,4 +28,9 @@ pub type CitreaAddress = alloy::primitives::Address;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
     Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
+}
+
+pub(crate) fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
+    Ok(home_dir.join(".clementine"))
 }
