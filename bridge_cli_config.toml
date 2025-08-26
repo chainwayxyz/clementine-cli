@@ -1,3 +1,25 @@
+[bitcoin]
+network = "bitcoin"
+
+aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
+
+user_takes_after = 200
+bridge_amount = 1000000000
+bridge_contract_address = "0x3100000000000000000000000000000000000002"
+
+mempool_api_url = "https://mempool.space/api/"
+
+citrea_backend_endpoint = "https://api.citrea.xyz"
+citrea_rpc_url = "https://rpc.citrea.xyz/"
+citrea_chain_id = 0
+
+[bitcoin.bitcoin_config]
+url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+user = "admin"
+password = "admin"
+
+# ------------------------------------------------------------------------------
+[testnet4]
 network = "testnet4"
 
 aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
@@ -12,7 +34,50 @@ citrea_backend_endpoint = "https://api.testnet.citrea.xyz"
 citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
 
-[bitcoin_config]
-url = "http://127.0.0.1:18443/"
+[testnet4.bitcoin_config]
+url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+user = "admin"
+password = "admin"
+
+# ------------------------------------------------------------------------------
+[signet]
+network = "signet"
+
+aggregated_public_key = "3b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1d"
+
+user_takes_after = 200
+bridge_amount = 1000000000
+bridge_contract_address = "0x3100000000000000000000000000000000000002"
+
+mempool_api_url = "https://127.0.0.1/"
+
+citrea_backend_endpoint = "https://api.devnet.citrea.xyz"
+citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
+citrea_chain_id = 62297
+
+[signet.bitcoin_config]
+url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+user = "admin"
+password = "admin"
+
+# ------------------------------------------------------------------------------
+# Values are based on the full.regtest Docker compose file located in Clementine repo
+[regtest]
+network = "regtest"
+
+aggregated_public_key = "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577"
+
+user_takes_after = 200
+bridge_amount = 1000000000
+bridge_contract_address = "0x3100000000000000000000000000000000000002"
+
+mempool_api_url = "https://127.0.0.1"
+
+citrea_backend_endpoint = "https://127.0.0.1"
+citrea_rpc_url = "https://127.0.0.1:12345/"
+citrea_chain_id = 5655
+
+[regtest.bitcoin_config]
+url = "http://127.0.0.1:20443/wallet/admin"
 user = "admin"
 password = "admin"

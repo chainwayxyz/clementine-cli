@@ -2,10 +2,10 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use crate::errors::BridgeCliError;
+use crate::{errors::BridgeCliError, get_clementine_home_dir};
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
-use eyre::Result;
+use eyre::{Context, Result};
 use reqwest::Url;
 use secrecy::{ExposeSecret, SecretString};
 use serde::Deserialize;
@@ -30,6 +30,15 @@ pub enum ConfigErrors {
 
     #[error(transparent)]
     Other(#[from] eyre::Report),
+}
+
+/// [`BridgeCliConfig`]s for each network.
+#[derive(Debug, Clone, Deserialize)]
+pub struct NetworkConfigs {
+    pub bitcoin: BridgeCliConfig,
+    pub testnet4: BridgeCliConfig,
+    pub signet: BridgeCliConfig,
+    pub regtest: BridgeCliConfig,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -58,20 +67,45 @@ impl BridgeCliConfig {
         BridgeCliConfig::default()
     }
 
+    /// Tries to parse config file with order:
+    ///
+    /// 1. If given, custom config path
+    /// 2. `~/.clementine/bridge_cli_config.toml`
+    /// 3. `$PWD/bridge_cli_config.toml`
+    pub fn try_parse_config(path: Option<PathBuf>, network: Network) -> Result<Self, ConfigErrors> {
+        if let Some(path) = path {
+            tracing::debug!("Using given configuration file: {path:?}");
+            return Self::try_parse_file(path, network);
+        }
+
+        let home_dir = get_clementine_home_dir().wrap_err("Can't get Clementine home directory")?;
+        let config_dir = home_dir.join("bridge_cli_config.toml");
+        if let Ok(config) = Self::try_parse_file(config_dir.clone(), network) {
+            tracing::debug!("Using home configuration file: {config_dir:?}");
+            return Ok(config);
+        }
+
+        let mut current_dir = std::env::current_dir().unwrap();
+        current_dir.push("bridge_cli_config.toml");
+        tracing::debug!("Using configuration file at the current directory: {current_dir:?}");
+        Self::try_parse_file(current_dir, network)
+    }
+
     /// Read contents of a TOML file and generate a [`CliConfig`].
-    pub fn try_parse_file(path: PathBuf) -> Result<Self, ConfigErrors> {
+    fn try_parse_file(path: PathBuf, network: Network) -> Result<Self, ConfigErrors> {
         let mut contents = String::new();
 
         let mut file = File::open(path.clone())?;
         file.read_to_string(&mut contents)?;
 
-        Self::try_parse_from(contents)
-    }
+        let network_configs = toml::from_str::<NetworkConfigs>(&contents)?;
 
-    /// Try to parse a [`CliConfig`] from given TOML formatted string and
-    /// generate a [`CliConfig`].
-    pub fn try_parse_from(input: String) -> Result<Self, ConfigErrors> {
-        Ok(toml::from_str::<Self>(&input)?)
+        Ok(match network {
+            Network::Bitcoin => network_configs.bitcoin,
+            Network::Testnet | Network::Testnet4 => network_configs.testnet4,
+            Network::Signet => network_configs.signet,
+            Network::Regtest => network_configs.regtest,
+        })
     }
 
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {
@@ -199,7 +233,7 @@ mod tests {
         let invalid_content = "invalid file content";
         let mut file = File::create(file_name).unwrap();
         file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).is_err());
 
         // Read first example test file use for this test.
         let base_path = env!("CARGO_MANIFEST_DIR");
@@ -208,7 +242,8 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        let read_config = BridgeCliConfig::try_parse_file(file_name.into()).unwrap();
+        let read_config =
+            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).unwrap();
 
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
@@ -236,7 +271,7 @@ mod tests {
         let mut file = File::create(file_name).unwrap();
         file.write_all(content.as_bytes()).unwrap();
 
-        assert!(BridgeCliConfig::try_parse_file(file_name.into()).is_err());
+        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Regtest).is_err());
 
         fs::remove_file(file_name).unwrap();
     }
