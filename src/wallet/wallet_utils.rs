@@ -5,6 +5,7 @@ use crate::structs::SecureKeypair;
 use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
+use crate::wallet;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::{
@@ -66,13 +67,16 @@ pub(crate) fn validate_mnemonic_import(
 ) -> Result<(), BridgeCliError> {
     let network = parse_network(&wallet_data.network)?;
 
-    let wallet_address = parse_address(wallet_address_str, network)?;
+    let wallet_address = TaprootAddressWithPrefix::from_string_with_prefix(
+        &wallet_data.address_with_prefix,
+        network,
+    )?;
 
     let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret())
         .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
 
     // Generate address from mnemonic to verify it matches
-    match generate_address_from_mnemonic(&mnemonic, network) {
+    match generate_address_from_mnemonic(&mnemonic, network, wallet_address.purpose) {
         Ok(derived_address) => {
             if derived_address.address != wallet_address.address {
                 return Err(BridgeCliError::AddressMismatch);

@@ -1,5 +1,5 @@
-use bitcoin::address::NetworkChecked;
 use bip39::Mnemonic;
+use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
 use clap::ValueEnum;
@@ -43,7 +43,7 @@ pub(crate) fn generate_address_from_mnemonic(
     network: Network,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
+    let master_seed = get_master_seed_from_mnemonic(mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
     let master_private_key =

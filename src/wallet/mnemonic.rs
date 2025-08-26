@@ -9,44 +9,14 @@ use crate::structs::{
 };
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
-use crate::wallet::wallet_utils::address_exists;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
-
-    if !address_exists(&address)? {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix().to_string(),
-        ));
-    }
-
-    let passphrase = prompt_unlock_passphrase()?;
-
-    match load_mnemonic_secure(&address, &passphrase) {
-        Ok(mnemonic) => {
-            display_mnemonic_securely(&mnemonic)?;
-            Ok(())
-        }
-        Err(BridgeCliError::NoMnemonicAvailable) => {
-            println!(
-                "{}",
-                "No mnemonic available - this wallet was imported from a private key".yellow()
-            );
-            Ok(())
-        }
-        Err(e) => Err(e),
-    }
-}
-
-pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
         .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
-
-    // let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
 
     Ok(mnemonic)
 }
@@ -68,10 +38,10 @@ pub(crate) fn get_master_seed_from_mnemonic(
     Ok(secure_master_seed)
 }
 
-fn load_mnemonic_secure<T>(
+pub(crate) fn load_mnemonic<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
-) -> Result<SecureString, BridgeCliError>
+) -> Result<Mnemonic, BridgeCliError>
 where
     T: NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,

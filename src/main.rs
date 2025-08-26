@@ -1,8 +1,9 @@
 use bitcoin::{Network, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::{
+    backup_wallet,
     config::BridgeCliConfig,
-    deposit, show_mnemonic_secure,
+    deposit, get_all_wallets_with_addresses, get_deposit_params, show_mnemonic,
     wallet::{
         self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
         import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
