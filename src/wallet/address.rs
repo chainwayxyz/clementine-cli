@@ -1,3 +1,4 @@
+use bip39::Mnemonic;
 // use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
@@ -6,17 +7,17 @@ use secrecy::ExposeSecret;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureKeypair, SecureSecretKey, SecureString};
+use crate::structs::{SecureKeypair, SecureSecretKey};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::{BitcoinAddress, NetworkUnchecked};
 
 /// Generate a Bitcoin address from a mnemonic phrase
-pub(crate) fn generate_address_from_mnemonic_secure(
-    secure_mnemonic: &SecureString,
+pub(crate) fn generate_address_from_mnemonic(
+    mnemonic: &Mnemonic,
     network: Network,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
+    let master_seed = get_master_seed_from_mnemonic(mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
     let master_private_key =

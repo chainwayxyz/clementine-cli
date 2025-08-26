@@ -7,9 +7,6 @@ edition = "2024"
 name = "clementine_cli"
 path = "src/lib.rs"
 
-[[bin]]
-name = "clementine"
-path = "src/bin/cli.rs"
 
 [dependencies]
 bitcoin = { version = "0.32.5", features = ["rand-std"] }

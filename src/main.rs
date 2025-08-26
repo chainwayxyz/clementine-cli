@@ -2,7 +2,7 @@ use bitcoin::taproot::Signature;
 use clap::{Parser, Subcommand};
 use clementine_cli::{
     config::BridgeCliConfig,
-    deposit, show_mnemonic_secure,
+    deposit, show_mnemonic, show_private_key,
     wallet::{
         self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
         import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -279,7 +279,7 @@ async fn main() {
                 print_or_exit!(wallet::backup_wallet(&wallet_name, &destination));
             }
             WalletCommands::ShowMnemonic { wallet_name } => {
-                handle_or_exit!(show_mnemonic_secure(&wallet_name));
+                handle_or_exit!(show_mnemonic(&wallet_name));
             }
             WalletCommands::ImportMnemonic { wallet_name } => {
                 handle_or_exit!(import_wallet_from_mnemonic(config.network, &wallet_name));
@@ -306,7 +306,7 @@ async fn main() {
                 handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { wallet_name } => {
-                handle_or_exit!(wallet::show_private_key(&wallet_name));
+                handle_or_exit!(show_private_key(&wallet_name));
             }
         },
         Commands::Deposit { command } => match command {

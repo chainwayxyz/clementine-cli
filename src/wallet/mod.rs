@@ -6,7 +6,7 @@ mod wallet_storage;
 pub(crate) mod wallet_utils;
 
 pub use address::get_all_wallets_with_addresses;
-pub use mnemonic::show_mnemonic_secure;
+use bip39::Mnemonic;
 
 use bitcoin::Network;
 use colored::Colorize;
@@ -19,19 +19,18 @@ use std::path::PathBuf;
 
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
-use crate::wallet::address::{generate_address_from_mnemonic_secure, parse_address};
+use crate::wallet::address::{generate_address_from_mnemonic, parse_address};
+use crate::wallet::mnemonic::{
+    derive_private_key_from_mnemonic, generate_mnemonic, load_mnemonic, prompt_mnemonic,
+};
 use crate::wallet::wallet_storage::{load_wallet_data, scan_wallet_files};
 use crate::wallet::wallet_utils::{load_key, parse_network, report_integrity_results};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
-use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::structs::{SecureByteVec, SecureKeypair, SecureSecretKey, SecureString};
 use encryption::{aes_decrypt_secure, aes_encrypt_secure};
-use mnemonic::{
-    MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
-    prompt_mnemonic_secure,
-};
+use mnemonic::MNEMONIC_WORD_COUNT;
 use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
 use wallet_storage::get_storage_dir;
 use wallet_storage::remove_wallet_from_registry;
@@ -43,12 +42,12 @@ use wallet_utils::{
 pub fn create_encrypted_wallet_with_address(
     network: Network,
     name: String,
-) -> Result<BitcoinAddress, BridgeCliError> {
+) -> Result<(BitcoinAddress, Mnemonic), BridgeCliError> {
     // Generate mnemonic
-    let secure_mnemonic = generate_mnemonic_secure()?;
+    let mnemonic = generate_mnemonic()?;
 
     // Generate address from mnemonic using helper function
-    let address = address::generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+    let address = address::generate_address_from_mnemonic(&mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     let address_str = address.to_string();
@@ -65,9 +64,11 @@ pub fn create_encrypted_wallet_with_address(
     let passphrase = prompt_passphrase(true)?;
 
     // Encrypt mnemonic and private key separately with different nonces
-    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
+    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)?;
 
-    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
+
+    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase)?;
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
 
     // Store encrypted wallet with separate encrypted fields
@@ -82,10 +83,7 @@ pub fn create_encrypted_wallet_with_address(
         &name,
     )?;
 
-    display_mnemonic_securely(&secure_mnemonic)
-        .map_err(|e| BridgeCliError::FailedMnemonicDisplay(e.to_string()))?;
-
-    Ok(address)
+    Ok((address, mnemonic))
 }
 
 pub fn delete_wallet(wallet_name: &str) -> Result<(), BridgeCliError> {
@@ -193,10 +191,10 @@ pub fn import_wallet_from_mnemonic(
 
     // Prompt for mnemonic securely (word by word)
     println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
-    let secure_mnemonic = prompt_mnemonic_secure()?;
+    let mnemonic = prompt_mnemonic()?;
 
     // Generate address from mnemonic using helper function
-    let address = generate_address_from_mnemonic_secure(&secure_mnemonic, network)
+    let address = generate_address_from_mnemonic(&mnemonic, network)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     let address_str = address.to_string();
@@ -227,10 +225,12 @@ pub fn import_wallet_from_mnemonic(
         "Step 3: Encrypting and Storing Wallet".yellow().bold()
     );
 
-    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)
+    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)
         .map_err(|e| BridgeCliError::PrivateKeyDerivationFromMnemonicFailed(e.to_string()))?;
 
-    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)
+    let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
+
+    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase)
         .map_err(|e| BridgeCliError::MnemonicEncryptionFailed(e.to_string()))?;
 
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
@@ -459,7 +459,9 @@ pub fn import_wallet_from_private_key(
     Ok(address)
 }
 
-pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
+pub(crate) fn get_private_key_from_wallet(
+    wallet_name: &str,
+) -> Result<SecureSecretKey, BridgeCliError> {
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
@@ -472,8 +474,36 @@ pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
 
     let keypair = load_key(wallet_name, &passphrase)?;
 
-    display_private_key_securely(&keypair.secret_key())?;
+    Ok(keypair.secret_key())
+}
 
+pub(crate) fn get_mnemonic_from_wallet(wallet_name: &str) -> Result<Mnemonic, BridgeCliError> {
+    // Check if wallet file exists before prompting for passphrase
+    let storage_dir = get_storage_dir()?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", wallet_name));
+
+    if !wallet_file.exists() {
+        return Err(BridgeCliError::WalletNotFound(wallet_name.to_string()));
+    }
+
+    let passphrase = prompt_unlock_passphrase()?;
+
+    let mnemonic = load_mnemonic(wallet_name, &passphrase)?;
+
+    Ok(mnemonic)
+}
+
+/// Show mnemonic securely for a wallet
+pub fn show_mnemonic(wallet_name: &str) -> Result<(), BridgeCliError> {
+    let mnemonic = get_mnemonic_from_wallet(wallet_name)?;
+    crate::secure_display::display_mnemonic_securely(&mnemonic)?;
+    Ok(())
+}
+
+/// Show private key securely for a wallet
+pub fn show_private_key(wallet_name: &str) -> Result<(), BridgeCliError> {
+    let private_key = get_private_key_from_wallet(wallet_name)?;
+    crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
 

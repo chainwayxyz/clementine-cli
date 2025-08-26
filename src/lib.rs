@@ -19,8 +19,7 @@ pub mod withdrawal;
 
 // Re-export commonly used address functions for public API
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
-pub use wallet::get_all_wallets_with_addresses;
-pub use wallet::show_mnemonic_secure;
+pub use wallet::{get_all_wallets_with_addresses, show_mnemonic, show_private_key};
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
