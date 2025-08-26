@@ -5,7 +5,6 @@ use crate::structs::SecureKeypair;
 use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::wallet;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::{
