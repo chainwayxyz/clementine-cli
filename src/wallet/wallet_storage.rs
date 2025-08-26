@@ -7,8 +7,8 @@ use std::fs;
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::errors::BridgeCliError;
-use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::get_clementine_home_dir;
+use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
 
