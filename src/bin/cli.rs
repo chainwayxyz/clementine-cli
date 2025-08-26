@@ -336,16 +336,23 @@ async fn main() {
                 fee_rate,
                 amount,
             } => {
-                handle_or_exit!(deposit::sign_recovery_tx(
-                    &evm_address,
-                    &recovery_taproot_address,
-                    &deposit_txid,
-                    deposit_vout,
-                    &claim_address,
-                    fee_rate,
-                    amount,
-                    &config,
-                ));
+                fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
+                    hex::encode(bitcoin::consensus::serialize(&tx))
+                }
+
+                print_or_exit!(
+                    deposit::sign_recovery_tx(
+                        &evm_address,
+                        &recovery_taproot_address,
+                        &deposit_txid,
+                        deposit_vout,
+                        &claim_address,
+                        fee_rate,
+                        amount,
+                        &config,
+                    ),
+                    serialize_and_encode
+                );
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
