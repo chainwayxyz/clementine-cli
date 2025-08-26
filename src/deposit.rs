@@ -31,7 +31,10 @@ pub async fn get_deposit_address(
         "CITREA_ADDRESS (checksummed)".green().bold(),
         citrea_address,
     );
-    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(recovery_taproot_address, config.network)?;
+    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
+        recovery_taproot_address,
+        config.network,
+    )?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(
@@ -147,7 +150,10 @@ pub fn verify_recovery_tx(
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
 
-    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(recovery_taproot_address, config.network)?;
+    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
+        recovery_taproot_address,
+        config.network,
+    )?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(

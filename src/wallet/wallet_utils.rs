@@ -10,9 +10,9 @@ use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::{
     GenericWalletData, get_wallets_from_registry, load_wallet_data,
 };
-use bitcoin::address::NetworkUnchecked;
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::address::NetworkValidation;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
@@ -217,7 +217,7 @@ pub(crate) fn validate_wallet_availability(
         let address = address.ok_or_else(|| {
             BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
         })?;
-        if address_exists(&address)? {
+        if address_exists(address)? {
             return Err(BridgeCliError::AddressAlreadyExists(
                 address.address_with_prefix(),
             ));
@@ -295,9 +295,12 @@ pub(crate) fn report_integrity_results(
     registry_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
     file_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) {
-    let registry_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = registry_wallets.difference(file_wallets).collect();
-    let files_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = file_wallets.difference(registry_wallets).collect();
-    let matching: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = registry_wallets.intersection(file_wallets).collect();
+    let registry_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
+        registry_wallets.difference(file_wallets).collect();
+    let files_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
+        file_wallets.difference(registry_wallets).collect();
+    let matching: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
+        registry_wallets.intersection(file_wallets).collect();
 
     // Report results
     println!("Integrity Verification Results:");
@@ -318,7 +321,9 @@ pub(crate) fn report_integrity_results(
 }
 
 /// Print successful wallet matches
-fn print_successful_matches(matching: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>) {
+fn print_successful_matches(
+    matching: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
+) {
     use colored::Colorize;
 
     if !matching.is_empty() {
@@ -402,8 +407,11 @@ fn print_integrity_summary(
 }
 
 /// Generic function to print a list of wallets with custom formatting
-fn print_wallet_list<F>(header: &str, wallets: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>, formatter: F)
-where
+fn print_wallet_list<F>(
+    header: &str,
+    wallets: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
+    formatter: F,
+) where
     F: Fn(&TaprootAddressWithPrefix<NetworkUnchecked>) -> String,
 {
     println!("{}", header);

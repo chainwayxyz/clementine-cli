@@ -82,7 +82,7 @@ pub(crate) fn store_wallet_data(
     }
 
     // Update wallets registry
-    update_wallets_registry(label, &address, network, imported, import_method)?;
+    update_wallets_registry(label, address, network, imported, import_method)?;
 
     println!(
         "Wallet data for '{}' stored successfully in '{}'",
@@ -202,7 +202,7 @@ pub(crate) fn get_wallets_from_registry()
 }
 
 /// Remove a wallet from the registry (wallets.json)
-pub(crate) fn remove_wallet_from_registry<T: NetworkValidation>(
+pub(crate) fn remove_wallet_from_registry<T>(
     address: &TaprootAddressWithPrefix<T>,
 ) -> Result<bool, BridgeCliError>
 where
@@ -236,22 +236,24 @@ where
     Ok(was_removed)
 }
 
-pub(crate) fn get_registry_wallet_set() -> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
+pub(crate) fn get_registry_wallet_set()
+-> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
     let registry_wallet_data = get_wallets_from_registry()?;
 
     let mut wallet_set: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
 
     for (_address, wallet_value) in registry_wallet_data {
-        wallet_set.insert(
-            TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&wallet_value.addres_with_prefix)?
-        );
+        wallet_set.insert(TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
+            &wallet_value.addres_with_prefix,
+        )?);
     }
 
     Ok(wallet_set)
 }
 
 /// Scans the wallet files in the specified directory.
-pub(crate) fn scan_wallet_files() -> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
+pub(crate) fn scan_wallet_files()
+-> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let mut file_wallets: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
 
@@ -271,7 +273,11 @@ pub(crate) fn scan_wallet_files() -> Result<HashSet<TaprootAddressWithPrefix<Net
                     Ok(wallet_content) => {
                         match serde_json::from_str::<GenericWalletData>(&wallet_content) {
                             Ok(wallet_data) => {
-                                file_wallets.insert(TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&wallet_data.address_with_prefix)?);
+                                file_wallets.insert(
+                                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
+                                        &wallet_data.address_with_prefix,
+                                    )?,
+                                );
                             }
                             Err(e) => {
                                 eprintln!(

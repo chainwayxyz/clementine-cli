@@ -17,8 +17,7 @@ use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError>
-{
+pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError> {
     let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
 
     if !address_exists(&address)? {

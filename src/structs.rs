@@ -124,7 +124,7 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 
-        let purpose = Purpose::from_str(&address[0..3])?;
+        let purpose = Purpose::purpose_from_str(&address[0..3])?;
         let addr_str = &address[3..];
 
         let bitcoin_address = parse_taproot_address(addr_str, network)?;
@@ -151,7 +151,7 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 
-        let purpose = Purpose::from_str(&address[0..3])?;
+        let purpose = Purpose::purpose_from_str(&address[0..3])?;
         let addr_str = &address[3..];
 
         let unchecked_address: BitcoinAddress<NetworkUnchecked> =

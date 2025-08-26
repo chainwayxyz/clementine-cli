@@ -28,7 +28,7 @@ impl Purpose {
         }
     }
 
-    pub fn from_str(s: &str) -> Result<Self, BridgeCliError> {
+    pub fn purpose_from_str(s: &str) -> Result<Self, BridgeCliError> {
         match s.to_lowercase().as_str() {
             "dep" => Ok(Purpose::Deposit),
             "wit" => Ok(Purpose::Withdrawal),
@@ -105,9 +105,12 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     println!("Found {} wallet(s):", wallets.len());
-    for (_address, wallet_entry) in &wallets {
+    for wallet_entry in wallets.values() {
         let network = parse_network(&wallet_entry.network)?;
-        let address = TaprootAddressWithPrefix::from_string_with_prefix(&wallet_entry.addres_with_prefix, network)?;
+        let address = TaprootAddressWithPrefix::from_string_with_prefix(
+            &wallet_entry.addres_with_prefix,
+            network,
+        )?;
 
         let import_info = if let Some(true) = wallet_entry.imported {
             if let Some(method) = &wallet_entry.import_method {
