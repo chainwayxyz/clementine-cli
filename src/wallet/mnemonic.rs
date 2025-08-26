@@ -1,21 +1,34 @@
 use bip39::{Language, Mnemonic};
+use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;
 
 use crate::errors::BridgeCliError;
 use crate::secure_display::display_mnemonic_securely;
-use crate::structs::{SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec};
+use crate::structs::{
+    AddrDisplay, SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
+    TaprootAddressWithPrefix,
+};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::load_wallet_data;
+use crate::wallet::wallet_utils::address_exists;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address: &str) -> Result<(), BridgeCliError> {
+pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError> {
+    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
+
+    if !address_exists(&address)? {
+        return Err(BridgeCliError::WalletNotFound(
+            address.address_with_prefix().to_string(),
+        ));
+    }
+
     let passphrase = prompt_unlock_passphrase()?;
 
-    match load_mnemonic_secure(address, &passphrase) {
+    match load_mnemonic_secure(&address, &passphrase) {
         Ok(mnemonic) => {
             display_mnemonic_securely(&mnemonic)?;
             Ok(())
@@ -57,11 +70,15 @@ pub(crate) fn get_master_seed_from_mnemonic(
     Ok(secure_master_seed)
 }
 
-fn load_mnemonic_secure(
-    wallet_name: &str,
+fn load_mnemonic_secure<T>(
+    address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
-) -> Result<SecureString, BridgeCliError> {
-    let wallet_data = load_wallet_data(wallet_name)?;
+) -> Result<SecureString, BridgeCliError>
+where
+    T: NetworkValidation,
+    bitcoin::Address<T>: AddrDisplay,
+{
+    let wallet_data = load_wallet_data(address)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?
