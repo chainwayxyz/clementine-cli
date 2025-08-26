@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::config::ConfigErrors;
+use crate::{config::ConfigErrors, wallet::Purpose};
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -107,6 +107,10 @@ pub enum BridgeCliError {
     WalletsRegistryNotFound,
 
     // Wallet operation related errors
+    #[error("Invalid address prefix: '{0}'. Valid prefixes are 'dep' and 'wit'.")]
+    InvalidAddressPrefix(String),
+    #[error("Invalid address format")]
+    InvalidAddressFormat,
     #[error("Failed to generate address from mnemonic: {0}")]
     AddressGenerationFromMnemonicFailed(String),
     #[error("Failed to derive private key from mnemonic: {0}")]
@@ -180,7 +184,11 @@ pub enum BridgeCliError {
     #[error("{0}")]
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
     #[error("{0}")]
-    BitcoinParseOutpiontError(#[from] bitcoin::transaction::ParseOutPointError),
+    BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
+    #[error("Purpose mismatch: expected {0:?}, found {1:?}")]
+    PurposeMismatch(Purpose, Purpose),
+    #[error("Invalid purpose: {0}")]
+    InvalidPurpose(String),
 
     // IO errors (from rpassword and file operations)
     #[error("IO error: {0}")]

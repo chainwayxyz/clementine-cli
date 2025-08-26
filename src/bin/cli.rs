@@ -4,8 +4,8 @@ use clementine_cli::{
     config::BridgeCliConfig,
     deposit, show_mnemonic_secure,
     wallet::{
-        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
-        import_wallet_from_mnemonic, verify_wallet_integrity,
+        self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
+        import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
     },
     withdrawal,
 };
@@ -114,6 +114,7 @@ enum WalletCommands {
     Create {
         /// Label for the wallet file
         label: String,
+        purpose: Purpose,
     },
     /// Backup wallet to specified destination.
     Backup {
@@ -140,10 +141,14 @@ enum WalletCommands {
     ImportMnemonic {
         /// Label for the imported wallet
         label: String,
+        /// Purpose for the imported wallet
+        purpose: Purpose,
     },
     ImportPrivateKey {
         /// Label for the imported wallet
         label: String,
+        /// Purpose for the imported wallet
+        purpose: Purpose,
     },
     ImportFile {
         /// Filename to import wallet from
@@ -266,8 +271,12 @@ async fn main() {
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::Create { label } => {
-                handle_or_exit!(create_encrypted_wallet_with_address(config.network, label));
+            WalletCommands::Create { label, purpose } => {
+                handle_or_exit!(create_encrypted_wallet_with_address(
+                    config.network,
+                    label,
+                    purpose
+                ));
             }
             WalletCommands::Backup {
                 destination,
@@ -278,16 +287,17 @@ async fn main() {
             WalletCommands::ShowMnemonic { address } => {
                 handle_or_exit!(show_mnemonic_secure(&address));
             }
-            WalletCommands::ImportMnemonic { label } => {
-                handle_or_exit!(import_wallet_from_mnemonic(config.network, &label));
+            WalletCommands::ImportMnemonic { label, purpose } => {
+                handle_or_exit!(import_wallet_from_mnemonic(config.network, &label, purpose));
             }
             WalletCommands::ImportFile { filename, label } => {
                 handle_or_exit!(import_wallet_from_file(&filename, label.as_deref()));
             }
-            WalletCommands::ImportPrivateKey { label } => {
+            WalletCommands::ImportPrivateKey { label, purpose } => {
                 handle_or_exit!(wallet::import_wallet_from_private_key(
                     config.network,
-                    &label
+                    &label,
+                    purpose
                 ));
             }
             WalletCommands::Delete { address } => {

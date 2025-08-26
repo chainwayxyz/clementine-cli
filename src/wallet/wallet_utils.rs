@@ -1,15 +1,19 @@
 use crate::bitcoin_utils::calculate_taproot_address;
 use crate::errors::BridgeCliError;
+use crate::structs::AddrDisplay;
 use crate::structs::SecureKeypair;
 use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
+use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::generate_address_from_mnemonic_secure;
-use crate::wallet::address::parse_address;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::{
     GenericWalletData, get_wallets_from_registry, load_wallet_data,
 };
+use bitcoin::address::NetworkUnchecked;
 use bitcoin::Network;
+use bitcoin::address::NetworkChecked;
+use bitcoin::address::NetworkValidation;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
@@ -19,12 +23,18 @@ use std::collections::HashSet;
 use std::str::FromStr;
 
 /// Securely load a key from wallet storage and check address validity - always requires a passphrase
-pub(crate) fn load_key(
-    address: &str,
+pub(crate) fn load_key<T>(
+    address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
-) -> Result<SecureKeypair, BridgeCliError> {
+) -> Result<SecureKeypair, BridgeCliError>
+where
+    T: NetworkValidation,
+    bitcoin::Address<T>: AddrDisplay,
+{
     if !address_exists(address)? {
-        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+        return Err(BridgeCliError::WalletNotFound(
+            address.address_with_prefix(),
+        ));
     }
 
     // Load wallet data
@@ -52,16 +62,19 @@ pub(crate) fn load_key(
 pub(crate) fn validate_mnemonic_import(
     decrypted_mnemonic: &SecureString,
     wallet_data: &GenericWalletData,
-    wallet_address_str: &str,
 ) -> Result<(), BridgeCliError> {
     let network = parse_network(&wallet_data.network)?;
 
-    let wallet_address = parse_address(wallet_address_str, network)?;
+    let wallet_address = TaprootAddressWithPrefix::from_string_with_prefix(
+        &wallet_data.address_with_prefix,
+        network,
+    )?;
 
     // Generate address from mnemonic to verify it matches
-    match generate_address_from_mnemonic_secure(decrypted_mnemonic, network) {
+    match generate_address_from_mnemonic_secure(decrypted_mnemonic, network, wallet_address.purpose)
+    {
         Ok(derived_address) => {
-            if derived_address != wallet_address {
+            if derived_address.address != wallet_address.address {
                 return Err(BridgeCliError::AddressMismatch);
             }
             println!("Passphrase verified successfully! Address confirmed.");
@@ -147,8 +160,15 @@ pub(crate) fn label_exists(label: &str) -> Result<bool, BridgeCliError> {
     Ok(false)
 }
 
-pub(crate) fn address_exists(address: &str) -> Result<bool, BridgeCliError> {
+pub(crate) fn address_exists<T>(
+    address: &TaprootAddressWithPrefix<T>,
+) -> Result<bool, BridgeCliError>
+where
+    T: bitcoin::address::NetworkValidation,
+    bitcoin::Address<T>: AddrDisplay,
+{
     let wallets = get_wallets_from_registry()?;
+    let address = address.address_without_prefix();
 
     for (addr, _wallet_entry) in wallets {
         if addr == address {
@@ -172,7 +192,7 @@ pub enum WalletValidationMode {
 /// Combined validation function to check for conflicts during wallet operations
 pub(crate) fn validate_wallet_availability(
     label: Option<&str>,
-    address: Option<&str>,
+    address: Option<&TaprootAddressWithPrefix<NetworkChecked>>,
     mode: WalletValidationMode,
 ) -> Result<(), BridgeCliError> {
     let should_check_wallet = matches!(
@@ -194,11 +214,13 @@ pub(crate) fn validate_wallet_availability(
     }
 
     if should_check_address {
-        let addr = address.ok_or_else(|| {
+        let address = address.ok_or_else(|| {
             BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
         })?;
-        if address_exists(addr)? {
-            return Err(BridgeCliError::AddressAlreadyExists(addr.to_string()));
+        if address_exists(&address)? {
+            return Err(BridgeCliError::AddressAlreadyExists(
+                address.address_with_prefix(),
+            ));
         }
     }
 
@@ -234,8 +256,13 @@ pub(crate) fn parse_and_validate_imported_wallet(
             ))
         })?;
 
+    let network = parse_network(&wallet_data.network)?;
+
     // Extract and validate required fields
-    let wallet_address = wallet_data.address.clone();
+    let wallet_address = TaprootAddressWithPrefix::from_string_with_prefix(
+        &wallet_data.address_with_prefix,
+        network,
+    )?;
 
     let label = if let Some(lbl) = label {
         lbl
@@ -265,12 +292,12 @@ pub(crate) fn parse_and_validate_imported_wallet(
 }
 
 pub(crate) fn report_integrity_results(
-    registry_wallets: &HashSet<String>,
-    file_wallets: &HashSet<String>,
+    registry_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
+    file_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) {
-    let registry_only: HashSet<&String> = registry_wallets.difference(file_wallets).collect();
-    let files_only: HashSet<&String> = file_wallets.difference(registry_wallets).collect();
-    let matching: HashSet<&String> = registry_wallets.intersection(file_wallets).collect();
+    let registry_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = registry_wallets.difference(file_wallets).collect();
+    let files_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = file_wallets.difference(registry_wallets).collect();
+    let matching: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> = registry_wallets.intersection(file_wallets).collect();
 
     // Report results
     println!("Integrity Verification Results:");
@@ -291,20 +318,20 @@ pub(crate) fn report_integrity_results(
 }
 
 /// Print successful wallet matches
-fn print_successful_matches(matching: &std::collections::HashSet<&String>) {
+fn print_successful_matches(matching: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>) {
     use colored::Colorize;
 
     if !matching.is_empty() {
         print_wallet_list("Properly registered wallets:", matching, |address| {
-            format!("  - {}", address.green())
+            format!("  - {}", address.address_with_prefix().green())
         });
     }
 }
 
 /// Print integrity issues (missing files and unregistered files)
 fn print_integrity_issues(
-    registry_only: &std::collections::HashSet<&String>,
-    files_only: &std::collections::HashSet<&String>,
+    registry_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
+    files_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) -> bool {
     use colored::Colorize;
 
@@ -319,8 +346,8 @@ fn print_integrity_issues(
             |address| {
                 format!(
                     "  - {} (file: wallet_{}.json not found)",
-                    address.yellow(),
-                    address
+                    address.address_with_prefix().yellow(),
+                    address.address_without_prefix()
                 )
             },
         );
@@ -332,8 +359,8 @@ fn print_integrity_issues(
         print_wallet_list("Wallet files not in registry:", files_only, |address| {
             format!(
                 "  - {} (wallet_{}.json exists but not registered)",
-                address.yellow(),
-                address
+                address.address_with_prefix().yellow(),
+                address.address_without_prefix()
             )
         });
     }
@@ -345,8 +372,8 @@ fn print_integrity_issues(
 fn print_integrity_summary(
     has_issues: bool,
     no_wallets: bool,
-    registry_only: &std::collections::HashSet<&String>,
-    files_only: &std::collections::HashSet<&String>,
+    registry_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
+    files_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) {
     use colored::Colorize;
 
@@ -375,9 +402,9 @@ fn print_integrity_summary(
 }
 
 /// Generic function to print a list of wallets with custom formatting
-fn print_wallet_list<F>(header: &str, wallets: &std::collections::HashSet<&String>, formatter: F)
+fn print_wallet_list<F>(header: &str, wallets: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>, formatter: F)
 where
-    F: Fn(&String) -> String,
+    F: Fn(&TaprootAddressWithPrefix<NetworkUnchecked>) -> String,
 {
     println!("{}", header);
     for address in wallets {

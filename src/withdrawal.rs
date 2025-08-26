@@ -4,8 +4,10 @@ use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signatur
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
+use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
-use crate::wallet::address::{parse_address, parse_taproot_address};
+use crate::wallet::Purpose;
+use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::{address_exists, load_key};
 use alloy::network::EthereumWallet;
@@ -31,15 +33,28 @@ pub fn generate_withdrawal_signature(
     amount: f64,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
-    let signer_address = parse_taproot_address(signer_address_str, network)?;
+    let signer_address =
+        TaprootAddressWithPrefix::from_string_with_prefix(signer_address_str, network)?;
+    if signer_address.purpose != Purpose::Withdrawal {
+        return Err(BridgeCliError::PurposeMismatch(
+            Purpose::Withdrawal,
+            signer_address.purpose,
+        ));
+    }
+
+    let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
+        claim_address,
+        Purpose::Withdrawal,
+        network,
+    )?;
 
     // Check if the claim address belongs to any of our wallets
-    if address_exists(claim_address)? {
+    if address_exists(&claim_wallet_address)? {
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
 
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(signer_address_str, &secure_passphrase)?;
+    let keypair = load_key(&signer_address, &secure_passphrase)?;
 
     let claim_address = parse_address(claim_address, network)?;
 
@@ -48,7 +63,7 @@ pub fn generate_withdrawal_signature(
 
     let signature = sign_withdrawal_signature(
         &keypair,
-        &signer_address,
+        &signer_address.address,
         &withdrawal_utxo,
         &claim_address,
         amount,
@@ -163,7 +178,14 @@ pub async fn safe_withdraw(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address =
+        TaprootAddressWithPrefix::from_string_with_prefix(signer_address, config.network)?;
+    if signer_address.purpose != Purpose::Withdrawal {
+        return Err(BridgeCliError::PurposeMismatch(
+            Purpose::Withdrawal,
+            signer_address.purpose,
+        ));
+    }
     // 1. Get the block and tx details for withdrawal
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
     let withdrawal_amount = Amount::from_btc(amount)?;
@@ -181,7 +203,7 @@ pub async fn safe_withdraw(
     // verify signature
     verify_withdrawal_signature(
         &sig,
-        &signer_address,
+        &signer_address.address,
         &withdrawal_outpoint,
         &withdrawal_address,
         withdrawal_amount,
@@ -275,7 +297,14 @@ pub async fn send_safe_withdrawal(
     let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
         .wrap_err("Can't parse signature")?;
 
-    let signer_address = parse_taproot_address(signer_address, config.network)?;
+    let signer_address =
+        TaprootAddressWithPrefix::from_string_with_prefix(signer_address, config.network)?;
+    if signer_address.purpose != Purpose::Withdrawal {
+        return Err(BridgeCliError::PurposeMismatch(
+            Purpose::Withdrawal,
+            signer_address.purpose,
+        ));
+    }
     let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
@@ -286,7 +315,7 @@ pub async fn send_safe_withdrawal(
     // verify signature
     verify_withdrawal_signature(
         &sig,
-        &signer_address,
+        &signer_address.address,
         &withdrawal_outpoint,
         &withdrawal_address,
         withdrawal_amount,
