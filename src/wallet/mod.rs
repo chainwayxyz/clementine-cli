@@ -251,7 +251,7 @@ pub fn import_wallet_from_mnemonic(
     Ok(address)
 }
 
-pub fn get_registry_wallet_map()
+pub(crate) fn get_registry_wallet_map()
 -> Result<HashMap<String, (Network, BitcoinAddress)>, BridgeCliError> {
     let storage_dir = get_storage_dir()?;
     let wallets_file = storage_dir.join("wallets.json");

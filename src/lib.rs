@@ -17,9 +17,21 @@ pub mod types;
 pub mod wallet;
 pub mod withdrawal;
 
-// Re-export commonly used address functions for public API
+// Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
-pub use wallet::{get_all_wallets_with_addresses, show_mnemonic, show_private_key};
+
+// Wallet operations
+pub use wallet::{
+    backup_wallet, create_encrypted_wallet_with_address, delete_wallet,
+    get_all_wallets_with_addresses, import_wallet_from_file, import_wallet_from_mnemonic,
+    import_wallet_from_private_key, show_mnemonic, show_private_key, verify_wallet_integrity,
+};
+
+// Deposit operations
+pub use deposit::{get_deposit_address, get_deposit_params, sign_recovery_tx, verify_recovery_tx};
+
+// Withdrawal operations
+pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;

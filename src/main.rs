@@ -1,13 +1,10 @@
 use bitcoin::taproot::Signature;
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    config::BridgeCliConfig,
-    deposit, show_mnemonic, show_private_key,
-    wallet::{
-        self, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
-        import_wallet_from_mnemonic, verify_wallet_integrity,
-    },
-    withdrawal,
+    backup_wallet, config::BridgeCliConfig, create_encrypted_wallet_with_address, delete_wallet,
+    deposit, get_all_wallets_with_addresses, get_deposit_params, import_wallet_from_file,
+    import_wallet_from_mnemonic, import_wallet_from_private_key, show_mnemonic, show_private_key,
+    verify_wallet_integrity, withdrawal,
 };
 use colored::Colorize;
 use std::path::PathBuf;
@@ -276,7 +273,7 @@ async fn main() {
                 destination,
                 wallet_name,
             } => {
-                print_or_exit!(wallet::backup_wallet(&wallet_name, &destination));
+                print_or_exit!(backup_wallet(&wallet_name, &destination));
             }
             WalletCommands::ShowMnemonic { wallet_name } => {
                 handle_or_exit!(show_mnemonic(&wallet_name));
@@ -291,10 +288,7 @@ async fn main() {
                 handle_or_exit!(import_wallet_from_file(&filename, &wallet_name));
             }
             WalletCommands::ImportPrivateKey { wallet_name } => {
-                handle_or_exit!(wallet::import_wallet_from_private_key(
-                    config.network,
-                    &wallet_name
-                ));
+                handle_or_exit!(import_wallet_from_private_key(config.network, &wallet_name));
             }
             WalletCommands::Delete { wallet_name } => {
                 handle_or_exit!(delete_wallet(&wallet_name));
@@ -303,7 +297,7 @@ async fn main() {
                 handle_or_exit!(verify_wallet_integrity());
             }
             WalletCommands::List => {
-                handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
+                handle_or_exit!(get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { wallet_name } => {
                 handle_or_exit!(show_private_key(&wallet_name));
@@ -369,7 +363,7 @@ async fn main() {
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
                 print_or_exit!(
-                    deposit::get_deposit_params(&move_to_vault_txid, &config).await,
+                    get_deposit_params(&move_to_vault_txid, &config).await,
                     hex::encode
                 );
             }

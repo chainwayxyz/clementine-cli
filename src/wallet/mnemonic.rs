@@ -36,7 +36,7 @@ pub(crate) fn get_master_seed_from_mnemonic(
     Ok(secure_master_seed)
 }
 
-pub fn load_mnemonic(
+pub(crate) fn load_mnemonic(
     wallet_name: &str,
     passphrase: &SecureString,
 ) -> Result<Mnemonic, BridgeCliError> {
