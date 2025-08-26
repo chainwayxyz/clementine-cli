@@ -1,16 +1,48 @@
 use bip39::{Language, Mnemonic};
+use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;
 
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec};
+use crate::structs::{
+    AddrDisplay, SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
+    TaprootAddressWithPrefix,
+};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
+use crate::wallet::wallet_utils::address_exists;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
+pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError> {
+    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
+
+    if !address_exists(&address)? {
+        return Err(BridgeCliError::WalletNotFound(
+            address.address_with_prefix().to_string(),
+        ));
+    }
+
+    let passphrase = prompt_unlock_passphrase()?;
+
+    match load_mnemonic_secure(&address, &passphrase) {
+        Ok(mnemonic) => {
+            display_mnemonic_securely(&mnemonic)?;
+            Ok(())
+        }
+        Err(BridgeCliError::NoMnemonicAvailable) => {
+            println!(
+                "{}",
+                "No mnemonic available - this wallet was imported from a private key".yellow()
+            );
+            Ok(())
+        }
+        Err(e) => Err(e),
+    }
+}
+
+pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
         .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
 
@@ -36,11 +68,15 @@ pub(crate) fn get_master_seed_from_mnemonic(
     Ok(secure_master_seed)
 }
 
-pub(crate) fn load_mnemonic(
-    wallet_name: &str,
+fn load_mnemonic_secure<T>(
+    address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
-) -> Result<Mnemonic, BridgeCliError> {
-    let wallet_data = load_wallet_data(wallet_name)?;
+) -> Result<SecureString, BridgeCliError>
+where
+    T: NetworkValidation,
+    bitcoin::Address<T>: AddrDisplay,
+{
+    let wallet_data = load_wallet_data(address)?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?

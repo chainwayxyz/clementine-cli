@@ -1,23 +1,49 @@
+use bitcoin::address::NetworkChecked;
 use bip39::Mnemonic;
-// use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
+use clap::ValueEnum;
 use colored::Colorize;
 use secrecy::ExposeSecret;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureKeypair, SecureSecretKey};
+use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
+use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash)]
+pub enum Purpose {
+    Deposit,
+    Withdrawal,
+}
+
+impl Purpose {
+    pub fn to_prefix(&self) -> &str {
+        match self {
+            Purpose::Deposit => "dep",
+            Purpose::Withdrawal => "wit",
+        }
+    }
+
+    pub fn purpose_from_str(s: &str) -> Result<Self, BridgeCliError> {
+        match s.to_lowercase().as_str() {
+            "dep" => Ok(Purpose::Deposit),
+            "wit" => Ok(Purpose::Withdrawal),
+            _ => Err(BridgeCliError::InvalidPurpose(s.to_string())),
+        }
+    }
+}
 
 /// Generate a Bitcoin address from a mnemonic phrase
 pub(crate) fn generate_address_from_mnemonic(
     mnemonic: &Mnemonic,
     network: Network,
-) -> Result<BitcoinAddress, BridgeCliError> {
-    let master_seed = get_master_seed_from_mnemonic(mnemonic)
+    purpose: Purpose,
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
+    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
     let master_private_key =
@@ -25,6 +51,8 @@ pub(crate) fn generate_address_from_mnemonic(
     let keypair = SecureKeypair::new(Keypair::from_secret_key(&SECP, master_private_key.as_ref()));
 
     let address = calculate_taproot_address(&keypair, network);
+
+    let address = TaprootAddressWithPrefix::new(address, purpose)?;
 
     Ok(address)
 }
@@ -77,7 +105,13 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     println!("Found {} wallet(s):", wallets.len());
-    for (name, wallet_entry) in &wallets {
+    for wallet_entry in wallets.values() {
+        let network = parse_network(&wallet_entry.network)?;
+        let address = TaprootAddressWithPrefix::from_string_with_prefix(
+            &wallet_entry.addres_with_prefix,
+            network,
+        )?;
+
         let import_info = if let Some(true) = wallet_entry.imported {
             if let Some(method) = &wallet_entry.import_method {
                 format!(" (Imported via {})", method)
@@ -90,11 +124,42 @@ pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
 
         println!(
             "Wallet: {} -> Address: {}{}",
-            name.blue(),
-            wallet_entry.address.green(),
+            wallet_entry.label.blue(),
+            address.address_with_prefix().green(),
             import_info.cyan()
         );
     }
 
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bitcoin::{AddressType, Network};
+
+    #[test]
+    fn test_parse_taproot_address_valid() {
+        let addr_str = "bc1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdyspfxcv6";
+        let addr = parse_taproot_address(addr_str, Network::Bitcoin).unwrap();
+        assert_eq!(addr.address_type(), Some(AddressType::P2tr));
+    }
+
+    #[test]
+    fn test_parse_taproot_address_invalid_type() {
+        let non_taproot = "tb1qw508d6qejxtdg4y5r3zarvary0c5xw7kxpjzsx"; // P2WPKH
+        assert!(parse_taproot_address(non_taproot, Network::Testnet4).is_err());
+    }
+
+    #[test]
+    fn test_parse_taproot_address_wrong_network() {
+        let mainnet_addr = "bc1pqqqqp399et2xygdj5xreqhjjvcmzhxw4aywxecjdzew6hylgvsesf3hn0c";
+        assert!(parse_taproot_address(mainnet_addr, Network::Testnet4).is_err());
+    }
+
+    #[test]
+    fn test_parse_taproot_address_invalid_format() {
+        let invalid = "invalid_address";
+        assert!(parse_taproot_address(invalid, Network::Testnet4).is_err());
+    }
 }

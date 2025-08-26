@@ -1,10 +1,13 @@
-use bitcoin::taproot::Signature;
+use bitcoin::{Network, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    backup_wallet, config::BridgeCliConfig, create_encrypted_wallet_with_address, delete_wallet,
-    deposit, get_all_wallets_with_addresses, get_deposit_params, import_wallet_from_file,
-    import_wallet_from_mnemonic, import_wallet_from_private_key, show_mnemonic, show_private_key,
-    verify_wallet_integrity, withdrawal,
+    config::BridgeCliConfig,
+    deposit, show_mnemonic_secure,
+    wallet::{
+        self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
+        import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
+    },
+    withdrawal,
 };
 use colored::Colorize;
 use std::path::PathBuf;
@@ -74,9 +77,13 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
-    /// Path to config file. If not given, current directory will be searched for the bridge_cli_config.toml file
+    /// Path to config file. If not given, ~/.clementine/bridge_cli_config.toml or $PWD/bridge_cli_config.toml files will be used in that order.
     #[arg(long)]
     config_file: Option<PathBuf>,
+
+    /// Bitcoin network.
+    #[arg(long)]
+    network: Network,
 
     /// Turns verbose logging on
     #[arg(long, action = clap::ArgAction::SetTrue)]
@@ -109,44 +116,49 @@ enum Commands {
 enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
-        /// Name for the wallet file
-        wallet_name: String,
+        /// Label for the wallet file
+        label: String,
+        purpose: Purpose,
     },
     /// Backup wallet to specified destination.
     Backup {
         /// Destination path for wallet backup
         destination: String,
-        /// Name of the wallet to backup
-        wallet_name: String,
+        /// Address of the wallet to backup
+        address: String,
     },
-    /// Delete a wallet by name.
+    /// Delete a wallet by address.
     Delete {
-        /// Name of the wallet to delete
-        wallet_name: String,
+        /// Address of the wallet to delete
+        address: String,
     },
     /// Show mnemonic with interactive terminal.
     ShowMnemonic {
-        /// Wallet name to show mnemonic for
-        wallet_name: String,
+        /// Wallet address to show mnemonic for
+        address: String,
     },
     ShowPrivateKey {
-        /// Wallet name to show private key for.
-        wallet_name: String,
+        /// Wallet address to show private key for.
+        address: String,
     },
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
-        /// Name for the imported wallet
-        wallet_name: String,
+        /// Label for the imported wallet
+        label: String,
+        /// Purpose for the imported wallet
+        purpose: Purpose,
     },
     ImportPrivateKey {
-        /// Name for the imported wallet
-        wallet_name: String,
+        /// Label for the imported wallet
+        label: String,
+        /// Purpose for the imported wallet
+        purpose: Purpose,
     },
     ImportFile {
         /// Filename to import wallet from
         filename: String,
-        /// Name for the imported wallet
-        wallet_name: String,
+        /// Label for the imported wallet
+        label: Option<String>,
     },
     /// Verify integrity of wallet registry and files.
     VerifyIntegrity,
@@ -161,7 +173,7 @@ enum DepositCommands {
         recovery_taproot_address: String,
     },
     SignRecoveryTx {
-        wallet_name: String,
+        recovery_taproot_address: String,
         evm_address: String,
         deposit_txid: String,
         deposit_vout: u32,
@@ -175,7 +187,7 @@ enum DepositCommands {
     VerifyRecoveryTx {
         recovery_tx: String,
         evm_address: String,
-        wallet_name: String,
+        recovery_taproot_address: String,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
@@ -191,20 +203,20 @@ enum DepositCommands {
 #[derive(Subcommand)]
 enum WithdrawalCommands {
     GenerateWithdrawalSignature {
-        wallet_name: String,
+        signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
     },
     SafeWithdraw {
-        wallet_name: String,
+        signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
         signature: String,
     },
     SendSafeWithdrawal {
-        wallet_name: String,
+        signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
@@ -214,14 +226,14 @@ enum WithdrawalCommands {
         withdrawal_index: u32,
     },
     GenerateOperatorWithdrawalSignatures {
-        wallet_name: String,
+        signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_txid: String,
         withdrawal_utxo_vout: u32,
         withdrawal_amount: u64,
     },
     SendWithdrawalSignaturesToOperators {
-        wallet_name: String,
+        signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_txid: String,
         withdrawal_utxo_vout: u32,
@@ -238,60 +250,41 @@ async fn main() {
 
     initialize_logger(cli.verbose);
 
-    let config = if let Some(config_file_path) = cli.config_file {
-        tracing::info!("Config file {config_file_path:?} is going to be used...");
-        BridgeCliConfig::try_parse_file(config_file_path.clone()).unwrap_or_else(|e| {
-            panic!(
-                "Failed to read config file {:?}: {:?}",
-                config_file_path.display(),
-                e
-            )
-        })
-    } else {
-        let mut current_dir = std::env::current_dir().unwrap();
-        current_dir.push("bridge_cli_config.toml");
-        tracing::info!(
-            "No config file given, looking for the current directory: {current_dir:?}..."
-        );
-        BridgeCliConfig::try_parse_file(current_dir.clone()).unwrap_or_else(|e| {
-            panic!(
-                "Failed to read config file: {:?}: {e}",
-                current_dir.display()
-            )
-        })
-    };
+    let config = BridgeCliConfig::try_parse_config(cli.config_file, cli.network).unwrap();
 
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::Create { wallet_name } => {
-                print_or_exit!(create_encrypted_wallet_with_address(
+            WalletCommands::Create { label, purpose } => {
+                handle_or_exit!(create_encrypted_wallet_with_address(
                     config.network,
-                    wallet_name
+                    label,
+                    purpose
                 ));
             }
             WalletCommands::Backup {
                 destination,
-                wallet_name,
+                address,
             } => {
-                print_or_exit!(backup_wallet(&wallet_name, &destination));
+                print_or_exit!(backup_wallet(&address, &destination));
             }
-            WalletCommands::ShowMnemonic { wallet_name } => {
-                handle_or_exit!(show_mnemonic(&wallet_name));
+            WalletCommands::ShowMnemonic { address } => {
+                handle_or_exit!(show_mnemonic(&address));
             }
-            WalletCommands::ImportMnemonic { wallet_name } => {
-                handle_or_exit!(import_wallet_from_mnemonic(config.network, &wallet_name));
+            WalletCommands::ImportMnemonic { label, purpose } => {
+                handle_or_exit!(import_wallet_from_mnemonic(config.network, &label, purpose));
             }
-            WalletCommands::ImportFile {
-                filename,
-                wallet_name,
-            } => {
-                handle_or_exit!(import_wallet_from_file(&filename, &wallet_name));
+            WalletCommands::ImportFile { filename, label } => {
+                handle_or_exit!(import_wallet_from_file(&filename, label.as_deref()));
             }
-            WalletCommands::ImportPrivateKey { wallet_name } => {
-                handle_or_exit!(import_wallet_from_private_key(config.network, &wallet_name));
+            WalletCommands::ImportPrivateKey { label, purpose } => {
+                handle_or_exit!(wallet::import_wallet_from_private_key(
+                    config.network,
+                    &label,
+                    purpose
+                ));
             }
-            WalletCommands::Delete { wallet_name } => {
-                handle_or_exit!(delete_wallet(&wallet_name));
+            WalletCommands::Delete { address } => {
+                handle_or_exit!(delete_wallet(&address));
             }
             WalletCommands::VerifyIntegrity => {
                 handle_or_exit!(verify_wallet_integrity());
@@ -299,8 +292,8 @@ async fn main() {
             WalletCommands::List => {
                 handle_or_exit!(get_all_wallets_with_addresses());
             }
-            WalletCommands::ShowPrivateKey { wallet_name } => {
-                handle_or_exit!(show_private_key(&wallet_name));
+            WalletCommands::ShowPrivateKey { address } => {
+                handle_or_exit!(wallet::show_private_key(&address));
             }
         },
         Commands::Deposit { command } => match command {
@@ -318,7 +311,7 @@ async fn main() {
                 );
             }
             DepositCommands::SignRecoveryTx {
-                wallet_name,
+                recovery_taproot_address,
                 evm_address,
                 deposit_txid,
                 deposit_vout,
@@ -333,7 +326,7 @@ async fn main() {
                 print_or_exit!(
                     deposit::sign_recovery_tx(
                         &evm_address,
-                        &wallet_name,
+                        &recovery_taproot_address,
                         &deposit_txid,
                         deposit_vout,
                         &claim_address,
@@ -347,13 +340,13 @@ async fn main() {
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
                 evm_address,
-                wallet_name,
+                recovery_taproot_address,
                 amount,
             } => {
                 handle_or_exit!(deposit::verify_recovery_tx(
                     &recovery_tx,
                     &evm_address,
-                    &wallet_name,
+                    &recovery_taproot_address,
                     amount,
                     &config,
                 ));
@@ -370,7 +363,7 @@ async fn main() {
         },
         Commands::Withdrawal { command } => match command {
             WithdrawalCommands::GenerateWithdrawalSignature {
-                wallet_name,
+                signer_address,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
@@ -381,7 +374,7 @@ async fn main() {
 
                 print_or_exit!(
                     withdrawal::generate_withdrawal_signature(
-                        &wallet_name,
+                        &signer_address,
                         &withdrawal_address,
                         &withdrawal_utxo,
                         amount,
@@ -391,7 +384,7 @@ async fn main() {
                 );
             }
             WithdrawalCommands::SafeWithdraw {
-                wallet_name,
+                signer_address,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
@@ -399,7 +392,7 @@ async fn main() {
             } => {
                 handle_or_exit!(
                     withdrawal::safe_withdraw(
-                        &wallet_name,
+                        &signer_address,
                         &withdrawal_address,
                         &withdrawal_utxo,
                         amount,
@@ -410,7 +403,7 @@ async fn main() {
                 );
             }
             WithdrawalCommands::SendSafeWithdrawal {
-                wallet_name,
+                signer_address,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
@@ -418,7 +411,7 @@ async fn main() {
             } => {
                 print_or_exit!(
                     withdrawal::send_safe_withdrawal(
-                        &wallet_name,
+                        &signer_address,
                         &withdrawal_address,
                         &withdrawal_utxo,
                         amount,
@@ -433,7 +426,7 @@ async fn main() {
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
-                wallet_name,
+                signer_address,
                 withdrawal_utxo_txid,
                 withdrawal_utxo_vout,
                 withdrawal_amount,
@@ -441,7 +434,7 @@ async fn main() {
                 unimplemented!(
                     "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {} {}",
                     withdrawal_address,
-                    wallet_name,
+                    signer_address,
                     withdrawal_utxo_txid,
                     withdrawal_utxo_vout,
                     withdrawal_amount
@@ -449,7 +442,7 @@ async fn main() {
             }
             WithdrawalCommands::SendWithdrawalSignaturesToOperators {
                 withdrawal_address,
-                wallet_name,
+                signer_address,
                 withdrawal_utxo_txid,
                 withdrawal_utxo_vout,
                 withdrawal_index,
@@ -458,7 +451,7 @@ async fn main() {
                 unimplemented!(
                     "withdrawal.send_withdrawal_signatures_to_operators: {} {} {} {} {} {}",
                     withdrawal_address,
-                    wallet_name,
+                    signer_address,
                     withdrawal_utxo_txid,
                     withdrawal_utxo_vout,
                     withdrawal_index,

@@ -82,7 +82,6 @@ pub(crate) fn derive_key_from_passphrase(
 /// it protects your private key from unauthorized access.
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase protection:".blue().bold());
-    println!("Enter a passphrase to encrypt your private key.");
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
 

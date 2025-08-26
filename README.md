@@ -18,9 +18,13 @@ Install Rust and Cargo if you haven't already:
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-Install Clementine CLI (from project root):
+Configure Bitcoin sections in the [bridge_cli_config.toml](bridge_cli_config.toml)
+with the correct credentials (only networks that are going to be used need
+correct values). Than, install Clementine CLI (from project root):
 
 ```sh
+mkdir -p ~/.clementine
+cp bridge_cli_config.toml ~/.clementine/
 cargo install --path .
 ```
 
