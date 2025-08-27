@@ -7,6 +7,7 @@ use std::str::FromStr;
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;
+pub mod cli_macros;
 pub mod config;
 pub mod deposit;
 pub mod errors;

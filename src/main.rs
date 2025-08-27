@@ -3,7 +3,7 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     backup_wallet,
     config::BridgeCliConfig,
-    deposit, get_all_wallets_with_addresses, get_deposit_params, show_mnemonic,
+    deposit, get_all_wallets_with_addresses, get_deposit_params, handle_cli_command, show_mnemonic,
     wallet::{
         self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
         import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -226,127 +226,88 @@ async fn main() {
     match cli.command {
         Commands::Wallet { command } => match command {
             WalletCommands::Create { label, purpose } => {
-                let address =
-                    match create_encrypted_wallet_with_address(config.network, label, purpose) {
-                        Ok(addr) => addr,
-                        Err(e) => {
-                            eprintln!("{} {e}", "Error:".red().bold());
-                            std::process::exit(1);
-                        }
-                    };
-                println!(
-                    "Wallet created with address: {}",
-                    address.address_with_prefix()
+                handle_cli_command!(
+                    create_encrypted_wallet_with_address(config.network, label, purpose),
+                    address => {
+                        println!(
+                            "Wallet created with address: {}",
+                            address.address_with_prefix()
+                        );
+                    }
                 );
             }
             WalletCommands::Backup {
                 destination,
                 address,
             } => {
-                match backup_wallet(&address, &destination) {
-                    Ok((addr, dest)) => {
+                handle_cli_command!(
+                    backup_wallet(&address, &destination),
+                    (addr, dest) => {
                         println!(
                             "Backup completed for address {} to destination {}",
                             addr.address_with_prefix(),
                             dest.display()
                         );
                     }
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                );
             }
             WalletCommands::ShowMnemonic { address } => {
-                match show_mnemonic(&address) {
-                    Ok(_) => println!("Mnemonic display completed"),
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                handle_cli_command!(show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic { label, purpose } => {
-                let address = match import_wallet_from_mnemonic(config.network, &label, purpose) {
-                    Ok(addr) => addr,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
+                handle_cli_command!(
+                    import_wallet_from_mnemonic(config.network, &label, purpose),
+                    address => {
+                        println!(
+                            "Import completed for address: {}",
+                            address.address_with_prefix()
+                        );
                     }
-                };
-                println!(
-                    "Import completed for address: {}",
-                    address.address_with_prefix()
                 );
             }
             WalletCommands::ImportFile { filename, label } => {
-                let address = match import_wallet_from_file(&filename, label.as_deref()) {
-                    Ok(addr) => addr,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
+                handle_cli_command!(
+                    import_wallet_from_file(&filename, label.as_deref()),
+                    address => {
+                        println!(
+                            "Import from file completed for address: {}",
+                            address.address_with_prefix()
+                        );
                     }
-                };
-                println!(
-                    "Import from file completed for address: {}",
-                    address.address_with_prefix()
                 );
             }
             WalletCommands::ImportPrivateKey { label, purpose } => {
-                let address =
-                    match wallet::import_wallet_from_private_key(config.network, &label, purpose) {
-                        Ok(addr) => addr,
-                        Err(e) => {
-                            eprintln!("{} {e}", "Error:".red().bold());
-                            std::process::exit(1);
-                        }
-                    };
-                println!(
-                    "Import from private key completed for address: {}",
-                    address.address_with_prefix()
-                );
-                println!(
-                    "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
-                    "INFO".yellow()
+                handle_cli_command!(
+                    wallet::import_wallet_from_private_key(config.network, &label, purpose),
+                    address => {
+                        println!(
+                            "Import from private key completed for address: {}",
+                            address.address_with_prefix()
+                        );
+                        println!(
+                            "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
+                            "INFO".yellow()
+                        );
+                    }
                 );
             }
             WalletCommands::Delete { address } => {
-                match delete_wallet(&address) {
-                    Ok(res) => res,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
-                println!("Wallet deleted");
+                handle_cli_command!(delete_wallet(&address), "Wallet deleted");
             }
             WalletCommands::VerifyIntegrity => {
-                match verify_wallet_integrity() {
-                    Ok(res) => res,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
-                println!("Wallet integrity verification completed");
+                handle_cli_command!(
+                    verify_wallet_integrity(),
+                    "Wallet integrity verification completed"
+                );
             }
             WalletCommands::List => {
-                match get_all_wallets_with_addresses() {
-                    Ok(w) => w,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                handle_cli_command!(get_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
-                match wallet::show_private_key(&address) {
-                    Ok(_) => println!("Private key display completed"),
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                handle_cli_command!(
+                    wallet::show_private_key(&address),
+                    "Private key display completed"
+                );
             }
         },
         Commands::Deposit { command } => match command {
@@ -354,20 +315,12 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                let deposit_address = match deposit::get_deposit_address(
-                    &citrea_address,
-                    &recovery_taproot_address,
-                    &config,
-                )
-                .await
-                {
-                    Ok(addr) => addr,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
+                handle_cli_command!(async
+                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    deposit_address => {
+                        println!("Deposit address: {}", deposit_address);
                     }
-                };
-                println!("Deposit address: {}", deposit_address);
+                );
             }
             DepositCommands::SignRecoveryTx {
                 recovery_taproot_address,
@@ -382,24 +335,21 @@ async fn main() {
                     hex::encode(bitcoin::consensus::serialize(&tx))
                 }
 
-                match deposit::sign_recovery_tx(
-                    &evm_address,
-                    &recovery_taproot_address,
-                    &deposit_txid,
-                    deposit_vout,
-                    &claim_address,
-                    fee_rate,
-                    amount,
-                    &config,
-                ) {
-                    Ok(tx) => {
+                handle_cli_command!(
+                    deposit::sign_recovery_tx(
+                        &evm_address,
+                        &recovery_taproot_address,
+                        &deposit_txid,
+                        deposit_vout,
+                        &claim_address,
+                        fee_rate,
+                        amount,
+                        &config,
+                    ),
+                    tx => {
                         println!("Recovery transaction hex: {}", serialize_and_encode(tx));
                     }
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                );
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
@@ -407,38 +357,32 @@ async fn main() {
                 recovery_taproot_address,
                 amount,
             } => {
-                let result: (bitcoin::Txid, bitcoin::Address, bitcoin::Amount) =
-                    match deposit::verify_recovery_tx(
+                handle_cli_command!(
+                    deposit::verify_recovery_tx(
                         &recovery_tx,
                         &evm_address,
                         &recovery_taproot_address,
                         amount,
                         &config,
-                    ) {
-                        Ok(res) => res,
-                        Err(e) => {
-                            eprintln!("{} {e}", "Error:".red().bold());
-                            std::process::exit(1);
-                        }
-                    };
-                println!("Recovery transaction verification completed!");
-                println!("Txid: {}", result.0);
-                println!("Address: {}", result.1);
-                println!("Amount: {}", result.2);
+                    ),
+                    (txid, address, amount) => {
+                        println!("Recovery transaction verification completed!");
+                        println!("Txid: {}", txid);
+                        println!("Address: {}", address);
+                        println!("Amount: {}", amount);
+                    }
+                );
             }
             DepositCommands::DepositStatus { deposit_address } => {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
-                match get_deposit_params(&move_to_vault_txid, &config).await {
-                    Ok(params) => {
+                handle_cli_command!(async
+                    get_deposit_params(&move_to_vault_txid, &config),
+                    params => {
                         println!("Deposit parameters hex: {}", hex::encode(params));
                     }
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                );
             }
         },
         Commands::Withdrawal { command } => match command {
@@ -452,24 +396,21 @@ async fn main() {
                     hex::encode(signature.serialize())
                 }
 
-                match withdrawal::generate_withdrawal_signature(
-                    &signer_address,
-                    &withdrawal_address,
-                    &withdrawal_utxo,
-                    amount,
-                    config.network,
-                ) {
-                    Ok(signature) => {
+                handle_cli_command!(
+                    withdrawal::generate_withdrawal_signature(
+                        &signer_address,
+                        &withdrawal_address,
+                        &withdrawal_utxo,
+                        amount,
+                        config.network,
+                    ),
+                    signature => {
                         println!(
                             "Withdrawal signature hex: {}",
                             serialize_and_encode(signature)
                         );
                     }
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
-                    }
-                };
+                );
             }
             WithdrawalCommands::SafeWithdraw {
                 signer_address,
@@ -478,25 +419,21 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                let withdrawal_ui_url = match withdrawal::safe_withdraw(
-                    &signer_address,
-                    &withdrawal_address,
-                    &withdrawal_utxo,
-                    amount,
-                    &signature,
-                    &config,
-                )
-                .await
-                {
-                    Ok(url) => url,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
+                handle_cli_command!(async
+                    withdrawal::safe_withdraw(
+                        &signer_address,
+                        &withdrawal_address,
+                        &withdrawal_utxo,
+                        amount,
+                        &signature,
+                        &config,
+                    ),
+                    withdrawal_ui_url => {
+                        println!(
+                            "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
+                            "INFO".green().bold()
+                        );
                     }
-                };
-                println!(
-                    "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-                    "INFO".green().bold()
                 );
             }
             WithdrawalCommands::SendSafeWithdrawal {
@@ -506,24 +443,20 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                let result = match withdrawal::send_safe_withdrawal(
-                    &signer_address,
-                    &withdrawal_address,
-                    &withdrawal_utxo,
-                    amount,
-                    &signature,
-                    &config,
-                )
-                .await
-                {
-                    Ok(res) => res,
-                    Err(e) => {
-                        eprintln!("{} {e}", "Error:".red().bold());
-                        std::process::exit(1);
+                handle_cli_command!(async
+                    withdrawal::send_safe_withdrawal(
+                        &signer_address,
+                        &withdrawal_address,
+                        &withdrawal_utxo,
+                        amount,
+                        &signature,
+                        &config,
+                    ),
+                    result => {
+                        println!("Safe withdrawal transaction sent!");
+                        println!("Transaction Receipt: {:#?}", result);
                     }
-                };
-                println!("Safe withdrawal transaction sent!");
-                println!("Transaction Receipt: {:#?}", result);
+                );
             }
             WithdrawalCommands::Status { withdrawal_index } => {
                 unimplemented!("withdrawal.status: {}", withdrawal_index);
