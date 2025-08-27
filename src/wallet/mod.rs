@@ -106,7 +106,7 @@ pub fn delete_wallet(
     println!("Make sure you have backed up your wallet before proceeding.");
     println!();
 
-    print!("Type 'DELETE' to confirm deletion:w ");
+    print!("Type 'DELETE' to confirm deletion: ");
     io::stdout().flush()?;
     let mut confirmation = String::new();
     io::stdin().read_line(&mut confirmation)?;
