@@ -7,9 +7,6 @@ use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
-use crate::wallet::mnemonic::load_mnemonic;
-use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_storage::get_storage_dir;
 use crate::wallet::wallet_storage::{
     GenericWalletData, get_wallets_from_registry, load_wallet_data,
 };
@@ -24,6 +21,7 @@ use bitcoin::secp256k1::SecretKey;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use std::collections::HashSet;
+use std::path::Path;
 use std::str::FromStr;
 
 /// Securely load a key from wallet storage and check address validity - always requires a passphrase
@@ -51,7 +49,7 @@ where
     let secp = Secp256k1::new();
     let secret_key = SecureSecretKey::new(SecretKey::from_str(decrypted_key.expose_secret())?);
 
-    let keypair = Keypair::from_secret_key(&secp, secret_key.as_ref());
+    let keypair = Keypair::from_secret_key(&secp, secret_key.as_ref_inner());
     let secure_keypair = SecureKeypair::new(keypair);
 
     Ok(secure_keypair)
@@ -120,7 +118,7 @@ pub(crate) fn validate_private_key_import(
                         let secure_secret_key = SecureSecretKey::new(private_key);
                         let keypair = SecureKeypair::new(Keypair::from_secret_key(
                             &crate::bitcoin_utils::SECP,
-                            secure_secret_key.as_ref(),
+                            secure_secret_key.as_ref_inner(),
                         ));
                         let derived_address = calculate_taproot_address(&keypair, network);
 
@@ -226,29 +224,30 @@ pub(crate) fn validate_wallet_availability(
 
 /// Parse and validate an imported wallet file
 pub(crate) fn parse_and_validate_imported_wallet(
-    file_path: &str,
+    file_path: &Path,
     label: Option<&str>,
 ) -> Result<crate::wallet::wallet_storage::GenericWalletData, BridgeCliError> {
     use std::fs;
-    use std::path::Path;
 
-    let source_path = Path::new(file_path);
-
-    if !source_path.exists() {
-        return Err(BridgeCliError::WalletFileNotFound(file_path.to_string()));
+    if !file_path.exists() {
+        return Err(BridgeCliError::WalletFileNotFound(
+            file_path.display().to_string(),
+        ));
     }
 
-    if !source_path.is_file() {
-        return Err(BridgeCliError::PathNotAFile(file_path.to_string()));
+    if !file_path.is_file() {
+        return Err(BridgeCliError::PathNotAFile(
+            file_path.display().to_string(),
+        ));
     }
 
     // Read and parse the wallet file
-    let wallet_content = fs::read_to_string(source_path)?;
+    let wallet_content = fs::read_to_string(file_path)?;
     let wallet_data: crate::wallet::wallet_storage::GenericWalletData =
         serde_json::from_str(&wallet_content).map_err(|e| {
             BridgeCliError::Eyre(eyre::eyre!(
                 "Failed to parse wallet file '{}': {}",
-                source_path.display(),
+                file_path.display(),
                 e
             ))
         })?;
@@ -417,47 +416,6 @@ fn print_wallet_list<F>(
     }
     println!();
 }
-
-pub(crate) fn get_mnemonic_from_wallet<T>(
-    address: &TaprootAddressWithPrefix<T>,
-) -> Result<Mnemonic, BridgeCliError>
-where
-    T: bitcoin::address::NetworkValidation,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
-{
-    // Check if wallet file exists before prompting for passphrase
-    let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
-
-    if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix(),
-        ));
-    }
-    let passphrase = prompt_unlock_passphrase()?;
-
-    let mnemonic = load_mnemonic(address, &passphrase)?;
-
-    Ok(mnemonic)
-}
-
-pub(crate) fn get_private_key_from_wallet<T>(
-
-    address: &TaprootAddressWithPrefix<T>,
-) -> Result<SecureSecretKey, BridgeCliError>
-where
-    T: bitcoin::address::NetworkValidation,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
-{
-    ensure_wallet_exists(address)?;
-
-    let passphrase = prompt_unlock_passphrase()?;
-
-    let keypair = load_key(address, &passphrase)?;
-
-    Ok(keypair.secret_key())
-}
-
 
 pub(crate) fn ensure_wallet_exists<T>(
     address: &crate::structs::TaprootAddressWithPrefix<T>,

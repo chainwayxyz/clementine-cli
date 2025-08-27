@@ -560,7 +560,7 @@ fn display_private_key_in_alternate_screen(private_key: &SecureSecretKey) -> Res
         Print("Private Key:\r\n\r\n"),
         Print(format!(
             "   {}\r\n\r\n",
-            private_key.as_ref().display_secret()
+            private_key.as_ref_inner().display_secret()
         )),
         SetForegroundColor(Color::Red),
         Print("   WARNING: Anyone with this private key can access your funds!\r\n"),
@@ -618,7 +618,7 @@ fn display_private_key_fallback(private_key: &SecureSecretKey) -> Result<()> {
     println!("Never share this key or store it in insecure locations!");
     println!();
     println!("{}", "Private Key:".cyan().bold());
-    println!("   {}", private_key.as_ref().display_secret());
+    println!("   {}", private_key.as_ref_inner().display_secret());
     println!();
     println!(
         "{}",
