@@ -1,6 +1,7 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
 use crate::structs::{SecureSecretKey, SecureString};
+use bip39::Mnemonic;
 use colored::*;
 use crossterm::{
     cursor,
@@ -33,14 +34,14 @@ const PRIVATE_KEY_COUNTDOWN_Y: u16 = 12;
 /// Uses alternate screen to prevent shell history contamination
 struct SecureMnemonicDisplay<'a> {
     /// The secure mnemonic phrase to display
-    mnemonic: &'a SecureString,
+    mnemonic: &'a Mnemonic,
     /// Whether alternate screen is currently active
     alternate_screen_active: bool,
 }
 
 impl<'a> SecureMnemonicDisplay<'a> {
     /// Create a new secure display instance
-    fn new(mnemonic: &'a SecureString) -> Self {
+    fn new(mnemonic: &'a Mnemonic) -> Self {
         Self {
             mnemonic,
             alternate_screen_active: false,
@@ -194,8 +195,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
     fn display_mnemonic_step_by_step(&self) -> Result<()> {
         let words: Vec<SecureString> = self
             .mnemonic
-            .expose_secret()
-            .split_whitespace()
+            .words()
             .map(|w| SecureString::init_with(|| w.to_string()))
             .collect();
 
@@ -362,8 +362,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
         let words: Vec<SecureString> = self
             .mnemonic
-            .expose_secret()
-            .split_whitespace()
+            .words()
             .map(|w| SecureString::init_with(|| w.to_string()))
             .collect();
 
@@ -495,7 +494,7 @@ impl<'a> Drop for SecureMnemonicDisplay<'a> {
 }
 
 /// Convenience function to display a mnemonic securely
-pub(crate) fn display_mnemonic_securely(mnemonic: &SecureString) -> Result<()> {
+pub(crate) fn display_mnemonic_securely(mnemonic: &Mnemonic) -> Result<()> {
     let mut display = SecureMnemonicDisplay::new(mnemonic);
     display.display_securely()
 }
@@ -684,41 +683,4 @@ fn display_private_key_fallback(private_key: &SecureSecretKey) -> Result<()> {
     }
 
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_secure_display_creation() {
-        let test_mnemonic = SecureString::init_with(|| {
-            "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about".to_string()
-        });
-
-        let display = SecureMnemonicDisplay::new(&test_mnemonic);
-        assert!(!display.alternate_screen_active);
-    }
-
-    #[test]
-    fn test_mnemonic_word_parsing() {
-        let test_mnemonic =
-            SecureString::init_with(|| "word1 word2 word3 word4 word5 word6".to_string());
-
-        let words: Vec<&str> = test_mnemonic.expose_secret().split_whitespace().collect();
-        assert_eq!(words.len(), 6);
-        assert_eq!(words[0], "word1");
-        assert_eq!(words[5], "word6");
-    }
-
-    #[test]
-    fn test_word_chunking() {
-        let words = ["w1", "w2", "w3", "w4", "w5", "w6", "w7"];
-        let chunks: Vec<_> = words.chunks(3).collect();
-
-        assert_eq!(chunks.len(), 3);
-        assert_eq!(chunks[0], &["w1", "w2", "w3"]);
-        assert_eq!(chunks[1], &["w4", "w5", "w6"]);
-        assert_eq!(chunks[2], &["w7"]);
-    }
 }

@@ -3,62 +3,30 @@ use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;
 
 use crate::errors::BridgeCliError;
-use crate::secure_display::display_mnemonic_securely;
 use crate::structs::{
     AddrDisplay, SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
     TaprootAddressWithPrefix,
 };
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
-use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::load_wallet_data;
-use crate::wallet::wallet_utils::address_exists;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
-pub fn show_mnemonic_secure(address_with_prefix: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
-
-    if !address_exists(&address)? {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix().to_string(),
-        ));
-    }
-
-    let passphrase = prompt_unlock_passphrase()?;
-
-    match load_mnemonic_secure(&address, &passphrase) {
-        Ok(mnemonic) => {
-            display_mnemonic_securely(&mnemonic)?;
-            Ok(())
-        }
-        Err(BridgeCliError::NoMnemonicAvailable) => {
-            println!(
-                "{}",
-                "No mnemonic available - this wallet was imported from a private key".yellow()
-            );
-            Ok(())
-        }
-        Err(e) => Err(e),
-    }
-}
-
-pub(crate) fn generate_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
         .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
 
-    let safe_mnemonic = SecureString::init_with(|| mnemonic.to_string());
-
-    Ok(safe_mnemonic)
+    Ok(mnemonic)
 }
 
 /// Generate master seed from mnemonic phrase
 pub(crate) fn get_master_seed_from_mnemonic(
-    mnemonic_phrase: &SecureString,
+    mnemonic: &Mnemonic,
 ) -> Result<SecureByteSlice, BridgeCliError> {
-    let mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
+    // let mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
+    //     .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
 
     let seed = SecureSeed::new(Box::new(mnemonic.to_seed("")));
 
@@ -70,10 +38,10 @@ pub(crate) fn get_master_seed_from_mnemonic(
     Ok(secure_master_seed)
 }
 
-fn load_mnemonic_secure<T>(
+pub(crate) fn load_mnemonic<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
-) -> Result<SecureString, BridgeCliError>
+) -> Result<Mnemonic, BridgeCliError>
 where
     T: NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
@@ -86,18 +54,21 @@ where
         return Err(BridgeCliError::MissingEncryptedMnemonic);
     };
 
-    let secure_mnemonic = aes_decrypt_secure(&encrypted_data, passphrase)?;
+    let secure_mnemonic_str = aes_decrypt_secure(&encrypted_data, passphrase)?;
 
     // Check if this wallet was imported from a private key
-    if secure_mnemonic.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
+    if secure_mnemonic_str.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
         return Err(BridgeCliError::NoMnemonicAvailable);
     }
 
-    Ok(secure_mnemonic)
+    let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret())
+        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
+
+    Ok(mnemonic)
 }
 
-pub(crate) fn derive_private_key_from_mnemonic_secure(
-    mnemonic: &SecureString,
+pub(crate) fn derive_private_key_from_mnemonic(
+    mnemonic: &Mnemonic,
 ) -> Result<SecureString, BridgeCliError> {
     // Generate master seed from mnemonic using BIP-39
     let master_seed = get_master_seed_from_mnemonic(mnemonic)?;
@@ -112,7 +83,7 @@ pub(crate) fn derive_private_key_from_mnemonic_secure(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
-pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
+pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     println!("{}", "Secure Mnemonic Input".blue().bold());
     println!(
         "Enter your {}-word mnemonic phrase word by word.",
@@ -168,10 +139,6 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     // Join words and validate complete mnemonic - keep it secure from the start
     let secure_mnemonic_phrase = SecureString::init_with(|| words.join(" "));
 
-    // Use Mnemonic for validation to ensure proper cleanup
-    let _secure_mnemonic_obj = Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
-
     println!();
     println!(
         "{} Valid BIP-39 mnemonic phrase with 12 words",
@@ -179,5 +146,8 @@ pub(crate) fn prompt_mnemonic_secure() -> Result<SecureString, BridgeCliError> {
     );
     println!("Mnemonic will be handled securely and zeroized from memory");
 
-    Ok(secure_mnemonic_phrase)
+    let mnemonic = Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
+        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
+
+    Ok(mnemonic)
 }

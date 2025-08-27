@@ -1,6 +1,5 @@
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
-use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use std::fs;
@@ -84,16 +83,6 @@ pub(crate) fn store_wallet_data(
 
     // Update wallets registry
     update_wallets_registry(label, address, network, imported, import_method)?;
-
-    println!(
-        "Wallet data for '{}' stored successfully in '{}'",
-        label.blue().bold(),
-        wallet_file.display()
-    );
-    println!(
-        "You can now use this wallet with the address: {}",
-        address.address_with_prefix().green()
-    );
 
     Ok(())
 }

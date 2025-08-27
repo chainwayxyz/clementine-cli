@@ -6,51 +6,54 @@ mod wallet_storage;
 pub(crate) mod wallet_utils;
 
 pub use address::Purpose;
-pub use address::get_all_wallets_with_addresses;
-pub use mnemonic::show_mnemonic_secure;
+pub use address::print_all_wallets_with_addresses;
 
 use bitcoin::Network;
+use bitcoin::address::NetworkChecked;
+use bitcoin::address::NetworkUnchecked;
 use colored::Colorize;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::structs::TaprootAddressWithPrefix;
-use crate::wallet::address::generate_address_from_mnemonic_secure;
+use crate::wallet::address::generate_address_from_mnemonic;
+use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
+use crate::wallet::mnemonic::generate_mnemonic;
+use crate::wallet::mnemonic::{derive_private_key_from_mnemonic, prompt_mnemonic};
+use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::{get_registry_wallet_set, scan_wallet_files};
-use crate::wallet::wallet_utils::{address_exists, load_key, parse_network};
+use crate::wallet::wallet_utils::get_mnemonic_from_wallet;
+use crate::wallet::wallet_utils::{
+    WalletValidationMode, address_exists, load_key, parse_network, validate_wallet_availability,
+};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
-use crate::secure_display::{display_mnemonic_securely, display_private_key_securely};
 use crate::structs::{SecureByteVec, SecureKeypair, SecureSecretKey, SecureString};
-use encryption::{aes_decrypt_secure, aes_encrypt_secure};
-use mnemonic::{
-    MNEMONIC_WORD_COUNT, derive_private_key_from_mnemonic_secure, generate_mnemonic_secure,
-    prompt_mnemonic_secure,
-};
-use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
-use wallet_storage::get_storage_dir;
-use wallet_storage::remove_wallet_from_registry;
-use wallet_utils::{
-    WalletValidationMode, parse_and_validate_imported_wallet, report_integrity_results,
-    validate_mnemonic_import, validate_private_key_import, validate_wallet_availability,
+use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_storage::get_storage_dir;
+use crate::wallet::wallet_storage::remove_wallet_from_registry;
+use crate::wallet::wallet_utils::{
+    parse_and_validate_imported_wallet, report_integrity_results, validate_mnemonic_import,
+    validate_private_key_import,
 };
 
 pub fn create_encrypted_wallet_with_address(
     network: Network,
     label: String,
     purpose: Purpose,
-) -> Result<(), BridgeCliError> {
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Generate mnemonic
-    let secure_mnemonic = generate_mnemonic_secure()?;
+    let mnemonic = generate_mnemonic()?;
 
     // Generate address from mnemonic using helper function
-    let address =
-        address::generate_address_from_mnemonic_secure(&secure_mnemonic, network, purpose)
-            .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+    let address = address::generate_address_from_mnemonic(&mnemonic, network, purpose)
+        .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(Some(&label), Some(&address), WalletValidationMode::Both)?;
@@ -59,9 +62,11 @@ pub fn create_encrypted_wallet_with_address(
     let passphrase = prompt_passphrase(true)?;
 
     // Encrypt mnemonic and private key separately with different nonces
-    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)?;
+    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)?;
 
-    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)?;
+    let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
+
+    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase)?;
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
 
     // Store encrypted wallet with separate encrypted fields
@@ -75,24 +80,10 @@ pub fn create_encrypted_wallet_with_address(
         &label,
     )?;
 
-    match display_mnemonic_securely(&secure_mnemonic) {
-        Ok(()) => {
-            println!("{}", "Mnemonic displayed securely".green());
-        }
-        Err(e) => {
-            eprintln!(
-                "{} Failed to display mnemonic securely: {}",
-                "ERROR".red().bold(),
-                e
-            );
-            eprintln!(
-                "{} The wallet is still safely stored encrypted.",
-                "INFO".blue().bold()
-            );
-        }
-    }
+    // Display the mnemonic securely to the user
+    crate::secure_display::display_mnemonic_securely(&mnemonic)?;
 
-    Ok(())
+    Ok(address)
 }
 
 pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
@@ -147,7 +138,7 @@ pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
 pub fn backup_wallet(
     address_with_prefix: &str,
     destination_path: &str,
-) -> Result<(), BridgeCliError> {
+) -> Result<(TaprootAddressWithPrefix<NetworkUnchecked>, PathBuf), BridgeCliError> {
     let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
 
     if !address_exists(&address)? {
@@ -186,14 +177,7 @@ pub fn backup_wallet(
         fs::set_permissions(&final_dest, perms)?;
     }
 
-    println!(
-        "{} Wallet '{}' backed up successfully to: {}",
-        "SUCCESS".green(),
-        address.address_with_prefix().cyan(),
-        final_dest.display().to_string().yellow()
-    );
-
-    Ok(())
+    Ok((address, final_dest))
 }
 
 /// Import a wallet using secure mnemonic input (step-by-step) and password creation
@@ -201,44 +185,29 @@ pub fn import_wallet_from_mnemonic(
     network: Network,
     label: &str,
     purpose: Purpose,
-) -> Result<String, BridgeCliError> {
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
 
     println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
-    println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
-    let secure_mnemonic = prompt_mnemonic_secure()?;
+    let mnemonic = prompt_mnemonic()?;
 
     // Generate address from mnemonic using helper function
-    let address = generate_address_from_mnemonic_secure(&secure_mnemonic, network, purpose)
+    let address = generate_address_from_mnemonic(&mnemonic, network, purpose)
         .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
 
     validate_wallet_availability(None, Some(&address), WalletValidationMode::Address)?;
+    let _address_str = address.address_with_prefix();
 
-    println!();
-    println!("Mnemonic processed successfully!");
-    println!("Derived address: {}", address.address_with_prefix().green());
-    println!();
-
-    // Securely prompt for passphrase
-    println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
-    println!("Enter a strong passphrase to encrypt your imported wallet:");
     let passphrase = prompt_passphrase(true)?;
 
-    println!("Passphrase created successfully!");
-    println!();
-
-    // Encrypt and store wallet
-    println!(
-        "{}",
-        "Step 3: Encrypting and Storing Wallet".yellow().bold()
-    );
-
-    let master_private_key_secure = derive_private_key_from_mnemonic_secure(&secure_mnemonic)
+    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)
         .map_err(|e| BridgeCliError::PrivateKeyDerivationFromMnemonicFailed(e.to_string()))?;
 
-    let encrypted_mnemonic = aes_encrypt_secure(&secure_mnemonic, &passphrase)
+    let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
+
+    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase)
         .map_err(|e| BridgeCliError::MnemonicEncryptionFailed(e.to_string()))?;
 
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
@@ -255,7 +224,7 @@ pub fn import_wallet_from_mnemonic(
     )
     .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
 
-    Ok(address.address_with_prefix())
+    Ok(address)
 }
 
 pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
@@ -281,18 +250,12 @@ pub fn verify_wallet_integrity() -> Result<(), BridgeCliError> {
 pub fn import_wallet_from_file(
     file_path: &str,
     label: Option<&str>,
-) -> Result<String, BridgeCliError> {
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label)?;
 
-    println!("{}", "Passphrase Verification Required".yellow().bold());
-    println!("To import this wallet, you must provide the correct passphrase to verify access.");
-
     // Prompt for passphrase to verify the user can decrypt the wallet
     let passphrase = prompt_unlock_passphrase()?;
-
-    // Verify passphrase by attempting to decrypt the wallet data
-    println!("Verifying passphrase...");
 
     let encrypted_mnemonic_hex = wallet_data.encrypted_mnemonic.as_ref().unwrap();
     let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
@@ -367,7 +330,7 @@ pub fn import_wallet_from_file(
         label,
     )?;
 
-    Ok(wallet_data.address_with_prefix)
+    Ok(wallet_address)
 }
 
 /// Import a wallet from a private key
@@ -375,7 +338,7 @@ pub fn import_wallet_from_private_key(
     network: Network,
     label: &str,
     purpose: Purpose,
-) -> Result<String, BridgeCliError> {
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
 
     let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
@@ -405,6 +368,8 @@ pub fn import_wallet_from_private_key(
 
     let address = TaprootAddressWithPrefix::new(address, purpose)?;
 
+    let _address_str = address.address_with_prefix();
+
     // Check if address already exists
     validate_wallet_availability(None, Some(&address), WalletValidationMode::Address)?;
 
@@ -432,16 +397,16 @@ pub fn import_wallet_from_private_key(
     )
     .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to store wallet: {}", e)))?;
 
-    println!(
-        "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
-        "INFO".yellow()
-    );
-
-    Ok(address.address_with_prefix())
+    Ok(address)
 }
 
-pub fn show_private_key(address_with_prefix: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
+pub(crate) fn get_private_key_from_wallet<T>(
+    address: &TaprootAddressWithPrefix<T>,
+) -> Result<SecureSecretKey, BridgeCliError>
+where
+    T: bitcoin::address::NetworkValidation,
+    bitcoin::Address<T>: crate::structs::AddrDisplay,
+{
     // Check if wallet file exists before prompting for passphrase
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
@@ -454,10 +419,24 @@ pub fn show_private_key(address_with_prefix: &str) -> Result<(), BridgeCliError>
 
     let passphrase = prompt_unlock_passphrase()?;
 
-    let keypair = load_key(&address, &passphrase)?;
+    let keypair = load_key(address, &passphrase)?;
 
-    display_private_key_securely(&keypair.secret_key())?;
+    Ok(keypair.secret_key())
+}
 
+/// Show mnemonic securely for a wallet
+pub fn show_mnemonic(address_with_prefix: &str) -> Result<(), BridgeCliError> {
+    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
+    let mnemonic = get_mnemonic_from_wallet(&address)?;
+    crate::secure_display::display_mnemonic_securely(&mnemonic)?;
+    Ok(())
+}
+
+/// Show private key securely for a wallet
+pub fn show_private_key(address_with_prefix: &str) -> Result<(), BridgeCliError> {
+    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
+    let private_key = get_private_key_from_wallet(&address)?;
+    crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
 

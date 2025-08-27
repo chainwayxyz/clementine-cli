@@ -1,0 +1,87 @@
+/// Universal CLI command handler - handles all cases: sync/async, with/without result processing
+#[macro_export]
+macro_rules! handle_cli_command {
+    // Async with result processing (most flexible)
+    (async $expr:expr, $pattern:pat => { $($body:tt)* }) => {
+        match $expr.await {
+            Ok($pattern) => { $($body)* }
+            Err(e) => {
+                eprintln!("{} {}", colored::Colorize::red(colored::Colorize::bold("Error:")), e);
+                std::process::exit(1);
+            }
+        }
+    };
+
+    // Sync with result processing (most flexible)
+    ($expr:expr, $pattern:pat => { $($body:tt)* }) => {
+        match $expr {
+            Ok($pattern) => { $($body)* }
+            Err(e) => {
+                eprintln!("{} {}", colored::Colorize::red(colored::Colorize::bold("Error:")), e);
+                std::process::exit(1);
+            }
+        }
+    };
+
+    // Async with simple success message (convenience)
+    (async $expr:expr, $success_msg:expr) => {
+        handle_cli_command!(async $expr, _result => {
+            println!("{}", $success_msg);
+        });
+    };
+
+    // Sync with simple success message (convenience)
+    ($expr:expr, $success_msg:expr) => {
+        handle_cli_command!($expr, _result => {
+            println!("{}", $success_msg);
+        });
+    };
+
+    // Async without success message (convenience)
+    (async $expr:expr) => {
+        handle_cli_command!(async $expr, _result => {});
+    };
+
+    // Sync without success message (convenience)
+    ($expr:expr) => {
+        handle_cli_command!($expr, _result => {});
+    };
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt;
+
+    #[derive(Debug)]
+    struct TestError(&'static str);
+
+    impl fmt::Display for TestError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}", self.0)
+        }
+    }
+
+    impl std::error::Error for TestError {}
+
+    fn successful_operation() -> Result<String, TestError> {
+        Ok("test result".to_string())
+    }
+
+    #[tokio::test]
+    async fn test_async_successful_operation() {
+        async fn async_success() -> Result<String, TestError> {
+            Ok("async result".to_string())
+        }
+
+        let result = async_success().await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "async result");
+    }
+
+    #[test]
+    fn test_sync_successful_operation() {
+        let result = successful_operation();
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), "test result");
+    }
+}

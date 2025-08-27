@@ -79,6 +79,8 @@ pub enum BridgeCliError {
     PlaceholderMnemonicEncryptionFailed(String),
     #[error("No mnemonic available - this wallet was imported from a private key")]
     NoMnemonicAvailable,
+    #[error("Failed to display mnemonic securely: {0}")]
+    FailedMnemonicDisplay(String),
 
     // Passphrase-related errors
     #[error("Invalid Argon2 parameters: {0}")]

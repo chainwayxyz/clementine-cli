@@ -16,12 +16,6 @@ fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
 
 impl BitcoinMerkleTree {
     pub fn new(transactions: Vec<[u8; 32]>) -> Self {
-        // assert!(depth > 0, "Depth must be greater than 0");
-        // assert!(depth <= 254, "Depth must be less than or equal to 254");
-        // assert!(
-        //     u32::pow(2, (depth) as u32) >= transactions.len() as u32,
-        //     "Too many transactions for this depth"
-        // );
         let depth = (transactions.len() - 1).ilog(2) + 1;
         let mut tree = BitcoinMerkleTree {
             depth,
@@ -40,9 +34,6 @@ impl BitcoinMerkleTree {
         let mut prev_level_index_offset = 0;
         let mut preimage: [u8; 64] = [0; 64];
         while prev_level_size > 1 {
-            // println!("curr_level_offset: {}", curr_level_offset);
-            // println!("prev_level_size: {}", prev_level_size);
-            // println!("prev_level_index_offset: {}", prev_level_index_offset);
             tree.nodes.push(vec![]);
             for i in 0..(prev_level_size / 2) {
                 preimage[..32].copy_from_slice(

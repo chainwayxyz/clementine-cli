@@ -5,11 +5,15 @@ use crate::structs::SecureKeypair;
 use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::wallet::address::generate_address_from_mnemonic_secure;
+use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
+use crate::wallet::mnemonic::load_mnemonic;
+use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_storage::get_storage_dir;
 use crate::wallet::wallet_storage::{
     GenericWalletData, get_wallets_from_registry, load_wallet_data,
 };
+use bip39::Mnemonic;
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
 use bitcoin::address::NetworkUnchecked;
@@ -70,14 +74,15 @@ pub(crate) fn validate_mnemonic_import(
         network,
     )?;
 
+    let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret())
+        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
+
     // Generate address from mnemonic to verify it matches
-    match generate_address_from_mnemonic_secure(decrypted_mnemonic, network, wallet_address.purpose)
-    {
+    match generate_address_from_mnemonic(&mnemonic, network, wallet_address.purpose) {
         Ok(derived_address) => {
             if derived_address.address != wallet_address.address {
                 return Err(BridgeCliError::AddressMismatch);
             }
-            println!("Passphrase verified successfully! Address confirmed.");
         }
         Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
     }
@@ -127,9 +132,6 @@ pub(crate) fn validate_private_key_import(
                         if derived_address.to_string() != wallet_address {
                             return Err(BridgeCliError::AddressMismatch);
                         }
-                        println!(
-                            "Passphrase verified successfully! Private key address confirmed."
-                        );
                     }
                     Err(_) => {
                         return Err(BridgeCliError::InvalidPrivateKey(
@@ -419,4 +421,27 @@ fn print_wallet_list<F>(
         println!("{}", formatter(address));
     }
     println!();
+}
+
+pub(crate) fn get_mnemonic_from_wallet<T>(
+    address: &TaprootAddressWithPrefix<T>,
+) -> Result<Mnemonic, BridgeCliError>
+where
+    T: bitcoin::address::NetworkValidation,
+    bitcoin::Address<T>: crate::structs::AddrDisplay,
+{
+    // Check if wallet file exists before prompting for passphrase
+    let storage_dir = get_storage_dir()?;
+    let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
+
+    if !wallet_file.exists() {
+        return Err(BridgeCliError::WalletNotFound(
+            address.address_with_prefix(),
+        ));
+    }
+    let passphrase = prompt_unlock_passphrase()?;
+
+    let mnemonic = load_mnemonic(address, &passphrase)?;
+
+    Ok(mnemonic)
 }

@@ -1,5 +1,5 @@
+use bip39::Mnemonic;
 use bitcoin::address::NetworkChecked;
-// use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
 use clap::ValueEnum;
@@ -8,7 +8,7 @@ use secrecy::ExposeSecret;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureKeypair, SecureSecretKey, SecureString, TaprootAddressWithPrefix};
+use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
@@ -38,12 +38,12 @@ impl Purpose {
 }
 
 /// Generate a Bitcoin address from a mnemonic phrase
-pub(crate) fn generate_address_from_mnemonic_secure(
-    secure_mnemonic: &SecureString,
+pub(crate) fn generate_address_from_mnemonic(
+    mnemonic: &Mnemonic,
     network: Network,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    let master_seed = get_master_seed_from_mnemonic(secure_mnemonic)
+    let master_seed = get_master_seed_from_mnemonic(mnemonic)
         .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
 
     let master_private_key =
@@ -86,7 +86,7 @@ pub(crate) fn parse_taproot_address(
 }
 
 /// Get all wallets with their names and addresses from storage and print them
-pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
+pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
     if !storage_dir.exists() {

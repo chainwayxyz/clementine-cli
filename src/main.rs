@@ -1,8 +1,10 @@
 use bitcoin::{Network, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::{
+    backup_wallet,
     config::BridgeCliConfig,
-    deposit, show_mnemonic_secure,
+    deposit, get_deposit_params, handle_cli_command, print_all_wallets_with_addresses,
+    show_mnemonic,
     wallet::{
         self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
         import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -13,36 +15,6 @@ use colored::Colorize;
 use std::path::PathBuf;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
-
-macro_rules! handle_or_exit {
-    ($expr:expr) => {
-        if let Err(e) = $expr {
-            eprintln!("{} {:?}", "Error:".red().bold(), eyre::Report::from(e));
-            std::process::exit(1);
-        }
-    };
-}
-
-macro_rules! print_or_exit {
-    ($expr:expr) => {
-        match $expr {
-            Ok(result) => println!("{result:?}"),
-            Err(e) => {
-                eprintln!("{} {e}", "Error:".red().bold());
-                std::process::exit(1);
-            }
-        }
-    };
-    ($expr:expr, $wrapper:expr) => {
-        match $expr {
-            Ok(result) => println!("{:?}", $wrapper(result)),
-            Err(e) => {
-                eprintln!("{} {e}", "Error:".red().bold());
-                std::process::exit(1);
-            }
-        }
-    };
-}
 
 /// Initializes tracing to `Debug` level if verbose flag is given. If not,
 /// defaults to `RUST_LOG` env variable.
@@ -255,45 +227,88 @@ async fn main() {
     match cli.command {
         Commands::Wallet { command } => match command {
             WalletCommands::Create { label, purpose } => {
-                handle_or_exit!(create_encrypted_wallet_with_address(
-                    config.network,
-                    label,
-                    purpose
-                ));
+                handle_cli_command!(
+                    create_encrypted_wallet_with_address(config.network, label, purpose),
+                    address => {
+                        println!(
+                            "Wallet created with address: {}",
+                            address.address_with_prefix()
+                        );
+                    }
+                );
             }
             WalletCommands::Backup {
                 destination,
                 address,
             } => {
-                handle_or_exit!(wallet::backup_wallet(&address, &destination));
+                handle_cli_command!(
+                    backup_wallet(&address, &destination),
+                    (addr, dest) => {
+                        println!(
+                            "Backup completed for address {} to destination {}",
+                            addr.address_with_prefix(),
+                            dest.display()
+                        );
+                    }
+                );
             }
             WalletCommands::ShowMnemonic { address } => {
-                handle_or_exit!(show_mnemonic_secure(&address));
+                handle_cli_command!(show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic { label, purpose } => {
-                handle_or_exit!(import_wallet_from_mnemonic(config.network, &label, purpose));
+                handle_cli_command!(
+                    import_wallet_from_mnemonic(config.network, &label, purpose),
+                    address => {
+                        println!(
+                            "Import completed for address: {}",
+                            address.address_with_prefix()
+                        );
+                    }
+                );
             }
             WalletCommands::ImportFile { filename, label } => {
-                handle_or_exit!(import_wallet_from_file(&filename, label.as_deref()));
+                handle_cli_command!(
+                    import_wallet_from_file(&filename, label.as_deref()),
+                    address => {
+                        println!(
+                            "Import from file completed for address: {}",
+                            address.address_with_prefix()
+                        );
+                    }
+                );
             }
             WalletCommands::ImportPrivateKey { label, purpose } => {
-                handle_or_exit!(wallet::import_wallet_from_private_key(
-                    config.network,
-                    &label,
-                    purpose
-                ));
+                handle_cli_command!(
+                    wallet::import_wallet_from_private_key(config.network, &label, purpose),
+                    address => {
+                        println!(
+                            "Import from private key completed for address: {}",
+                            address.address_with_prefix()
+                        );
+                        println!(
+                            "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
+                            "INFO".yellow()
+                        );
+                    }
+                );
             }
             WalletCommands::Delete { address } => {
-                handle_or_exit!(delete_wallet(&address));
+                handle_cli_command!(delete_wallet(&address), "Wallet deleted");
             }
             WalletCommands::VerifyIntegrity => {
-                handle_or_exit!(verify_wallet_integrity());
+                handle_cli_command!(
+                    verify_wallet_integrity(),
+                    "Wallet integrity verification completed"
+                );
             }
             WalletCommands::List => {
-                handle_or_exit!(clementine_cli::get_all_wallets_with_addresses());
+                handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
-                handle_or_exit!(wallet::show_private_key(&address));
+                handle_cli_command!(
+                    wallet::show_private_key(&address),
+                    "Private key display completed"
+                );
             }
         },
         Commands::Deposit { command } => match command {
@@ -301,13 +316,11 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
-                print_or_exit!(
-                    deposit::get_deposit_address(
-                        &citrea_address,
-                        &recovery_taproot_address,
-                        &config,
-                    )
-                    .await
+                handle_cli_command!(async
+                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    deposit_address => {
+                        println!("Deposit address: {}", deposit_address);
+                    }
                 );
             }
             DepositCommands::SignRecoveryTx {
@@ -323,7 +336,7 @@ async fn main() {
                     hex::encode(bitcoin::consensus::serialize(&tx))
                 }
 
-                print_or_exit!(
+                handle_cli_command!(
                     deposit::sign_recovery_tx(
                         &evm_address,
                         &recovery_taproot_address,
@@ -334,7 +347,9 @@ async fn main() {
                         amount,
                         &config,
                     ),
-                    serialize_and_encode
+                    tx => {
+                        println!("Recovery transaction hex: {}", serialize_and_encode(tx));
+                    }
                 );
             }
             DepositCommands::VerifyRecoveryTx {
@@ -343,21 +358,31 @@ async fn main() {
                 recovery_taproot_address,
                 amount,
             } => {
-                handle_or_exit!(deposit::verify_recovery_tx(
-                    &recovery_tx,
-                    &evm_address,
-                    &recovery_taproot_address,
-                    amount,
-                    &config,
-                ));
+                handle_cli_command!(
+                    deposit::verify_recovery_tx(
+                        &recovery_tx,
+                        &evm_address,
+                        &recovery_taproot_address,
+                        amount,
+                        &config,
+                    ),
+                    (txid, address, amount) => {
+                        println!("Recovery transaction verification completed!");
+                        println!("Txid: {}", txid);
+                        println!("Address: {}", address);
+                        println!("Amount: {}", amount);
+                    }
+                );
             }
             DepositCommands::DepositStatus { deposit_address } => {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
-                print_or_exit!(
-                    deposit::get_deposit_params(&move_to_vault_txid, &config).await,
-                    hex::encode
+                handle_cli_command!(async
+                    get_deposit_params(&move_to_vault_txid, &config),
+                    params => {
+                        println!("Deposit parameters hex: {}", hex::encode(params));
+                    }
                 );
             }
         },
@@ -372,7 +397,7 @@ async fn main() {
                     hex::encode(signature.serialize())
                 }
 
-                print_or_exit!(
+                handle_cli_command!(
                     withdrawal::generate_withdrawal_signature(
                         &signer_address,
                         &withdrawal_address,
@@ -380,7 +405,12 @@ async fn main() {
                         amount,
                         config.network,
                     ),
-                    serialize_and_encode
+                    signature => {
+                        println!(
+                            "Withdrawal signature hex: {}",
+                            serialize_and_encode(signature)
+                        );
+                    }
                 );
             }
             WithdrawalCommands::SafeWithdraw {
@@ -390,7 +420,7 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                handle_or_exit!(
+                handle_cli_command!(async
                     withdrawal::safe_withdraw(
                         &signer_address,
                         &withdrawal_address,
@@ -398,8 +428,13 @@ async fn main() {
                         amount,
                         &signature,
                         &config,
-                    )
-                    .await
+                    ),
+                    withdrawal_ui_url => {
+                        println!(
+                            "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
+                            "INFO".green().bold()
+                        );
+                    }
                 );
             }
             WithdrawalCommands::SendSafeWithdrawal {
@@ -409,7 +444,7 @@ async fn main() {
                 amount,
                 signature,
             } => {
-                print_or_exit!(
+                handle_cli_command!(async
                     withdrawal::send_safe_withdrawal(
                         &signer_address,
                         &withdrawal_address,
@@ -417,8 +452,11 @@ async fn main() {
                         amount,
                         &signature,
                         &config,
-                    )
-                    .await
+                    ),
+                    result => {
+                        println!("Safe withdrawal transaction sent!");
+                        println!("Transaction Receipt: {:#?}", result);
+                    }
                 );
             }
             WithdrawalCommands::Status { withdrawal_index } => {
