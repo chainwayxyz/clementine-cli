@@ -335,3 +335,128 @@ pub async fn send_safe_withdrawal(
 
     Ok(receipt)
 }
+
+pub fn start_withdrawal(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    _claim_address: &BitcoinAddress,
+    _config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    if signer_address.purpose != Purpose::Withdrawal {
+        return Err(BridgeCliError::PurposeMismatch(
+            Purpose::Withdrawal,
+            signer_address.purpose,
+        ));
+    }
+    Ok(())
+}
+
+pub async fn scan_withdrawal(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    _claim_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
+    if signer_address.purpose != Purpose::Withdrawal {
+        return Err(BridgeCliError::PurposeMismatch(
+            Purpose::Withdrawal,
+            signer_address.purpose,
+        ));
+    }
+
+    let utxos = get_utxos_for_address(signer_address, config).await?;
+    let mut results = Vec::new();
+
+    for utxo in utxos {
+        let withdrawal_outpoint = OutPoint {
+            txid: utxo.txid,
+            vout: utxo.vout,
+        };
+        results.push((withdrawal_outpoint, utxo.value));
+    }
+
+    Ok(results)
+}
+
+#[derive(Debug)]
+struct UtxoInfo {
+    txid: bitcoin::Txid,
+    vout: u32,
+    value: Amount,
+}
+
+async fn get_utxos_for_address(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
+    match &config.bitcoin_config {
+        Some(_) => get_utxos_from_rpc(address, config).await,
+        None => get_utxos_from_mempool(address, config).await,
+    }
+}
+
+async fn get_utxos_from_rpc(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+
+    let utxos = rpc
+        .list_unspent(Some(0), None, Some(&[&address.address]), None, None)
+        .await?;
+
+    let mut result = Vec::new();
+    for utxo in utxos {
+        if utxo.amount == Amount::from_sat(330) {
+            result.push(UtxoInfo {
+                txid: utxo.txid,
+                vout: utxo.vout,
+                value: utxo.amount,
+            });
+        }
+    }
+
+    Ok(result)
+}
+
+async fn get_utxos_from_mempool(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
+    use std::str::FromStr;
+
+    let url = config
+        .mempool_api_url
+        .join(&format!("address/{}/utxo", address.address))
+        .wrap_err("Can't join URL for address UTXOs")?;
+
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| eyre::eyre!("Failed to fetch UTXOs for address {}: {e}", address.address))?;
+
+    let utxos: Value = response
+        .json()
+        .await
+        .wrap_err("Failed to parse UTXO response")?;
+
+    let mut result = Vec::new();
+
+    if let Some(utxo_array) = utxos.as_array() {
+        for utxo in utxo_array {
+            if let (Some(txid_str), Some(vout), Some(value)) = (
+                utxo["txid"].as_str(),
+                utxo["vout"].as_u64(),
+                utxo["value"].as_u64(),
+            ) && value == 330
+            {
+                let txid = bitcoin::Txid::from_str(txid_str)
+                    .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
+                result.push(UtxoInfo {
+                    txid,
+                    vout: vout as u32,
+                    value: Amount::from_sat(value),
+                });
+            }
+        }
+    }
+
+    Ok(result)
+}
