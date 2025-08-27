@@ -27,7 +27,7 @@ pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 pub use wallet::{
     backup_wallet, create_encrypted_wallet, get_mnemonic_from_wallet, get_private_key_from_wallet,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
-    print_all_wallets_with_addresses,
+    print_all_wallets_with_addresses, scan_wallet_files, get_registry_wallet_set
 };
 
 // Deposit operations
