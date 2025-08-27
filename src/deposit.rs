@@ -100,8 +100,8 @@ pub fn sign_recovery_tx(
         txid,
         vout: deposit_vout,
     };
+
     // Always prompt for passphrase for maximum security
-    println!("Please enter the passphrase for the recovery key:");
     let secure_passphrase = prompt_unlock_passphrase()?;
 
     let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(

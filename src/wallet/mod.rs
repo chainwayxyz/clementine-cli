@@ -47,7 +47,7 @@ pub fn create_encrypted_wallet_with_address(
     network: Network,
     label: String,
     purpose: Purpose,
-) -> Result<(), BridgeCliError> {
+) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Generate mnemonic
     let mnemonic = generate_mnemonic()?;
 
@@ -81,11 +81,9 @@ pub fn create_encrypted_wallet_with_address(
     )?;
 
     // Display the mnemonic securely to the user
-    println!("{}", "Wallet created successfully!".green().bold());
-    println!("Address: {}", address.address_with_prefix().cyan());
     crate::secure_display::display_mnemonic_securely(&mnemonic)?;
 
-    Ok(())
+    Ok(address)
 }
 
 pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
@@ -193,7 +191,6 @@ pub fn import_wallet_from_mnemonic(
     println!("{}", "Import Wallet with Mnemonic".blue().bold());
 
     // Prompt for mnemonic securely (word by word)
-    println!("{}", "Step 1: Enter Mnemonic Phrase".yellow().bold());
     let mnemonic = prompt_mnemonic()?;
 
     // Generate address from mnemonic using helper function
@@ -203,24 +200,7 @@ pub fn import_wallet_from_mnemonic(
     validate_wallet_availability(None, Some(&address), WalletValidationMode::Address)?;
     let _address_str = address.address_with_prefix();
 
-    println!();
-    println!("Mnemonic processed successfully!");
-    println!("Derived address: {}", address.address_with_prefix().green());
-    println!();
-
-    // Securely prompt for passphrase
-    println!("{}", "Step 2: Create Secure Passphrase".yellow().bold());
-    println!("Enter a strong passphrase to encrypt your imported wallet:");
     let passphrase = prompt_passphrase(true)?;
-
-    println!("Passphrase created successfully!");
-    println!();
-
-    // Encrypt and store wallet
-    println!(
-        "{}",
-        "Step 3: Encrypting and Storing Wallet".yellow().bold()
-    );
 
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)
         .map_err(|e| BridgeCliError::PrivateKeyDerivationFromMnemonicFailed(e.to_string()))?;
@@ -274,14 +254,8 @@ pub fn import_wallet_from_file(
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label)?;
 
-    println!("{}", "Passphrase Verification Required".yellow().bold());
-    println!("To import this wallet, you must provide the correct passphrase to verify access.");
-
     // Prompt for passphrase to verify the user can decrypt the wallet
     let passphrase = prompt_unlock_passphrase()?;
-
-    // Verify passphrase by attempting to decrypt the wallet data
-    println!("Verifying passphrase...");
 
     let encrypted_mnemonic_hex = wallet_data.encrypted_mnemonic.as_ref().unwrap();
     let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
@@ -422,11 +396,6 @@ pub fn import_wallet_from_private_key(
         label,
     )
     .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to store wallet: {}", e)))?;
-
-    println!(
-        "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
-        "INFO".yellow()
-    );
 
     Ok(address)
 }

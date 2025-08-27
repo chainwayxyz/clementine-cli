@@ -83,7 +83,6 @@ pub(crate) fn validate_mnemonic_import(
             if derived_address.address != wallet_address.address {
                 return Err(BridgeCliError::AddressMismatch);
             }
-            println!("Passphrase verified successfully! Address confirmed.");
         }
         Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
     }
@@ -133,9 +132,6 @@ pub(crate) fn validate_private_key_import(
                         if derived_address.to_string() != wallet_address {
                             return Err(BridgeCliError::AddressMismatch);
                         }
-                        println!(
-                            "Passphrase verified successfully! Private key address confirmed."
-                        );
                     }
                     Err(_) => {
                         return Err(BridgeCliError::InvalidPrivateKey(

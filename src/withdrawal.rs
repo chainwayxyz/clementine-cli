@@ -19,7 +19,6 @@ use alloy::signers::local::PrivateKeySigner;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
-use colored::*;
 use eyre::Context;
 use open;
 use serde_json::{Value, json};
@@ -177,7 +176,7 @@ pub async fn safe_withdraw(
     amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
+) -> Result<String, BridgeCliError> {
     let signer_address =
         TaprootAddressWithPrefix::from_string_with_prefix(signer_address, config.network)?;
     if signer_address.purpose != Purpose::Withdrawal {
@@ -249,20 +248,17 @@ pub async fn safe_withdraw(
         encode(&withdrawal_address.to_string())
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
-    println!(
-        "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-        "INFO".green().bold()
-    );
 
     if let Err(e) = open::that(&withdrawal_ui_url) {
-        println!("{} Failed to open browser: {}", "ERROR".red().bold(), e);
-        println!(
-            "Please visit the following URL manually: {}",
+        return Err(eyre::eyre!(
+            "Failed to open browser: {}. Please visit the following URL manually: {}",
+            e,
             withdrawal_ui_url
-        );
+        )
+        .into());
     }
 
-    Ok(())
+    Ok(withdrawal_ui_url)
 }
 
 #[allow(clippy::too_many_arguments)]
