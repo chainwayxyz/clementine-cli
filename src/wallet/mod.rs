@@ -16,7 +16,6 @@ use colored::Colorize;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use std::fs;
-use std::io::{self, Write};
 use std::path::PathBuf;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
@@ -27,9 +26,11 @@ use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::{derive_private_key_from_mnemonic, prompt_mnemonic};
 use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::{get_registry_wallet_set, scan_wallet_files};
+use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::get_mnemonic_from_wallet;
+use crate::wallet::wallet_utils::get_private_key_from_wallet;
 use crate::wallet::wallet_utils::{
-    WalletValidationMode, address_exists, load_key, parse_network, validate_wallet_availability,
+    WalletValidationMode, parse_network, validate_wallet_availability,
 };
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -38,7 +39,6 @@ use crate::structs::{SecureByteVec, SecureKeypair, SecureSecretKey, SecureString
 use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_storage::get_storage_dir;
-use crate::wallet::wallet_storage::remove_wallet_from_registry;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, report_integrity_results, validate_mnemonic_import,
     validate_private_key_import,
@@ -87,67 +87,15 @@ pub fn create_encrypted_wallet_with_address(
     Ok(address)
 }
 
-pub fn delete_wallet(
-    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
-) -> Result<(), BridgeCliError> {
-    // Check if wallet exists
-    if !address_exists(address)? {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_without_prefix(),
-        ));
-    }
-
-    println!("{}", "Wallet Deletion".red().bold());
-    println!(
-        "You are about to delete the wallet with address: {}",
-        address.address_with_prefix().yellow()
-    );
-    println!("{}", "This action cannot be undone!".red().bold());
-    println!("Make sure you have backed up your wallet before proceeding.");
-    println!();
-
-    print!("Type 'DELETE' to confirm deletion: ");
-    io::stdout().flush()?;
-    let mut confirmation = String::new();
-    io::stdin().read_line(&mut confirmation)?;
-
-    if confirmation.trim() != "DELETE" {
-        println!("Deletion cancelled.");
-        return Ok(());
-    }
-
-    println!("Deleting wallet...");
-
-    let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
-
-    fs::remove_file(&wallet_file)?;
-    println!("Wallet file deleted: {}", wallet_file.display());
-
-    // Remove from wallets.json registry
-    if remove_wallet_from_registry(address)? {
-        println!("Wallet removed from registry");
-    } else {
-        println!("{}", "Wallet was not found in registry".yellow());
-    }
-
-    println!("{}", "Wallet deleted successfully!".green().bold());
-
-    Ok(())
-}
-
 /// Backup a wallet file to a specified destination
 pub fn backup_wallet(
+
     address_with_prefix: &str,
     destination_path: &str,
 ) -> Result<(TaprootAddressWithPrefix<NetworkUnchecked>, PathBuf), BridgeCliError> {
     let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
 
-    if !address_exists(&address)? {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix(),
-        ));
-    }
+    ensure_wallet_exists(&address)?;
 
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
@@ -402,30 +350,6 @@ pub fn import_wallet_from_private_key(
     Ok(address)
 }
 
-pub(crate) fn get_private_key_from_wallet<T>(
-    address: &TaprootAddressWithPrefix<T>,
-) -> Result<SecureSecretKey, BridgeCliError>
-where
-    T: bitcoin::address::NetworkValidation,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
-{
-    // Check if wallet file exists before prompting for passphrase
-    let storage_dir = get_storage_dir()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
-
-    if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix(),
-        ));
-    }
-
-    let passphrase = prompt_unlock_passphrase()?;
-
-    let keypair = load_key(address, &passphrase)?;
-
-    Ok(keypair.secret_key())
-}
-
 /// Show mnemonic securely for a wallet
 pub fn show_mnemonic(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
@@ -442,66 +366,4 @@ pub fn show_private_key(
     let private_key = get_private_key_from_wallet(address)?;
     crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
-}
-
-#[cfg(test)]
-pub mod tests {
-    use passphrase::derive_key_from_passphrase;
-
-    use super::*;
-
-    #[test]
-    fn test_derive_key_from_passphrase() {
-        // Test basic key derivation
-        let passphrase = SecureString::init_with(|| "test_passphrase_123".to_string());
-        let salt = [1u8; 32];
-
-        let key1 = derive_key_from_passphrase(&passphrase, &salt, 1000, 1024, 1).unwrap();
-        let key2 = derive_key_from_passphrase(&passphrase, &salt, 1000, 1024, 1).unwrap();
-
-        // Same inputs should produce same key
-        assert_eq!(key1.expose_secret(), key2.expose_secret());
-    }
-
-    #[test]
-    fn test_derive_key_different_inputs() {
-        let passphrase1 = SecureString::init_with(|| "passphrase1".to_string());
-        let passphrase2 = SecureString::init_with(|| "passphrase2".to_string());
-        let salt = [1u8; 32];
-
-        let key1 = derive_key_from_passphrase(&passphrase1, &salt, 1000, 1024, 1).unwrap();
-        let key2 = derive_key_from_passphrase(&passphrase2, &salt, 1000, 1024, 1).unwrap();
-
-        // Different passphrases should produce different keys
-        assert_ne!(key1.expose_secret(), key2.expose_secret());
-    }
-
-    #[test]
-    fn test_derive_key_different_salts() {
-        let passphrase = SecureString::init_with(|| "same_passphrase".to_string());
-        let salt1 = [1u8; 32];
-        let salt2 = [2u8; 32];
-
-        let key1 = derive_key_from_passphrase(&passphrase, &salt1, 1000, 1024, 1).unwrap();
-        let key2 = derive_key_from_passphrase(&passphrase, &salt2, 1000, 1024, 1).unwrap();
-
-        // Different salts should produce different keys
-        assert_ne!(key1.expose_secret(), key2.expose_secret());
-    }
-
-    #[test]
-    fn test_key_derivation_parameters() {
-        // This test is maintained for key derivation functionality
-        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
-        let salt = [1u8; 32];
-
-        // Test with minimum secure parameters
-        let key_min = derive_key_from_passphrase(&passphrase, &salt, 3, 1024, 1).unwrap();
-
-        // Test with production parameters
-        let key_prod = derive_key_from_passphrase(&passphrase, &salt, 3, 65_536, 4).unwrap();
-
-        // Both should succeed but produce different keys due to different parameters
-        assert_ne!(key_min.expose_secret(), key_prod.expose_secret());
-    }
 }

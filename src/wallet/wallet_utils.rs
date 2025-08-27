@@ -35,13 +35,8 @@ where
     T: NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
-    if !address_exists(address)? {
-        return Err(BridgeCliError::WalletNotFound(
-            address.address_with_prefix(),
-        ));
-    }
+    ensure_wallet_exists(address)?;
 
-    // Load wallet data
     let wallet_data = load_wallet_data(address)?;
 
     // Load the encrypted private key
@@ -444,4 +439,37 @@ where
     let mnemonic = load_mnemonic(address, &passphrase)?;
 
     Ok(mnemonic)
+}
+
+pub(crate) fn get_private_key_from_wallet<T>(
+
+    address: &TaprootAddressWithPrefix<T>,
+) -> Result<SecureSecretKey, BridgeCliError>
+where
+    T: bitcoin::address::NetworkValidation,
+    bitcoin::Address<T>: crate::structs::AddrDisplay,
+{
+    ensure_wallet_exists(address)?;
+
+    let passphrase = prompt_unlock_passphrase()?;
+
+    let keypair = load_key(address, &passphrase)?;
+
+    Ok(keypair.secret_key())
+}
+
+
+pub(crate) fn ensure_wallet_exists<T>(
+    address: &crate::structs::TaprootAddressWithPrefix<T>,
+) -> Result<(), crate::errors::BridgeCliError>
+where
+    T: bitcoin::address::NetworkValidation,
+    bitcoin::Address<T>: crate::structs::AddrDisplay,
+{
+    if !address_exists(address)? {
+        return Err(crate::errors::BridgeCliError::WalletNotFound(
+            address.address_without_prefix(),
+        ));
+    }
+    Ok(())
 }

@@ -9,7 +9,7 @@ use clementine_cli::{
     print_all_wallets_with_addresses, show_mnemonic,
     structs::TaprootAddressWithPrefix,
     wallet::{
-        self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
+        self, Purpose, create_encrypted_wallet_with_address,
         import_wallet_from_file, import_wallet_from_mnemonic, parse_address,
         verify_wallet_integrity,
     },
@@ -102,11 +102,6 @@ enum WalletCommands {
         /// Destination path for wallet backup
         destination: String,
         /// Address of the wallet to backup
-        address: String,
-    },
-    /// Delete a wallet by address.
-    Delete {
-        /// Address of the wallet to delete
         address: String,
     },
     /// Show mnemonic with interactive terminal.
@@ -298,11 +293,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                     }
                 );
-            }
-            WalletCommands::Delete { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
-                handle_cli_command!(delete_wallet(&address), "Wallet deleted");
             }
             WalletCommands::VerifyIntegrity => {
                 handle_cli_command!(
