@@ -344,7 +344,7 @@ async fn main() {
                 recovery_taproot_address,
                 amount,
             } => {
-                handle_or_exit!(deposit::verify_recovery_tx(
+                print_or_exit!(deposit::verify_recovery_tx(
                     &recovery_tx,
                     &evm_address,
                     &recovery_taproot_address,
