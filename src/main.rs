@@ -3,7 +3,8 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     backup_wallet,
     config::BridgeCliConfig,
-    deposit, get_all_wallets_with_addresses, get_deposit_params, handle_cli_command, show_mnemonic,
+    deposit, get_deposit_params, handle_cli_command, print_all_wallets_with_addresses,
+    show_mnemonic,
     wallet::{
         self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
         import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
@@ -301,7 +302,7 @@ async fn main() {
                 );
             }
             WalletCommands::List => {
-                handle_cli_command!(get_all_wallets_with_addresses());
+                handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
                 handle_cli_command!(

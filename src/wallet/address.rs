@@ -86,7 +86,7 @@ pub(crate) fn parse_taproot_address(
 }
 
 /// Get all wallets with their names and addresses from storage and print them
-pub fn get_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
+pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
     if !storage_dir.exists() {

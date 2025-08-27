@@ -6,7 +6,7 @@ mod wallet_storage;
 pub(crate) mod wallet_utils;
 
 pub use address::Purpose;
-pub use address::get_all_wallets_with_addresses;
+pub use address::print_all_wallets_with_addresses;
 
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
