@@ -11,29 +11,22 @@ use crate::wallet::Purpose;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
-use crate::{BitcoinAddress, CitreaAddress, parse_citrea_address};
-use bitcoin::consensus::deserialize;
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use colored::*;
 use eyre::Result;
-use std::str::FromStr;
 
 /// Get deposit address from backend
 pub async fn get_deposit_address(
-    citrea_address: &str,
-    recovery_taproot_address: &str,
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    let citrea_address: CitreaAddress = parse_citrea_address(citrea_address)?;
     tracing::debug!(
         "{} {}",
         "CITREA_ADDRESS (checksummed)".green().bold(),
         citrea_address,
     );
-    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
-        recovery_taproot_address,
-        config.network,
-    )?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(
@@ -44,12 +37,12 @@ pub async fn get_deposit_address(
 
     // Call backend to create deposit account
     let deposit_address =
-        create_deposit_account(&citrea_address, &recovery_taproot_address.address, config).await?;
+        create_deposit_account(citrea_address, &recovery_taproot_address.address, config).await?;
 
     tracing::debug!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
 
     let (calculated_deposit_address, _) =
-        calculate_deposit_address(&citrea_address, &recovery_taproot_address.address, config)?;
+        calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
 
     assert_eq!(deposit_address, calculated_deposit_address);
 
@@ -57,13 +50,12 @@ pub async fn get_deposit_address(
 }
 
 pub async fn get_deposit_params(
-    move_to_vault_txid: &str,
+    move_to_vault_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<Vec<u8>, BridgeCliError> {
-    let move_to_vault_txid = Txid::from_str(move_to_vault_txid)?;
     // 2. Get the prepare tx details
     let (move_to_vault_tx, move_to_vault_block, move_to_vault_block_height) =
-        get_tx_details(&move_to_vault_txid, config).await?;
+        get_tx_details(move_to_vault_txid, config).await?;
 
     let move_to_vault_txout = get_txout_details(
         config,
@@ -84,30 +76,16 @@ pub async fn get_deposit_params(
 
 #[allow(clippy::too_many_arguments)]
 pub fn sign_recovery_tx(
-    citrea_address: &str,
-    recovery_taproot_address: &str,
-    deposit_txid: &str,
-    deposit_vout: u32,
-    claim_address: &str,
+    citrea_addr: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    outpoint: &OutPoint,
+    claim_addr: &BitcoinAddress,
     fee_rate: Option<u64>,
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
-    let citrea_addr: CitreaAddress = parse_citrea_address(citrea_address)?;
-    let claim_addr = BitcoinAddress::from_str(claim_address)?.require_network(config.network)?;
-    let txid = Txid::from_str(deposit_txid)?;
-    let outpoint = OutPoint {
-        txid,
-        vout: deposit_vout,
-    };
-
     // Always prompt for passphrase for maximum security
     let secure_passphrase = prompt_unlock_passphrase()?;
-
-    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
-        recovery_taproot_address,
-        config.network,
-    )?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(
@@ -116,7 +94,7 @@ pub fn sign_recovery_tx(
         ));
     }
 
-    let keypair = load_key(&recovery_taproot_address, &secure_passphrase)?;
+    let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -127,11 +105,11 @@ pub fn sign_recovery_tx(
     let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
     let signed_tx = utils_sign_recovery_tx(
         &keypair,
-        &citrea_addr,
+        citrea_addr,
         &recovery_taproot_address.address,
-        &outpoint,
+        outpoint,
         deposit_amount,
-        &claim_addr,
+        claim_addr,
         fee_rate_opt,
         config,
     )?;
@@ -141,19 +119,12 @@ pub fn sign_recovery_tx(
 
 #[allow(clippy::too_many_arguments)]
 pub fn verify_recovery_tx(
-    recovery_tx: &str,
-    citrea_address: &str,
-    recovery_taproot_address: &str,
+    recovery_tx: &Transaction,
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
-    let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
-
-    let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
-        recovery_taproot_address,
-        config.network,
-    )?;
-
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(
             Purpose::Deposit,
@@ -162,8 +133,8 @@ pub fn verify_recovery_tx(
     }
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
-        &recovery_tx,
-        &parse_citrea_address(citrea_address)?,
+        recovery_tx,
+        citrea_address,
         &recovery_taproot_address.address,
         amount.map(|amount| Amount::from_btc(amount).unwrap()),
         config,

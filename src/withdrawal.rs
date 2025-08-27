@@ -1,5 +1,6 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
+use crate::BitcoinAddress;
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
@@ -7,7 +8,6 @@ use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::Purpose;
-use crate::wallet::address::parse_address;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
 use crate::wallet::wallet_utils::{address_exists, load_key};
 use alloy::network::EthereumWallet;
@@ -22,18 +22,15 @@ use bitcoincore_rpc::{Client, RpcApi};
 use eyre::Context;
 use open;
 use serde_json::{Value, json};
-use std::str::FromStr;
 use urlencoding::encode;
 
 pub fn generate_withdrawal_signature(
-    signer_address_str: &str,
-    claim_address: &str,
-    withdrawal_utxo: &str,
-    amount: f64,
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    withdrawal_utxo: &OutPoint,
+    amount: &Amount,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
-    let signer_address =
-        TaprootAddressWithPrefix::from_string_with_prefix(signer_address_str, network)?;
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch(
             Purpose::Withdrawal,
@@ -42,7 +39,7 @@ pub fn generate_withdrawal_signature(
     }
 
     let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-        claim_address,
+        &claim_address.to_string(),
         Purpose::Withdrawal,
         network,
     )?;
@@ -53,19 +50,14 @@ pub fn generate_withdrawal_signature(
     }
 
     let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(&signer_address, &secure_passphrase)?;
-
-    let claim_address = parse_address(claim_address, network)?;
-
-    let withdrawal_utxo = OutPoint::from_str(withdrawal_utxo)?;
-    let amount = Amount::from_btc(amount)?;
+    let keypair = load_key(signer_address, &secure_passphrase)?;
 
     let signature = sign_withdrawal_signature(
         &keypair,
         &signer_address.address,
-        &withdrawal_utxo,
-        &claim_address,
-        amount,
+        withdrawal_utxo,
+        claim_address,
+        *amount,
     )?;
 
     Ok(signature)
@@ -170,42 +162,32 @@ pub(crate) async fn get_tx_details(
 }
 
 pub async fn safe_withdraw(
-    signer_address: &str,
-    withdrawal_address: &str,
-    withdrawal_utxo: &str,
-    amount: f64,
-    signature: &str,
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    withdrawal_address: &BitcoinAddress,
+    withdrawal_outpoint: &OutPoint,
+    withdrawal_amount: &Amount,
+    sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
 ) -> Result<String, BridgeCliError> {
-    let signer_address =
-        TaprootAddressWithPrefix::from_string_with_prefix(signer_address, config.network)?;
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch(
             Purpose::Withdrawal,
             signer_address.purpose,
         ));
     }
-    // 1. Get the block and tx details for withdrawal
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
-    let withdrawal_amount = Amount::from_btc(amount)?;
-    // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
-        .wrap_err("Can't parse taproot signature")?;
-
-    let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
-        value: withdrawal_amount,
+        value: *withdrawal_amount,
         script_pubkey: withdrawal_address.script_pubkey(),
     };
 
     // verify signature
     verify_withdrawal_signature(
-        &sig,
+        sig,
         &signer_address.address,
-        &withdrawal_outpoint,
-        &withdrawal_address,
-        withdrawal_amount,
+        withdrawal_outpoint,
+        withdrawal_address,
+        *withdrawal_amount,
     )?;
 
     // 2. Get the prepare tx details
@@ -213,9 +195,9 @@ pub async fn safe_withdraw(
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     let params = get_citrea_safe_withdraw_params(
-        &withdrawal_outpoint,
+        withdrawal_outpoint,
         &payout_output,
-        &sig,
+        sig,
         &prepare_tx,
         &prepare_tx_block,
         prepare_tx_block_height,
@@ -263,11 +245,11 @@ pub async fn safe_withdraw(
 
 #[allow(clippy::too_many_arguments)]
 pub async fn send_safe_withdrawal(
-    signer_address: &str,
-    withdrawal_address: &str,
-    withdrawal_utxo: &str,
-    amount: f64,
-    signature: &str,
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    withdrawal_address: &BitcoinAddress,
+    withdrawal_outpoint: &OutPoint,
+    withdrawal_amount: &Amount,
+    sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
 ) -> Result<TransactionReceipt, BridgeCliError> {
     // get the secret key from env
@@ -286,35 +268,25 @@ pub async fn send_safe_withdrawal(
         .wallet(EthereumWallet::from(key))
         .connect_http(config.citrea_rpc_url.clone());
 
-    // 1. Get the block and tx details for withdrawal
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo)?;
-    let withdrawal_amount = Amount::from_btc(amount)?;
-    // let input_amount = Amount::from_sat(330); // 0.0000033 BTC
-    let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)
-        .wrap_err("Can't parse signature")?;
-
-    let signer_address =
-        TaprootAddressWithPrefix::from_string_with_prefix(signer_address, config.network)?;
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch(
             Purpose::Withdrawal,
             signer_address.purpose,
         ));
     }
-    let withdrawal_address = parse_address(withdrawal_address, config.network)?;
 
     let payout_output = TxOut {
-        value: withdrawal_amount,
+        value: *withdrawal_amount,
         script_pubkey: withdrawal_address.script_pubkey(),
     };
 
     // verify signature
     verify_withdrawal_signature(
-        &sig,
+        sig,
         &signer_address.address,
-        &withdrawal_outpoint,
-        &withdrawal_address,
-        withdrawal_amount,
+        withdrawal_outpoint,
+        withdrawal_address,
+        *withdrawal_amount,
     )?;
 
     // 2. Get the prepare tx details
@@ -322,9 +294,9 @@ pub async fn send_safe_withdrawal(
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
     let params = get_citrea_safe_withdraw_params(
-        &withdrawal_outpoint,
+        withdrawal_outpoint,
         &payout_output,
-        &sig,
+        sig,
         &prepare_tx,
         &prepare_tx_block,
         prepare_tx_block_height,
