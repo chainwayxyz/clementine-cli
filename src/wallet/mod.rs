@@ -6,6 +6,7 @@ mod wallet_storage;
 pub(crate) mod wallet_utils;
 
 pub use address::Purpose;
+pub use address::parse_address;
 pub use address::print_all_wallets_with_addresses;
 
 use bitcoin::Network;
@@ -86,10 +87,11 @@ pub fn create_encrypted_wallet_with_address(
     Ok(address)
 }
 
-pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address)?;
+pub fn delete_wallet(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
+) -> Result<(), BridgeCliError> {
     // Check if wallet exists
-    if !address_exists(&address)? {
+    if !address_exists(address)? {
         return Err(BridgeCliError::WalletNotFound(
             address.address_without_prefix(),
         ));
@@ -123,7 +125,7 @@ pub fn delete_wallet(address: &str) -> Result<(), BridgeCliError> {
     println!("Wallet file deleted: {}", wallet_file.display());
 
     // Remove from wallets.json registry
-    if remove_wallet_from_registry(&address)? {
+    if remove_wallet_from_registry(address)? {
         println!("Wallet removed from registry");
     } else {
         println!("{}", "Wallet was not found in registry".yellow());
@@ -425,17 +427,19 @@ where
 }
 
 /// Show mnemonic securely for a wallet
-pub fn show_mnemonic(address_with_prefix: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
-    let mnemonic = get_mnemonic_from_wallet(&address)?;
+pub fn show_mnemonic(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
+) -> Result<(), BridgeCliError> {
+    let mnemonic = get_mnemonic_from_wallet(address)?;
     crate::secure_display::display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
 
 /// Show private key securely for a wallet
-pub fn show_private_key(address_with_prefix: &str) -> Result<(), BridgeCliError> {
-    let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
-    let private_key = get_private_key_from_wallet(&address)?;
+pub fn show_private_key(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
+) -> Result<(), BridgeCliError> {
+    let private_key = get_private_key_from_wallet(address)?;
     crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }

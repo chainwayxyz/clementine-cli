@@ -14,7 +14,7 @@ pub mod errors;
 mod parameters;
 mod script;
 mod secure_display;
-mod structs;
+pub mod structs;
 pub mod types;
 pub mod wallet;
 pub mod withdrawal;

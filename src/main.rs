@@ -1,18 +1,23 @@
-use bitcoin::{Network, taproot::Signature};
+use bitcoin::{
+    Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
+};
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    backup_wallet,
+    BitcoinAddress, backup_wallet,
     config::BridgeCliConfig,
-    deposit, get_deposit_params, handle_cli_command, print_all_wallets_with_addresses,
-    show_mnemonic,
+    deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
+    print_all_wallets_with_addresses, show_mnemonic,
+    structs::TaprootAddressWithPrefix,
     wallet::{
         self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
-        import_wallet_from_file, import_wallet_from_mnemonic, verify_wallet_integrity,
+        import_wallet_from_file, import_wallet_from_mnemonic, parse_address,
+        verify_wallet_integrity,
     },
     withdrawal,
 };
 use colored::Colorize;
 use std::path::PathBuf;
+use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
@@ -215,7 +220,7 @@ enum WithdrawalCommands {
 }
 
 #[tokio::main]
-async fn main() {
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install().expect("Failed to install color-eyre");
 
     let cli = Cli::parse();
@@ -253,6 +258,8 @@ async fn main() {
                 );
             }
             WalletCommands::ShowMnemonic { address } => {
+                let address =
+                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
                 handle_cli_command!(show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic { label, purpose } => {
@@ -293,6 +300,8 @@ async fn main() {
                 );
             }
             WalletCommands::Delete { address } => {
+                let address =
+                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
                 handle_cli_command!(delete_wallet(&address), "Wallet deleted");
             }
             WalletCommands::VerifyIntegrity => {
@@ -305,6 +314,8 @@ async fn main() {
                 handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
+                let address =
+                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
                 handle_cli_command!(
                     wallet::show_private_key(&address),
                     "Private key display completed"
@@ -316,6 +327,11 @@ async fn main() {
                 citrea_address,
                 recovery_taproot_address,
             } => {
+                let citrea_address = parse_citrea_address(&citrea_address)?;
+                let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &recovery_taproot_address,
+                    config.network,
+                )?;
                 handle_cli_command!(async
                     deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
@@ -332,16 +348,28 @@ async fn main() {
                 fee_rate,
                 amount,
             } => {
+                let citrea_address = parse_citrea_address(&evm_address)?;
+                let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &recovery_taproot_address,
+                    config.network,
+                )?;
+                let txid = Txid::from_str(&deposit_txid)?;
+                let outpoint = OutPoint {
+                    txid,
+                    vout: deposit_vout,
+                };
+                let claim_address =
+                    BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
+
                 fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
                     hex::encode(bitcoin::consensus::serialize(&tx))
                 }
 
                 handle_cli_command!(
                     deposit::sign_recovery_tx(
-                        &evm_address,
+                        &citrea_address,
                         &recovery_taproot_address,
-                        &deposit_txid,
-                        deposit_vout,
+                        &outpoint,
                         &claim_address,
                         fee_rate,
                         amount,
@@ -358,10 +386,16 @@ async fn main() {
                 recovery_taproot_address,
                 amount,
             } => {
+                let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
+                let citrea_address = parse_citrea_address(&evm_address)?;
+                let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &recovery_taproot_address,
+                    config.network,
+                )?;
                 handle_cli_command!(
                     deposit::verify_recovery_tx(
                         &recovery_tx,
-                        &evm_address,
+                        &citrea_address,
                         &recovery_taproot_address,
                         amount,
                         &config,
@@ -378,6 +412,7 @@ async fn main() {
                 unimplemented!("deposit.deposit_status: {}", deposit_address);
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
+                let move_to_vault_txid = Txid::from_str(&move_to_vault_txid)?;
                 handle_cli_command!(async
                     get_deposit_params(&move_to_vault_txid, &config),
                     params => {
@@ -393,6 +428,13 @@ async fn main() {
                 withdrawal_utxo,
                 amount,
             } => {
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    config.network,
+                )?;
+                let claim_address = parse_address(&withdrawal_address, config.network)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
                 }
@@ -400,9 +442,9 @@ async fn main() {
                 handle_cli_command!(
                     withdrawal::generate_withdrawal_signature(
                         &signer_address,
-                        &withdrawal_address,
-                        &withdrawal_utxo,
-                        amount,
+                        &claim_address,
+                        &withdrawal_outpoint,
+                        &amount,
                         config.network,
                     ),
                     signature => {
@@ -420,13 +462,21 @@ async fn main() {
                 amount,
                 signature,
             } => {
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    config.network,
+                )?;
+                let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_amount = Amount::from_btc(amount)?;
+                let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdrawal::safe_withdraw(
                         &signer_address,
                         &withdrawal_address,
-                        &withdrawal_utxo,
-                        amount,
-                        &signature,
+                        &withdrawal_outpoint,
+                        &withdrawal_amount,
+                        &sig,
                         &config,
                     ),
                     withdrawal_ui_url => {
@@ -444,13 +494,21 @@ async fn main() {
                 amount,
                 signature,
             } => {
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    config.network,
+                )?;
+                let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_amount = Amount::from_btc(amount)?;
+                let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdrawal::send_safe_withdrawal(
                         &signer_address,
                         &withdrawal_address,
-                        &withdrawal_utxo,
-                        amount,
-                        &signature,
+                        &withdrawal_outpoint,
+                        &withdrawal_amount,
+                        &sig,
                         &config,
                     ),
                     result => {
@@ -498,4 +556,5 @@ async fn main() {
             }
         },
     }
+    Ok(())
 }

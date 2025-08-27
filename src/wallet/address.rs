@@ -58,10 +58,7 @@ pub(crate) fn generate_address_from_mnemonic(
 }
 
 /// Parse a Bitcoin address string into a proper Address object
-pub(crate) fn parse_address(
-    address: &str,
-    network: Network,
-) -> Result<BitcoinAddress, BridgeCliError> {
+pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e)))?;
