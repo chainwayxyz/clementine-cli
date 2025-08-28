@@ -3,16 +3,17 @@ use bitcoin::{
 };
 use clap::{Parser, Subcommand};
 use clementine_cli::{
-    BitcoinAddress, backup_wallet,
+    BitcoinAddress,
+    cli::{
+        cli_backup_wallet, cli_create_wallet, cli_import_wallet_from_file,
+        cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
+        cli_show_private_key, cli_verify_wallet_integrity,
+    },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
-    print_all_wallets_with_addresses, show_mnemonic,
+    print_all_wallets_with_addresses,
     structs::TaprootAddressWithPrefix,
-    wallet::{
-        self, Purpose, create_encrypted_wallet_with_address, delete_wallet,
-        import_wallet_from_file, import_wallet_from_mnemonic, parse_address,
-        verify_wallet_integrity,
-    },
+    wallet::{Purpose, parse_address},
     withdrawal,
 };
 use colored::Colorize;
@@ -102,11 +103,6 @@ enum WalletCommands {
         /// Destination path for wallet backup
         destination: String,
         /// Address of the wallet to backup
-        address: String,
-    },
-    /// Delete a wallet by address.
-    Delete {
-        /// Address of the wallet to delete
         address: String,
     },
     /// Show mnemonic with interactive terminal.
@@ -233,7 +229,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Wallet { command } => match command {
             WalletCommands::Create { label, purpose } => {
                 handle_cli_command!(
-                    create_encrypted_wallet_with_address(config.network, label, purpose),
+                    cli_create_wallet(config.network, label, purpose),
                     address => {
                         println!(
                             "Wallet created with address: {}",
@@ -247,7 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 address,
             } => {
                 handle_cli_command!(
-                    backup_wallet(&address, &destination),
+                    cli_backup_wallet(&address, &destination),
                     (addr, dest) => {
                         println!(
                             "Backup completed for address {} to destination {}",
@@ -260,11 +256,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WalletCommands::ShowMnemonic { address } => {
                 let address =
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
-                handle_cli_command!(show_mnemonic(&address), "Mnemonic display completed");
+                handle_cli_command!(cli_show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic { label, purpose } => {
                 handle_cli_command!(
-                    import_wallet_from_mnemonic(config.network, &label, purpose),
+                    cli_import_wallet_from_mnemonic(config.network, &label, purpose),
                     address => {
                         println!(
                             "Import completed for address: {}",
@@ -275,7 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             WalletCommands::ImportFile { filename, label } => {
                 handle_cli_command!(
-                    import_wallet_from_file(&filename, label.as_deref()),
+                    cli_import_wallet_from_file(&filename, label.as_deref()),
                     address => {
                         println!(
                             "Import from file completed for address: {}",
@@ -286,7 +282,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             WalletCommands::ImportPrivateKey { label, purpose } => {
                 handle_cli_command!(
-                    wallet::import_wallet_from_private_key(config.network, &label, purpose),
+                    cli_import_wallet_from_private_key(config.network, &label, purpose),
                     address => {
                         println!(
                             "Import from private key completed for address: {}",
@@ -299,14 +295,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WalletCommands::Delete { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
-                handle_cli_command!(delete_wallet(&address), "Wallet deleted");
-            }
             WalletCommands::VerifyIntegrity => {
                 handle_cli_command!(
-                    verify_wallet_integrity(),
+                    cli_verify_wallet_integrity(),
                     "Wallet integrity verification completed"
                 );
             }
@@ -317,7 +308,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let address =
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
                 handle_cli_command!(
-                    wallet::show_private_key(&address),
+                    cli_show_private_key(&address),
                     "Private key display completed"
                 );
             }

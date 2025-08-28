@@ -76,8 +76,12 @@ pub(crate) fn derive_private_key_from_mnemonic(
     let master_private_key =
         SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
 
-    let secure_private_key =
-        SecureString::init_with(|| master_private_key.as_ref().display_secret().to_string());
+    let secure_private_key = SecureString::init_with(|| {
+        master_private_key
+            .as_ref_inner()
+            .display_secret()
+            .to_string()
+    });
 
     Ok(secure_private_key)
 }
