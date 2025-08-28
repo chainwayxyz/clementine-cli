@@ -43,7 +43,7 @@ password = "admin"
 [signet]
 network = "signet"
 
-aggregated_public_key = "3b48ffb437c2ee08ceb8b9bb9e5555c002fb304c112e7e1233fe233f2a3dfc1d"
+aggregated_public_key = "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093139e819dc"
 
 user_takes_after = 200
 bridge_amount = 1000000000
