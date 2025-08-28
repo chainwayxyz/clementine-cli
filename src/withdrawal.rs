@@ -18,6 +18,7 @@ use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Block, Network, OutPoint, Transaction, TxOut, Txid};
+use bitcoincore_rpc::json::ScanTxOutRequest;
 use bitcoincore_rpc::{Client, RpcApi};
 use eyre::Context;
 use open;
@@ -387,10 +388,49 @@ async fn get_utxos_for_address(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    get_utxos_from_mempool_space(address, config).await
+    // Try mempool API first
+    match get_utxos_from_mempool(address, config).await {
+        Ok(utxos) => Ok(utxos),
+        Err(mempool_error) => {
+            tracing::warn!("Mempool API failed: {}, falling back to Bitcoin RPC", mempool_error);
+            
+            // Fallback to Bitcoin RPC if available
+            if config.bitcoin_config.is_some() {
+                get_utxos_from_rpc(address, config).await
+            } else {
+                // If no Bitcoin RPC config, return the original mempool error
+                Err(mempool_error)
+            }
+        }
+    }
 }
 
-async fn get_utxos_from_mempool_space(
+/// This might take a little while
+async fn get_utxos_from_rpc(
+    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+
+    let res = rpc
+        .scan_tx_out_set_blocking(&[ScanTxOutRequest::Single(address.address.to_string())])
+        .await?;
+
+    let mut result = Vec::new();
+    for utxo in res.unspents {
+        if utxo.amount == Amount::from_sat(330) {
+            result.push(UtxoInfo {
+                txid: utxo.txid,
+                vout: utxo.vout,
+                value: utxo.amount,
+            });
+        }
+    }
+
+    Ok(result)
+}
+
+async fn get_utxos_from_mempool(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
