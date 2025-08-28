@@ -7,6 +7,7 @@ pub(crate) mod wallet_utils;
 
 pub use address::Purpose;
 pub use address::parse_address;
+pub use address::parse_taproot_address;
 pub use address::print_all_wallets_with_addresses;
 
 use bip39::Mnemonic;

@@ -71,7 +71,7 @@ pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, 
 }
 
 /// Parse a taproot address specifically and validate it's the correct type
-pub(crate) fn parse_taproot_address(
+pub fn parse_taproot_address(
     address: &str,
     network: Network,
 ) -> Result<BitcoinAddress, BridgeCliError> {

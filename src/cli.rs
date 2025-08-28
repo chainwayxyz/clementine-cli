@@ -1,14 +1,22 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use bitcoin::{
-    Network,
+    Address, Network, OutPoint,
     address::{NetworkChecked, NetworkUnchecked},
 };
 use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    backup_wallet, create_encrypted_wallet,
+    backend::{
+        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
+    },
+    backup_wallet,
+    config::BridgeCliConfig,
+    create_encrypted_wallet,
     errors::BridgeCliError,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
@@ -142,5 +150,86 @@ pub fn cli_show_private_key(
     let passphrase = prompt_unlock_passphrase()?;
     let private_key = get_private_key_from_wallet(address, &passphrase)?;
     crate::secure_display::display_private_key_securely(&private_key)?;
+    Ok(())
+}
+
+pub async fn deposit_status(
+    taproot_address: Address,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let deposit_statuses = backend_deposit_status(&taproot_address, config).await?;
+    if deposit_statuses.is_empty() {
+        println!(
+            "{} No deposits found for address {}",
+            "INFO".yellow().bold(),
+            taproot_address.to_string().blue().bold()
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} Deposit status(es) for address {}: \n",
+        "INFO".blue().bold(),
+        taproot_address
+    );
+
+    for (i, status) in deposit_statuses.iter().enumerate() {
+        println!("{}. {}", i + 1, status);
+    }
+    Ok(())
+}
+
+pub async fn withdrawal_status(
+    withdrawal_index: u32,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let withdrawal_statuses = backend_withdrawal_status(withdrawal_index, config).await?;
+    if withdrawal_statuses.is_empty() {
+        println!(
+            "{} No withdrawals found for index {}",
+            "INFO".yellow().bold(),
+            withdrawal_index.to_string().blue().bold()
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} Deposit status(es) for index {}: \n",
+        "INFO".blue().bold(),
+        withdrawal_index
+    );
+
+    for (i, status) in withdrawal_statuses.iter().enumerate() {
+        println!("{}. {}", i + 1, status);
+    }
+
+    Ok(())
+}
+
+#[allow(clippy::too_many_arguments)]
+pub async fn send_withdrawal_signatures(
+    signer_address: &str,
+    withdrawal_address: &str,
+    withdrawal_utxo_txid: &str,
+    withdrawal_utxo_vout: u32,
+    withdrawal_index: u32,
+    signature: &str,
+    config: &BridgeCliConfig,
+    amount: u64,
+) -> Result<(), BridgeCliError> {
+    let withdrawal_outpoint = OutPoint::new(
+        bitcoin::Txid::from_str(withdrawal_utxo_txid)?,
+        withdrawal_utxo_vout,
+    );
+    send_withdrawal_signatures_to_operators(
+        signer_address,
+        withdrawal_address,
+        withdrawal_outpoint,
+        withdrawal_index,
+        signature,
+        config,
+        amount,
+    )
+    .await?;
     Ok(())
 }
