@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::{config::ConfigErrors, wallet::Purpose};
+use crate::{BitcoinAddress, config::ConfigErrors, wallet::Purpose};
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -151,6 +151,12 @@ pub enum BridgeCliError {
 
     #[error("Incorrect passphrase! Cannot decrypt wallet data.")]
     IncorrectPassphrase,
+
+    // Deposit related errors
+    #[error(
+        "Calculated recovery taproot {0} not matches with Citrea response {1}: Please check configuration file and CLI version"
+    )]
+    CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]

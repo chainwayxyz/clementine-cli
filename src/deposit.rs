@@ -13,7 +13,6 @@ use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
-use colored::*;
 use eyre::Result;
 
 /// Get deposit address from backend
@@ -22,12 +21,6 @@ pub async fn get_deposit_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    tracing::debug!(
-        "{} {}",
-        "CITREA_ADDRESS (checksummed)".green().bold(),
-        citrea_address,
-    );
-
     if recovery_taproot_address.purpose != Purpose::Deposit {
         return Err(BridgeCliError::PurposeMismatch(
             Purpose::Deposit,
@@ -35,16 +28,26 @@ pub async fn get_deposit_address(
         ));
     }
 
-    // Call backend to create deposit account
-    let deposit_address =
-        create_deposit_account(citrea_address, &recovery_taproot_address.address, config).await?;
-
-    tracing::debug!("{} {}", "DEPOSIT_ADDRESS".green().bold(), deposit_address);
-
     let (calculated_deposit_address, _) =
         calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
 
-    assert_eq!(deposit_address, calculated_deposit_address);
+    // Because backend is not available for regtest, don't cross check.
+    if config.network == bitcoin::Network::Regtest {
+        tracing::debug!("Regtest network is being used, not checking address against backend...");
+        return Ok(calculated_deposit_address);
+    }
+
+    // Call backend to create deposit account
+    let deposit_address =
+        create_deposit_account(citrea_address, &recovery_taproot_address.address, config).await?;
+    tracing::info!("Deposit address fetched from backend: {}", deposit_address);
+
+    if deposit_address != calculated_deposit_address {
+        return Err(BridgeCliError::CalculatedRecoveryTaprootAddressMismatch(
+            calculated_deposit_address,
+            deposit_address,
+        ));
+    }
 
     Ok(calculated_deposit_address)
 }
