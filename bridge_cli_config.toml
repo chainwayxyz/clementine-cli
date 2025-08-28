@@ -53,10 +53,10 @@ mempool_api_url = "https://127.0.0.1/"
 
 citrea_backend_endpoint = "https://api.devnet.citrea.xyz"
 citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
-citrea_chain_id = 62297
+citrea_chain_id = 62298
 
 [signet.bitcoin_config]
-url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+url = "http://127.0.0.1:38332/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
 

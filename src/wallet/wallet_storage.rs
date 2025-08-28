@@ -1,8 +1,8 @@
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
 use serde::{Deserialize, Serialize};
-use std::collections::HashSet;
 use std::fs;
+use std::path::Path;
 use std::{collections::HashMap, path::PathBuf};
 
 use crate::errors::BridgeCliError;
@@ -67,9 +67,13 @@ pub(crate) fn store_wallet_data(
 
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
+    tracing::info!("Wallet will be saved to: {wallet_file:?}");
 
-    // Write wallet file
     let json_data = serde_json::to_string_pretty(&wallet_data)?;
+    tracing::debug!("Wallet data: {wallet_data:?}");
+
+    // Create missing dirs and write to file.
+    fs::create_dir_all(storage_dir)?;
     fs::write(&wallet_file, json_data)?;
 
     // Set secure file permissions on Unix systems
@@ -176,7 +180,7 @@ pub(crate) fn get_wallets_from_registry()
     let wallets_file = storage_dir.join("wallets.json");
 
     if !wallets_file.exists() {
-        // Return empty HashMap if registry doesn't exist yet
+        tracing::debug!("No wallets in the registry");
         return Ok(HashMap::new());
     }
 
@@ -191,102 +195,29 @@ pub(crate) fn get_wallets_from_registry()
     Ok(wallets)
 }
 
-/// Remove a wallet from the registry (wallets.json)
-pub(crate) fn remove_wallet_from_registry<T>(
-    address: &TaprootAddressWithPrefix<T>,
-) -> Result<bool, BridgeCliError>
-where
-    T: NetworkValidation,
-    bitcoin::Address<T>: AddrDisplay,
-{
+/// Copy a wallet file to a destination, creating parent directories if needed.
+pub(crate) fn copy_wallet_file_to_destination(
+    address: &TaprootAddressWithPrefix<NetworkUnchecked>,
+    destination_path: &Path,
+) -> Result<std::path::PathBuf, BridgeCliError> {
+    let wallet_file_name = format!("wallet_{}.json", address.address_without_prefix());
     let storage_dir = get_storage_dir()?;
-    let wallets_file = storage_dir.join("wallets.json");
+    let wallet_file = storage_dir.join(wallet_file_name.clone());
 
-    if !wallets_file.exists() {
-        // Registry doesn't exist, so wallet wasn't registered
-        return Ok(false);
+    // If destination is a directory, create the filename
+    let final_dest = if destination_path.is_dir() {
+        destination_path.join(wallet_file_name)
+    } else {
+        destination_path.to_path_buf()
+    };
+
+    // Create parent directories if they don't exist
+    if let Some(parent) = final_dest.parent() {
+        fs::create_dir_all(parent)?;
     }
 
-    let wallets_content = fs::read_to_string(&wallets_file)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
+    // Copy the wallet file
+    fs::copy(&wallet_file, &final_dest)?;
 
-    let mut wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
-        .map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e))
-        })?;
-
-    let was_removed = wallets.remove(&address.address_without_prefix()).is_some();
-
-    if was_removed {
-        fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to write wallets registry: {}", e))
-        })?;
-    }
-
-    Ok(was_removed)
-}
-
-pub(crate) fn get_registry_wallet_set()
--> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
-    let registry_wallet_data = get_wallets_from_registry()?;
-
-    let mut wallet_set: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
-
-    for (_address, wallet_value) in registry_wallet_data {
-        wallet_set.insert(TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
-            &wallet_value.addres_with_prefix,
-        )?);
-    }
-
-    Ok(wallet_set)
-}
-
-/// Scans the wallet files in the specified directory.
-pub(crate) fn scan_wallet_files()
--> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
-    let mut file_wallets: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
-
-    if storage_dir.exists() {
-        for entry in fs::read_dir(storage_dir)? {
-            let entry = entry?;
-            let file_name = entry.file_name();
-            let file_name_str = file_name.to_string_lossy();
-
-            // Check if it's a wallet file (wallet_*.json)
-            if file_name_str.starts_with("wallet_")
-                && file_name_str.ends_with(".json")
-                && file_name_str != "wallets.json"
-            {
-                let wallet_file_path = entry.path();
-                match fs::read_to_string(&wallet_file_path) {
-                    Ok(wallet_content) => {
-                        match serde_json::from_str::<GenericWalletData>(&wallet_content) {
-                            Ok(wallet_data) => {
-                                file_wallets.insert(
-                                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
-                                        &wallet_data.address_with_prefix,
-                                    )?,
-                                );
-                            }
-                            Err(e) => {
-                                eprintln!(
-                                    "Warning: Failed to parse wallet file {}: {}",
-                                    file_name_str, e
-                                );
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        eprintln!(
-                            "Warning: Failed to read wallet file {}: {}",
-                            file_name_str, e
-                        );
-                    }
-                }
-            }
-        }
-    }
-
-    Ok(file_wallets)
+    Ok(final_dest)
 }

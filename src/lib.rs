@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use crate::errors::BridgeCliError;
 use eyre::Context;
 use eyre::Result;
@@ -7,6 +9,7 @@ use std::str::FromStr;
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;
+pub mod cli;
 pub mod cli_macros;
 pub mod config;
 pub mod deposit;
@@ -24,9 +27,9 @@ pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 
 // Wallet operations
 pub use wallet::{
-    backup_wallet, create_encrypted_wallet_with_address, delete_wallet, import_wallet_from_file,
-    import_wallet_from_mnemonic, import_wallet_from_private_key, print_all_wallets_with_addresses,
-    show_mnemonic, show_private_key, verify_wallet_integrity,
+    backup_wallet, create_encrypted_wallet, get_mnemonic_from_wallet, get_private_key_from_wallet,
+    get_registry_wallet_set, import_wallet_from_file, import_wallet_from_mnemonic,
+    import_wallet_from_private_key, print_all_wallets_with_addresses, scan_wallet_files,
 };
 
 // Deposit operations

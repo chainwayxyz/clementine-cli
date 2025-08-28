@@ -81,7 +81,7 @@ pub(crate) fn derive_key_from_passphrase(
 /// empty; however, it is recommended to use a non-empty passphrase for security, since
 /// it protects your private key from unauthorized access.
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
-    println!("{}", "Passphrase protection:".blue().bold());
+    println!("{}", "Passphrase Protection".blue().bold());
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
 
