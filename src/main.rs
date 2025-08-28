@@ -461,7 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
                     utxos => {
                         if utxos.is_empty() {
-                            println!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
+                            eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
                             let (outpoint, amount) = &utxos[0];
                             println!("run generate-withdrawal-signature {} {} {} {} BTC",
