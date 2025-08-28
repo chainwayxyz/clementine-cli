@@ -1,14 +1,17 @@
 use std::path::{Path, PathBuf};
 
 use bitcoin::{
-    Network,
+    Address, Network,
     address::{NetworkChecked, NetworkUnchecked},
 };
 use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    backup_wallet, create_encrypted_wallet,
+    backend::backend_deposit_status,
+    backup_wallet,
+    config::BridgeCliConfig,
+    create_encrypted_wallet,
     errors::BridgeCliError,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
@@ -142,5 +145,16 @@ pub fn cli_show_private_key(
     let passphrase = prompt_unlock_passphrase()?;
     let private_key = get_private_key_from_wallet(address, &passphrase)?;
     crate::secure_display::display_private_key_securely(&private_key)?;
+    Ok(())
+}
+
+pub async fn deposit_status(
+    taproot_address: Address,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let deposit_statuses = backend_deposit_status(&taproot_address, config).await?;
+    for status in deposit_statuses {
+        println!("{}", status);
+    }
     Ok(())
 }

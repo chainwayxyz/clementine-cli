@@ -7,13 +7,13 @@ use clementine_cli::{
     cli::{
         cli_backup_wallet, cli_create_wallet, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_verify_wallet_integrity,
+        cli_show_private_key, cli_verify_wallet_integrity, deposit_status,
     },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
     print_all_wallets_with_addresses,
     structs::TaprootAddressWithPrefix,
-    wallet::{Purpose, parse_address},
+    wallet::{Purpose, parse_address, parse_taproot_address},
     withdrawal,
 };
 use colored::Colorize;
@@ -165,7 +165,7 @@ enum DepositCommands {
         #[arg(long)]
         amount: Option<f64>,
     },
-    DepositStatus {
+    Status {
         deposit_address: String,
     },
     GetDepositParams {
@@ -407,8 +407,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::DepositStatus { deposit_address } => {
-                unimplemented!("deposit.deposit_status: {}", deposit_address);
+            DepositCommands::Status { deposit_address } => {
+                let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
+                deposit_status(deposit_address, &config).await?;
             }
             DepositCommands::GetDepositParams { move_to_vault_txid } => {
                 let move_to_vault_txid = Txid::from_str(&move_to_vault_txid)?;

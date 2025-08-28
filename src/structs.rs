@@ -4,6 +4,7 @@ use bitcoin::{
     secp256k1::{Keypair, SecretKey},
 };
 use secrecy::SecretBox;
+use serde::Deserialize;
 use zeroize::Zeroize;
 
 use crate::{
@@ -199,4 +200,15 @@ where
             self.address_without_prefix()
         )
     }
+}
+
+#[derive(Debug, Deserialize)]
+pub struct DepositStatus {
+    pub id: u64,
+    pub status: String,
+    pub txid: String,
+    pub evm_addr: String,
+    pub move_txid: String,
+    pub created_at: String,
+    pub mint_txid: String,
 }
