@@ -153,8 +153,23 @@ pub async fn deposit_status(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let deposit_statuses = backend_deposit_status(&taproot_address, config).await?;
-    for status in deposit_statuses {
-        println!("{}", status);
+    if deposit_statuses.is_empty() {
+        println!(
+            "{} No deposits found for address {}",
+            "INFO".yellow().bold(),
+            taproot_address.to_string().blue().bold()
+        );
+        return Ok(());
+    }
+
+    println!(
+        "{} Deposit status(es) for address {}: \n",
+        "INFO".blue().bold(),
+        taproot_address
+    );
+
+    for (i, status) in deposit_statuses.iter().enumerate() {
+        println!("{}. {}", i + 1, status);
     }
     Ok(())
 }
