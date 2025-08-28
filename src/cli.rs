@@ -175,6 +175,7 @@ pub async fn withdrawal_status(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn send_withdrawal_signatures(
     signer_address: &str,
     withdrawal_address: &str,
@@ -183,6 +184,7 @@ pub async fn send_withdrawal_signatures(
     withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
+    amount: u64,
 ) -> Result<(), BridgeCliError> {
     let withdrawal_outpoint = OutPoint::new(
         bitcoin::Txid::from_str(withdrawal_utxo_txid)?,
@@ -195,6 +197,7 @@ pub async fn send_withdrawal_signatures(
         withdrawal_index,
         signature,
         config,
+        amount,
     )
     .await?;
     Ok(())

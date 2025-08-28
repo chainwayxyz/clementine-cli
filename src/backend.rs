@@ -272,6 +272,7 @@ pub(crate) async fn send_withdrawal_signatures_to_operators(
     withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
+    amount: u64,
 ) -> Result<(), BridgeCliError> {
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed
@@ -284,7 +285,7 @@ pub(crate) async fn send_withdrawal_signatures_to_operators(
         "signature": signature,
         "input_outpoint": withdrawal_outpoint.to_string(),
         "output_script_pubkey": withdrawal_address,
-        "output_amount": 99000000
+        "output_amount": amount
     });
 
     tracing::debug!("Making request to: {}", url);

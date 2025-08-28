@@ -221,6 +221,7 @@ enum WithdrawalCommands {
         withdrawal_utxo_vout: u32,
         withdrawal_index: u32,
         signature: String,
+        withdrawal_amount: u64,
     },
 }
 
@@ -592,6 +593,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_utxo_vout,
                 withdrawal_index,
                 signature,
+                withdrawal_amount,
             } => {
                 send_withdrawal_signatures(
                     &signer_address,
@@ -601,6 +603,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal_index,
                     &signature,
                     &config,
+                    withdrawal_amount,
                 )
                 .await?;
                 println!("Withdrawal signatures sent successfully to operators");
