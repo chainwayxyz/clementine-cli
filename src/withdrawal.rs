@@ -387,37 +387,10 @@ async fn get_utxos_for_address(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    match &config.bitcoin_config {
-        Some(_) => get_utxos_from_rpc(address, config).await,
-        None => get_utxos_from_mempool(address, config).await,
-    }
+    get_utxos_from_mempool_space(address, config).await
 }
 
-async fn get_utxos_from_rpc(
-    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    config: &BridgeCliConfig,
-) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    let rpc = config.connect_to_bitcoin_rpc().await?;
-
-    let utxos = rpc
-        .list_unspent(Some(0), None, Some(&[&address.address]), None, None)
-        .await?;
-
-    let mut result = Vec::new();
-    for utxo in utxos {
-        if utxo.amount == Amount::from_sat(330) {
-            result.push(UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-            });
-        }
-    }
-
-    Ok(result)
-}
-
-async fn get_utxos_from_mempool(
+async fn get_utxos_from_mempool_space(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
