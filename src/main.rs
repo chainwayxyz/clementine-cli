@@ -175,6 +175,14 @@ enum DepositCommands {
 
 #[derive(Subcommand)]
 enum WithdrawalCommands {
+    Start {
+        signer_address: String,
+        claim_address: String,
+    },
+    Scan {
+        signer_address: String,
+        claim_address: String,
+    },
     GenerateWithdrawalSignature {
         signer_address: String,
         withdrawal_address: String,
@@ -413,6 +421,54 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
         Commands::Withdrawal { command } => match command {
+            WithdrawalCommands::Start {
+                signer_address,
+                claim_address,
+            } => {
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    config.network,
+                )?;
+                let claim_address = parse_address(&claim_address, config.network)?;
+                handle_cli_command!(
+                    withdrawal::start_withdrawal(&signer_address, &claim_address, &config),
+                    () => {
+                        println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("Then run: clementine-cli withdrawal scan {} {} to scan for UTXOs",
+                            signer_address.address_with_prefix(), claim_address);
+                    }
+                );
+            }
+            WithdrawalCommands::Scan {
+                signer_address,
+                claim_address,
+            } => {
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    config.network,
+                )?;
+                let claim_address = parse_address(&claim_address, config.network)?;
+                handle_cli_command!(async
+                    withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
+                    utxos => {
+                        if utxos.is_empty() {
+                            eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
+                        } else if utxos.len() == 1 {
+                            let (outpoint, amount) = &utxos[0];
+                            println!("run generate-withdrawal-signature {} {} {} {} BTC",
+                                &signer_address.address_with_prefix(), claim_address, outpoint, amount);
+                            println!("inside your airgapped pc");
+                        } else {
+                            println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
+                            for (outpoint, amount) in utxos.iter() {
+                                println!("Run: clementine-cli withdrawal generate-withdrawal-signature {} {} {} {} BTC",
+                                    &signer_address.address_with_prefix(), claim_address, outpoint, amount);
+                            }
+                            println!("inside your airgapped pc");
+                        }
+                    }
+                );
+            }
             WithdrawalCommands::GenerateWithdrawalSignature {
                 signer_address,
                 withdrawal_address,
