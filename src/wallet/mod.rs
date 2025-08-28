@@ -21,7 +21,6 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::bitcoin_utils::{SECP, calculate_taproot_address};
-use crate::secure_display::display_mnemonic_securely;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
@@ -52,7 +51,7 @@ pub fn create_encrypted_wallet(
     label: String,
     purpose: Purpose,
     passphrase: SecureString,
-) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
+) -> Result<(TaprootAddressWithPrefix<NetworkChecked>, Mnemonic), BridgeCliError> {
     // Generate mnemonic
     let mnemonic = generate_mnemonic()?;
 
@@ -82,10 +81,7 @@ pub fn create_encrypted_wallet(
         &label,
     )?;
 
-    // Display the mnemonic securely to the user
-    display_mnemonic_securely(&mnemonic)?;
-
-    Ok(address)
+    Ok((address, mnemonic))
 }
 
 /// Backup a wallet file to a specified destination

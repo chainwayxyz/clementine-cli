@@ -11,6 +11,7 @@ use crate::{
     backup_wallet, create_encrypted_wallet,
     errors::BridgeCliError,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
+    secure_display::display_mnemonic_securely,
     structs::{SecureString, TaprootAddressWithPrefix},
     wallet::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
@@ -34,7 +35,11 @@ pub fn cli_create_wallet(
     validate_wallet_availability(Some(&label), None, WalletValidationMode::Label)?;
 
     let passphrase = prompt_passphrase(true)?;
-    create_encrypted_wallet(network, label, purpose, passphrase)
+    let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
+
+    display_mnemonic_securely(&mnemonic)?;
+
+    Ok(address)
 }
 
 pub fn cli_backup_wallet(
