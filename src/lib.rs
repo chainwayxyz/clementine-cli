@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 use crate::errors::BridgeCliError;
 use eyre::Context;
 use eyre::Result;
