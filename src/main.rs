@@ -434,7 +434,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal::start_withdrawal(&signer_address, &claim_address, &config),
                     () => {
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
-                        println!("Then run: clementine-cli withdrawal scan {} {} to scan for UTXOs",
+                        println!("Then run: withdrawal scan {} {} to scan for UTXOs",
                             signer_address.address_with_prefix(), claim_address);
                     }
                 );
@@ -461,7 +461,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         } else {
                             println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
                             for (outpoint, _) in utxos.iter() {
-                                println!("Run: clementine-cli withdrawal generate-withdrawal-signature {} {} {} 9.9",
+                                println!("Run: withdrawal generate-withdrawal-signature {} {} {} 9.9",
                                     &signer_address.address_with_prefix(), claim_address, outpoint);
                             }
                             println!("inside your airgapped pc");
