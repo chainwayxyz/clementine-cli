@@ -1,13 +1,13 @@
 # Depositing to Citrea
 
-All the available deposit commands can be viewed using `clementine deposit --help`
-command and `clementine deposit <sub-command> --help`.
+All the available deposit commands can be viewed using `clementine-cli deposit --help`
+command and `clementine-cli deposit <sub-command> --help`.
 
-1. Get your deposit address, using your EVM address and recovery taproot address
+1. Get your deposit address, using your EVM address and recovery taproot address (with dep prefix)
 
    ```sh
    # Save printed out address
-   clementine --config-file <CONFIG FILE> deposit get-deposit-address <CITREA EVM ADDRESS> <RECOVERY TAPROOT ADDRESS>
+   clementine-cli --network <BITCOIN NETWORK> deposit get-deposit-address <CITREA EVM ADDRESS> <RECOVERY TAPROOT ADDRESS>
    ```
 
 2. Send 10 BTC to the deposit address, using previously generated deposit address
@@ -15,7 +15,7 @@ command and `clementine deposit <sub-command> --help`.
 3. Wait for Move TX to appear on Bitcoin
 
    ```sh
-   clementine --config-file <CONFIG FILE> deposit deposit-status <DEPOSIT ADDRESS>
+   clementine-cli --network <BITCOIN NETWORK> deposit deposit-status <DEPOSIT ADDRESS>
    ```
 
 ## FAQ
