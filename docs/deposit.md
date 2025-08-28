@@ -12,13 +12,11 @@ command and `clementine deposit <sub-command> --help`.
 
 2. Send 10 BTC to the deposit address, using previously generated deposit address
 
-3. Wait for Move TX to appear on Bitcoin -- TODO: havent checked it yet
+3. Wait for Move TX to appear on Bitcoin
 
    ```sh
    clementine --config-file <CONFIG FILE> deposit deposit-status <DEPOSIT ADDRESS>
    ```
-
-4. TODO: Should we add steps if things go wrong (whitepaper page 25 section peg in)?
 
 ## FAQ
 
