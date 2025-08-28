@@ -67,9 +67,13 @@ pub(crate) fn store_wallet_data(
 
     let storage_dir = get_storage_dir()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
+    tracing::info!("Wallet will be saved to: {wallet_file:?}");
 
-    // Write wallet file
     let json_data = serde_json::to_string_pretty(&wallet_data)?;
+    tracing::debug!("Wallet data: {wallet_data:?}");
+
+    // Create missing dirs and write to file.
+    fs::create_dir_all(storage_dir)?;
     fs::write(&wallet_file, json_data)?;
 
     // Set secure file permissions on Unix systems
@@ -176,7 +180,7 @@ pub(crate) fn get_wallets_from_registry()
     let wallets_file = storage_dir.join("wallets.json");
 
     if !wallets_file.exists() {
-        // Return empty HashMap if registry doesn't exist yet
+        tracing::debug!("No wallets in the registry");
         return Ok(HashMap::new());
     }
 
