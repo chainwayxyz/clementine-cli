@@ -392,8 +392,11 @@ async fn get_utxos_for_address(
     match get_utxos_from_mempool(address, config).await {
         Ok(utxos) => Ok(utxos),
         Err(mempool_error) => {
-            tracing::warn!("Mempool API failed: {}, falling back to Bitcoin RPC", mempool_error);
-            
+            tracing::warn!(
+                "Mempool API failed: {}, falling back to Bitcoin RPC",
+                mempool_error
+            );
+
             // Fallback to Bitcoin RPC if available
             if config.bitcoin_config.is_some() {
                 get_utxos_from_rpc(address, config).await
