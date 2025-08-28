@@ -8,6 +8,7 @@ use clementine_cli::{
         cli_backup_wallet, cli_create_wallet, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
         cli_show_private_key, cli_verify_wallet_integrity, deposit_status,
+        send_withdrawal_signatures, withdrawal_status,
     },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
@@ -566,7 +567,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WithdrawalCommands::Status { withdrawal_index } => {
-                unimplemented!("withdrawal.status: {}", withdrawal_index);
+                withdrawal_status(withdrawal_index, &config).await?;
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
@@ -592,15 +593,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_index,
                 signature,
             } => {
-                unimplemented!(
-                    "withdrawal.send_withdrawal_signatures_to_operators: {} {} {} {} {} {}",
-                    withdrawal_address,
-                    signer_address,
-                    withdrawal_utxo_txid,
+                send_withdrawal_signatures(
+                    &signer_address,
+                    &withdrawal_address,
+                    &withdrawal_utxo_txid,
                     withdrawal_utxo_vout,
                     withdrawal_index,
-                    signature
-                );
+                    &signature,
+                    &config,
+                )
+                .await?;
+                println!("Withdrawal signatures sent successfully to operators");
             }
         },
     }

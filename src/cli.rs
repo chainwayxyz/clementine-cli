@@ -1,14 +1,19 @@
-use std::path::{Path, PathBuf};
+use std::{
+    path::{Path, PathBuf},
+    str::FromStr,
+};
 
 use bitcoin::{
-    Address, Network,
+    Address, Network, OutPoint,
     address::{NetworkChecked, NetworkUnchecked},
 };
 use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    backend::backend_deposit_status,
+    backend::{
+        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
+    },
     backup_wallet,
     config::BridgeCliConfig,
     create_encrypted_wallet,
@@ -156,5 +161,41 @@ pub async fn deposit_status(
     for status in deposit_statuses {
         println!("{}", status);
     }
+    Ok(())
+}
+
+pub async fn withdrawal_status(
+    withdrawal_index: u32,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let withdrawal_statuses = backend_withdrawal_status(withdrawal_index, config).await?;
+    for status in withdrawal_statuses {
+        println!("{}", status);
+    }
+    Ok(())
+}
+
+pub async fn send_withdrawal_signatures(
+    signer_address: &str,
+    withdrawal_address: &str,
+    withdrawal_utxo_txid: &str,
+    withdrawal_utxo_vout: u32,
+    withdrawal_index: u32,
+    signature: &str,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let withdrawal_outpoint = OutPoint::new(
+        bitcoin::Txid::from_str(withdrawal_utxo_txid)?,
+        withdrawal_utxo_vout,
+    );
+    send_withdrawal_signatures_to_operators(
+        signer_address,
+        withdrawal_address,
+        withdrawal_outpoint,
+        withdrawal_index,
+        signature,
+        config,
+    )
+    .await?;
     Ok(())
 }
