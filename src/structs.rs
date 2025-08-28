@@ -50,7 +50,7 @@ impl Drop for SecureWordVec {
 }
 
 /// A secure wrapper for SecretKey that automatically erases itself when dropped
-pub(crate) struct SecureSecretKey {
+pub struct SecureSecretKey {
     inner: SecretKey,
 }
 
@@ -59,7 +59,7 @@ impl SecureSecretKey {
         Self { inner: key }
     }
 
-    pub fn as_ref(&self) -> &SecretKey {
+    pub fn as_ref_inner(&self) -> &SecretKey {
         &self.inner
     }
 }
