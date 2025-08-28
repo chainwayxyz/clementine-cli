@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
-use serde::Deserialize;
-#[derive(Debug, Deserialize, serde::Serialize)]
+use serde::{Deserialize, Serialize};
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
     pub status: String,
@@ -12,7 +12,7 @@ pub struct DepositStatus {
     pub mint_txid: String,
 }
 
-#[derive(Debug, Deserialize, serde::Serialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct WithdrawalStatus {
     pub id: u64,
     pub status: String,
