@@ -15,7 +15,7 @@ command and `clementine-cli deposit <sub-command> --help`.
 3. Wait for Move TX to appear on Bitcoin
 
    ```sh
-   clementine-cli --network <BITCOIN NETWORK> deposit deposit-status <DEPOSIT ADDRESS>
+   clementine-cli --network <BITCOIN NETWORK> deposit status <DEPOSIT ADDRESS>
    ```
 
 ## FAQ
