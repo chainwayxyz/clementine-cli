@@ -160,8 +160,8 @@ enum DepositCommands {
     },
     VerifyRecoveryTx {
         recovery_tx: String,
-        evm_address: String,
         recovery_taproot_address: String,
+        evm_address: String,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
@@ -383,8 +383,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
-                evm_address,
                 recovery_taproot_address,
+                evm_address,
                 amount,
             } => {
                 let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
