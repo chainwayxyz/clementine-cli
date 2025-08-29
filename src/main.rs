@@ -143,8 +143,8 @@ enum WalletCommands {
 #[derive(Subcommand)]
 enum DepositCommands {
     GetDepositAddress {
-        citrea_address: String,
         recovery_taproot_address: String,
+        citrea_address: String,
     },
     SignRecoveryTx {
         recovery_taproot_address: String,
@@ -325,8 +325,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Commands::Deposit { command } => match command {
             DepositCommands::GetDepositAddress {
-                citrea_address,
                 recovery_taproot_address,
+                citrea_address,
             } => {
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
