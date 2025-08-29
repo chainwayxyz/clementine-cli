@@ -11,12 +11,13 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
+    BitcoinAddress, CitreaAddress,
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
     config::BridgeCliConfig,
-    create_encrypted_wallet,
+    create_encrypted_wallet, deposit,
     errors::BridgeCliError,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
@@ -28,10 +29,12 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, parse_and_validate_imported_wallet,
-            report_integrity_results, validate_wallet_availability,
+            WalletValidationMode, address_exists, ensure_wallet_exists,
+            parse_and_validate_imported_wallet, report_integrity_results,
+            validate_wallet_availability,
         },
     },
+    withdrawal::start_withdrawal,
 };
 
 pub fn cli_create_wallet(
@@ -232,4 +235,25 @@ pub async fn send_withdrawal_signatures(
     )
     .await?;
     Ok(())
+}
+
+pub async fn cli_get_deposit_address(
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<(BitcoinAddress, bool), BridgeCliError> {
+    let address_exists = address_exists(recovery_taproot_address)?;
+    let deposit_address =
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+    Ok((deposit_address, address_exists))
+}
+
+pub async fn cli_start_withdrawal(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<bool, BridgeCliError> {
+    let address_exists = address_exists(signer_address)?;
+    start_withdrawal(signer_address, claim_address, config)?;
+    Ok(address_exists)
 }

@@ -345,7 +345,7 @@ pub async fn send_safe_withdrawal(
     Ok(receipt)
 }
 
-pub fn start_withdrawal(
+pub(crate) fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     _claim_address: &BitcoinAddress,
     _config: &BridgeCliConfig,

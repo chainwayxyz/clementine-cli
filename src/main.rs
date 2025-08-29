@@ -5,9 +5,9 @@ use clap::{Parser, Subcommand};
 use clementine_cli::{
     BitcoinAddress,
     cli::{
-        cli_backup_wallet, cli_create_wallet, cli_import_wallet_from_file,
+        cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_verify_wallet_integrity, deposit_status,
+        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity, deposit_status,
         send_withdrawal_signatures, withdrawal_status,
     },
     config::BridgeCliConfig,
@@ -343,8 +343,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.network,
                 )?;
                 handle_cli_command!(async
-                    deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
-                    deposit_address => {
+                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    (deposit_address, address_exists) => {
+                        if !address_exists {
+                            println!("Address does not exist in wallet, please import for signature generation");
+                        }
                         println!("Deposit address: {}", deposit_address);
                     }
                 );
@@ -442,9 +445,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.network,
                 )?;
                 let claim_address = parse_address(&claim_address, config.network)?;
-                handle_cli_command!(
-                    withdrawal::start_withdrawal(&signer_address, &claim_address, &config),
-                    () => {
+                handle_cli_command!(async
+                    cli_start_withdrawal(&signer_address, &claim_address, &config),
+                    address_exists => {
+                        if !address_exists {
+                            println!("Address does not exist in wallet, please import for signature generation");
+                        }
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
                         println!("Then run: withdrawal scan {} {} to scan for UTXOs",
                             signer_address.address_with_prefix(), claim_address);
