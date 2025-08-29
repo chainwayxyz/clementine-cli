@@ -148,7 +148,6 @@ pub(crate) async fn get_txout_details(
 
     Ok(txout.clone())
 }
-
 pub(crate) async fn get_tx_details(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
@@ -161,7 +160,7 @@ pub(crate) async fn get_tx_details(
                 mempool_error
             );
 
-            if let Some(_) = config.bitcoin_config {
+            if config.bitcoin_config.is_some() {
                 let rpc = config.connect_to_bitcoin_rpc().await?;
                 get_tx_details_from_rpc(&rpc, prepare_txid).await
             } else {
