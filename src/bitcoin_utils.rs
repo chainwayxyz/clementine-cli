@@ -83,9 +83,9 @@ pub(crate) fn sign_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     deposit_outpoint: &OutPoint,
-    deposit_amount: Option<Amount>,
+    deposit_amount: Amount,
     claim_address: &BitcoinAddress,
-    fee_rate: Option<FeeRate>,
+    fee_rate: FeeRate,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
@@ -96,8 +96,6 @@ pub(crate) fn sign_recovery_tx(
         config.user_takes_after,
     );
 
-    let input_amount = deposit_amount.unwrap_or(config.bridge_amount);
-
     let txin = TxIn {
         previous_output: *deposit_outpoint,
         script_sig: ScriptBuf::default(),
@@ -106,12 +104,12 @@ pub(crate) fn sign_recovery_tx(
     };
 
     let prevout = TxOut {
-        value: input_amount,
+        value: deposit_amount,
         script_pubkey: deposit_address.script_pubkey(),
     };
 
     let txout = TxOut {
-        value: input_amount,
+        value: deposit_amount,
         script_pubkey: claim_address.script_pubkey(),
     };
 
@@ -122,40 +120,27 @@ pub(crate) fn sign_recovery_tx(
         output: vec![txout],
     };
 
-    if let Some(fee_rate) = fee_rate {
-        let weight = Weight::from_wu(550);
-        let fee = fee_rate.fee_wu(weight).expect("fee is valid");
-        let output_amount: Amount = match input_amount.checked_sub(fee) {
-            Some(amt) => amt,
-            None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
-        };
-        if output_amount < Amount::from_sat(546) {
-            return Err(eyre::eyre!("Output amount below dust threshold").into());
-        }
-        recovery_tx.output[0].value = output_amount;
+    let weight = Weight::from_wu(550);
+    let fee = fee_rate.fee_wu(weight).expect("fee is valid");
+    let output_amount: Amount = match deposit_amount.checked_sub(fee) {
+        Some(amt) => amt,
+        None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
+    };
+    if output_amount < Amount::from_sat(546) {
+        return Err(eyre::eyre!("Output amount below dust threshold").into());
     }
+    recovery_tx.output[0].value = output_amount;
 
     let mut sighash_cache = bitcoin::sighash::SighashCache::new(recovery_tx.clone());
 
-    let sighash = if fee_rate.is_some() {
-        sighash_cache
-            .taproot_script_spend_signature_hash(
-                0,
-                &bitcoin::sighash::Prevouts::All(&[prevout]),
-                TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
-                bitcoin::TapSighashType::Default,
-            )
-            .unwrap()
-    } else {
-        sighash_cache
-            .taproot_script_spend_signature_hash(
-                0,
-                &bitcoin::sighash::Prevouts::One(0, &prevout),
-                TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
-                bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
-            )
-            .unwrap()
-    };
+    let sighash = sighash_cache
+        .taproot_script_spend_signature_hash(
+            0,
+            &bitcoin::sighash::Prevouts::All(&[prevout]),
+            TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
+            bitcoin::TapSighashType::Default,
+        )
+        .unwrap();
 
     tracing::debug!("sighash: {:?}", sighash);
     tracing::debug!("recovery_script: {:?}", recovery_script);
@@ -163,17 +148,13 @@ pub(crate) fn sign_recovery_tx(
         "recovery key: {:?}",
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])
     );
-    tracing::debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("input_amount: {:?}", deposit_amount);
 
     let sig = sign_with_tweak(keypair, sighash, None);
 
     let taproot_signature = bitcoin::taproot::Signature {
         signature: sig,
-        sighash_type: if fee_rate.is_some() {
-            bitcoin::TapSighashType::Default
-        } else {
-            bitcoin::TapSighashType::SinglePlusAnyoneCanPay
-        },
+        sighash_type: bitcoin::TapSighashType::Default,
     };
 
     let spend_control_block = taproot_spend_info

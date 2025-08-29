@@ -83,8 +83,8 @@ pub fn sign_recovery_tx(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     outpoint: &OutPoint,
     claim_addr: &BitcoinAddress,
-    fee_rate: Option<u64>,
-    amount: Option<f64>,
+    fee_rate: u64,
+    amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     // Always prompt for passphrase for maximum security
@@ -100,12 +100,10 @@ pub fn sign_recovery_tx(
     let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
 
     // Convert BTC amount to satoshis if provided
-    let deposit_amount = match amount {
-        Some(btc) => Some(Amount::from_btc(btc)?),
-        None => None,
-    };
+    let deposit_amount = Amount::from_btc(amount)?;
 
-    let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
+    let fee_rate = FeeRate::from_sat_per_vb_unchecked(fee_rate);
+
     let signed_tx = utils_sign_recovery_tx(
         &keypair,
         citrea_addr,
@@ -113,7 +111,7 @@ pub fn sign_recovery_tx(
         outpoint,
         deposit_amount,
         claim_addr,
-        fee_rate_opt,
+        fee_rate,
         config,
     )?;
 

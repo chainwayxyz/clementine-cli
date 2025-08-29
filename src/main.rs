@@ -153,10 +153,10 @@ enum DepositCommands {
         deposit_vout: u32,
         claim_address: String,
         #[arg(long)]
-        fee_rate: Option<u64>,
+        fee_rate: u64,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
-        amount: Option<f64>,
+        amount: f64,
     },
     VerifyRecoveryTx {
         recovery_tx: String,
