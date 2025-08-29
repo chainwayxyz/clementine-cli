@@ -77,8 +77,10 @@ pub async fn get_deposit_params(
     Ok(deposit_params)
 }
 
+/// Creates a signed raw transaction that can collect unminted funds from the
+/// deposit transaction after 200 blocks.
 #[allow(clippy::too_many_arguments)]
-pub fn sign_recovery_tx(
+pub fn create_signed_recovery_tx(
     citrea_addr: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     outpoint: &OutPoint,
