@@ -13,6 +13,7 @@ use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
+use chrono::{DateTime, TimeZone, Utc};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash)]
 pub enum Purpose {
@@ -86,7 +87,7 @@ pub fn parse_taproot_address(
 }
 
 /// Get all wallets with their names and addresses from storage and print them
-pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
+pub fn print_all_wallets_with_addresses(network: Network) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
     if !storage_dir.exists() {
@@ -104,8 +105,26 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
+    let mut wallets: Vec<_> = wallets.into_values().collect();
+    wallets.sort_by_key(|w| {
+        DateTime::parse_from_rfc3339(&w.created_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc.timestamp_opt(0, 0).single().unwrap())
+    });
+
+    // filter wallets by network
+    let wallets = wallets
+        .into_iter()
+        .filter(|w| w.network == network.to_string())
+        .collect::<Vec<_>>();
+
+    if wallets.is_empty() {
+        println!("No wallets found for network: {}", network);
+        return Ok(());
+    }
+
     println!("Found {} wallet(s):", wallets.len());
-    for wallet_entry in wallets.values() {
+    for wallet_entry in wallets {
         let network = parse_network(&wallet_entry.network)?;
         let address = TaprootAddressWithPrefix::from_string_with_prefix(
             &wallet_entry.addres_with_prefix,
