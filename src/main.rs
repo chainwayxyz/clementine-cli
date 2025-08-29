@@ -146,12 +146,20 @@ enum DepositCommands {
         citrea_address: String,
         recovery_taproot_address: String,
     },
-    SignRecoveryTx {
+    /// Creates a raw Bitcoin transaction that can collect funds back to the
+    /// given address
+    CreateSignedRecoveryTx {
+        /// Recovery taproot address, which deposit has been made
         recovery_taproot_address: String,
+        /// Your Citrea EVM address, which deposit has been made
         evm_address: String,
+        /// Deposit transaction's TxId
         deposit_txid: String,
+        /// Deposit transaction's vout which has the 10 BTC output
         deposit_vout: u32,
+        /// Your Bitcoin address, which will collect the 10 BTC (- fees)
         claim_address: String,
+        /// Optional fee rate to be used when creating the recovery tx
         #[arg(long)]
         fee_rate: Option<u64>,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
@@ -340,7 +348,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::SignRecoveryTx {
+            DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
                 evm_address,
                 deposit_txid,
@@ -367,7 +375,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 }
 
                 handle_cli_command!(
-                    deposit::sign_recovery_tx(
+                    deposit::create_signed_recovery_tx(
                         &citrea_address,
                         &recovery_taproot_address,
                         &outpoint,

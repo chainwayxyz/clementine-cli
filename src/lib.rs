@@ -33,7 +33,9 @@ pub use wallet::{
 };
 
 // Deposit operations
-pub use deposit::{get_deposit_address, get_deposit_params, sign_recovery_tx, verify_recovery_tx};
+pub use deposit::{
+    create_signed_recovery_tx, get_deposit_address, get_deposit_params, verify_recovery_tx,
+};
 
 // Withdrawal operations
 pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
