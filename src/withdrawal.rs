@@ -425,7 +425,10 @@ async fn get_utxos_from_rpc(
     let rpc = config.connect_to_bitcoin_rpc().await?;
 
     let res = rpc
-        .scan_tx_out_set_blocking(&[ScanTxOutRequest::Single(address.address.to_string())])
+        .scan_tx_out_set_blocking(&[ScanTxOutRequest::Single(format!(
+            "addr({})",
+            address.address
+        ))])
         .await?;
 
     let mut result = Vec::new();
@@ -453,9 +456,13 @@ async fn get_utxos_from_mempool(
         .join(&format!("address/{}/utxo", address.address))
         .wrap_err("Can't join URL for address UTXOs")?;
 
+    tracing::debug!("Fetching UTXOs from URL: {}", url);
+
     let response = reqwest::get(url)
         .await
         .map_err(|e| eyre::eyre!("Failed to fetch UTXOs for address {}: {e}", address.address))?;
+
+    tracing::debug!("UTXO response: {}", response.status());
 
     let utxos: Value = response
         .json()
