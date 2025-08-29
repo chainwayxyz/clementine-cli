@@ -87,7 +87,7 @@ pub fn parse_taproot_address(
 }
 
 /// Get all wallets with their names and addresses from storage and print them
-pub fn print_all_wallets_with_addresses(network: Network) -> Result<(), BridgeCliError> {
+pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
     if !storage_dir.exists() {
@@ -112,42 +112,49 @@ pub fn print_all_wallets_with_addresses(network: Network) -> Result<(), BridgeCl
             .unwrap_or_else(|_| Utc.timestamp_opt(0, 0).single().unwrap())
     });
 
-    // filter wallets by network
-    let wallets = wallets
-        .into_iter()
-        .filter(|w| w.network == network.to_string())
-        .collect::<Vec<_>>();
+    let (mainnet, others): (Vec<_>, Vec<_>) =
+        wallets.into_iter().partition(|w| w.network == "bitcoin");
 
-    if wallets.is_empty() {
-        println!("No wallets found for network: {}", network);
-        return Ok(());
-    }
-
-    println!("Found {} wallet(s):", wallets.len());
-    for wallet_entry in wallets {
-        let network = parse_network(&wallet_entry.network)?;
-        let address = TaprootAddressWithPrefix::from_string_with_prefix(
-            &wallet_entry.addres_with_prefix,
-            network,
-        )?;
-
-        let import_info = if let Some(true) = wallet_entry.imported {
-            if let Some(method) = &wallet_entry.import_method {
-                format!(" (Imported via {})", method)
+    fn print_wallet_section(
+        section_title: &str,
+        wallets: &[crate::wallet::wallet_storage::WalletRegistryEntry],
+    ) -> Result<(), BridgeCliError> {
+        if wallets.is_empty() {
+            return Ok(());
+        }
+        println!("{}", section_title.bold().underline());
+        for wallet_entry in wallets {
+            let network = parse_network(&wallet_entry.network)?;
+            let address = TaprootAddressWithPrefix::from_string_with_prefix(
+                &wallet_entry.addres_with_prefix,
+                network,
+            )?;
+            let import_info = if let Some(true) = wallet_entry.imported {
+                if let Some(method) = &wallet_entry.import_method {
+                    format!(", (Imported via {})", method)
+                } else {
+                    ", (Imported)".to_string()
+                }
             } else {
-                " (Imported)".to_string()
-            }
-        } else {
-            "".to_string()
-        };
-
-        println!(
-            "Wallet: {} -> Address: {}{}",
-            wallet_entry.label.blue(),
-            address.address_with_prefix().green(),
-            import_info.cyan()
-        );
+                "".to_string()
+            };
+            let network = format!("network: {}", wallet_entry.network);
+            println!(
+                "Label: {} -> Address: {}, {}{}",
+                &wallet_entry.label,
+                &address.address_with_prefix(),
+                network,
+                import_info,
+            );
+        }
+        Ok(())
     }
+
+    print_wallet_section("Wallets on networks other than Bitcoin mainnet:", &others)?;
+
+    println!();
+
+    print_wallet_section("Wallets on Bitcoin mainnet:", &mainnet)?;
 
     Ok(())
 }

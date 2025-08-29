@@ -312,7 +312,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WalletCommands::List => {
-                handle_cli_command!(print_all_wallets_with_addresses(config.network));
+                handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
                 let address =
