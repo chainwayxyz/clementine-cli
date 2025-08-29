@@ -193,9 +193,13 @@ pub enum BridgeCliError {
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
     #[error("{0}")]
     BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
-    #[error("Purpose mismatch: expected {0:?}, found {1:?}")]
+    #[error(
+        "Wallet address purpose mismatch: expected {0:?}, found {1:?}. Please use appropriate wallet address(es)."
+    )]
     PurposeMismatch(Purpose, Purpose),
-    #[error("Invalid purpose: {0}")]
+    #[error(
+        "Invalid purpose: {0}. Please make sure the address used has the correct purpose prefix (either \"dep\" or \"wit\")."
+    )]
     InvalidPurpose(String),
 
     // IO errors (from rpassword and file operations)
@@ -207,7 +211,7 @@ pub enum BridgeCliError {
     Eyre(#[from] eyre::Report),
 }
 
-/// Extension traits for errors to easily convert them to [`eyre::Report`]
+/// Extension traits for errors to easily convert them to [`eyre::Report`]  
 /// through [`ClementineCliError`].
 pub trait ErrorExt: Sized {
     /// Converts the error into an [`eyre::Report`], first wrapping in

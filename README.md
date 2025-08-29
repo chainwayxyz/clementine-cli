@@ -1,45 +1,63 @@
 # Clementine CLI
 
-A wallet-agnostic command-line tool for interacting with Citrea, supporting
-secure Bitcoin deposits and withdrawals without requiring wallet connection.
+A wallet-agnostic command-line tool for interacting with Citrea, supporting secure Bitcoin deposits and withdrawals without requiring wallet connection.
 
 ## Features
 
-- Deposit to and withdrawal from Citrea
-- Airgapped key generation and signing
-- Bitcoin address and transaction generator/signer utilities
-- Backend interaction via HTTP
-- Wallet-agnostic: No wallet connection required
+- **Bridge Operations**: Deposit to and withdraw from Citrea network
+- **Airgapped Security**: Key generation and signing in secure environments
+- **Wallet Management**: Create, import, and manage Clementine wallets locally
+- **Wallet-agnostic**: No external wallet connection required
+- **Recovery Support**: Built-in fund recovery mechanisms
 
 ## Installation
 
-Install Rust and Cargo if you haven't already:
+### Prerequisites
+- **Airgapped Device**: Rust and Clementine CLI installation
+- **Online Device**: Bitcoin node access or mempool API
+- **Both Devices**: Secure data transfer method (USB, QR codes)
+
+### Install
+
+1. Install Rust:
+   ```sh
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. Install Clementine CLI:
+   ```sh
+   cargo install --path .
+   ```
+
+## Quick Usage
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+# Get help
+clementine-cli --help
+
+# Create wallet for deposit (airgapped device only)
+clementine-cli --network testnet4 wallet create deposit my-deposit-wallet
+
+# Monitor deposits (online device)
+clementine-cli --network testnet4 deposit status <ADDRESS>
 ```
 
-Install Clementine CLI (from project root):
+## Two-Device Security
 
-```sh
-cargo install --path . # TODO: check what happens to config file
-```
+Clementine CLI requires two devices for maximum security:
 
-## Usage and Documentation
+- **Airgapped Device**: All wallet creation, key generation, and signing operations
+- **Online Device**: Status monitoring, address generation, broadcasting
+- **Never**: Connect airgapped device to internet
+- **Always**: Verify the correctness of operations before interacting with Citrea or Bitcoin to prevent loss of funds
 
-Run `clementine --help` to see available commands. Or visit [documentation](docs/)
-for detailed steps.
+## Documentation
 
-## Security Warning
+**[Complete User Guide](docs/)** - Detailed two-device workflows
 
-Some commands (notably key generation and signing) must be run in an airgapped
-environment. The CLI will prompt for confirmation before proceeding with
-sensitive operations.
-
-## Contributing
-
-- If you have suggestions for naming or structure, please open an issue or a PR
-- For musig2 and advanced cryptography, see stubs in the codebase
+- [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
+- [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
+- [Withdrawal Guide](docs/withdrawal.md) - Withdrawal from Citrea to Bitcoin
 
 ## License
 

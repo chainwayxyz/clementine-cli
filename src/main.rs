@@ -64,7 +64,7 @@ struct Cli {
     #[arg(long)]
     network: Network,
 
-    /// Turns verbose logging on
+    /// Turns verbose logging on.
     #[arg(long, action = clap::ArgAction::SetTrue)]
     verbose: bool,
 
@@ -97,6 +97,7 @@ enum WalletCommands {
     Create {
         /// Label for the wallet file
         label: String,
+        /// Purpose for the wallet.
         purpose: Purpose,
     },
     /// Backup wallet to specified destination.
@@ -151,11 +152,11 @@ enum DepositCommands {
     CreateSignedRecoveryTx {
         /// Recovery taproot address, which deposit has been made
         recovery_taproot_address: String,
-        /// Your Citrea EVM address, which deposit has been made
-        evm_address: String,
-        /// Deposit transaction's TxId
+        /// Your Citrea address, which deposit has been made
+        citrea_address: String,
+        /// Txid of the deposit transaction
         deposit_txid: String,
-        /// Deposit transaction's vout which has the 10 BTC output
+        /// Vout of the deposit transaction which has the 10 BTC output
         deposit_vout: u32,
         /// Your Bitcoin address, which will collect the 10 BTC (- fees)
         claim_address: String,
@@ -350,14 +351,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
-                evm_address,
+                citrea_address,
                 deposit_txid,
                 deposit_vout,
                 claim_address,
                 fee_rate,
                 amount,
             } => {
-                let citrea_address = parse_citrea_address(&evm_address)?;
+                let citrea_address = parse_citrea_address(&citrea_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,

@@ -1,3 +1,33 @@
+//! Bitcoin address utilities and wallet management for Clementine CLI.
+//!
+//! This module provides functionality for:
+//! - Generating Bitcoin addresses from mnemonic phrases using Taproot (P2TR)
+//! - Computing Taproot addresses directly from keypairs
+//! - Parsing and validating Bitcoin addresses with network verification
+//! - Managing wallet purposes (deposit vs withdrawal) with address prefixes
+//! - Listing and displaying stored wallets with their associated addresses
+//!
+//! ## Address Types
+//!
+//! The module focuses on Taproot addresses (P2TR) which are generated from:
+//! - BIP39 mnemonic phrases converted to master seeds
+//! - Secp256k1 keypairs derived from the master private key
+//! - Network-specific address generation (mainnet, testnet, etc.)
+//!
+//! ## Purpose-based Prefixes
+//!
+//! Addresses are categorized by purpose with specific prefixes:
+//! - **Deposit addresses**: Prefixed with "dep"
+//! - **Withdrawal addresses**: Prefixed with "wit"
+//!
+//! ## Key Functions
+//!
+//! - [`generate_address_from_mnemonic`]: Creates Taproot addresses from mnemonic phrases
+//! - [`calculate_taproot_address`]: Computes Taproot addresses directly from keypairs
+//! - [`parse_address`]: Validates and parses Bitcoin address strings
+//! - [`parse_taproot_address`]: Specifically validates Taproot (P2TR) addresses
+//! - [`print_all_wallets_with_addresses`]: Displays all stored wallets with their addresses
+
 use bip39::Mnemonic;
 use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
@@ -6,7 +36,7 @@ use clap::ValueEnum;
 use colored::Colorize;
 use secrecy::ExposeSecret;
 
-use crate::bitcoin_utils::{SECP, calculate_taproot_address};
+use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
 use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
@@ -14,6 +44,10 @@ use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
 
+/// Purpose for the wallet. Can be for either `deposit` or `withdrawal`.
+/// This affects the prefix of the generated address.
+/// If `withdrawal`, the address will be prefixed with "wit".
+/// If `deposit`, it will be prefixed with "dep".
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash)]
 pub enum Purpose {
     Deposit,
@@ -58,6 +92,15 @@ pub(crate) fn generate_address_from_mnemonic(
     let address = TaprootAddressWithPrefix::new(address, purpose)?;
 
     Ok(address)
+}
+
+/// Calculate taproot address from a keypair
+pub(crate) fn calculate_taproot_address(
+    keypair: &SecureKeypair,
+    network: Network,
+) -> BitcoinAddress {
+    let (xonly_public_key, _parity) = keypair.as_ref().public_key().x_only_public_key();
+    BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
 
 /// Parse a Bitcoin address string into a proper Address object

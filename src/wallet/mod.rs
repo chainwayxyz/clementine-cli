@@ -1,3 +1,27 @@
+//! Wallet management and Bitcoin operations for Clementine CLI.
+//!
+//! This module provides comprehensive wallet functionality:
+//! - Creating new encrypted wallets with generated mnemonics
+//! - Importing wallets from mnemonics, private keys, or files
+//! - Secure storage and retrieval of wallet data
+//! - Backup and export operations
+//! - Wallet integrity verification and scanning
+//!
+//! ## Core Operations
+//!
+//! - **Wallet creation**: Generate new wallets with BIP-39 mnemonics
+//! - **Import/export methods**: Support mnemonic, private key, and file imports, and wallet backup
+//! - **Secure access**: All operations require passphrase authentication
+//! - **Data integrity**: Registry and file consistency verification
+//!
+//! ## Key Functions
+//!
+//! - [`create_encrypted_wallet`]: Creates new wallet with generated mnemonic
+//! - [`import_wallet_from_mnemonic`]: Imports wallet from mnemonic phrase
+//! - [`import_wallet_from_private_key`]: Imports wallet from private key
+//! - [`import_wallet_from_file`]: Imports wallet from backup file
+//! - [`backup_wallet`]: Creates secure wallet backups
+
 pub(crate) mod address;
 mod encryption;
 pub(crate) mod mnemonic;
@@ -21,8 +45,9 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::bitcoin_utils::{SECP, calculate_taproot_address};
+use crate::bitcoin_utils::SECP;
 use crate::structs::TaprootAddressWithPrefix;
+use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
