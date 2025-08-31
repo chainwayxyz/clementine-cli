@@ -15,6 +15,9 @@ use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
 use chrono::{DateTime, TimeZone, Utc};
 
+const DEPOSIT_PREFIX: &str = "dep";
+const WITHDRAWAL_PREFIX: &str = "wit";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash)]
 pub enum Purpose {
     Deposit,
@@ -24,22 +27,22 @@ pub enum Purpose {
 impl Purpose {
     pub fn to_prefix(&self) -> &str {
         match self {
-            Purpose::Deposit => "dep",
-            Purpose::Withdrawal => "wit",
+            Purpose::Deposit => DEPOSIT_PREFIX,
+            Purpose::Withdrawal => WITHDRAWAL_PREFIX,
         }
     }
 
     pub fn purpose_from_str(s: &str) -> Result<Self, BridgeCliError> {
         match s.to_lowercase().as_str() {
-            "dep" => Ok(Purpose::Deposit),
-            "wit" => Ok(Purpose::Withdrawal),
+            DEPOSIT_PREFIX => Ok(Purpose::Deposit),
+            WITHDRAWAL_PREFIX => Ok(Purpose::Withdrawal),
             _ => Err(BridgeCliError::InvalidPurpose(s.to_string())),
         }
     }
 
     pub fn should_not_have_purpose(address: &str) -> Result<(), BridgeCliError> {
         address.get(0..3).map_or(Ok(()), |prefix| match prefix {
-            "dep" | "wit" => Err(BridgeCliError::AddressShouldNotHavePrefix(
+            DEPOSIT_PREFIX | WITHDRAWAL_PREFIX => Err(BridgeCliError::AddressShouldNotHavePrefix(
                 address.to_string(),
             )),
             _ => Ok(()),
