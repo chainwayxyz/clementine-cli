@@ -484,11 +484,23 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
                 )?;
-                let claim_address = parse_address(&claim_address, config.network)?;
+
+                // Use wrap_err to preserve inner error location and context
+
+                Purpose::should_not_have_purpose(&claim_address).inspect_err(|_| {
+                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                })?;
+
+                let claim_address =
+                    parse_address(&claim_address, config.network).inspect_err(|_| {
+                        eprintln!("Invalid claim address: {}", claim_address.bold());
+                    })?;
+
                 handle_cli_command!(
                     withdrawal::start_withdrawal(&signer_address, &claim_address, &config),
                     () => {

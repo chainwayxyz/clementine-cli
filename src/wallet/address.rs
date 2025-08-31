@@ -36,6 +36,15 @@ impl Purpose {
             _ => Err(BridgeCliError::InvalidPurpose(s.to_string())),
         }
     }
+
+    pub fn should_not_have_purpose(address: &str) -> Result<(), BridgeCliError> {
+        address.get(0..3).map_or(Ok(()), |prefix| match prefix {
+            "dep" | "wit" => Err(BridgeCliError::AddressShouldNotHavePrefix(
+                address.to_string(),
+            )),
+            _ => Ok(()),
+        })
+    }
 }
 
 /// Generate a Bitcoin address from a mnemonic phrase
@@ -80,7 +89,7 @@ pub fn parse_taproot_address(
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err(BridgeCliError::NotTaprootAddress);
+        return Err(BridgeCliError::NotTaprootAddress(address.to_string()));
     }
 
     Ok(address)

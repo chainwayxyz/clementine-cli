@@ -35,8 +35,8 @@ pub enum BridgeCliError {
     // Address-related errors
     #[error("Failed to generate master seed from mnemonic: {0}")]
     MnemonicToSeedError(String),
-    #[error("Address is not a taproot (P2TR) address")]
-    NotTaprootAddress,
+    #[error("Address is not a taproot (P2TR) address: {0}")]
+    NotTaprootAddress(String),
     #[error("Address field not found or invalid in wallet data")]
     MissingWalletAddress,
     #[error("Address already exists: {0}")]
@@ -145,6 +145,8 @@ pub enum BridgeCliError {
         "Claim address cannot be a wallet address. The claim address belongs to one of your wallets."
     )]
     ClaimAddressIsWalletAddress,
+    #[error("Address '{0}' should not have a prefix.")]
+    AddressShouldNotHavePrefix(String),
 
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
     MissingEncryptedPrivateKeyField,
