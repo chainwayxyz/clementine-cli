@@ -492,7 +492,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(
                     withdrawal::start_withdrawal(&signer_address, &claim_address, &config),
                     () => {
-                        println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("Send exactly 0.00000330 bitcoins to {}", signer_address.address_without_prefix());
                         println!("Then run: withdrawal scan {} {} to scan for UTXOs",
                             signer_address.address_with_prefix(), claim_address);
                     }
