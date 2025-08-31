@@ -15,6 +15,7 @@ use crate::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
+    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_api},
     config::BridgeCliConfig,
     create_encrypted_wallet,
     errors::BridgeCliError,
@@ -157,24 +158,106 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let deposit_statuses = backend_deposit_status(&taproot_address, config).await?;
-    if deposit_statuses.is_empty() {
+    let mut utxos = utxos_from_mempool_api(&taproot_address, config).await?;
+
+    utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
+
+    let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
+        .iter()
+        .filter(|utxo| utxo.value != config.bridge_amount.to_sat())
+        .collect();
+
+    if !deposits_with_incorrect_amount.is_empty() {
+        println!(
+            "{} Deposits with incorrect amount for address {}:",
+            "WARNING".bold(),
+            taproot_address
+        );
+    }
+    let current_block_height = get_current_block_height(config).await?;
+    let mut wrong_deposit_amount_idx = 1;
+    for utxo in deposits_with_incorrect_amount.iter() {
+        let refund_in_blocks = utxo.status.block_height.and_then(|utxo_block_height| {
+            utxo_block_height
+                .checked_add(config.user_takes_after)
+                .map(|target| target.saturating_sub(current_block_height))
+        });
+
+        let block_display = utxo
+            .status
+            .block_height
+            .map(|height| height.to_string())
+            .unwrap_or_else(|| "N/A".to_string());
+
+        let is_confirmed_display = if utxo.status.confirmed {
+            "Confirmed".to_string()
+        } else {
+            "Unconfirmed".to_string()
+        };
+
+        let refund_in_blocks_display = refund_in_blocks
+            .map(|blocks| blocks.to_string())
+            .unwrap_or_else(|| "N/A".to_string());
+
+        println!(
+            "{}. Incorrect Deposit -> Tx id: {}, Value: {}, Block: {}, UTXO Status: {}, Refund in (approx.) blocks: {}",
+            wrong_deposit_amount_idx,
+            utxo.txid,
+            utxo.value,
+            block_display,
+            is_confirmed_display,
+            refund_in_blocks_display
+        );
+
+        wrong_deposit_amount_idx += 1;
+    }
+
+    if !deposits_with_incorrect_amount.is_empty() {
+        println!();
+    }
+
+    let deposit_statuses_backend = backend_deposit_status(&taproot_address, config).await?;
+
+    if deposit_statuses_backend.is_empty() {
         println!(
             "{} No deposits found for address {}",
-            "INFO".yellow().bold(),
-            taproot_address.to_string().blue().bold()
+            "INFO".bold(),
+            taproot_address.to_string().bold()
         );
         return Ok(());
     }
 
     println!(
-        "{} Deposit status(es) for address {}: \n",
-        "INFO".blue().bold(),
+        "{} Deposit status(es) for address {}:",
+        "INFO".bold(),
         taproot_address
     );
 
-    for (i, status) in deposit_statuses.iter().enumerate() {
-        println!("{}. {}", i + 1, status);
+    for (i, status) in deposit_statuses_backend.iter().enumerate() {
+        let corresponding_utxo = utxos.iter().find(|utxo| utxo.txid == status.txid);
+
+        let refund_in_blocks = if status.move_txid.is_empty() {
+            corresponding_utxo
+                .and_then(|utxo| utxo.status.block_height)
+                .and_then(|utxo_block_height| {
+                    utxo_block_height
+                        .checked_add(config.user_takes_after)
+                        .map(|target| target.saturating_sub(current_block_height))
+                })
+        } else {
+            None
+        };
+
+        let refund_in_blocks_display = if status.move_txid.is_empty() {
+            let refund_blocks = refund_in_blocks
+                .map(|blocks| blocks.to_string())
+                .unwrap_or_else(|| "N/A".to_string());
+            format!(", Refund in (approx.) blocks: {}", refund_blocks)
+        } else {
+            "".to_string()
+        };
+
+        println!("{}. {}{}", i + 1, status, refund_in_blocks_display);
     }
     Ok(())
 }
@@ -194,7 +277,7 @@ pub async fn withdrawal_status(
     }
 
     println!(
-        "{} Deposit status(es) for index {}: \n",
+        "{} Withdrawal status(es) for index {}: \n",
         "INFO".blue().bold(),
         withdrawal_index
     );

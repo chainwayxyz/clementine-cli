@@ -138,7 +138,7 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             } else {
                 "".to_string()
             };
-            let network = format!("network: {}", wallet_entry.network);
+            let network = format!("Network: {}", wallet_entry.network);
             println!(
                 "Label: {} -> Address: {}, {}{}",
                 &wallet_entry.label,
