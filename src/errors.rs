@@ -41,6 +41,8 @@ pub enum BridgeCliError {
     MissingWalletAddress,
     #[error("Address already exists: {0}")]
     AddressAlreadyExists(String),
+    #[error("The address must have a Purpose prefix, this is a plain address")]
+    MissingPurposePrefix,
     #[error("Failed to get storage directory: {0}")]
     StorageDirectoryError(String),
     #[error("Failed to read storage directory: {0}")]
