@@ -29,9 +29,8 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists,
-            parse_and_validate_imported_wallet, report_integrity_results,
-            validate_wallet_availability,
+            WalletValidationMode, ensure_wallet_exists, parse_and_validate_imported_wallet,
+            report_integrity_results, validate_wallet_availability,
         },
     },
     withdrawal::start_withdrawal,
