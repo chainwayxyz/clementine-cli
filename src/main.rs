@@ -530,21 +530,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
                     mut utxos => {
+                        utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
+
+                        let utxos_with_wrong_amount: Vec<_> = utxos.iter().filter(|(_, amount)| *amount != Amount::from_sat(330)).collect();
+
+                        if !utxos_with_wrong_amount.is_empty() {
+                            eprintln!("{} The following UTXOs have amounts different than 330 sats. They will be ignored for withdrawal operations.", "WARNING".bold());
+                            for (outpoint, amount) in utxos_with_wrong_amount {
+                                eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
+                            }
+                            eprintln!("Please ensure you send exactly 330 sats to the signer address for each withdrawal operation.");
+
+                            // sleep for 2 seconds to ensure user sees the warning
+                            std::thread::sleep(std::time::Duration::from_secs(2));
+
+                            println!();
+                        }
+
+                        utxos.retain(|(_, amount)| *amount == Amount::from_sat(330));
+
                         if utxos.is_empty() {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
-                            println!("run withdrawal generate-withdrawal-signature {} {} {} 9.9",
+                            println!("run \nwithdrawal generate-withdrawal-signature {} {} {} 9.9",
                                 &signer_address.address_with_prefix(), claim_address, outpoint);
                             println!("inside your airgapped pc");
                         } else {
-                            println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
-                            utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
+                            println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
                             for (outpoint, _) in utxos.iter() {
-                                println!("Run: withdrawal generate-withdrawal-signature {} {} {} 9.9",
+                                println!("Run: \nwithdrawal generate-withdrawal-signature {} {} {} 9.9",
                                     &signer_address.address_with_prefix(), claim_address, outpoint);
                             }
-                            println!("inside your airgapped pc");
                         }
                     }
                 );

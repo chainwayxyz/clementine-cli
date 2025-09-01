@@ -426,13 +426,11 @@ async fn get_utxos_from_rpc(
 
     let mut result = Vec::new();
     for utxo in res.unspents {
-        if utxo.amount == Amount::from_sat(330) {
-            result.push(UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-            });
-        }
+        result.push(UtxoInfo {
+            txid: utxo.txid,
+            vout: utxo.vout,
+            value: utxo.amount,
+        });
     }
 
     Ok(result)
@@ -458,15 +456,13 @@ async fn get_utxos_from_mempool(
     let mut result = Vec::new();
 
     for utxo in utxos {
-        if utxo.value == 330 {
-            let txid = bitcoin::Txid::from_str(&utxo.txid)
-                .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
-            result.push(UtxoInfo {
-                txid,
-                vout: utxo.vout,
-                value: Amount::from_sat(utxo.value),
-            });
-        }
+        let txid =
+            bitcoin::Txid::from_str(&utxo.txid).map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
+        result.push(UtxoInfo {
+            txid,
+            vout: utxo.vout,
+            value: Amount::from_sat(utxo.value),
+        });
     }
 
     Ok(result)
