@@ -529,7 +529,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let claim_address = parse_address(&claim_address, config.network)?;
                 handle_cli_command!(async
                     withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
-                    utxos => {
+                    mut utxos => {
                         if utxos.is_empty() {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
@@ -539,6 +539,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("inside your airgapped pc");
                         } else {
                             println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
+                            utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
                             for (outpoint, _) in utxos.iter() {
                                 println!("Run: withdrawal generate-withdrawal-signature {} {} {} 9.9",
                                     &signer_address.address_with_prefix(), claim_address, outpoint);
