@@ -22,10 +22,10 @@ pub(crate) async fn get_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let (calculated_deposit_address, _) =
@@ -93,10 +93,10 @@ pub fn create_signed_recovery_tx(
     let secure_passphrase = prompt_unlock_passphrase()?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
@@ -131,10 +131,10 @@ pub fn verify_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(

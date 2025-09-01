@@ -196,9 +196,14 @@ pub enum BridgeCliError {
     #[error("{0}")]
     BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
     #[error(
-        "Wallet address purpose mismatch: expected {0:?}, found {1:?}. Please use appropriate wallet address(es)."
+        "Wallet address purpose mismatch: expected {:?}, found {:?}. Please use {:?} wallet address(es) (addresses with \"{}\" prefix) for {:?} operations.",
+        expected,
+        found,
+        expected,
+        expected.to_prefix(),
+        expected
     )]
-    PurposeMismatch(Purpose, Purpose),
+    PurposeMismatch { expected: Purpose, found: Purpose },
     #[error(
         "Invalid purpose: {0}. Please make sure the address used has the correct purpose prefix (either \"dep\" or \"wit\")."
     )]

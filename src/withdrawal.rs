@@ -33,10 +33,10 @@ pub fn generate_withdrawal_signature(
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
@@ -179,10 +179,10 @@ pub async fn safe_withdraw(
     config: &BridgeCliConfig,
 ) -> Result<String, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let payout_output = TxOut {
@@ -278,10 +278,10 @@ pub async fn send_safe_withdrawal(
         .connect_http(config.citrea_rpc_url.clone());
 
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let payout_output = TxOut {
@@ -351,10 +351,10 @@ pub(crate) fn start_withdrawal(
     _config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
     Ok(())
 }
@@ -365,10 +365,10 @@ pub async fn scan_withdrawal(
     config: &BridgeCliConfig,
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let utxos = get_utxos_for_address(signer_address, config).await?;
