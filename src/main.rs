@@ -158,10 +158,8 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Your Citrea address, which deposit has been made
         citrea_address: String,
-        /// Txid of the deposit transaction
-        deposit_txid: String,
-        /// Vout of the deposit transaction which has the 10 BTC output
-        deposit_vout: u32,
+        /// UTXO outpoint of the deposit transaction
+        deposit_utxo_outpoint: String,
         /// Your Bitcoin address, which will collect the 10 BTC (- fees)
         claim_address: String,
         /// Optional fee rate to be used when creating the recovery tx
@@ -209,7 +207,7 @@ enum WithdrawalCommands {
     SafeWithdraw {
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo: String,
+        withdrawal_utxo_outpoint: String,
         amount: f64,
         signature: String,
     },
@@ -227,19 +225,17 @@ enum WithdrawalCommands {
     GenerateOperatorWithdrawalSignatures {
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo_txid: String,
-        withdrawal_utxo_vout: u32,
+        withdrawal_utxo_outpoint: String,
         withdrawal_amount: u64,
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo_txid: String,
-        withdrawal_utxo_vout: u32,
+        withdrawal_utxo_outpoint: String,
         withdrawal_index: u32,
         signature: String,
-        withdrawal_amount: u64,
+        withdrawal_amount: f64,
     },
 }
 
@@ -364,8 +360,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
                 citrea_address,
-                deposit_txid,
-                deposit_vout,
+                deposit_utxo_outpoint,
                 claim_address,
                 fee_rate,
                 amount,
@@ -375,11 +370,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &recovery_taproot_address,
                     config.network,
                 )?;
-                let txid = Txid::from_str(&deposit_txid)?;
-                let outpoint = OutPoint {
-                    txid,
-                    vout: deposit_vout,
-                };
+                let deposit_utxo_outpoint = OutPoint::from_str(&deposit_utxo_outpoint)?;
                 let claim_address =
                     BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
 
@@ -391,7 +382,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     deposit::create_signed_recovery_tx(
                         &citrea_address,
                         &recovery_taproot_address,
-                        &outpoint,
+                        &deposit_utxo_outpoint,
                         &claim_address,
                         fee_rate,
                         amount,
@@ -536,7 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::SafeWithdraw {
                 signer_address,
                 withdrawal_address,
-                withdrawal_utxo,
+                withdrawal_utxo_outpoint,
                 amount,
                 signature,
             } => {
@@ -545,7 +536,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.network,
                 )?;
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
@@ -601,24 +592,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
                 signer_address,
-                withdrawal_utxo_txid,
-                withdrawal_utxo_vout,
+                withdrawal_utxo_outpoint,
                 withdrawal_amount,
             } => {
                 unimplemented!(
-                    "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {} {}",
+                    "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {}",
                     withdrawal_address,
                     signer_address,
-                    withdrawal_utxo_txid,
-                    withdrawal_utxo_vout,
+                    withdrawal_utxo_outpoint,
                     withdrawal_amount
                 );
             }
             WithdrawalCommands::SendWithdrawalSignaturesToOperators {
                 withdrawal_address,
                 signer_address,
-                withdrawal_utxo_txid,
-                withdrawal_utxo_vout,
+                withdrawal_utxo_outpoint,
                 withdrawal_index,
                 signature,
                 withdrawal_amount,
@@ -626,8 +614,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 send_withdrawal_signatures(
                     &signer_address,
                     &withdrawal_address,
-                    &withdrawal_utxo_txid,
-                    withdrawal_utxo_vout,
+                    &withdrawal_utxo_outpoint,
                     withdrawal_index,
                     &signature,
                     &config,

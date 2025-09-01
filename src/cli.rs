@@ -213,17 +213,13 @@ pub async fn withdrawal_status(
 pub async fn send_withdrawal_signatures(
     signer_address: &str,
     withdrawal_address: &str,
-    withdrawal_utxo_txid: &str,
-    withdrawal_utxo_vout: u32,
+    withdrawal_utxo_outpoint: &str,
     withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
-    amount: u64,
+    amount: f64,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::new(
-        bitcoin::Txid::from_str(withdrawal_utxo_txid)?,
-        withdrawal_utxo_vout,
-    );
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
     send_withdrawal_signatures_to_operators(
         signer_address,
         withdrawal_address,

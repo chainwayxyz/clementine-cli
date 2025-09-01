@@ -109,8 +109,7 @@ Gather all necessary information on your online device:
 
 - `RECOVERY_TAPROOT_ADDRESS`: Your wallet's recovery address (from airgapped device)
 - `EVM_ADDRESS`: Your Citrea address used for the deposit
-- `DEPOSIT_TXID`: Transaction ID from your original deposit
-- `DEPOSIT_VOUT`: Output index (usually 0)
+- `DEPOSIT_UTXO_OUTPOINT`: Your deposit Outpoint (`txid:vout`)
 - `CLAIM_ADDRESS`: Bitcoin address where recovered funds will be sent
 
 ### Create Recovery Transaction (Airgapped Device)
@@ -118,7 +117,7 @@ Gather all necessary information on your online device:
 **AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS> <DEPOSIT_TXID> <DEPOSIT_VOUT> <CLAIM_ADDRESS>
+clementine-cli --network <BITCOIN_NETWORK> deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS> <DEPOSIT_OUTPOINT> <CLAIM_ADDRESS>
 ```
 
 **Example:**
