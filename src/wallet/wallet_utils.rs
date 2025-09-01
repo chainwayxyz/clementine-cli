@@ -14,8 +14,6 @@
 //! - **Address derivation**: Confirms imported data matches addresses
 //! - **Integrity checks**: Reports registry and file consistency
 //!
-//! ## Key Functions
-//!
 
 use crate::errors::BridgeCliError;
 use crate::structs::AddrDisplay;
