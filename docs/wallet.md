@@ -28,7 +28,7 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 - **Enable operation-specific security** tailored to each bridge function
 
 **Critical Warning:** Never manually remove or modify address prefixes, as this can lead to:
-- Failed Clememntine interactions
+- Failed Clementine interactions
 - Permanent loss of funds due to misinterpretation or confusion
 - Inability to recover funds from bridge operations
 
