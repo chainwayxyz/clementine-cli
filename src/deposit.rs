@@ -35,10 +35,10 @@ impl DepositStatusEnum {
     }
     pub fn as_string(&self) -> String {
         match self {
-            DepositStatusEnum::New => "new".to_string(),
-            DepositStatusEnum::InProgress => "in_progress".to_string(),
-            DepositStatusEnum::Completed => "completed".to_string(),
-            DepositStatusEnum::Unknown => "unknown".to_string(),
+            DepositStatusEnum::New => "New".to_string(),
+            DepositStatusEnum::InProgress => "In Progress".to_string(),
+            DepositStatusEnum::Completed => "Completed".to_string(),
+            DepositStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
 }
