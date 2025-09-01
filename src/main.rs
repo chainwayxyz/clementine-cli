@@ -60,11 +60,11 @@ struct Cli {
     #[arg(long)]
     config_file: Option<PathBuf>,
 
-    /// Bitcoin network.
+    /// Bitcoin network
     #[arg(long)]
     network: Network,
 
-    /// Turns verbose logging on.
+    /// Turns verbose logging on
     #[arg(long, action = clap::ArgAction::SetTrue)]
     verbose: bool,
 

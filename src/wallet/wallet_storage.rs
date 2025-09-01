@@ -34,8 +34,6 @@
 //! - **Imported wallets**: Imported from existing mnemonics or private keys
 //! - **Import metadata**: Timestamps and import method tracking
 //!
-//! ## Key Functions
-//!
 
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
