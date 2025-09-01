@@ -558,6 +558,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("inside your airgapped pc");
                         } else {
                             println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
+                            println!(
+                                "{} For your security: Use a unique signer address for each withdrawal.",
+                                "IMPORTANT NOTICE!".bold()
+                            );
                             for (outpoint, _) in utxos.iter() {
                                 println!("Run: \nwithdrawal generate-withdrawal-signature {} {} {} 9.9",
                                     &signer_address.address_with_prefix(), claim_address, outpoint);
