@@ -16,10 +16,6 @@
 //!
 //! ## Key Functions
 //!
-//! - [`load_key`]: Securely loads keypairs from encrypted storage
-//! - [`validate_wallet_availability`]: Prevents wallet conflicts
-//! - [`parse_network`]: Converts network strings to enums
-//! - [`ensure_wallet_exists`]: Verifies wallet existence before operations
 
 use crate::errors::BridgeCliError;
 use crate::structs::AddrDisplay;

@@ -13,9 +13,8 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 ## Installation
 
 ### Prerequisites
-- **Airgapped Device**: Rust and Clementine CLI installation
 - **Online Device**: Bitcoin node access or mempool API
-- **Both Devices**: Secure data transfer method (USB, QR codes)
+- **Both Devices**: Rust and Clementine CLI installation, secure data transfer method (USB, QR codes)
 
 ### Install
 
@@ -28,6 +27,8 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
    ```sh
    cargo install --path .
    ```
+
+3. Install your configuration by copying your config file to `~/.clementine/`
 
 ## Quick Usage
 
@@ -52,8 +53,6 @@ Clementine CLI requires two devices for maximum security:
 - **Always**: Verify the correctness of operations before interacting with Citrea or Bitcoin to prevent loss of funds
 
 ## Documentation
-
-**[Complete User Guide](docs/)** - Detailed two-device workflows
 
 - [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea

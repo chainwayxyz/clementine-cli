@@ -36,11 +36,6 @@
 //!
 //! ## Key Functions
 //!
-//! - [`store_wallet_data`]: Securely stores encrypted wallet data and updates registry
-//! - [`load_wallet_data`]: Loads encrypted wallet data for decryption
-//! - [`get_wallets_from_registry`]: Retrieves all registered wallet metadata
-//! - [`get_storage_dir`]: Gets the secure wallet storage directory path
-//! - [`copy_wallet_file_to_destination`]: Copies wallet files for backup/export
 
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};

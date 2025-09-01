@@ -20,13 +20,6 @@
 //! - **Deposit addresses**: Prefixed with "dep"
 //! - **Withdrawal addresses**: Prefixed with "wit"
 //!
-//! ## Key Functions
-//!
-//! - [`generate_address_from_mnemonic`]: Creates Taproot addresses from mnemonic phrases
-//! - [`calculate_taproot_address`]: Computes Taproot addresses directly from keypairs
-//! - [`parse_address`]: Validates and parses Bitcoin address strings
-//! - [`parse_taproot_address`]: Specifically validates Taproot (P2TR) addresses
-//! - [`print_all_wallets_with_addresses`]: Displays all stored wallets with their addresses
 
 use bip39::Mnemonic;
 use bitcoin::address::NetworkChecked;

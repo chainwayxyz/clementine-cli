@@ -180,15 +180,3 @@ If wallet files are corrupted or lost:
 1. Use `import-mnemonic` with your backed-up mnemonic phrase
 2. Use `import-private-key` if you have the private key backup
 3. Use `import-file` with your wallet backup file
-
-### Advanced Usage
-
-**Custom config file:**
-```sh
-clementine-cli --config-file /path/to/config.toml wallet create my-wallet
-```
-
-**Verbose logging:**
-```sh
-clementine-cli --network testnet --verbose wallet create my-wallet
-```

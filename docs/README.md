@@ -67,9 +67,9 @@ flowchart TB
 7. **[Online]** Broadcast transactions to network
 
 ## Command Structure
-
+See:
 ```
-clementine-cli [OPTIONS] --network <NETWORK> <COMMAND>
+clementine-cli --help
 ```
 
 ### Global Options
@@ -103,33 +103,6 @@ clementine-cli [OPTIONS] --network <NETWORK> <COMMAND>
 4. **Transfer Security**: Use formatted USB drives or QR codes, never cloud storage
 5. **Documentation**: Maintain detailed logs of all operations and transaction IDs
 
-## Operations by Device
-
-### Airgapped Device Commands
-```bash
-# Wallet creation and management
-clementine-cli --network <NETWORK> wallet create my-wallet
-clementine-cli --network <NETWORK> wallet backup ./backup my-wallet
-clementine-cli --network <NETWORK> wallet show-private-key my-wallet
-
-# Signature generation
-clementine-cli --network <NETWORK> withdrawal generate-withdrawal-signature ...
-clementine-cli --network <NETWORK> deposit create-signed-recovery-tx ...
-```
-
-### Online Device Commands
-```bash
-# Address generation and verification
-clementine-cli --network <NETWORK> deposit get-deposit-address <EVM_ADDR> <RECOVERY_ADDR>
-
-# Status monitoring
-clementine-cli --network <NETWORK> deposit status <DEPOSIT_ADDR>
-clementine-cli --network <NETWORK> withdrawal status <INDEX>
-
-# Transaction broadcasting
-clementine-cli --network <NETWORK> withdrawal send-safe-withdrawal ...
-```
-
 ## Support & Troubleshooting
 
 ### Getting Help
@@ -137,5 +110,4 @@ clementine-cli --network <NETWORK> withdrawal send-safe-withdrawal ...
 - **Verbose Logging**: Add `--verbose` flag for detailed operation logs
 - **Configuration**: Check config file location and network settings
 
-TODO: Maybe more on Troubleshooting
 

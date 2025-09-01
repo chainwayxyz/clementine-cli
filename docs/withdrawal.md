@@ -41,7 +41,8 @@ clementine-cli --network testnet4 withdrawal start wittb1pf... tb1qg...
 
 This command will prompt the user to send a Bitcoin transaction that will create the 0-value UTXO needed for the withdrawal operation.
 
-**About the "wit" prefix:** The signer address must belong to a Clementine wallet with `withdrawal` purpose and should be prefixed with "wit" to indicate it's being used for withdrawal operations. This ensures proper cryptographic derivation for withdrawal bridge operations.
+> [!IMPORTANT]
+> **About the "wit" prefix:** The signer address must belong to a Clementine wallet with `withdrawal` purpose and should be prefixed with "wit" to indicate it's being used for withdrawal operations. This ensures proper cryptographic derivation for withdrawal bridge operations.
 
 **Important:** After running this command, you'll need to send the prompted Bitcoin transaction to the signer address before proceeding.
 
@@ -97,12 +98,6 @@ clementine-cli --network <BITCOIN_NETWORK> withdrawal generate-withdrawal-signat
 ```sh
 clementine-cli --network testnet4 withdrawal generate-withdrawal-signature wittb1pf... tb1qg... abc123def456...:0 9.9 BTC
 ```
-
-**Airgapped Security Protocol:**
-1. **Verify Data**: Double-check all parameters match the withdrawal request
-2. **Generate Signature**: Run the command on airgapped device only
-3. **Save Output**: Record the generated signature securely
-4. **Transfer Back**: Move signature to online device via secure method (USB/QR)
 
 ## Step 5: Safe Withdraw (Online Device)
 

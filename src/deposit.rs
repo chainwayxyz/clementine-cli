@@ -16,7 +16,7 @@ use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
 
 /// Get deposit address from backend
-pub(crate) async fn get_deposit_address(
+pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,

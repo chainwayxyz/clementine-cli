@@ -14,13 +14,6 @@
 //! - **Secure access**: All operations require passphrase authentication
 //! - **Data integrity**: Registry and file consistency verification
 //!
-//! ## Key Functions
-//!
-//! - [`create_encrypted_wallet`]: Creates new wallet with generated mnemonic
-//! - [`import_wallet_from_mnemonic`]: Imports wallet from mnemonic phrase
-//! - [`import_wallet_from_private_key`]: Imports wallet from private key
-//! - [`import_wallet_from_file`]: Imports wallet from backup file
-//! - [`backup_wallet`]: Creates secure wallet backups
 
 pub(crate) mod address;
 mod encryption;

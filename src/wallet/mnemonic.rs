@@ -22,13 +22,6 @@
 //! - Generates 256-bit entropy for cryptographic security
 //! - Converts to 32-byte master seeds for key derivation
 //!
-//! ## Key Functions
-//!
-//! - [`generate_mnemonic`]: Creates new cryptographically secure mnemonic phrases
-//! - [`get_master_seed_from_mnemonic`]: Converts mnemonics to master seeds
-//! - [`load_mnemonic`]: Loads and decrypts stored mnemonic phrases
-//! - [`derive_private_key_from_mnemonic`]: Derives master private key from mnemonic
-//! - [`prompt_mnemonic`]: Interactive secure mnemonic phrase input
 
 use bip39::{Language, Mnemonic};
 use bitcoin::address::NetworkValidation;

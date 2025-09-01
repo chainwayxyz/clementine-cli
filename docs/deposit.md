@@ -11,7 +11,7 @@ clementine-cli --network <NETWORK> deposit --help
 
 Before starting a deposit, ensure you have:
 - A Citrea address (Ethereum format)
-- A recovery taproot address from your Clementine wallet
+- [A recovery taproot addrews](wallet.md) from your Clementine wallet
 - Access to a Bitcoin wallet or node for sending funds
 - Sufficient Bitcoin for the deposit
 
@@ -40,7 +40,8 @@ clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDR
 clementine-cli --network testnet4 deposit get-deposit-address 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be depbc1p...
 ```
 
-**About the "dep" prefix:** The recovery taproot address should belong to Clementine wallet with `deposit` purpose and should be prefixed with "dep" to indicate it's being used for deposit operations. This prefix helps distinguish deposit-specific addresses from regular wallet addresses and ensures proper address derivation in the Clementine bridge system.
+> [!IMPORTANT]
+> **About the "dep" prefix:** The recovery taproot address should belong to Clementine wallet with `deposit` purpose and should be prefixed with "dep" to indicate it's being used for deposit operations. This prefix helps distinguish deposit-specific addresses from regular wallet addresses and ensures proper address derivation in the Clementine bridge system.
 
 ### Airgapped Device: Verify Deposit Address
 
@@ -51,22 +52,13 @@ clementine-cli --network testnet4 deposit get-deposit-address 0x742d35Cc6631C053
 clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
 ```
 
-**Security Protocol:**
-1. **Generate**: Run command on online device
-2. **Transfer**: Copy deposit address via secure method (USB/QR)
-3. **Verify**: Run same command on airgapped device
-4. **Compare**: Ensure both outputs match exactly
-5. **Proceed**: Only send Bitcoin if addresses match perfectly
-
-**Important:** Save the verified deposit address since you will need it for sending funds and monitoring status.
-
 ## Step 2: Send Bitcoin to Deposit Address
 
 Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client.
 
 **Using bitcoin-cli:**
 ```sh
-bitcoin-cli -testnet4 sendtoaddress <DEPOSIT_ADDRESS> <AMOUNT>
+bitcoin-cli -<NETWORK> sendtoaddress <DEPOSIT_ADDRESS> <AMOUNT>
 ```
 
 **Example:**
@@ -74,7 +66,8 @@ bitcoin-cli -testnet4 sendtoaddress <DEPOSIT_ADDRESS> <AMOUNT>
 bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 ```
 
-**Critical Security Note:** Save your deposit transaction ID immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
+> [!CAUTION]
+> Save your deposit transaction ID immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
 
 ## Step 3: Monitor Deposit Status
 
@@ -96,8 +89,6 @@ The status will show the response from the backend.
 2. **Document Status**: Record all status changes with timestamps
 3. **Critical Threshold**: Monitor closely around 200-block threshold
 4. **Transfer Info**: If recovery needed, prepare data for airgapped device
-
-**Monitoring frequency:** Check status regularly, especially around the 200-block threshold.
 
 ## Step 4: Fund Recovery (If Needed)
 
@@ -203,8 +194,8 @@ Unfortunately, fund recovery is not possible without these critical pieces of in
 
 ### How long should I wait before initiating recovery?
 
-Wait for at least 200 Bitcoin blocks (approximately 33 hours) after your deposit transaction is confirmed. Monitor the status regularly during this period.
+If the deposit is processed, then there is nothing to worry about. Otherwise, wait for at least 200 Bitcoin blocks (approximately 33 hours) after your deposit transaction is confirmed. Monitor the status regularly during this period.
 
 ### Can I speed up the bridging process?
 
-The bridging process is automated and controlled by the Clementine protocol entities. Users cannot directly speed up the process, but monitoring helps ensuring timely action if recovery becomes necessary.
+The bridging process is automated and controlled by the Clementine protocol entities. While users cannot directly accelerate it, monitoring ensures that any necessary recovery actions can be taken promptly.
