@@ -461,8 +461,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Address does not exist in wallet, please import for signature generation");
                         }
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
-                        println!("Then run: withdrawal scan {} {} to scan for UTXOs",
+                        println!("Then run:");
+                        println!("withdrawal scan {} {}",
                             signer_address.address_with_prefix(), claim_address);
+                        println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
                 );
             }
