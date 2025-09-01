@@ -349,10 +349,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 handle_cli_command!(async
                     cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
-                    (deposit_address, address_exists) => {
-                        if !address_exists {
-                            println!("Address does not exist in wallet, please import for signature generation");
-                        }
+                    deposit_address => {
                         println!("Deposit address: {}", deposit_address);
                     }
                 );
@@ -447,10 +444,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let claim_address = parse_address(&claim_address, config.network)?;
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
-                    address_exists => {
-                        if !address_exists {
-                            println!("Address does not exist in wallet, please import for signature generation");
-                        }
+                    _result => {
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
                         println!("Then run:");
                         println!("clementine-cli --network {} withdrawal scan {} {}",

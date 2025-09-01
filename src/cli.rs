@@ -29,7 +29,7 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, address_exists, ensure_wallet_exists,
+            WalletValidationMode, ensure_wallet_exists,
             parse_and_validate_imported_wallet, report_integrity_results,
             validate_wallet_availability,
         },
@@ -237,19 +237,17 @@ pub async fn cli_get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-) -> Result<(BitcoinAddress, bool), BridgeCliError> {
-    let address_exists = address_exists(recovery_taproot_address)?;
+) -> Result<BitcoinAddress, BridgeCliError> {
     let deposit_address =
         deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
-    Ok((deposit_address, address_exists))
+    Ok(deposit_address)
 }
 
 pub async fn cli_start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<bool, BridgeCliError> {
-    let address_exists = address_exists(signer_address)?;
+) -> Result<(), BridgeCliError> {
     start_withdrawal(signer_address, claim_address, config)?;
-    Ok(address_exists)
+    Ok(())
 }
