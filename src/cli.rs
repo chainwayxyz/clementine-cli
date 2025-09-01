@@ -46,6 +46,15 @@ pub fn cli_create_wallet(
     let passphrase = prompt_passphrase(true)?;
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
 
+    println!(
+        "{} Wallet created with address: {}",
+        "SUCCESS".bold(),
+        address.address_with_prefix()
+    );
+
+    // Sleep for 2 seconds to allow user to see the success message before showing mnemonic
+    std::thread::sleep(std::time::Duration::from_secs(2));
+
     display_mnemonic_securely(&mnemonic)?;
 
     Ok(address)

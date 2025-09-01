@@ -271,12 +271,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } => {
                 handle_cli_command!(
                     cli_create_wallet(network, label, purpose),
-                    address => {
-                        println!(
-                            "Wallet created with address: {}",
-                            address.address_with_prefix()
-                        );
-                    }
+                    _ => {}
                 );
             }
             WalletCommands::Backup {
@@ -520,6 +515,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &signer_address,
                     config.network,
                 )?;
+
+                Purpose::should_not_have_purpose(&claim_address).inspect_err(|_| {
+                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                })?;
+
                 let claim_address = parse_address(&claim_address, config.network)?;
                 handle_cli_command!(async
                     withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
@@ -528,7 +528,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
-                            println!("run generate-withdrawal-signature {} {} {} 9.9",
+                            println!("run withdrawal generate-withdrawal-signature {} {} {} 9.9",
                                 &signer_address.address_with_prefix(), claim_address, outpoint);
                             println!("inside your airgapped pc");
                         } else {
@@ -551,6 +551,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } => {
                 let signer_address =
                     TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)?;
+
+                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
                 let claim_address = parse_address(&withdrawal_address, network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
                 let amount = Amount::from_btc(amount)?;
@@ -587,6 +592,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &signer_address,
                     config.network,
                 )?;
+
+                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
@@ -621,6 +631,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &signer_address,
                     config.network,
                 )?;
+                
+                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
