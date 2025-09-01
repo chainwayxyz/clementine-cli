@@ -462,8 +462,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         }
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
                         println!("Then run:");
-                        println!("withdrawal scan {} {}",
-                            signer_address.address_with_prefix(), claim_address);
+                        println!("clementine-cli --network {} withdrawal scan {} {}",
+                            config.network, signer_address.address_with_prefix(), claim_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
                 );
@@ -484,16 +484,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
-                            println!("run generate-withdrawal-signature {} {} {} 9.9",
-                                &signer_address.address_with_prefix(), claim_address, outpoint);
+                            println!("Then run:");
+                            println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
+                                config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
                             println!("inside your airgapped pc");
                         } else {
                             println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
+                            println!("Run one of these:");
                             for (outpoint, _) in utxos.iter() {
-                                println!("Run: withdrawal generate-withdrawal-signature {} {} {} 9.9",
-                                    &signer_address.address_with_prefix(), claim_address, outpoint);
+                                println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
+                                    config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
                             }
-                            println!("inside your airgapped pc");
+                            println!("to generate withdrawal signature inside your airgapped pc");
                         }
                     }
                 );
