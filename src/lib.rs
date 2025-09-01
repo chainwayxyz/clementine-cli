@@ -38,6 +38,9 @@ pub use deposit::{create_signed_recovery_tx, get_deposit_params, verify_recovery
 // Withdrawal operations
 pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
 
+// Constants
+pub use bitcoin_utils::{DUST_THRESHOLD_SATS, SATS_TO_WEI_MULTIPLIER, WITHDRAWAL_UTXO_AMOUNT};
+
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
 

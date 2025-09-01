@@ -4,12 +4,10 @@ use crate::BitcoinAddress;
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
-use crate::parameters::get_citrea_safe_withdraw_params;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
+use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
-use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{address_exists, load_key};
+use crate::wallet::wallet_utils::address_exists;
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -32,13 +30,6 @@ pub fn generate_withdrawal_signature(
     amount: &Amount,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
-    if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Withdrawal,
-            found: signer_address.purpose,
-        });
-    }
-
     let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
         &claim_address.to_string(),
         Purpose::Withdrawal,
@@ -50,8 +41,8 @@ pub fn generate_withdrawal_signature(
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
 
-    let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(signer_address, &secure_passphrase)?;
+    let keypair =
+        crate::bitcoin_utils::load_key_with_purpose_check(signer_address, Purpose::Withdrawal)?;
 
     let signature = sign_withdrawal_signature(
         &keypair,
@@ -178,12 +169,7 @@ pub async fn safe_withdraw(
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
 ) -> Result<String, BridgeCliError> {
-    if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Withdrawal,
-            found: signer_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
         value: *withdrawal_amount,
@@ -199,27 +185,13 @@ pub async fn safe_withdraw(
         *withdrawal_amount,
     )?;
 
-    // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
-        get_tx_details(&withdrawal_outpoint.txid, config).await?;
-
-    let params = get_citrea_safe_withdraw_params(
+    let params = crate::bitcoin_utils::prepare_withdrawal_params(
         withdrawal_outpoint,
         &payout_output,
         sig,
-        &prepare_tx,
-        &prepare_tx_block,
-        prepare_tx_block_height,
-    )?;
-
-    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
-    let params = prepare_safe_withdraw_params(
-        &prepare_tx,
-        &prepare_proof,
-        &payout_tx_params,
-        &block_header,
-        &output_script_pk,
-    );
+        config,
+    )
+    .await?;
 
     let calldata_hex =
         encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
@@ -277,12 +249,7 @@ pub async fn send_safe_withdrawal(
         .wallet(EthereumWallet::from(key))
         .connect_http(config.citrea_rpc_url.clone());
 
-    if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Withdrawal,
-            found: signer_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
         value: *withdrawal_amount,
@@ -298,27 +265,13 @@ pub async fn send_safe_withdrawal(
         *withdrawal_amount,
     )?;
 
-    // 2. Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
-        get_tx_details(&withdrawal_outpoint.txid, config).await?;
-
-    let params = get_citrea_safe_withdraw_params(
+    let params = crate::bitcoin_utils::prepare_withdrawal_params(
         withdrawal_outpoint,
         &payout_output,
         sig,
-        &prepare_tx,
-        &prepare_tx_block,
-        prepare_tx_block_height,
-    )?;
-
-    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
-    let params = prepare_safe_withdraw_params(
-        &prepare_tx,
-        &prepare_proof,
-        &payout_tx_params,
-        &block_header,
-        &output_script_pk,
-    );
+        config,
+    )
+    .await?;
 
     let bridge_contract_address = "0x3100000000000000000000000000000000000002";
     let contract = BRIDGE_CONTRACT::new(
@@ -327,12 +280,10 @@ pub async fn send_safe_withdrawal(
             .expect("Correct contract address"),
         provider,
     );
-    const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
-
     let citrea_withdrawal_tx = contract
         .safeWithdraw(params.0, params.1, params.2, params.3, params.4)
         .value(U256::from(
-            config.bridge_amount.to_sat() * SATS_TO_WEI_MULTIPLIER,
+            config.bridge_amount.to_sat() * crate::bitcoin_utils::SATS_TO_WEI_MULTIPLIER,
         ))
         .send()
         .await?;
@@ -350,12 +301,7 @@ pub(crate) fn start_withdrawal(
     _claim_address: &BitcoinAddress,
     _config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Withdrawal,
-            found: signer_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
     Ok(())
 }
 
@@ -364,12 +310,7 @@ pub async fn scan_withdrawal(
     _claim_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
-    if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Withdrawal,
-            found: signer_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let utxos = get_utxos_for_address(signer_address, config).await?;
     let mut results = Vec::new();
@@ -432,7 +373,7 @@ async fn get_utxos_from_rpc(
 
     let mut result = Vec::new();
     for utxo in res.unspents {
-        if utxo.amount == Amount::from_sat(330) {
+        if utxo.amount == Amount::from_sat(crate::bitcoin_utils::WITHDRAWAL_UTXO_AMOUNT) {
             result.push(UtxoInfo {
                 txid: utxo.txid,
                 vout: utxo.vout,
@@ -476,7 +417,7 @@ async fn get_utxos_from_mempool(
                 utxo["txid"].as_str(),
                 utxo["vout"].as_u64(),
                 utxo["value"].as_u64(),
-            ) && value == 330
+            ) && value == crate::bitcoin_utils::WITHDRAWAL_UTXO_AMOUNT
             {
                 let txid = bitcoin::Txid::from_str(txid_str)
                     .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;

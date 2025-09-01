@@ -8,8 +8,6 @@ use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
-use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
@@ -21,12 +19,7 @@ pub async fn get_deposit_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Deposit,
-            found: recovery_taproot_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(recovery_taproot_address, Purpose::Deposit)?;
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
@@ -90,16 +83,10 @@ pub fn create_signed_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     // Always prompt for passphrase for maximum security
-    let secure_passphrase = prompt_unlock_passphrase()?;
-
-    if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Deposit,
-            found: recovery_taproot_address.purpose,
-        });
-    }
-
-    let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
+    let keypair = crate::bitcoin_utils::load_key_with_purpose_check(
+        recovery_taproot_address,
+        Purpose::Deposit,
+    )?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = match amount {
@@ -130,12 +117,7 @@ pub fn verify_recovery_tx(
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
-    if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: Purpose::Deposit,
-            found: recovery_taproot_address.purpose,
-        });
-    }
+    crate::bitcoin_utils::validate_address_purpose(recovery_taproot_address, Purpose::Deposit)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         recovery_tx,

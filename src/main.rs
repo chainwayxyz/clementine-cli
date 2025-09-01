@@ -445,10 +445,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
                     _result => {
-                        println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000330",
-                            signer_address.address_without_prefix());
+                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000{}",
+                            signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT);
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli --network {} withdrawal scan {} {}",
@@ -470,7 +470,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
                     utxos => {
                         if utxos.is_empty() {
-                            eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
+                            eprintln!("No UTXOs found. Please send {} sats first using 'withdrawal start' command", clementine_cli::WITHDRAWAL_UTXO_AMOUNT);
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
                             println!("Then run:");
