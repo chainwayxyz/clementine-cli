@@ -112,8 +112,9 @@ enum WalletCommands {
         /// Wallet address to show mnemonic for
         address: String,
     },
+    /// Show private key with interactive terminal.
     ShowPrivateKey {
-        /// Wallet address to show private key for.
+        /// Wallet address to show private key for
         address: String,
     },
     /// Import wallet using secure mnemonic input.
@@ -123,12 +124,14 @@ enum WalletCommands {
         /// Purpose for the imported wallet
         purpose: Purpose,
     },
+    /// Import wallet using secure private key input.
     ImportPrivateKey {
         /// Label for the imported wallet
         label: String,
         /// Purpose for the imported wallet
         purpose: Purpose,
     },
+    /// Import wallet from a backup file.
     ImportFile {
         /// Filename to import wallet from
         filename: String,
@@ -143,6 +146,7 @@ enum WalletCommands {
 
 #[derive(Subcommand)]
 enum DepositCommands {
+    /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
         citrea_address: String,
         recovery_taproot_address: String,
@@ -167,6 +171,7 @@ enum DepositCommands {
         #[arg(long)]
         amount: Option<f64>,
     },
+    /// Verify a recovery transaction before broadcasting.
     VerifyRecoveryTx {
         recovery_tx: String,
         evm_address: String,
@@ -175,30 +180,32 @@ enum DepositCommands {
         #[arg(long)]
         amount: Option<f64>,
     },
-    Status {
-        deposit_address: String,
-    },
-    GetDepositParams {
-        move_to_vault_txid: String,
-    },
+    /// Check the status of a deposit.
+    Status { deposit_address: String },
+    /// Get deposit parameters for a move-to-vault transaction.
+    GetDepositParams { move_to_vault_txid: String },
 }
 
 #[derive(Subcommand)]
 enum WithdrawalCommands {
+    /// Start a withdrawal process and get instructions for sending funds.
     Start {
         signer_address: String,
         claim_address: String,
     },
+    /// Scan for UTXOs to use in withdrawal.
     Scan {
         signer_address: String,
         claim_address: String,
     },
+    /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
         amount: f64,
     },
+    /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
         signer_address: String,
         withdrawal_address: String,
@@ -206,6 +213,7 @@ enum WithdrawalCommands {
         amount: f64,
         signature: String,
     },
+    /// Send a safe withdrawal transaction.
     SendSafeWithdrawal {
         signer_address: String,
         withdrawal_address: String,
@@ -213,9 +221,9 @@ enum WithdrawalCommands {
         amount: f64,
         signature: String,
     },
-    Status {
-        withdrawal_index: u32,
-    },
+    /// Check the status of a withdrawal.
+    Status { withdrawal_index: u32 },
+    /// Generate operator withdrawal signatures.
     GenerateOperatorWithdrawalSignatures {
         signer_address: String,
         withdrawal_address: String,
@@ -223,6 +231,7 @@ enum WithdrawalCommands {
         withdrawal_utxo_vout: u32,
         withdrawal_amount: u64,
     },
+    /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
         signer_address: String,
         withdrawal_address: String,
