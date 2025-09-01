@@ -102,6 +102,9 @@ clementine-cli --network <BITCOIN_NETWORK> withdrawal generate-withdrawal-signat
 clementine-cli --network testnet4 withdrawal generate-withdrawal-signature wittb1pf... tb1qg... abc123def456...:0 9.9 BTC
 ```
 
+> [!CAUTION]
+> Save the generated signature since it will be used to authorize the operations that be done later.
+
 ## Step 5: Safe Withdraw (Online Device)
 
 **ONLINE DEVICE OPERATION:** Execute the withdrawal with signature verification and submit to Citrea:
