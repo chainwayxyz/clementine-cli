@@ -27,9 +27,9 @@ impl Display for DepositStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let not_present = "--";
         let status = if self.status.is_empty() {
-            not_present
+            not_present.to_string()
         } else {
-            &self.status
+            DepositStatusEnum::from_backend_status(&self.status).as_string()
         };
         let txid = if self.txid.is_empty() {
             not_present
@@ -97,6 +97,7 @@ impl Display for WithdrawalStatus {
 // Backend communication logic for Clementine CLI
 
 use crate::config::BridgeCliConfig;
+use crate::deposit::DepositStatusEnum;
 use crate::errors::BridgeCliError;
 use crate::wallet::address::parse_taproot_address;
 use crate::{BitcoinAddress, CitreaAddress};

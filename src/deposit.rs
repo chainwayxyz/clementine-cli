@@ -15,6 +15,34 @@ use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
 
+pub(crate) enum DepositStatusEnum {
+    New,
+    InProgress,
+    Completed,
+    Unknown,
+}
+
+impl DepositStatusEnum {
+    pub(crate) fn from_backend_status(status: &str) -> Self {
+        match status {
+            "new" => DepositStatusEnum::New,
+            "minted" => DepositStatusEnum::Completed,
+            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" | "sent" => {
+                DepositStatusEnum::InProgress
+            }
+            _ => DepositStatusEnum::Unknown,
+        }
+    }
+    pub fn as_string(&self) -> String {
+        match self {
+            DepositStatusEnum::New => "new".to_string(),
+            DepositStatusEnum::InProgress => "in_progress".to_string(),
+            DepositStatusEnum::Completed => "completed".to_string(),
+            DepositStatusEnum::Unknown => "unknown".to_string(),
+        }
+    }
+}
+
 /// Get deposit address from backend
 pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
