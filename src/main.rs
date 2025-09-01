@@ -100,7 +100,7 @@ enum WalletCommands {
         /// Purpose for the wallet.
         purpose: Purpose,
     },
-    /// Backup wallet to specified destination.
+    /// Backup a wallet to specified destination.
     Backup {
         /// Destination path for wallet backup
         destination: String,
@@ -446,6 +446,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
                     _result => {
                         println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("You can use:");
+                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000330",
+                            signer_address.address_without_prefix());
+                        println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli --network {} withdrawal scan {} {}",
                             config.network, signer_address.address_with_prefix(), claim_address);
