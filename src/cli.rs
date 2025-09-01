@@ -214,10 +214,10 @@ pub async fn send_withdrawal_signatures(
     signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo_outpoint: &str,
-    withdrawal_index: u32,
+    amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
-    amount: f64,
+    withdrawal_index: u32,
 ) -> Result<(), BridgeCliError> {
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
     send_withdrawal_signatures_to_operators(

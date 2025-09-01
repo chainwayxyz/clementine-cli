@@ -215,7 +215,7 @@ enum WithdrawalCommands {
     SendSafeWithdrawal {
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo: String,
+        withdrawal_utxo_outpoint: String,
         amount: f64,
         signature: String,
     },
@@ -233,9 +233,9 @@ enum WithdrawalCommands {
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
-        withdrawal_index: u32,
-        signature: String,
         withdrawal_amount: f64,
+        signature: String,
+        withdrawal_index: u32,
     },
 }
 
@@ -559,7 +559,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::SendSafeWithdrawal {
                 signer_address,
                 withdrawal_address,
-                withdrawal_utxo,
+                withdrawal_utxo_outpoint,
                 amount,
                 signature,
             } => {
@@ -568,7 +568,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.network,
                 )?;
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
@@ -604,8 +604,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WithdrawalCommands::SendWithdrawalSignaturesToOperators {
-                withdrawal_address,
                 signer_address,
+                withdrawal_address,
                 withdrawal_utxo_outpoint,
                 withdrawal_index,
                 signature,
@@ -615,10 +615,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &signer_address,
                     &withdrawal_address,
                     &withdrawal_utxo_outpoint,
-                    withdrawal_index,
+                    withdrawal_amount,
                     &signature,
                     &config,
-                    withdrawal_amount,
+                    withdrawal_index,
                 )
                 .await?;
                 println!("Withdrawal signatures sent successfully to operators");

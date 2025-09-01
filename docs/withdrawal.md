@@ -2,7 +2,7 @@
 
 This guide covers the withdrawal process from Citrea back to Bitcoin using Clementine CLI. Withdrawals follow a specific sequential process using two devices for maximum security.
 
-All available withdrawal commands can be viewed using `clementine-cli withdrawal --help` command and `clementine-cli withdrawal <sub-command> --help`.
+All available withdrawal commands can be viewed using `clementine-cli withdrawal --help` command and `clementine-cli withdrawal <subcommand> --help`.
 
 ## Prerequisites
 
@@ -15,12 +15,15 @@ Before starting a withdrawal, ensure you have:
 ## Withdrawal Process Overview
 
 The withdrawal process follows these sequential steps:
-1. **Start Withdrawal** - Initiate withdrawal process (prompts for bitcoin transaction)
+1. **Start Withdrawal** - Initiate withdrawal process (prompts for Bitcoin transaction)
 2. **Send Bitcoin Transaction** - Send required transaction to signer address
 3. **Scan for Withdrawals** - Find available withdrawal UTXOs
 4. **Generate Withdrawal Signature** - Create signature on airgapped device
 5. **Safe Withdraw** - Submit withdrawal request with signature to Citrea
 6. **Check Status** - Monitor withdrawal progress
+
+> [!IMPORTANT]
+> The `SIGNER_ADDRESS` and the `CLAIM_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `CLAIM_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
 
 ## Step 1: Start Withdrawal (Online Device)
 
@@ -91,7 +94,7 @@ THis command will scan Bitcoin network and return possible withdrawal scenarios 
 ### Generate Signature
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> withdrawal generate-withdrawal-signature <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT>
+clementine-cli --network <BITCOIN_NETWORK> withdrawal generate-withdrawal-signature <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT>
 ```
 
 **Example:**
@@ -104,7 +107,7 @@ clementine-cli --network testnet4 withdrawal generate-withdrawal-signature wittb
 **ONLINE DEVICE OPERATION:** Execute the withdrawal with signature verification and submit to Citrea:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> withdrawal safe-withdraw <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+clementine-cli --network <BITCOIN_NETWORK> withdrawal safe-withdraw <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
 ```
 
 **Example:**

@@ -28,7 +28,7 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
    cargo install --path .
    ```
 
-3. Install your configuration by copying your config file to `~/.clementine/`
+3. Install your configuration by copying your config file to `~/.clementine/`. Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
 
 ## Quick Usage
 
@@ -40,7 +40,7 @@ clementine-cli --help
 clementine-cli --network testnet4 wallet create deposit my-deposit-wallet
 
 # Monitor deposits (online device)
-clementine-cli --network testnet4 deposit status <ADDRESS>
+clementine-cli --network testnet4 deposit status <DEPADDRESS>
 ```
 
 ## Two-Device Security
