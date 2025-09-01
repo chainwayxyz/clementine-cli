@@ -631,7 +631,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     &signer_address,
                     config.network,
                 )?;
-                
+
                 Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
