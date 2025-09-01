@@ -125,6 +125,12 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 
+        // If the address is parsable (without prefix), return error
+        // and warn the user for better UX
+        if parse_taproot_address(address, network).is_ok() {
+            return Err(BridgeCliError::MissingPurposePrefix);
+        }
+
         let purpose = Purpose::purpose_from_str(&address[0..3])?;
         let addr_str = &address[3..];
 

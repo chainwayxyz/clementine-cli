@@ -1,65 +1,203 @@
-# Depositing to Citrea
+# Deposit Operations
 
-All the available deposit commands can be viewed using `clementine-cli deposit --help`
-command and `clementine-cli deposit <sub-command> --help`.
+This guide covers the complete process for depositing Bitcoin to Citrea using Clementine CLI. The deposit process involves generating a deposit address, sending Bitcoin, and monitoring the bridging process.
 
-1. Get your deposit address, using your EVM address and recovery taproot address (with dep prefix)
+View all deposit commands: 
+```sh
+clementine-cli --network <NETWORK> deposit --help
+```
 
-   ```sh
-   # Save printed out address
-   clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
-   ```
+## Prerequisites
 
-2. Send 10 BTC to the deposit address, using previously generated deposit address.
+Before starting a deposit, ensure you have:
+- A Citrea address (Ethereum format)
+- A Clementine wallet with `deposit` purpose ("dep" prefix address) which will be used as the recovery taproot address
+- Access to a Bitcoin wallet or node for sending funds
+- Sufficient Bitcoin for the deposit
 
-   > [!WARNING]
-   >
-   > Save your deposit transaction's TxId as it will be used to create Recovery
-   > Tx if your Move To Vault Tx hasn't got broadcasted after 200 blocks!
+## Deposit Process Overview
 
-   ```sh
-   # Example using bitcoin-cli
-   bitcoin-cli <YOUR-BITCOIN-CLI-FLAGS> sendtoaddress <DEPOSIT_ADDRESS> 10
-   ```
+The deposit process consists of several stages:
+1. **Generate deposit address** - Create a unique deposit address
+2. **Send Bitcoin** - Transfer funds to the deposit address
+3. **Monitor status** - Track the bridging process
+4. **Recovery (if needed)** - Recover funds if bridging fails
 
-3. Wait for Move TX to appear on Bitcoin:
+> [!IMPORTANT]
+> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure should the deposit fails, you can recover your funds back to your `CLAIM_ADDRESS`.
+## Step 1: Generate Deposit Address
 
-   ```sh
-   clementine-cli --network <BITCOIN_NETWORK> deposit status <DEPOSIT ADDRESS>
-   ```
+**TWO-DEVICE PROCESS:**
 
-If 200 blocks have passed and deposit status still shows Move To Vault TX is not
-yet broadcasted, you can recover your funds.
+### Online Device: Generate Deposit Address
 
-1. Using the previous values:
+Create a deposit address using your Citrea (EVM) address and recovery taproot address:
 
-   ```sh
-   clementine-cli --network <BITCOIN_NETWORK> deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS> <DEPOSIT_TXID> <DEPOSIT_VOUT> <CLAIM_ADDRESS>
-   ```
+```sh
+clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <CITREA_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+```
 
-2. Optionally, verify the transaction details:
+**Example:**
+```sh
+clementine-cli --network testnet4 deposit get-deposit-address 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be depbc1p...
+```
 
-   ```sh
-   clementine-cli --network <BITCOIN_NETWORK> deposit verify-recovery-tx <RECOVERY_TX> <EVM_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
-   ```
+> [!IMPORTANT]
+> **About the "dep" prefix:** The recovery taproot address should belong to Clementine wallet with `deposit` purpose and should be prefixed with "dep" to indicate it's being used for deposit operations. This prefix helps distinguish deposit-specific addresses from regular wallet addresses and ensures proper address derivation in the Clementine bridge system.
 
-3. Broadcast the raw recovery transaction
+### Airgapped Device: Verify Deposit Address
 
-   ```sh
-   # Example using bitcoin-cli
-   bitcoin-cli <YOUR-BITCOIN-CLI-FLAGS> sendrawtransaction <RECOVERY_TX>
-   ```
+**CRITICAL VERIFICATION STEP:** Transfer the generated deposit address to your airgapped device and verify it:
+
+```sh
+# Run this on airgapped device to verify the deposit address matches
+clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+```
+
+## Step 2: Send Bitcoin to Deposit Address
+
+Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client. The deposit address is fixed to `10 BTC`.
+
+**Using bitcoin-cli:**
+```sh
+bitcoin-cli -<NETWORK> sendtoaddress <DEPOSIT_ADDRESS> 10
+```
+
+**Example:**
+```sh
+bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
+```
+
+> [!CAUTION]
+> Save your deposit transaction ID immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
+
+## Step 3: Monitor Deposit Status
+
+**ONLINE DEVICE OPERATION:** Track the progress of your deposit through the bridging process:
+
+```sh
+clementine-cli --network <BITCOIN_NETWORK> deposit status <DEPOSIT_ADDRESS>
+```
+
+**Example:**
+```sh
+clementine-cli --network testnet4 deposit status tb1pd...
+```
+
+The status will show the response from the backend.
+
+**Two-Device Monitoring Protocol:**
+1. **Online Device**: Run status checks regularly
+2. **Document Status**: Record all status changes with timestamps
+3. **Critical Threshold**: Monitor closely around 200-block threshold
+4. **Transfer Info**: If recovery needed, prepare data for airgapped device
+
+## Step 4: Fund Recovery (If Needed)
+
+**TWO-DEVICE RECOVERY PROCESS:** If 200 blocks have passed and the deposit status shows the Move to Vault transaction has not been broadcasted, you can recover your funds using the recovery mechanism.
+
+### Prepare Recovery Data (Online Device)
+
+Gather all necessary information on your online device:
+
+- `RECOVERY_TAPROOT_ADDRESS`: Your wallet's recovery address (from airgapped device)
+- `EVM_ADDRESS`: Your Citrea address used for the deposit
+- `DEPOSIT_UTXO_OUTPOINT`: Your deposit Outpoint (`txid:vout`)
+- `CLAIM_ADDRESS`: Bitcoin address where recovered funds will be sent
+
+### Create Recovery Transaction (Airgapped Device)
+
+**AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
+
+```sh
+clementine-cli --network <BITCOIN_NETWORK> deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <CLAIM_ADDRESS>
+```
+
+**Example:**
+```sh
+clementine-cli --network testnet4 deposit create-signed-recovery-tx tb1pd... 0x742d35... abc123def456... 0 tb1qe...
+```
+
+**Airgapped Recovery Protocol:**
+1. **Transfer Data**: Move all recovery parameters to airgapped device via secure method
+2. **Generate TX**: Run create-signed-recovery-tx command on airgapped device
+3. **Verify Details**: Double-check all parameters before execution
+4. **Transfer Output**: Move signed recovery transaction back to online device
+
+### Verify Recovery Transaction (Optional)
+
+**BOTH DEVICES:** Verify the recovery transaction details before broadcasting:
+
+**Airgapped Device (Generate Verification):**
+```sh
+clementine-cli --network <BITCOIN_NETWORK> deposit verify-recovery-tx <RECOVERY_TX> <CITREA_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+```
+
+### Broadcast Recovery Transaction (Online Device)
+
+**ONLINE DEVICE ONLY:** Send the recovery transaction to the Bitcoin network:
+
+```sh
+bitcoin-cli sendrawtransaction <RECOVERY_TX>
+```
+
+**Broadcasting Protocol:**
+1. **Receive**: Get signed recovery transaction from airgapped device
+2. **Final Verification**: Optionally run verify-recovery-tx on online device
+3. **Broadcast**: Submit transaction to Bitcoin network
+4. **Monitor**: Track transaction confirmation
+
+## Additional Commands
+
+### Get Deposit Parameters
+
+Retrieve deposit parameters for advanced operations:
+
+```sh
+clementine-cli --network <NETWORK> deposit get-deposit-params
+```
+
+## Troubleshooting
+
+### Common Issues
+
+**Deposit address generation fails:**
+- Verify EVM address format (0x...)
+- Check recovery taproot address format (bc1p...)
+- Ensure network parameter matches your Bitcoin network
+
+**Status check returns no results:**
+- Confirm deposit address is correct
+- Wait for Bitcoin network confirmation (usually 1-6 blocks)
+- Check if deposit transaction was actually broadcasted
+
+**Recovery transaction creation fails:**
+- Verify all parameters match original deposit exactly
+- Check that 200 blocks have actually passed
+- Ensure recovery taproot address is from the correct wallet
+
+### Getting Help
+
+For command-specific help:
+```sh
+clementine-cli deposit --help
+clementine-cli deposit <subcommand> --help
+```
 
 ## FAQ
 
-- Why do I need to provide my recovery taproot address?
+### Why do I need to provide my recovery taproot address?
 
-  User's configuration can be wrong or local Clementine CLI version might be old.
-  Both of these affects the end result of generated recovery taproot address. So,
-  user is expected to generate that address from latest tools and provide the
-  correct value.
+User configurations may be incorrect or the local Clementine CLI version might be outdated. Both of these factors affect the generated recovery taproot address. Users are expected to generate this address using the latest tools and provide the correct value.
 
-- I lost my recovery taproot address and my Citrea address. How can I retrieve
-  my funds?
+### I lost my recovery taproot address and Citrea address. How can I retrieve my funds?
 
-  You can't. That's why you need to be extra careful while saving the details.
+Unfortunately, fund recovery is not possible without these critical pieces of information. This is why it's essential to securely backup all deposit details before sending funds.
+
+### How long should I wait before initiating recovery?
+
+If the deposit is processed, then there is nothing to worry about. Otherwise, wait for at least 200 Bitcoin blocks (approximately 33 hours) after your deposit transaction is confirmed. Monitor the status regularly during this period.
+
+### Can I speed up the bridging process?
+
+The bridging process is automated and controlled by the Clementine protocol entities. While users cannot directly accelerate it, monitoring ensures that any necessary recovery actions can be taken promptly.

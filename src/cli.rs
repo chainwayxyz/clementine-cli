@@ -11,12 +11,13 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
+    BitcoinAddress, CitreaAddress,
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
     config::BridgeCliConfig,
-    create_encrypted_wallet,
+    create_encrypted_wallet, deposit,
     errors::BridgeCliError,
     import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
@@ -32,6 +33,7 @@ use crate::{
             report_integrity_results, validate_wallet_availability,
         },
     },
+    withdrawal::start_withdrawal,
 };
 
 pub fn cli_create_wallet(
@@ -210,17 +212,13 @@ pub async fn withdrawal_status(
 pub async fn send_withdrawal_signatures(
     signer_address: &str,
     withdrawal_address: &str,
-    withdrawal_utxo_txid: &str,
-    withdrawal_utxo_vout: u32,
-    withdrawal_index: u32,
+    withdrawal_utxo_outpoint: &str,
+    amount: f64,
     signature: &str,
     config: &BridgeCliConfig,
-    amount: u64,
+    withdrawal_index: u32,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::new(
-        bitcoin::Txid::from_str(withdrawal_utxo_txid)?,
-        withdrawal_utxo_vout,
-    );
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
     send_withdrawal_signatures_to_operators(
         signer_address,
         withdrawal_address,
@@ -231,5 +229,24 @@ pub async fn send_withdrawal_signatures(
         amount,
     )
     .await?;
+    Ok(())
+}
+
+pub async fn cli_get_deposit_address(
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    config: &BridgeCliConfig,
+) -> Result<BitcoinAddress, BridgeCliError> {
+    let deposit_address =
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+    Ok(deposit_address)
+}
+
+pub async fn cli_start_withdrawal(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    start_withdrawal(signer_address, claim_address, config)?;
     Ok(())
 }

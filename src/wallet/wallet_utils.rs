@@ -1,10 +1,27 @@
-use crate::bitcoin_utils::calculate_taproot_address;
+//! Wallet validation, key management, and utility functions for Clementine CLI.
+//!
+//! This module provides essential wallet operations and validation:
+//! - Loading and validating encrypted keys from storage
+//! - Network parsing and address validation
+//! - Wallet existence and availability checking
+//! - Import validation for mnemonics and private keys
+//! - Wallet integrity reporting and verification
+//!
+//! ## Validation Features
+//!
+//! - **Wallet availability**: Checks for label and address conflicts
+//! - **Import validation**: Verifies mnemonic and private key imports
+//! - **Address derivation**: Confirms imported data matches addresses
+//! - **Integrity checks**: Reports registry and file consistency
+//!
+
 use crate::errors::BridgeCliError;
 use crate::structs::AddrDisplay;
 use crate::structs::SecureKeypair;
 use crate::structs::SecureSecretKey;
 use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
+use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::{

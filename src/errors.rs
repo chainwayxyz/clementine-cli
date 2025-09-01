@@ -41,6 +41,8 @@ pub enum BridgeCliError {
     MissingWalletAddress,
     #[error("Address already exists: {0}")]
     AddressAlreadyExists(String),
+    #[error("The address must have a Purpose prefix, this is a plain address")]
+    MissingPurposePrefix,
     #[error("Failed to get storage directory: {0}")]
     StorageDirectoryError(String),
     #[error("Failed to read storage directory: {0}")]
@@ -193,9 +195,18 @@ pub enum BridgeCliError {
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
     #[error("{0}")]
     BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
-    #[error("Purpose mismatch: expected {0:?}, found {1:?}")]
-    PurposeMismatch(Purpose, Purpose),
-    #[error("Invalid purpose: {0}")]
+    #[error(
+        "Wallet address purpose mismatch: expected {:?}, found {:?}. Please use {:?} wallet address(es) (addresses with \"{}\" prefix) for {:?} operations.",
+        expected,
+        found,
+        expected,
+        expected.to_prefix(),
+        expected
+    )]
+    PurposeMismatch { expected: Purpose, found: Purpose },
+    #[error(
+        "Invalid purpose: {0}. Please make sure the address used has the correct purpose prefix (either \"dep\" or \"wit\")."
+    )]
     InvalidPurpose(String),
 
     // IO errors (from rpassword and file operations)
@@ -207,7 +218,7 @@ pub enum BridgeCliError {
     Eyre(#[from] eyre::Report),
 }
 
-/// Extension traits for errors to easily convert them to [`eyre::Report`]
+/// Extension traits for errors to easily convert them to [`eyre::Report`]  
 /// through [`ClementineCliError`].
 pub trait ErrorExt: Sized {
     /// Converts the error into an [`eyre::Report`], first wrapping in
