@@ -197,8 +197,8 @@ pub enum BridgeCliError {
     BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
     #[error("Purpose mismatch: expected {0:?}, found {1:?}")]
     PurposeMismatch(Purpose, Purpose),
-    #[error("Invalid purpose: {0}")]
-    InvalidPurpose(String),
+    #[error("Invalid prefix: {0}. Valid prefixes are 'dep' and 'wit'.")]
+    InvalidPrefix(String),
 
     // IO errors (from rpassword and file operations)
     #[error("IO error: {0}")]
@@ -224,6 +224,20 @@ pub trait ResultExt: Sized {
     type Output;
 
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report>;
+}
+
+/// Extension for printing errors on any Result.
+pub trait PrintErr {
+    fn print_err(self) -> Self;
+}
+
+impl<T, E: std::fmt::Display> PrintErr for Result<T, E> {
+    fn print_err(self) -> Self {
+        if let Err(e) = &self {
+            eprintln!("{}", e);
+        }
+        self
+    }
 }
 
 impl<T: Into<BridgeCliError>> ErrorExt for T {

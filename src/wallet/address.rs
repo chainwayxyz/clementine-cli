@@ -36,7 +36,7 @@ impl Purpose {
         match s.to_lowercase().as_str() {
             DEPOSIT_PREFIX => Ok(Purpose::Deposit),
             WITHDRAWAL_PREFIX => Ok(Purpose::Withdrawal),
-            _ => Err(BridgeCliError::InvalidPurpose(s.to_string())),
+            _ => Err(BridgeCliError::InvalidPrefix(s.to_string())),
         }
     }
 

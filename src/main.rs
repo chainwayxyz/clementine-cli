@@ -2,6 +2,7 @@ use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
 use clap::{Parser, Subcommand};
+use clementine_cli::errors::PrintErr;
 use clementine_cli::{
     BitcoinAddress,
     cli::{
@@ -290,8 +291,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WalletCommands::ShowMnemonic { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
+                let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
+                    .print_err()?;
                 handle_cli_command!(cli_show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic {
@@ -349,8 +350,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
+                let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
+                    .print_err()?;
                 handle_cli_command!(
                     cli_show_private_key(&address),
                     "Private key display completed"
@@ -368,7 +369,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
                 handle_cli_command!(async
                     deposit::get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
@@ -392,7 +394,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
                 let txid = Txid::from_str(&deposit_txid)?;
                 let outpoint = OutPoint {
                     txid,
@@ -433,7 +436,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
                 handle_cli_command!(
                     deposit::verify_recovery_tx(
                         &recovery_tx,
@@ -483,7 +487,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
 
                 // Use wrap_err to preserve inner error location and context
 
@@ -514,7 +519,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
 
                 Purpose::should_not_have_purpose(&claim_address).inspect_err(|_| {
                     eprintln!("Invalid claim address: {}", claim_address.bold());
@@ -550,7 +556,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 let signer_address =
-                    TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)?;
+                    TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)
+                        .print_err()?;
 
                 Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
@@ -591,7 +598,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
 
                 Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
@@ -630,7 +638,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
 
                 Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
