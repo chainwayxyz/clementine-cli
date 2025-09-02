@@ -308,7 +308,6 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("║  - Store your written mnemonic in a secure location                          ║\r\n"),
             Print("║  - Never share it with anyone                                                ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  The display will now close                                                  ║\r\n"),
             Print("╚══════════════════════════════════════════════════════════════════════════════╝\r\n"),
             SetForegroundColor(Color::Yellow),
             Print("\r\nPress any key to exit..."),

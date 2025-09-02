@@ -98,10 +98,10 @@ This command will prompt you to enter all the mnemonic words step by step.
 
 ### List All Wallets
 
-View all wallets with their addresses and import status:
+View all wallets with their addresses, networks and import status:
 
 ```sh
-clementine-cli --network <NETWORK> wallet list
+clementine-cli wallet list
 ```
 
 ### Show Mnemonic
