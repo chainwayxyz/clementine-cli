@@ -36,6 +36,10 @@ use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
+use chrono::{DateTime, TimeZone, Utc};
+
+const DEPOSIT_PREFIX: &str = "dep";
+const WITHDRAWAL_PREFIX: &str = "wit";
 
 /// Purpose for the wallet. Can be for either `deposit` or `withdrawal`.
 /// This affects the prefix of the generated address.
@@ -50,16 +54,16 @@ pub enum Purpose {
 impl Purpose {
     pub fn to_prefix(&self) -> &str {
         match self {
-            Purpose::Deposit => "dep",
-            Purpose::Withdrawal => "wit",
+            Purpose::Deposit => DEPOSIT_PREFIX,
+            Purpose::Withdrawal => WITHDRAWAL_PREFIX,
         }
     }
 
     pub fn purpose_from_str(s: &str) -> Result<Self, BridgeCliError> {
         match s.to_lowercase().as_str() {
-            "dep" => Ok(Purpose::Deposit),
-            "wit" => Ok(Purpose::Withdrawal),
-            _ => Err(BridgeCliError::InvalidPurpose(s.to_string())),
+            DEPOSIT_PREFIX => Ok(Purpose::Deposit),
+            WITHDRAWAL_PREFIX => Ok(Purpose::Withdrawal),
+            _ => Err(BridgeCliError::InvalidPrefix(s.to_string())),
         }
     }
 }
@@ -115,7 +119,7 @@ pub fn parse_taproot_address(
 
     // Verify it's a taproot (P2TR) address
     if address.address_type() != Some(AddressType::P2tr) {
-        return Err(BridgeCliError::NotTaprootAddress);
+        return Err(BridgeCliError::NotTaprootAddress(address.to_string()));
     }
 
     Ok(address)
@@ -140,33 +144,67 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
-    println!("Found {} wallet(s):", wallets.len());
-    for wallet_entry in wallets.values() {
-        let network = parse_network(&wallet_entry.network)?;
-        let address = TaprootAddressWithPrefix::from_string_with_prefix(
-            &wallet_entry.addres_with_prefix,
-            network,
-        )?;
+    let mut wallets: Vec<_> = wallets.into_values().collect();
+    wallets.sort_by_key(|w| {
+        DateTime::parse_from_rfc3339(&w.created_at)
+            .map(|dt| dt.with_timezone(&Utc))
+            .unwrap_or_else(|_| Utc.timestamp_opt(0, 0).single().unwrap())
+    });
 
-        let import_info = if let Some(true) = wallet_entry.imported {
-            if let Some(method) = &wallet_entry.import_method {
-                format!(" (Imported via {})", method)
+    let (mainnet, others): (Vec<_>, Vec<_>) =
+        wallets.into_iter().partition(|w| w.network == "bitcoin");
+
+    fn print_wallet_section(
+        section_title: &str,
+        wallets: &[crate::wallet::wallet_storage::WalletRegistryEntry],
+    ) -> Result<(), BridgeCliError> {
+        if wallets.is_empty() {
+            return Ok(());
+        }
+        println!("{}", section_title.bold().underline());
+        for wallet_entry in wallets {
+            let network = parse_network(&wallet_entry.network)?;
+            let address = TaprootAddressWithPrefix::from_string_with_prefix(
+                &wallet_entry.addres_with_prefix,
+                network,
+            )?;
+            let import_info = if let Some(true) = wallet_entry.imported {
+                if let Some(method) = &wallet_entry.import_method {
+                    format!(", (Imported via {})", method)
+                } else {
+                    ", (Imported)".to_string()
+                }
             } else {
-                " (Imported)".to_string()
-            }
-        } else {
-            "".to_string()
-        };
-
-        println!(
-            "Wallet: {} -> Address: {}{}",
-            wallet_entry.label.blue(),
-            address.address_with_prefix().green(),
-            import_info.cyan()
-        );
+                "".to_string()
+            };
+            let network = format!("Network: {}", wallet_entry.network);
+            println!(
+                "Label: {} -> Address: {}, {}{}",
+                &wallet_entry.label,
+                &address.address_with_prefix(),
+                network,
+                import_info,
+            );
+        }
+        Ok(())
     }
 
+    print_wallet_section("Wallets on networks other than Bitcoin mainnet:", &others)?;
+
+    println!();
+
+    print_wallet_section("Wallets on Bitcoin mainnet:", &mainnet)?;
+
     Ok(())
+}
+
+pub fn should_not_have_purpose(address: &str) -> Result<(), BridgeCliError> {
+    address.get(0..3).map_or(Ok(()), |prefix| match prefix {
+        DEPOSIT_PREFIX | WITHDRAWAL_PREFIX => Err(BridgeCliError::AddressShouldNotHavePrefix(
+            address.to_string(),
+        )),
+        _ => Ok(()),
+    })
 }
 
 #[cfg(test)]

@@ -121,17 +121,18 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         address: &str,
         network: bitcoin::Network,
     ) -> Result<Self, BridgeCliError> {
-        if address.len() < 4 {
+        if address.len() < 3 {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 
-        // If the address is parsable (without prefix), return error
-        // and warn the user for better UX
-        if parse_taproot_address(address, network).is_ok() {
-            return Err(BridgeCliError::MissingPurposePrefix);
-        }
+        let purpose = Purpose::purpose_from_str(&address[0..3]).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to parse purpose from address: {} Error: {}",
+                address,
+                e
+            ))
+        })?;
 
-        let purpose = Purpose::purpose_from_str(&address[0..3])?;
         let addr_str = &address[3..];
 
         let bitcoin_address = parse_taproot_address(addr_str, network)?;

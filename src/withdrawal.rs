@@ -1,7 +1,9 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
 use crate::BitcoinAddress;
-use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
+use crate::bitcoin_utils::{
+    sign_withdrawal_signature, utxos_from_mempool_space_api, verify_withdrawal_signature,
+};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_safe_withdraw_params;
@@ -9,7 +11,7 @@ use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{address_exists, load_key};
+use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, load_key};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -32,6 +34,8 @@ pub fn generate_withdrawal_signature(
     amount: &Amount,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
+    ensure_wallet_exists(signer_address)?;
+
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch {
             expected: Purpose::Withdrawal,
@@ -432,13 +436,11 @@ async fn get_utxos_from_rpc(
 
     let mut result = Vec::new();
     for utxo in res.unspents {
-        if utxo.amount == Amount::from_sat(330) {
-            result.push(UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-            });
-        }
+        result.push(UtxoInfo {
+            txid: utxo.txid,
+            vout: utxo.vout,
+            value: utxo.amount,
+        });
     }
 
     Ok(result)
@@ -450,43 +452,27 @@ async fn get_utxos_from_mempool(
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
     use std::str::FromStr;
 
-    let url = config
-        .mempool_api_url
-        .join(&format!("address/{}/utxo", address.address))
-        .wrap_err("Can't join URL for address UTXOs")?;
-
-    tracing::debug!("Fetching UTXOs from URL: {}", url);
-
-    let response = reqwest::get(url)
+    let utxos = utxos_from_mempool_space_api(&address.address, config)
         .await
-        .map_err(|e| eyre::eyre!("Failed to fetch UTXOs for address {}: {e}", address.address))?;
-
-    tracing::debug!("UTXO response: {}", response.status());
-
-    let utxos: Value = response
-        .json()
-        .await
-        .wrap_err("Failed to parse UTXO response")?;
+        .map_err(|e| -> BridgeCliError {
+            eyre::eyre!(
+                "Failed to get UTXOs from mempool API for address {}: {}",
+                address.address,
+                e
+            )
+            .into()
+        })?;
 
     let mut result = Vec::new();
 
-    if let Some(utxo_array) = utxos.as_array() {
-        for utxo in utxo_array {
-            if let (Some(txid_str), Some(vout), Some(value)) = (
-                utxo["txid"].as_str(),
-                utxo["vout"].as_u64(),
-                utxo["value"].as_u64(),
-            ) && value == 330
-            {
-                let txid = bitcoin::Txid::from_str(txid_str)
-                    .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
-                result.push(UtxoInfo {
-                    txid,
-                    vout: vout as u32,
-                    value: Amount::from_sat(value),
-                });
-            }
-        }
+    for utxo in utxos {
+        let txid =
+            bitcoin::Txid::from_str(&utxo.txid).map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
+        result.push(UtxoInfo {
+            txid,
+            vout: utxo.vout,
+            value: Amount::from_sat(utxo.value),
+        });
     }
 
     Ok(result)

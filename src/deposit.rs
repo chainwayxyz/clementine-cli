@@ -89,8 +89,8 @@ pub fn create_signed_recovery_tx(
     outpoint: &OutPoint,
     claim_addr: &BitcoinAddress,
     keypair: Keypair,
-    fee_rate: Option<u64>,
-    amount: Option<f64>,
+    fee_rate: u64,
+    amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     if recovery_taproot_address.purpose != Purpose::Deposit {
@@ -101,14 +101,12 @@ pub fn create_signed_recovery_tx(
     }
 
     // Convert BTC amount to satoshis if provided
-    let deposit_amount = match amount {
-        Some(btc) => Some(Amount::from_btc(btc)?),
-        None => None,
-    };
+    let deposit_amount = Amount::from_btc(amount)?;
 
     let keypair = SecureKeypair::new(keypair);
 
-    let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
+    let fee_rate = FeeRate::from_sat_per_vb_unchecked(fee_rate);
+
     let signed_tx = utils_sign_recovery_tx(
         &keypair,
         citrea_addr,
@@ -116,7 +114,7 @@ pub fn create_signed_recovery_tx(
         outpoint,
         deposit_amount,
         claim_addr,
-        fee_rate_opt,
+        fee_rate,
         config,
     )?;
 
@@ -170,7 +168,6 @@ pub async fn broadcast_recovery_tx(
     Ok(txid)
 }
 
-/// Sends raw transaction to Bitcoin network using Mempool API.
 async fn broadcast_recovery_tx_with_mempool(
     mempool_url: Url,
     raw_tx: String,
@@ -208,12 +205,7 @@ async fn broadcast_recovery_tx_with_mempool(
         tracing::error!("Deposit address request failed: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Can't send raw transaction using Mempool API: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        Err(eyre::eyre!("Can't send raw: {} {}", status, error_text).into())
     }
 }
 

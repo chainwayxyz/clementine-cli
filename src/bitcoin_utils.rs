@@ -12,10 +12,28 @@ use bitcoin::{
     Amount, FeeRate, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
+use bitcoincore_rpc::RpcApi;
 use eyre::{Context, Result};
 use std::sync::LazyLock;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
+
+#[allow(dead_code)]
+#[derive(Debug, serde::Deserialize)]
+pub struct UtxoStatus {
+    pub confirmed: bool,
+    pub block_height: Option<u64>,
+    pub block_hash: Option<String>,
+    pub block_time: Option<u64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct Utxo {
+    pub txid: String,
+    pub vout: u32,
+    pub status: UtxoStatus,
+    pub value: u64,
+}
 
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
 pub(crate) fn calculate_deposit_address(
@@ -74,9 +92,9 @@ pub(crate) fn sign_recovery_tx(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     deposit_outpoint: &OutPoint,
-    deposit_amount: Option<Amount>,
+    deposit_amount: Amount,
     claim_address: &BitcoinAddress,
-    fee_rate: Option<FeeRate>,
+    fee_rate: FeeRate,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     let (deposit_address, taproot_spend_info) =
@@ -87,8 +105,6 @@ pub(crate) fn sign_recovery_tx(
         config.user_takes_after,
     );
 
-    let input_amount = deposit_amount.unwrap_or(config.bridge_amount);
-
     let txin = TxIn {
         previous_output: *deposit_outpoint,
         script_sig: ScriptBuf::default(),
@@ -97,12 +113,12 @@ pub(crate) fn sign_recovery_tx(
     };
 
     let prevout = TxOut {
-        value: input_amount,
+        value: deposit_amount,
         script_pubkey: deposit_address.script_pubkey(),
     };
 
     let txout = TxOut {
-        value: input_amount,
+        value: deposit_amount,
         script_pubkey: claim_address.script_pubkey(),
     };
 
@@ -113,40 +129,27 @@ pub(crate) fn sign_recovery_tx(
         output: vec![txout],
     };
 
-    if let Some(fee_rate) = fee_rate {
-        let weight = Weight::from_wu(550);
-        let fee = fee_rate.fee_wu(weight).expect("fee is valid");
-        let output_amount: Amount = match input_amount.checked_sub(fee) {
-            Some(amt) => amt,
-            None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
-        };
-        if output_amount < Amount::from_sat(546) {
-            return Err(eyre::eyre!("Output amount below dust threshold").into());
-        }
-        recovery_tx.output[0].value = output_amount;
+    let weight = Weight::from_wu(550);
+    let fee = fee_rate.fee_wu(weight).expect("fee is valid");
+    let output_amount: Amount = match deposit_amount.checked_sub(fee) {
+        Some(amt) => amt,
+        None => return Err(eyre::eyre!("Insufficient funds for fee").into()),
+    };
+    if output_amount < Amount::from_sat(546) {
+        return Err(eyre::eyre!("Output amount below dust threshold").into());
     }
+    recovery_tx.output[0].value = output_amount;
 
     let mut sighash_cache = bitcoin::sighash::SighashCache::new(recovery_tx.clone());
 
-    let sighash = if fee_rate.is_some() {
-        sighash_cache
-            .taproot_script_spend_signature_hash(
-                0,
-                &bitcoin::sighash::Prevouts::All(&[prevout]),
-                TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
-                bitcoin::TapSighashType::Default,
-            )
-            .unwrap()
-    } else {
-        sighash_cache
-            .taproot_script_spend_signature_hash(
-                0,
-                &bitcoin::sighash::Prevouts::One(0, &prevout),
-                TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
-                bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
-            )
-            .unwrap()
-    };
+    let sighash = sighash_cache
+        .taproot_script_spend_signature_hash(
+            0,
+            &bitcoin::sighash::Prevouts::All(&[prevout]),
+            TapLeafHash::from_script(&recovery_script, LeafVersion::TapScript),
+            bitcoin::TapSighashType::Default,
+        )
+        .unwrap();
 
     tracing::debug!("sighash: {:?}", sighash);
     tracing::debug!("recovery_script: {:?}", recovery_script);
@@ -154,17 +157,13 @@ pub(crate) fn sign_recovery_tx(
         "recovery key: {:?}",
         XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])
     );
-    tracing::debug!("input_amount: {:?}", input_amount);
+    tracing::debug!("input_amount: {:?}", deposit_amount);
 
     let sig = sign_with_tweak(keypair, sighash, None);
 
     let taproot_signature = bitcoin::taproot::Signature {
         signature: sig,
-        sighash_type: if fee_rate.is_some() {
-            bitcoin::TapSighashType::Default
-        } else {
-            bitcoin::TapSighashType::SinglePlusAnyoneCanPay
-        },
+        sighash_type: bitcoin::TapSighashType::Default,
     };
 
     let spend_control_block = taproot_spend_info
@@ -419,6 +418,47 @@ pub(crate) fn verify_withdrawal_signature(
     .wrap_err("Signature verification failed")?;
 
     Ok(())
+}
+
+pub async fn utxos_from_mempool_space_api(
+    taproot_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<Utxo>, BridgeCliError> {
+    let url = config
+        .mempool_api_url
+        .join(&format!("address/{taproot_address}/utxo"))
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let utxos: Vec<Utxo> = resp.json().await?;
+    Ok(utxos)
+}
+
+pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
+    match config.bitcoin_config {
+        Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
+        _ => get_current_block_height_from_mempool_space_api(config).await,
+    }
+}
+
+async fn get_current_block_height_from_mempool_space_api(
+    config: &BridgeCliConfig,
+) -> Result<u64, BridgeCliError> {
+    let url = config
+        .mempool_api_url
+        .join("blocks/tip/height")
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let height: u64 = resp.json().await?;
+    Ok(height)
+}
+
+async fn get_current_block_height_from_rpc(
+    config: &BridgeCliConfig,
+) -> Result<u64, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+    rpc.get_block_count()
+        .await
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
 }
 
 #[cfg(test)]

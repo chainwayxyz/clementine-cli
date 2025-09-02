@@ -2,6 +2,9 @@ use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
 use clap::{Parser, Subcommand};
+use clementine_cli::cli::cli_scan_withdrawals;
+use clementine_cli::errors::PrintErr;
+use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress,
     cli::{
@@ -61,10 +64,6 @@ struct Cli {
     #[arg(long)]
     config_file: Option<PathBuf>,
 
-    /// Bitcoin network
-    #[arg(long)]
-    network: Network,
-
     /// Turns verbose logging on
     #[arg(long, action = clap::ArgAction::SetTrue)]
     verbose: bool,
@@ -96,6 +95,9 @@ enum Commands {
 enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
+        /// Bitcoin network (required for this subcommand)
+        #[arg(long)]
+        network: Network,
         /// Label for the wallet file
         label: String,
         /// Purpose for the wallet.
@@ -120,6 +122,9 @@ enum WalletCommands {
     },
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
+        /// Bitcoin network (required for this subcommand)
+        #[arg(long)]
+        network: Network,
         /// Label for the imported wallet
         label: String,
         /// Purpose for the imported wallet
@@ -127,6 +132,9 @@ enum WalletCommands {
     },
     /// Import wallet using secure private key input.
     ImportPrivateKey {
+        /// Bitcoin network (required for this subcommand)
+        #[arg(long)]
+        network: Network,
         /// Label for the imported wallet
         label: String,
         /// Purpose for the imported wallet
@@ -149,8 +157,11 @@ enum WalletCommands {
 enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
-        citrea_address: String,
+        /// Bitcoin network (required for this subcommand)
+        #[arg(long)]
+        network: Network,
         recovery_taproot_address: String,
+        citrea_address: String,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the
     /// given address
@@ -163,47 +174,64 @@ enum DepositCommands {
         deposit_utxo_outpoint: String,
         /// Your Bitcoin address, which will collect the 10 BTC (- fees)
         claim_address: String,
-        /// Optional fee rate to be used when creating the recovery tx
-        #[arg(long)]
-        fee_rate: Option<u64>,
+        /// Fee rate to be used when creating the recovery tx
+        fee_rate: u64,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
+        amount: f64,
+        /// Bitcoin network (required for this subcommand)
         #[arg(long)]
-        amount: Option<f64>,
+        network: Network,
     },
     /// Verify a recovery transaction before broadcasting.
     VerifyRecoveryTx {
         recovery_tx: String,
-        evm_address: String,
         recovery_taproot_address: String,
+        evm_address: String,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
+        #[arg(long)]
+        network: Network,
+    },
+    // Check the status of a deposit.
+    Status {
+        deposit_address: String,
+        #[arg(long)]
+        network: Network,
     },
     /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
     BroadcastRecoveryTx {
         /// Hex encoded raw transaction.
         raw_tx: String,
     },
-    /// Check the status of a deposit.
-    Status { deposit_address: String },
     /// Get deposit parameters for a move-to-vault transaction.
-    GetDepositParams { move_to_vault_txid: String },
+    GetDepositParams {
+        move_to_vault_txid: String,
+        #[arg(long)]
+        network: Network,
+    },
 }
 
 #[derive(Subcommand)]
 enum WithdrawalCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         claim_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
     Scan {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         claim_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
@@ -211,6 +239,8 @@ enum WithdrawalCommands {
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -219,6 +249,8 @@ enum WithdrawalCommands {
     },
     /// Send a safe withdrawal transaction.
     SendSafeWithdrawal {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -226,7 +258,11 @@ enum WithdrawalCommands {
         signature: String,
     },
     /// Check the status of a withdrawal.
-    Status { withdrawal_index: u32 },
+    Status {
+        #[arg(long)]
+        network: Network,
+        withdrawal_index: u32,
+    },
     /// Generate operator withdrawal signatures.
     GenerateOperatorWithdrawalSignatures {
         signer_address: String,
@@ -236,6 +272,8 @@ enum WithdrawalCommands {
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
+        #[arg(long)]
+        network: Network,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -253,19 +291,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     initialize_logger(cli.verbose);
 
-    let config = BridgeCliConfig::try_parse_config(cli.config_file, cli.network).unwrap();
-
     match cli.command {
         Commands::Wallet { command } => match command {
-            WalletCommands::Create { label, purpose } => {
+            WalletCommands::Create {
+                label,
+                purpose,
+                network,
+            } => {
                 handle_cli_command!(
-                    cli_create_wallet(config.network, label, purpose),
-                    address => {
-                        println!(
-                            "Wallet created with address: {}",
-                            address.address_with_prefix()
-                        );
-                    }
+                    cli_create_wallet(network, label, purpose),
+                    _ => {}
                 );
             }
             WalletCommands::Backup {
@@ -284,13 +319,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WalletCommands::ShowMnemonic { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
+                let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
+                    .print_err()?;
                 handle_cli_command!(cli_show_mnemonic(&address), "Mnemonic display completed");
             }
-            WalletCommands::ImportMnemonic { label, purpose } => {
+            WalletCommands::ImportMnemonic {
+                label,
+                purpose,
+                network,
+            } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_mnemonic(config.network, &label, purpose),
+                    cli_import_wallet_from_mnemonic(network, &label, purpose),
                     address => {
                         println!(
                             "Import completed for address: {}",
@@ -310,9 +349,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WalletCommands::ImportPrivateKey { label, purpose } => {
+            WalletCommands::ImportPrivateKey {
+                label,
+                purpose,
+                network,
+            } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_private_key(config.network, &label, purpose),
+                    cli_import_wallet_from_private_key(network, &label, purpose),
                     address => {
                         println!(
                             "Import from private key completed for address: {}",
@@ -335,8 +378,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
-                let address =
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)?;
+                let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
+                    .print_err()?;
                 handle_cli_command!(
                     cli_show_private_key(&address),
                     "Private key display completed"
@@ -345,14 +388,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         },
         Commands::Deposit { command } => match command {
             DepositCommands::GetDepositAddress {
-                citrea_address,
                 recovery_taproot_address,
+                citrea_address,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
                 handle_cli_command!(async
                     cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
@@ -367,12 +413,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 claim_address,
                 fee_rate,
                 amount,
+                network,
             } => {
-                let citrea_address = parse_citrea_address(&citrea_address)?;
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
+
+                let citrea_address = parse_citrea_address(&citrea_address)?;
                 let deposit_utxo_outpoint = OutPoint::from_str(&deposit_utxo_outpoint)?;
                 let claim_address =
                     BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
@@ -390,16 +440,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
-                evm_address,
                 recovery_taproot_address,
+                evm_address,
                 amount,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
                 let citrea_address = parse_citrea_address(&evm_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
                 handle_cli_command!(
                     deposit::verify_recovery_tx(
                         &recovery_tx,
@@ -416,14 +469,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::BroadcastRecoveryTx { raw_tx } => {
-                // handle_cli_command!(async deposit::broadcast_recovery_tx(config, raw_tx));
-            }
-            DepositCommands::Status { deposit_address } => {
+            DepositCommands::Status {
+                deposit_address,
+                network,
+            } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
             }
-            DepositCommands::GetDepositParams { move_to_vault_txid } => {
+            DepositCommands::BroadcastRecoveryTx { raw_tx } => {
+                // handle_cli_command!(async deposit::broadcast_recovery_tx(config, raw_tx));
+            }
+            DepositCommands::GetDepositParams {
+                move_to_vault_txid,
+                network,
+            } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let move_to_vault_txid = Txid::from_str(&move_to_vault_txid)?;
                 handle_cli_command!(async
                     get_deposit_params(&move_to_vault_txid, &config),
@@ -437,18 +498,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::Start {
                 signer_address,
                 claim_address,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
-                let claim_address = parse_address(&claim_address, config.network)?;
+                )
+                .print_err()?;
+
+                // Use wrap_err to preserve inner error location and context
+
+                should_not_have_purpose(&claim_address).inspect_err(|_| {
+                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                })?;
+
+                let claim_address =
+                    parse_address(&claim_address, config.network).inspect_err(|_| {
+                        eprintln!("Invalid claim address: {}", claim_address.bold());
+                    })?;
+
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
                     _result => {
-                        println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("Send exactly 0.00000330 btc to {}", signer_address.address_without_prefix());
                         println!("Then run:");
-                        println!("clementine-cli --network {} withdrawal scan {} {}",
+                        println!("clementine-cli withdrawal scan --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), claim_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
@@ -457,46 +533,41 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::Scan {
                 signer_address,
                 claim_address,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
+
+                should_not_have_purpose(&claim_address).inspect_err(|_| {
+                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                })?;
+
                 let claim_address = parse_address(&claim_address, config.network)?;
-                handle_cli_command!(async
-                    withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
-                    utxos => {
-                        if utxos.is_empty() {
-                            eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
-                        } else if utxos.len() == 1 {
-                            let (outpoint, _) = &utxos[0];
-                            println!("Then run:");
-                            println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
-                                config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
-                            println!("inside your airgapped pc");
-                        } else {
-                            println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
-                            println!("Run one of these:");
-                            for (outpoint, _) in utxos.iter() {
-                                println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
-                                    config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
-                            }
-                            println!("to generate withdrawal signature inside your airgapped pc");
-                        }
-                    }
-                );
+                handle_cli_command!(
+                    cli_scan_withdrawals(&signer_address, &claim_address, &config).await,
+                    _ => { }
+                )
             }
             WithdrawalCommands::GenerateWithdrawalSignature {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo,
                 amount,
+                network,
             } => {
-                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
-                    &signer_address,
-                    config.network,
-                )?;
-                let claim_address = parse_address(&withdrawal_address, config.network)?;
+                let signer_address =
+                    TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)
+                        .print_err()?;
+
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
+                let claim_address = parse_address(&withdrawal_address, network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
                 let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
@@ -509,7 +580,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &claim_address,
                         &withdrawal_outpoint,
                         &amount,
-                        config.network,
+                        network,
                     ),
                     signature => {
                         println!(
@@ -525,11 +596,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_utxo_outpoint,
                 amount,
                 signature,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
+
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
@@ -557,11 +636,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_utxo_outpoint,
                 amount,
                 signature,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
-                )?;
+                )
+                .print_err()?;
+
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                })?;
+
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
@@ -581,7 +668,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawalCommands::Status { withdrawal_index } => {
+            WithdrawalCommands::Status {
+                withdrawal_index,
+                network,
+            } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 withdrawal_status(withdrawal_index, &config).await?;
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
@@ -605,7 +696,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_index,
                 signature,
                 withdrawal_amount,
+                network,
             } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 send_withdrawal_signatures(
                     &signer_address,
                     &withdrawal_address,

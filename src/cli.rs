@@ -4,7 +4,7 @@ use std::{
 };
 
 use bitcoin::{
-    Address, Network, OutPoint,
+    Address, Amount, Network, OutPoint,
     address::{NetworkChecked, NetworkUnchecked},
 };
 use colored::Colorize;
@@ -16,6 +16,7 @@ use crate::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
+    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_space_api},
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
@@ -34,7 +35,7 @@ use crate::{
             validate_wallet_availability,
         },
     },
-    withdrawal::start_withdrawal,
+    withdrawal::{self, start_withdrawal},
 };
 
 pub fn cli_create_wallet(
@@ -47,6 +48,15 @@ pub fn cli_create_wallet(
 
     let passphrase = prompt_passphrase(true)?;
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
+
+    println!(
+        "{} Wallet created with address: {}",
+        "SUCCESS".bold(),
+        address.address_with_prefix()
+    );
+
+    // Sleep for 2 seconds to allow user to see the success message before showing mnemonic
+    std::thread::sleep(std::time::Duration::from_secs(2));
 
     display_mnemonic_securely(&mnemonic)?;
 
@@ -160,24 +170,86 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let deposit_statuses = backend_deposit_status(&taproot_address, config).await?;
-    if deposit_statuses.is_empty() {
+    let mut utxos = utxos_from_mempool_space_api(&taproot_address, config).await?;
+    utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
+    let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
+        .iter()
+        .filter(|utxo| utxo.value != config.bridge_amount.to_sat())
+        .collect();
+
+    if !deposits_with_incorrect_amount.is_empty() {
+        println!(
+            "{} Deposits with incorrect amount for address {}:",
+            "WARNING".bold(),
+            taproot_address
+        );
+    }
+
+    let current_block_height = get_current_block_height(config).await?;
+
+    let refund_info = |block_height: Option<u64>, move_txid_empty: bool| {
+        let refund_in_blocks = block_height.and_then(|h| {
+            h.checked_add(config.user_takes_after)
+                .map(|target| target.saturating_sub(current_block_height))
+        });
+        if move_txid_empty {
+            match refund_in_blocks {
+                Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
+                Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
+                None => "Refund information not available.".to_string(),
+            }
+        } else {
+            String::new()
+        }
+    };
+
+    let block_display = |block_height: Option<u64>| {
+        block_height
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| "N/A".to_string())
+    };
+
+    let is_confirmed_display = |confirmed: bool| {
+        if confirmed {
+            "Confirmed"
+        } else {
+            "Unconfirmed"
+        }
+    };
+
+    for utxo in &deposits_with_incorrect_amount {
+        let refund_msg = refund_info(utxo.status.block_height, true);
+        print_incorrect_deposit(
+            utxo,
+            &refund_msg,
+            &block_display(utxo.status.block_height),
+            is_confirmed_display(utxo.status.confirmed),
+        );
+    }
+
+    if !deposits_with_incorrect_amount.is_empty() {
+        println!();
+    }
+
+    let deposit_statuses_backend = backend_deposit_status(&taproot_address, config).await?;
+    if deposit_statuses_backend.is_empty() {
         println!(
             "{} No deposits found for address {}",
-            "INFO".yellow().bold(),
-            taproot_address.to_string().blue().bold()
+            "INFO".bold(),
+            taproot_address.to_string().bold()
         );
         return Ok(());
     }
-
     println!(
-        "{} Deposit status(es) for address {}: \n",
-        "INFO".blue().bold(),
+        "{} Deposit status(es) for address {}:",
+        "INFO".bold(),
         taproot_address
     );
-
-    for (i, status) in deposit_statuses.iter().enumerate() {
-        println!("{}. {}", i + 1, status);
+    for status in &deposit_statuses_backend {
+        let corresponding_utxo = utxos.iter().find(|utxo| utxo.txid == status.txid);
+        let block_height = corresponding_utxo.and_then(|u| u.status.block_height);
+        let refund_msg = refund_info(block_height, status.move_txid.is_empty());
+        println!("{} {}", status, refund_msg);
     }
     Ok(())
 }
@@ -228,7 +300,7 @@ pub async fn withdrawal_status(
     }
 
     println!(
-        "{} Deposit status(es) for index {}: \n",
+        "{} Withdrawal status(es) for index {}: \n",
         "INFO".blue().bold(),
         withdrawal_index
     );
@@ -264,6 +336,18 @@ pub async fn send_withdrawal_signatures(
     Ok(())
 }
 
+fn print_incorrect_deposit(
+    utxo: &Utxo,
+    refund_message: &str,
+    block_display: &str,
+    is_confirmed_display: &str,
+) {
+    println!(
+        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
+        utxo.txid, utxo.value, block_display, is_confirmed_display, refund_message
+    );
+}
+
 pub async fn cli_get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
@@ -280,5 +364,90 @@ pub async fn cli_start_withdrawal(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     start_withdrawal(signer_address, claim_address, config)?;
+    Ok(())
+}
+
+pub async fn cli_scan_withdrawals(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let utxos = withdrawal::scan_withdrawal(signer_address, claim_address, config).await;
+
+    let mut utxos = utxos
+        .inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".red().bold(), e))?;
+
+    utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
+
+    let utxos_with_wrong_amount: Vec<_> = utxos
+        .iter()
+        .filter(|(_, amount)| *amount != Amount::from_sat(330))
+        .collect();
+
+    if !utxos_with_wrong_amount.is_empty() {
+        eprintln!(
+            "{} The following UTXOs have amounts different than 0.00000330 btc. They will be ignored for withdrawal operations.",
+            "WARNING".bold()
+        );
+        for (outpoint, amount) in utxos_with_wrong_amount {
+            eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
+        }
+        eprintln!(
+            "Please ensure you send exactly 0.00000330 btc to the signer address for each withdrawal operation."
+        );
+
+        // sleep for 2 seconds to ensure user sees the warning
+        std::thread::sleep(std::time::Duration::from_secs(2));
+
+        println!();
+    }
+
+    utxos.retain(|(_, amount)| *amount == Amount::from_sat(330));
+
+    if utxos.is_empty() {
+        eprintln!(
+            "No UTXOs found. Please send 0.00000330 btc first using 'withdrawal start' command"
+        );
+    } else {
+        let print_withdrawal_cmd = |outpoint: &_| {
+            println!(
+                "clementine-cli withdrawal generate-withdrawal-signature --network {} {} {} {} {}",
+                config.network,
+                &signer_address.address_with_prefix(),
+                claim_address,
+                outpoint,
+                config.optimistic_withdrawal_amount.to_btc()
+            );
+        };
+        let print_operator_note = || {
+            println!(
+                "{} For operator-paid withdrawals, use the amount {}",
+                "Important Note".bold(),
+                config.operator_withdrawal_amount.to_btc()
+            )
+        };
+        if utxos.len() == 1 {
+            println!("Run:");
+            let (outpoint, _) = &utxos[0];
+            print_withdrawal_cmd(outpoint);
+            print_operator_note();
+        } else {
+            println!(
+                "{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation",
+                "WARNING".bold()
+            );
+            println!(
+                "{} For your security: Use a unique signer address for each withdrawal.",
+                "IMPORTANT NOTICE!".bold()
+            );
+            println!("Run one of these:");
+            for (outpoint, _) in utxos.iter() {
+                print_withdrawal_cmd(outpoint);
+                println!()
+            }
+            print_operator_note();
+        }
+    }
+
     Ok(())
 }

@@ -26,6 +26,7 @@ pub use address::Purpose;
 pub use address::parse_address;
 pub use address::parse_taproot_address;
 pub use address::print_all_wallets_with_addresses;
+pub use address::should_not_have_purpose;
 
 use bip39::Mnemonic;
 use bitcoin::Network;
