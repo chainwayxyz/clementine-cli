@@ -118,7 +118,6 @@ pub fn create_signed_recovery_tx(
     amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
-    
     ensure_wallet_exists(recovery_taproot_address)?;
     // Always prompt for passphrase for maximum security
     let secure_passphrase = prompt_unlock_passphrase()?;
