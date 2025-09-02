@@ -11,7 +11,7 @@ use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params, prepare_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::{address_exists, load_key};
+use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, load_key};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -34,6 +34,8 @@ pub fn generate_withdrawal_signature(
     amount: &Amount,
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
+    ensure_wallet_exists(signer_address)?;
+
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch {
             expected: Purpose::Withdrawal,

@@ -5,6 +5,7 @@ aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc223
 
 user_takes_after = 200
 bridge_amount = 1000000000
+optimistic_withdrawal_amount = 1000000000
 operator_withdrawal_amount = 997000000 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
@@ -27,6 +28,7 @@ aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc223
 
 user_takes_after = 200
 bridge_amount = 1000000000
+optimistic_withdrawal_amount = 1000000000
 operator_withdrawal_amount = 997000000 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
@@ -49,6 +51,7 @@ aggregated_public_key = "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093
 
 user_takes_after = 200
 bridge_amount = 1000000000
+optimistic_withdrawal_amount = 1000000000
 operator_withdrawal_amount = 997000000 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
@@ -72,6 +75,7 @@ aggregated_public_key = "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f
 
 user_takes_after = 200
 bridge_amount = 1000000000
+optimistic_withdrawal_amount = 1000000000
 operator_withdrawal_amount = 997000000 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 

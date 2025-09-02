@@ -568,22 +568,39 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         if utxos.is_empty() {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
-                        } else if utxos.len() == 1 {
-                            let (outpoint, _) = &utxos[0];
-                            println!("Run:");
-                            println!("clementine-cli withdrawal --network {} generate-withdrawal-signature {} {} {} {}",
-                                config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.operator_withdrawal_amount.to_btc());
-                            println!("inside your airgapped pc");
                         } else {
-                            println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
-                            println!(
-                                "{} For your security: Use a unique signer address for each withdrawal.",
-                                "IMPORTANT NOTICE!".bold()
+                            let print_withdrawal_cmd = |outpoint: &_| {
+                                println!(
+                                    "clementine-cli withdrawal generate-withdrawal-signature --network {} {} {} {} {}",
+                                    config.network,
+                                    &signer_address.address_with_prefix(),
+                                    claim_address,
+                                    outpoint,
+                                    config.optimistic_withdrawal_amount.to_btc()
+                                );
+                            };
+                            let print_operator_note = || println!(
+                                "{} For operator-paid withdrawals, use the amount {}",
+                                "Important Note".bold(),
+                                config.operator_withdrawal_amount.to_btc()
                             );
-                            println!("Run one of these:");
-                            for (outpoint, _) in utxos.iter() {
-                                println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} {}",
-                                    config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.operator_withdrawal_amount.to_btc());
+                            if utxos.len() == 1 {
+                                println!("Run:");
+                                let (outpoint, _) = &utxos[0];
+                                print_withdrawal_cmd(outpoint);
+                                print_operator_note();
+                            } else {
+                                println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
+                                println!(
+                                    "{} For your security: Use a unique signer address for each withdrawal.",
+                                    "IMPORTANT NOTICE!".bold()
+                                );
+                                println!("Run one of these:");
+                                for (outpoint, _) in utxos.iter() {
+                                    print_withdrawal_cmd(outpoint);
+                                    println!()
+                                }
+                                print_operator_note();
                             }
                         }
                     }
