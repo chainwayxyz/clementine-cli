@@ -3,6 +3,7 @@ use bitcoin::{
 };
 use clap::{Parser, Subcommand};
 use clementine_cli::errors::PrintErr;
+use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress,
     cli::{
@@ -507,7 +508,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Use wrap_err to preserve inner error location and context
 
-                Purpose::should_not_have_purpose(&claim_address).inspect_err(|_| {
+                should_not_have_purpose(&claim_address).inspect_err(|_| {
                     eprintln!("Invalid claim address: {}", claim_address.bold());
                 })?;
 
@@ -539,7 +540,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                Purpose::should_not_have_purpose(&claim_address).inspect_err(|_| {
+                should_not_have_purpose(&claim_address).inspect_err(|_| {
                     eprintln!("Invalid claim address: {}", claim_address.bold());
                 })?;
 
@@ -617,7 +618,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)
                         .print_err()?;
 
-                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
 
@@ -659,7 +660,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
 
@@ -699,7 +700,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                Purpose::should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
+                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
 

@@ -66,15 +66,6 @@ impl Purpose {
             _ => Err(BridgeCliError::InvalidPrefix(s.to_string())),
         }
     }
-
-    pub fn should_not_have_purpose(address: &str) -> Result<(), BridgeCliError> {
-        address.get(0..3).map_or(Ok(()), |prefix| match prefix {
-            DEPOSIT_PREFIX | WITHDRAWAL_PREFIX => Err(BridgeCliError::AddressShouldNotHavePrefix(
-                address.to_string(),
-            )),
-            _ => Ok(()),
-        })
-    }
 }
 
 /// Generate a Bitcoin address from a mnemonic phrase
@@ -205,6 +196,15 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     print_wallet_section("Wallets on Bitcoin mainnet:", &mainnet)?;
 
     Ok(())
+}
+
+pub fn should_not_have_purpose(address: &str) -> Result<(), BridgeCliError> {
+    address.get(0..3).map_or(Ok(()), |prefix| match prefix {
+        DEPOSIT_PREFIX | WITHDRAWAL_PREFIX => Err(BridgeCliError::AddressShouldNotHavePrefix(
+            address.to_string(),
+        )),
+        _ => Ok(()),
+    })
 }
 
 #[cfg(test)]
