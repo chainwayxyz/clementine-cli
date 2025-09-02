@@ -22,6 +22,18 @@ pub const WITHDRAWAL_UTXO_AMOUNT: u64 = 330;
 pub const DUST_THRESHOLD_SATS: u64 = 546;
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
+// Bridge contract constants
+pub const DEFAULT_BRIDGE_CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
+pub const DEPOSIT_AMOUNT_IN_HEX: &str = "0x8AC7230489E80000";
+
+/// Convert optional BTC amount to optional Amount (reduces duplication)
+pub fn convert_btc_to_amount(btc_amount: Option<f64>) -> Result<Option<Amount>, BridgeCliError> {
+    match btc_amount {
+        Some(btc) => Ok(Some(Amount::from_btc(btc)?)),
+        None => Ok(None),
+    }
+}
+
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
 pub(crate) fn calculate_deposit_address(
     citrea_address: &CitreaAddress,

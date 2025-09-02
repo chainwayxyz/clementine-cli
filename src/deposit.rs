@@ -1,17 +1,38 @@
 // Deposit-related commands and logic for Clementine CLI
 
+use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::calculate_deposit_address;
 use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
+use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
-use crate::withdrawal::{get_tx_details, get_txout_details};
+use crate::wallet::wallet_utils::{load_key_with_purpose_check, validate_address_purpose};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
+
+/// Parameters for creating a signed recovery transaction
+#[derive(Debug)]
+pub struct RecoveryTxParams {
+    pub citrea_addr: CitreaAddress,
+    pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    pub outpoint: OutPoint,
+    pub claim_addr: BitcoinAddress,
+    pub fee_rate: Option<u64>,
+    pub amount: Option<f64>,
+}
+
+/// Parameters for verifying a recovery transaction
+#[derive(Debug)]
+pub struct VerifyRecoveryTxParams {
+    pub recovery_tx: Transaction,
+    pub citrea_address: CitreaAddress,
+    pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    pub amount: Option<f64>,
+}
 
 /// Get deposit address from backend
 pub async fn get_deposit_address(
@@ -75,36 +96,24 @@ pub async fn get_deposit_params(
 
 /// Creates a signed raw transaction that can collect unminted funds from the
 /// deposit transaction after 200 blocks.
-#[allow(clippy::too_many_arguments)]
 pub fn create_signed_recovery_tx(
-    citrea_addr: &CitreaAddress,
-    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    outpoint: &OutPoint,
-    claim_addr: &BitcoinAddress,
-    fee_rate: Option<u64>,
-    amount: Option<f64>,
+    params: RecoveryTxParams,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     // Always prompt for passphrase for maximum security
-    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
-        recovery_taproot_address,
-        Purpose::Deposit,
-    )?;
+    let keypair = load_key_with_purpose_check(&params.recovery_taproot_address, Purpose::Deposit)?;
 
     // Convert BTC amount to satoshis if provided
-    let deposit_amount = match amount {
-        Some(btc) => Some(Amount::from_btc(btc)?),
-        None => None,
-    };
+    let deposit_amount = convert_btc_to_amount(params.amount)?;
 
-    let fee_rate_opt = fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
+    let fee_rate_opt = params.fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
     let signed_tx = utils_sign_recovery_tx(
         &keypair,
-        citrea_addr,
-        &recovery_taproot_address.address,
-        outpoint,
+        &params.citrea_addr,
+        &params.recovery_taproot_address.address,
+        &params.outpoint,
         deposit_amount,
-        claim_addr,
+        &params.claim_addr,
         fee_rate_opt,
         config,
     )?;
@@ -112,24 +121,17 @@ pub fn create_signed_recovery_tx(
     Ok(signed_tx)
 }
 
-#[allow(clippy::too_many_arguments)]
 pub fn verify_recovery_tx(
-    recovery_tx: &Transaction,
-    citrea_address: &CitreaAddress,
-    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    amount: Option<f64>,
+    params: VerifyRecoveryTxParams,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
-    crate::wallet::wallet_utils::validate_address_purpose(
-        recovery_taproot_address,
-        Purpose::Deposit,
-    )?;
+    validate_address_purpose(&params.recovery_taproot_address, Purpose::Deposit)?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
-        recovery_tx,
-        citrea_address,
-        &recovery_taproot_address.address,
-        amount.map(|amount| Amount::from_btc(amount).unwrap()),
+        &params.recovery_tx,
+        &params.citrea_address,
+        &params.recovery_taproot_address.address,
+        convert_btc_to_amount(params.amount)?,
         config,
     )?;
 

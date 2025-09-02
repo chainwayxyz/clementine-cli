@@ -6,6 +6,7 @@ use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+mod api_utils;
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;

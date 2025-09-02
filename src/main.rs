@@ -377,12 +377,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 handle_cli_command!(
                     deposit::create_signed_recovery_tx(
-                        &citrea_address,
-                        &recovery_taproot_address,
-                        &deposit_utxo_outpoint,
-                        &claim_address,
-                        fee_rate,
-                        amount,
+                        deposit::RecoveryTxParams {
+                            citrea_addr: citrea_address,
+                            recovery_taproot_address,
+                            outpoint: deposit_utxo_outpoint,
+                            claim_addr: claim_address,
+                            fee_rate,
+                            amount,
+                        },
                         &config,
                     ),
                     tx => {
@@ -404,10 +406,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )?;
                 handle_cli_command!(
                     deposit::verify_recovery_tx(
-                        &recovery_tx,
-                        &citrea_address,
-                        &recovery_taproot_address,
-                        amount,
+                        deposit::VerifyRecoveryTxParams {
+                            recovery_tx,
+                            citrea_address,
+                            recovery_taproot_address,
+                            amount,
+                        },
                         &config,
                     ),
                     (txid, address, amount) => {
@@ -575,11 +579,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdrawal::send_safe_withdrawal(
-                        &signer_address,
-                        &withdrawal_address,
-                        &withdrawal_outpoint,
-                        &withdrawal_amount,
-                        &sig,
+                        withdrawal::SafeWithdrawalParams {
+                            signer_address,
+                            withdrawal_address,
+                            withdrawal_outpoint,
+                            withdrawal_amount,
+                            signature: sig,
+                        },
                         &config,
                     ),
                     result => {
