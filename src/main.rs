@@ -203,6 +203,8 @@ enum DepositCommands {
     BroadcastRecoveryTx {
         /// Hex encoded raw transaction.
         raw_tx: String,
+        #[arg(long)]
+        network: Network,
     },
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
@@ -477,8 +479,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
             }
-            DepositCommands::BroadcastRecoveryTx { raw_tx } => {
-                // handle_cli_command!(async deposit::broadcast_recovery_tx(config, raw_tx));
+            DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+
+                handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
+                    println!("{}", txid);
+                });
             }
             DepositCommands::GetDepositParams {
                 move_to_vault_txid,

@@ -184,6 +184,12 @@ pub async fn broadcast_recovery_tx(
 ) -> Result<Txid, BridgeCliError> {
     let mempool_api_txid =
         broadcast_recovery_tx_with_mempool(config.mempool_api_url.clone(), raw_tx.clone()).await;
+    match mempool_api_txid {
+        Ok(txid) => return Ok(txid),
+        Err(ref e) => tracing::warn!(
+            "Can't broadcast tx using Mempool API: {e}. Trying to do with Bitcoin RPC..."
+        ),
+    };
 
     let rpc = config.connect_to_bitcoin_rpc().await?;
     let txid = rpc.send_raw_transaction(raw_tx).await.map_err(|btc_err| {
@@ -292,12 +298,13 @@ mod tests {
     #[ignore = "No utils present to make this a regular test, run manually"]
     async fn send_raw_tx_btc_cli() {
         let mut config = BridgeCliConfig::from_network(bitcoin::Network::Regtest);
-        // Change this to your own env.
+        // WARNING: Change this to your own env.
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:18982/").unwrap(),
             password: SecretString::from("admin".to_string()),
             user: SecretString::from("admin".to_string()),
         });
+        // Needs to be invalid.
         config.mempool_api_url = Url::from_str("http://127.0.0.1").unwrap();
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
