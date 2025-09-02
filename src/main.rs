@@ -200,7 +200,7 @@ enum WithdrawalCommands {
     GenerateWithdrawalSignature {
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo: String,
+        withdrawal_utxo_outpoint: String,
         amount: f64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
@@ -473,10 +473,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eprintln!("No UTXOs found. Please send {} sats first using 'withdrawal start' command", clementine_cli::WITHDRAWAL_UTXO_AMOUNT);
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
-                            println!("Then run:");
+                            println!("Run:");
                             println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
                                 config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
-                            println!("inside your airgapped pc");
+                            println!("to generate the withdrawal signature on your airgapped device");
                         } else {
                             println!("WARNING: Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation");
                             println!("Run one of these:");
@@ -484,7 +484,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} 9.9",
                                     config.network, &signer_address.address_with_prefix(), claim_address, outpoint);
                             }
-                            println!("to generate withdrawal signature inside your airgapped pc");
+                            println!("to generate the withdrawal signature on your airgapped device");
                         }
                     }
                 );
@@ -492,7 +492,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::GenerateWithdrawalSignature {
                 signer_address,
                 withdrawal_address,
-                withdrawal_utxo,
+                withdrawal_utxo_outpoint,
                 amount,
             } => {
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
@@ -500,7 +500,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.network,
                 )?;
                 let claim_address = parse_address(&withdrawal_address, config.network)?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_utxo_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
@@ -510,7 +510,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal::generate_withdrawal_signature(
                         &signer_address,
                         &claim_address,
-                        &withdrawal_outpoint,
+                        &withdrawal_utxo_outpoint,
                         &amount,
                         config.network,
                     ),
@@ -519,6 +519,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "Withdrawal signature hex: {}",
                             serialize_and_encode(signature)
                         );
+                        println!("Now run:");
+                        println!("clementine-cli --network {} withdrawal safe-withdraw {} {} {} {} {}",
+                            config.network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
+                        println!("on your online device to initiate withdrawal process on the Citrea network");
                     }
                 );
             }
