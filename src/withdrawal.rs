@@ -2,7 +2,7 @@
 
 use crate::BitcoinAddress;
 use crate::bitcoin_utils::{
-    sign_withdrawal_signature, utxos_from_mempool_api, verify_withdrawal_signature,
+    sign_withdrawal_signature, utxos_from_mempool_space_api, verify_withdrawal_signature,
 };
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
@@ -452,7 +452,7 @@ async fn get_utxos_from_mempool(
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
     use std::str::FromStr;
 
-    let utxos = utxos_from_mempool_api(&address.address, config)
+    let utxos = utxos_from_mempool_space_api(&address.address, config)
         .await
         .map_err(|e| -> BridgeCliError {
             eyre::eyre!(

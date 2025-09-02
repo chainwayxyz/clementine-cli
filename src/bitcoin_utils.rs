@@ -420,7 +420,7 @@ pub(crate) fn verify_withdrawal_signature(
     Ok(())
 }
 
-pub async fn utxos_from_mempool_api(
+pub async fn utxos_from_mempool_space_api(
     taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<Utxo>, BridgeCliError> {
@@ -436,11 +436,11 @@ pub async fn utxos_from_mempool_api(
 pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
     match config.bitcoin_config {
         Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
-        _ => get_current_block_height_from_mempool_api(config).await,
+        _ => get_current_block_height_from_mempool_space_api(config).await,
     }
 }
 
-async fn get_current_block_height_from_mempool_api(
+async fn get_current_block_height_from_mempool_space_api(
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
     let url = config

@@ -16,7 +16,7 @@ use crate::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
-    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_api},
+    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_space_api},
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
@@ -169,7 +169,7 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let mut utxos = utxos_from_mempool_api(&taproot_address, config).await?;
+    let mut utxos = utxos_from_mempool_space_api(&taproot_address, config).await?;
     utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
     let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
         .iter()
