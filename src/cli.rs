@@ -259,8 +259,8 @@ pub async fn deposit_create_signed_recovery_tx(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     outpoint: &OutPoint,
     claim_addr: &BitcoinAddress,
-    fee_rate: Option<u64>,
-    amount: Option<f64>,
+    fee_rate: u64,
+    amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     // Always prompt for passphrase for maximum security

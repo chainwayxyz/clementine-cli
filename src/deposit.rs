@@ -18,6 +18,34 @@ use eyre::Context;
 use eyre::Result;
 use url::Url;
 
+pub(crate) enum DepositStatusEnum {
+    New,
+    InProgress,
+    Completed,
+    Unknown,
+}
+
+impl DepositStatusEnum {
+    pub(crate) fn from_backend_status(status: &str) -> Self {
+        match status {
+            "new" => DepositStatusEnum::New,
+            "minted" => DepositStatusEnum::Completed,
+            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" | "sent" => {
+                DepositStatusEnum::InProgress
+            }
+            _ => DepositStatusEnum::Unknown,
+        }
+    }
+    pub fn as_string(&self) -> String {
+        match self {
+            DepositStatusEnum::New => "New".to_string(),
+            DepositStatusEnum::InProgress => "In Progress".to_string(),
+            DepositStatusEnum::Completed => "Completed".to_string(),
+            DepositStatusEnum::Unknown => "Unknown".to_string(),
+        }
+    }
+}
+
 /// Get deposit address from backend
 pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
