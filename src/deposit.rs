@@ -135,7 +135,8 @@ pub fn create_signed_recovery_tx(
     // Convert BTC amount to satoshis if provided
     let deposit_amount = convert_btc_to_amount(params.amount)?;
 
-    let fee_rate = params.fee_rate
+    let fee_rate = params
+        .fee_rate
         .map(FeeRate::from_sat_per_vb_unchecked)
         .unwrap_or_else(|| FeeRate::from_sat_per_vb_unchecked(10)); // Default 10 sat/vbyte
 

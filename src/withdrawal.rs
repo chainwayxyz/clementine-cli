@@ -3,8 +3,7 @@
 use crate::BitcoinAddress;
 use crate::api_utils::get_tx_details;
 use crate::bitcoin_utils::{
-    DEFAULT_BRIDGE_CONTRACT_ADDRESS, DEPOSIT_AMOUNT_IN_HEX, 
-    sign_withdrawal_signature,
+    DEFAULT_BRIDGE_CONTRACT_ADDRESS, DEPOSIT_AMOUNT_IN_HEX, sign_withdrawal_signature,
     utxos_from_mempool_space_api, verify_withdrawal_signature,
 };
 use crate::config::BridgeCliConfig;
@@ -323,11 +322,11 @@ async fn get_utxos_from_mempool(
         })?;
 
     let mut result = Vec::new();
-    
+
     for utxo in utxos {
         if utxo.value == crate::bitcoin_utils::WITHDRAWAL_UTXO_AMOUNT {
-            let txid =
-                bitcoin::Txid::from_str(&utxo.txid).map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
+            let txid = bitcoin::Txid::from_str(&utxo.txid)
+                .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
             result.push(UtxoInfo {
                 txid,
                 vout: utxo.vout,
