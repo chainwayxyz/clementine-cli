@@ -41,8 +41,10 @@ pub fn generate_withdrawal_signature(
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
 
-    let keypair =
-        crate::bitcoin_utils::load_key_with_purpose_check(signer_address, Purpose::Withdrawal)?;
+    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
+        signer_address,
+        Purpose::Withdrawal,
+    )?;
 
     let signature = sign_withdrawal_signature(
         &keypair,
@@ -169,7 +171,7 @@ pub async fn safe_withdraw(
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
 ) -> Result<String, BridgeCliError> {
-    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
+    crate::wallet::wallet_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
         value: *withdrawal_amount,
@@ -185,13 +187,8 @@ pub async fn safe_withdraw(
         *withdrawal_amount,
     )?;
 
-    let params = crate::bitcoin_utils::prepare_withdrawal_params(
-        withdrawal_outpoint,
-        &payout_output,
-        sig,
-        config,
-    )
-    .await?;
+    let params =
+        prepare_withdrawal_params(withdrawal_outpoint, &payout_output, sig, config).await?;
 
     let calldata_hex =
         encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
@@ -249,7 +246,7 @@ pub async fn send_safe_withdrawal(
         .wallet(EthereumWallet::from(key))
         .connect_http(config.citrea_rpc_url.clone());
 
-    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
+    crate::wallet::wallet_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
         value: *withdrawal_amount,
@@ -265,13 +262,8 @@ pub async fn send_safe_withdrawal(
         *withdrawal_amount,
     )?;
 
-    let params = crate::bitcoin_utils::prepare_withdrawal_params(
-        withdrawal_outpoint,
-        &payout_output,
-        sig,
-        config,
-    )
-    .await?;
+    let params =
+        prepare_withdrawal_params(withdrawal_outpoint, &payout_output, sig, config).await?;
 
     let bridge_contract_address = "0x3100000000000000000000000000000000000002";
     let contract = BRIDGE_CONTRACT::new(
@@ -301,7 +293,7 @@ pub(crate) fn start_withdrawal(
     _claim_address: &BitcoinAddress,
     _config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
+    crate::wallet::wallet_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
     Ok(())
 }
 
@@ -310,7 +302,7 @@ pub async fn scan_withdrawal(
     _claim_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
-    crate::bitcoin_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
+    crate::wallet::wallet_utils::validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let utxos = get_utxos_for_address(signer_address, config).await?;
     let mut results = Vec::new();
@@ -431,4 +423,43 @@ async fn get_utxos_from_mempool(
     }
 
     Ok(result)
+}
+
+/// Common withdrawal parameter preparation pattern (reduces major duplication)  
+pub async fn prepare_withdrawal_params(
+    withdrawal_outpoint: &OutPoint,
+    payout_output: &TxOut,
+    sig: &bitcoin::taproot::Signature,
+    config: &BridgeCliConfig,
+) -> Result<
+    (
+        crate::types::Transaction,
+        crate::types::MerkleProof,
+        crate::types::Transaction,
+        alloy::sol_types::private::Bytes,
+        alloy::sol_types::private::Bytes,
+    ),
+    BridgeCliError,
+> {
+    // Get the prepare tx details
+    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+        get_tx_details(&withdrawal_outpoint.txid, config).await?;
+
+    let params = crate::parameters::get_citrea_safe_withdraw_params(
+        withdrawal_outpoint,
+        payout_output,
+        sig,
+        &prepare_tx,
+        &prepare_tx_block,
+        prepare_tx_block_height,
+    )?;
+
+    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
+    Ok(crate::types::prepare_safe_withdraw_params(
+        &prepare_tx,
+        &prepare_proof,
+        &payout_tx_params,
+        &block_header,
+        &output_script_pk,
+    ))
 }

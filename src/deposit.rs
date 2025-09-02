@@ -19,7 +19,10 @@ pub async fn get_deposit_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    crate::bitcoin_utils::validate_address_purpose(recovery_taproot_address, Purpose::Deposit)?;
+    crate::wallet::wallet_utils::validate_address_purpose(
+        recovery_taproot_address,
+        Purpose::Deposit,
+    )?;
 
     let (calculated_deposit_address, _) =
         calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
@@ -83,7 +86,7 @@ pub fn create_signed_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
     // Always prompt for passphrase for maximum security
-    let keypair = crate::bitcoin_utils::load_key_with_purpose_check(
+    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         recovery_taproot_address,
         Purpose::Deposit,
     )?;
@@ -117,7 +120,10 @@ pub fn verify_recovery_tx(
     amount: Option<f64>,
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
-    crate::bitcoin_utils::validate_address_purpose(recovery_taproot_address, Purpose::Deposit)?;
+    crate::wallet::wallet_utils::validate_address_purpose(
+        recovery_taproot_address,
+        Purpose::Deposit,
+    )?;
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
         recovery_tx,

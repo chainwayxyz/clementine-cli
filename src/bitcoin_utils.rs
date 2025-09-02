@@ -390,39 +390,6 @@ pub(crate) fn verify_withdrawal_signature(
     Ok(())
 }
 
-/// Utility functions to reduce common patterns
-///
-/// Validate address purpose (reduces validation duplication)
-pub fn validate_address_purpose<T>(
-    address: &crate::structs::TaprootAddressWithPrefix<T>,
-    expected_purpose: crate::wallet::Purpose,
-) -> Result<(), BridgeCliError>
-where
-    T: bitcoin::address::NetworkValidation,
-{
-    if address.purpose != expected_purpose {
-        return Err(BridgeCliError::PurposeMismatch {
-            expected: expected_purpose,
-            found: address.purpose,
-        });
-    }
-    Ok(())
-}
-
-/// Load a key with purpose validation and passphrase prompt
-pub fn load_key_with_purpose_check<T>(
-    address: &crate::structs::TaprootAddressWithPrefix<T>,
-    expected_purpose: crate::wallet::Purpose,
-) -> Result<SecureKeypair, BridgeCliError>
-where
-    T: bitcoin::address::NetworkValidation,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
-{
-    validate_address_purpose(address, expected_purpose)?;
-    let secure_passphrase = crate::wallet::passphrase::prompt_unlock_passphrase()?;
-    crate::wallet::wallet_utils::load_key(address, &secure_passphrase)
-}
-
 /// Create a sighash for withdrawal transactions (reduces duplication)
 fn create_withdrawal_sighash(
     withdrawal_tx: &Transaction,
@@ -461,45 +428,6 @@ fn create_recovery_script_for_address(
 ) -> Result<ScriptBuf, BridgeCliError> {
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
     Ok(recover_script(recovery_key, user_takes_after as u64))
-}
-
-/// Common withdrawal parameter preparation pattern (reduces major duplication)  
-pub async fn prepare_withdrawal_params(
-    withdrawal_outpoint: &OutPoint,
-    payout_output: &TxOut,
-    sig: &bitcoin::taproot::Signature,
-    config: &BridgeCliConfig,
-) -> Result<
-    (
-        crate::types::Transaction,
-        crate::types::MerkleProof,
-        crate::types::Transaction,
-        alloy::sol_types::private::Bytes,
-        alloy::sol_types::private::Bytes,
-    ),
-    BridgeCliError,
-> {
-    // Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
-        crate::withdrawal::get_tx_details(&withdrawal_outpoint.txid, config).await?;
-
-    let params = crate::parameters::get_citrea_safe_withdraw_params(
-        withdrawal_outpoint,
-        payout_output,
-        sig,
-        &prepare_tx,
-        &prepare_tx_block,
-        prepare_tx_block_height,
-    )?;
-
-    let (prepare_tx, prepare_proof, payout_tx_params, block_header, output_script_pk) = params;
-    Ok(crate::types::prepare_safe_withdraw_params(
-        &prepare_tx,
-        &prepare_proof,
-        &payout_tx_params,
-        &block_header,
-        &output_script_pk,
-    ))
 }
 
 #[cfg(test)]
