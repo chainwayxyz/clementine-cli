@@ -209,7 +209,7 @@ async fn broadcast_recovery_tx_with_mempool(
     let client = reqwest::Client::new();
 
     let url = mempool_url
-        .join(&format!("tx"))
+        .join("tx")
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
 
     let response = client.post(url.as_str()).body(raw_tx).send().await?;
@@ -287,11 +287,10 @@ mod tests {
             .sign_raw_transaction_with_wallet(&funded_tx.transaction().unwrap(), None, None)
             .await
             .unwrap();
-        let raw_tx = hex::encode(bitcoin::consensus::serialize(
-            &signed_tx.transaction().unwrap(),
-        ));
 
-        raw_tx
+        hex::encode(bitcoin::consensus::serialize(
+            &signed_tx.transaction().unwrap(),
+        ))
     }
 
     #[tokio::test]
