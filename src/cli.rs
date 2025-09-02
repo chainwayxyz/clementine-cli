@@ -184,10 +184,8 @@ pub async fn deposit_status(
         );
     }
 
-    let refund_message_default = "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.";
     let current_block_height = get_current_block_height(config).await?;
 
-    // Helper closure for refund logic
     let refund_info = |block_height: Option<u64>, move_txid_empty: bool| {
         let refund_in_blocks = block_height.and_then(|h| {
             h.checked_add(config.user_takes_after)
@@ -195,8 +193,9 @@ pub async fn deposit_status(
         });
         if move_txid_empty {
             match refund_in_blocks {
-                Some(0) | None => refund_message_default.to_string(),
+                Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
+                None => "Refund information not available.".to_string(),
             }
         } else {
             String::new()
@@ -218,7 +217,7 @@ pub async fn deposit_status(
             is_confirmed_display(utxo.status.confirmed),
         );
     }
-    
+
     if !deposits_with_incorrect_amount.is_empty() {
         println!();
     }
