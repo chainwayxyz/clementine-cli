@@ -184,7 +184,6 @@ pub async fn deposit_status(
         );
     }
     let current_block_height = get_current_block_height(config).await?;
-    let mut wrong_deposit_amount_idx = 1;
     for utxo in deposits_with_incorrect_amount.iter() {
         let refund_in_blocks = utxo.status.block_height.and_then(|utxo_block_height| {
             utxo_block_height
@@ -208,17 +207,13 @@ pub async fn deposit_status(
             .map(|blocks| blocks.to_string())
             .unwrap_or_else(|| "N/A".to_string());
 
-        println!(
-            "{}. Incorrect Deposit -> Tx id: {}, Value: {}, Block: {}, UTXO Status: {}, Refund in (approx.) blocks: {}",
-            wrong_deposit_amount_idx,
-            utxo.txid,
-            utxo.value,
-            block_display,
-            is_confirmed_display,
-            refund_in_blocks_display
-        );
+        let refund_message = if refund_in_blocks.is_some() && refund_in_blocks != Some(0) {
+            format!("\n  Refund in Blocks: {}", refund_in_blocks_display)
+        } else {
+            "\n  You can refund your deposit now using 'sign-recovery-tx' subcommand.".to_string()
+        };
 
-        wrong_deposit_amount_idx += 1;
+        print_incorrect_deposit(utxo, &refund_message, &block_display, &is_confirmed_display);
     }
 
     if !deposits_with_incorrect_amount.is_empty() {
@@ -242,7 +237,7 @@ pub async fn deposit_status(
         taproot_address
     );
 
-    for (i, status) in deposit_statuses_backend.iter().enumerate() {
+    for status in deposit_statuses_backend.iter() {
         let corresponding_utxo = utxos.iter().find(|utxo| utxo.txid == status.txid);
 
         let refund_in_blocks = if status.move_txid.is_empty() {
@@ -261,12 +256,17 @@ pub async fn deposit_status(
             let refund_blocks = refund_in_blocks
                 .map(|blocks| blocks.to_string())
                 .unwrap_or_else(|| "N/A".to_string());
-            format!(", Refund in (approx.) blocks: {}", refund_blocks)
+            if refund_in_blocks.is_some() && refund_in_blocks != Some(0) {
+                format!("\n  Refund in (approx.) blocks: {}", refund_blocks)
+            } else {
+                "\n  You can refund your deposit now using 'sign-recovery-tx' subcommand."
+                    .to_string()
+            }
         } else {
             "".to_string()
         };
 
-        println!("{}. {}{}", i + 1, status, refund_in_blocks_display);
+        println!("{} {}", status, refund_in_blocks_display);
     }
     Ok(())
 }
@@ -324,4 +324,16 @@ pub async fn send_withdrawal_signatures(
     )
     .await?;
     Ok(())
+}
+
+fn print_incorrect_deposit(
+    utxo: &Utxo,
+    refund_message: &str,
+    block_display: &str,
+    is_confirmed_display: &str,
+) {
+    println!(
+        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
+        utxo.txid, utxo.value, block_display, is_confirmed_display, refund_message
+    );
 }

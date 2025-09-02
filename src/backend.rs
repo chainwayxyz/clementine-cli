@@ -53,7 +53,7 @@ impl Display for DepositStatus {
         };
         write!(
             f,
-            "Deposit ID: {}, Status: {}, TXID: {}, EVM Address: {}, Move TXID: {}, Mint TXID: {}",
+            "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
             self.id, status, txid, evm_addr, move_txid, mint_txid
         )
     }
