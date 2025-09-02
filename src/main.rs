@@ -572,7 +572,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             let (outpoint, _) = &utxos[0];
                             println!("Run:");
                             println!("clementine-cli withdrawal --network {} generate-withdrawal-signature {} {} {} {}",
-                                config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.optimistic_withdrawal_amount.to_btc());
+                                config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.operator_withdrawal_amount.to_btc());
                             println!("inside your airgapped pc");
                         } else {
                             println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
@@ -583,7 +583,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             println!("Run one of these:");
                             for (outpoint, _) in utxos.iter() {
                                 println!("clementine-cli --network {} withdrawal generate-withdrawal-signature {} {} {} {}",
-                                    config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.optimistic_withdrawal_amount.to_btc());
+                                    config.network, &signer_address.address_with_prefix(), claim_address, outpoint, config.operator_withdrawal_amount.to_btc());
                             }
                         }
                     }

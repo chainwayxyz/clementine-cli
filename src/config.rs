@@ -51,7 +51,7 @@ pub struct BridgeCliConfig {
     pub citrea_backend_endpoint: Url,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
-    pub optimistic_withdrawal_amount: Amount,
+    pub operator_withdrawal_amount: Amount,
     pub bridge_contract_address: String,
     pub bitcoin_config: Option<BitcoinConfig>,
 }
@@ -208,7 +208,7 @@ impl Default for BridgeCliConfig {
             citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
-            optimistic_withdrawal_amount: Amount::from_sat(997000000),
+            operator_withdrawal_amount: Amount::from_sat(997000000),
             bridge_contract_address: "0x3100000000000000000000000000000000000002".to_string(),
             bitcoin_config: None,
         }
