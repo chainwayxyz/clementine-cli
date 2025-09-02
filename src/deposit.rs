@@ -9,8 +9,6 @@ use crate::parameters::get_citrea_deposit_params;
 use crate::structs::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
-use crate::wallet::passphrase::prompt_unlock_passphrase;
-use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::key::Keypair;
@@ -18,7 +16,6 @@ use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use bitcoincore_rpc::RpcApi;
 use eyre::Context;
 use eyre::Result;
-use serde_json::json;
 use url::Url;
 
 /// Get deposit address from backend
@@ -173,6 +170,7 @@ pub async fn broadcast_recovery_tx(
     Ok(txid)
 }
 
+/// Sends raw transaction to Bitcoin network using Mempool API.
 async fn broadcast_recovery_tx_with_mempool(
     mempool_url: Url,
     raw_tx: String,
@@ -183,40 +181,40 @@ async fn broadcast_recovery_tx_with_mempool(
         .join(&format!("tx"))
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
 
-    let response = client
-        .post(url.as_str())
-        .header("Content-Type", "application/text")
-        .body(raw_tx)
-        .send()
-        .await?;
-    println!("res {response:?}");
+    let response = client.post(url.as_str()).body(raw_tx).send().await?;
 
     if response.status().is_success() {
-        let response_body: serde_json::Value = response.json().await?;
-        println!(
+        let response_body = response.text().await?;
+        tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
         );
-        // parse the json and get the taproot_addr and parse it to an address
-        // let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
-        // let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
 
-        // Ok(taproot_addr)
+        // Convert endiannes.
+        let response_body: String = response_body
+            .as_bytes()
+            .chunks(2)
+            .rev()
+            .map(|c| std::str::from_utf8(c).unwrap())
+            .collect();
+
+        let txid: Txid =
+            bitcoin::consensus::deserialize(&hex::decode(response_body).unwrap()).unwrap();
+
+        Ok(txid)
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        println!("Deposit address request failed: {}", status);
-        println!("Error response: {}", error_text);
+        tracing::error!("Deposit address request failed: {}", status);
+        tracing::error!("Error response: {}", error_text);
 
-        // Err(eyre::eyre!(
-        //     "Backend request failed with status: {} {}",
-        //     status,
-        //     error_text
-        // )
-        // .into())
+        Err(eyre::eyre!(
+            "Can't send raw transaction using Mempool API: {} {}",
+            status,
+            error_text
+        )
+        .into())
     }
-
-    todo!()
 }
 
 #[cfg(test)]
@@ -225,11 +223,50 @@ mod tests {
         config::{BitcoinConfig, BridgeCliConfig},
         deposit::broadcast_recovery_tx,
     };
-    use bitcoin::{Amount, OutPoint, Transaction, TxIn, TxOut, transaction::Version};
-    use bitcoincore_rpc::RpcApi;
+    use bitcoin::{
+        Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
+    };
+    use bitcoincore_rpc::{Client, RpcApi};
     use secrecy::SecretString;
     use std::str::FromStr;
     use url::Url;
+
+    async fn create_raw_tx(
+        rpc: Client,
+        input_txid: Txid,
+        vout: u32,
+        address: Address,
+        amount: Amount,
+    ) -> String {
+        let txin = TxIn {
+            previous_output: OutPoint {
+                txid: input_txid,
+                vout,
+            },
+            ..Default::default()
+        };
+        let txout = TxOut {
+            value: amount,
+            script_pubkey: address.script_pubkey(),
+        };
+        let tx = Transaction {
+            version: Version::TWO,
+            lock_time: bitcoin::absolute::LockTime::ZERO,
+            input: vec![txin],
+            output: vec![txout],
+        };
+
+        let funded_tx = rpc.fund_raw_transaction(&tx, None, None).await.unwrap();
+        let signed_tx = rpc
+            .sign_raw_transaction_with_wallet(&funded_tx.transaction().unwrap(), None, None)
+            .await
+            .unwrap();
+        let raw_tx = hex::encode(bitcoin::consensus::serialize(
+            &signed_tx.transaction().unwrap(),
+        ));
+
+        raw_tx
+    }
 
     #[tokio::test]
     #[ignore = "No utils present to make this a regular test, run manually"]
@@ -251,7 +288,7 @@ mod tests {
             .assume_checked();
         rpc.generate_to_address(101, &address).await.unwrap();
 
-        let in_txid = rpc
+        let input_txid = rpc
             .send_to_address(
                 &address,
                 Amount::from_int_btc(1),
@@ -265,136 +302,63 @@ mod tests {
             .await
             .unwrap();
 
-        let txin = TxIn {
-            previous_output: OutPoint {
-                txid: in_txid,
-                vout: 0,
-            },
-            ..Default::default()
-        };
-        let txout = TxOut {
-            value: Amount::from_btc(0.9).unwrap(),
-            script_pubkey: address.script_pubkey(),
-        };
-        let tx = Transaction {
-            version: Version::TWO,
-            lock_time: bitcoin::absolute::LockTime::ZERO,
-            input: vec![txin],
-            output: vec![txout],
-        };
+        let raw_tx =
+            create_raw_tx(rpc, input_txid, 0, address, Amount::from_btc(0.9).unwrap()).await;
 
-        let funded_tx = rpc.fund_raw_transaction(&tx, None, None).await.unwrap();
-        let signed_tx = rpc
-            .sign_raw_transaction_with_wallet(&funded_tx.transaction().unwrap(), None, None)
+        let txid = broadcast_recovery_tx(&config, raw_tx.clone())
             .await
             .unwrap();
-        let raw_tx = hex::encode(bitcoin::consensus::serialize(
-            &signed_tx.transaction().unwrap(),
-        ));
+        assert_eq!(
+            txid,
+            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
+                .unwrap()
+                .compute_txid()
+        );
+    }
 
-        let txid = broadcast_recovery_tx(&config, raw_tx).await.unwrap();
-        assert_eq!(txid, signed_tx.transaction().unwrap().compute_txid());
+    #[tokio::test]
+    #[ignore = "No utils present to make this a regular test, run manually"]
+    async fn broadcast_recovery_tx_with_mempool() {
+        color_eyre::install().expect("Failed to install color-eyre");
+
+        let mut config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
+        config.bitcoin_config = Some(BitcoinConfig {
+            url: Url::parse("http://localhost:22443/").unwrap(),
+            password: SecretString::from("admin".to_string()),
+            user: SecretString::from("admin".to_string()),
+        });
+
+        let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
+
+        let address = rpc
+            .get_new_address(None, None)
+            .await
+            .unwrap()
+            .assume_checked();
+        println!("Address: {address:?}");
+
+        // WARNING: CHANGE TXID TO ONE OF YOUR OWN
+        let input_txid = Txid::from_str("").unwrap();
+
+        let raw_tx = create_raw_tx(
+            rpc,
+            input_txid,
+            0,
+            address,
+            Amount::from_btc(0.009).unwrap(), // WARNING: UPDATE SENT AMOUNT DEPENDING ON THE INPUT UTXO
+        )
+        .await;
+
+        let txid =
+            super::broadcast_recovery_tx_with_mempool(config.mempool_api_url, raw_tx.clone())
+                .await
+                .unwrap();
+
+        assert_eq!(
+            txid,
+            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
+                .unwrap()
+                .compute_txid()
+        );
     }
 }
-
-//     use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
-//     use crate::structs::TaprootAddressWithPrefix;
-//     use crate::wallet::address::generate_address_from_mnemonic;
-//     use crate::wallet::mnemonic::generate_mnemonic;
-//     use crate::{CitreaAddress, create_signed_recovery_tx};
-//     use bitcoin::Address;
-//     use bitcoin::consensus::Encodable;
-//     use bitcoin::hashes::Hash;
-//     use bitcoin::key::Keypair;
-//     use bitcoin::secp256k1::{Secp256k1, SecretKey};
-//     use bitcoin::{
-//         Amount, OutPoint, ScriptBuf, Transaction, TxIn, TxOut, Txid, transaction::Version,
-//     };
-//     use std::str::FromStr;
-
-// #[tokio::test]
-// async fn broadcast_recovery_tx_with_mempool() {
-//     let config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
-
-//     let citrea_addr = CitreaAddress::from_slice(&[01u8; 20]);
-//     let mnemonic = generate_mnemonic().unwrap();
-//     let recovery_taproot_address = generate_address_from_mnemonic(
-//         &mnemonic,
-//         bitcoin::Network::Testnet4,
-//         crate::wallet::Purpose::Deposit,
-//     )
-//     .unwrap();
-//     let outpoint = OutPoint {
-//         txid: Txid::from_str(
-//             "32f8a6943317aa22c06d8d5a4870858494810750e33c4968ba78a76abb157363",
-//         )
-//         .unwrap(),
-//         vout: 0,
-//     };
-
-//     let keypair = Keypair::from_secret_key(
-//         &Secp256k1::new(),
-//         &SecretKey::from_slice(&[1u8; 32]).unwrap(),
-//     );
-
-//     let x = create_signed_recovery_tx(
-//         &citrea_addr,
-//         &recovery_taproot_address,
-//         &outpoint,
-//         &recovery_taproot_address.address,
-//         keypair,
-//         None,
-//         None,
-//         &config,
-//     )
-//     .unwrap();
-//     let raw_tx = hex::encode(bitcoin::consensus::serialize(&x));
-
-//     super::broadcast_recovery_tx_with_mempool(config.mempool_api_url, raw_tx)
-//         .await
-//         .unwrap();
-// }
-
-// #[tokio::test]
-// async fn create_tx() {
-//     let config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
-
-//     let tx = "0200000001114d32a4780fc5ab1da93f7ff3d91b45f280a9eae94736c75f541e645e5391850000000000fdffffff0150c79a3b0000000016001450f49464b82fb00696108904b027276b23cf48ee00000000".to_string();
-//     let txx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx).unwrap()).unwrap();
-//     println!("{:?}", txx);
-
-//     // let address = Address::from_str("tb1q2r6fge9c97cqd9ss3yztqfe8dv3u7j8wtq6xc3")
-//     //     .unwrap()
-//     //     .assume_checked();
-//     // let v2_input_txid =
-//     //     Txid::from_str("tb1pyfaxye34e5jtmg868yj94359c3qsh2a8luvsxgc9nw4wuvdm2zhsnstdfz")
-//     //         .unwrap();
-//     // let amount = Amount::from_btc(0.001).unwrap();
-
-//     // let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
-
-//     // let txin = TxIn {
-//     //     previous_output: OutPoint {
-//     //         txid: v2_input_txid,
-//     //         vout: 1,
-//     //     },
-//     //     ..Default::default()
-//     // };
-//     // let txout = TxOut {
-//     //     value: amount,
-//     //     script_pubkey: address.script_pubkey(),
-//     // };
-
-//     // let tx = Transaction {
-//     //     version: Version::non_standard(3),
-//     //     input: vec![txin],
-//     //     output: vec![txout],
-//     //     lock_time: bitcoin::absolute::LockTime::ZERO,
-//     // };
-//     // let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
-
-//     // super::broadcast_recovery_tx_with_mempool(config.mempool_api_url, raw_tx)
-//     //     .await
-//     //     .unwrap();
-// }
-// }
