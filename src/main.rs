@@ -553,8 +553,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
                         } else if utxos.len() == 1 {
                             let (outpoint, _) = &utxos[0];
-                            println!("run \nwithdrawal generate-withdrawal-signature {} {} {} 9.9",
-                                &signer_address.address_with_prefix(), claim_address, outpoint);
+                            println!("run \nwithdrawal generate-withdrawal-signature {} {} {} {}",
+                                &signer_address.address_with_prefix(), claim_address, outpoint, config.optimistic_withdrawal_amount.to_btc());
                             println!("inside your airgapped pc");
                         } else {
                             println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
@@ -563,8 +563,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                                 "IMPORTANT NOTICE!".bold()
                             );
                             for (outpoint, _) in utxos.iter() {
-                                println!("Run: \nwithdrawal generate-withdrawal-signature {} {} {} 9.9",
-                                    &signer_address.address_with_prefix(), claim_address, outpoint);
+                                println!("\nRun: \nwithdrawal generate-withdrawal-signature {} {} {} {}",
+                                    &signer_address.address_with_prefix(), claim_address, outpoint, config.optimistic_withdrawal_amount.to_btc());
                             }
                         }
                     }
