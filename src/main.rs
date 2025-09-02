@@ -519,9 +519,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
                     _result => {
-                        println!("Send exactly 330 sats to {}", signer_address.address_without_prefix());
+                        println!("Send exactly 0.00000330 btc to {}", signer_address.address_without_prefix());
                         println!("Then run:");
-                        println!("clementine-cli --network {} withdrawal scan {} {}",
+                        println!("clementine-cli withdrawal scan --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), claim_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
@@ -552,11 +552,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         let utxos_with_wrong_amount: Vec<_> = utxos.iter().filter(|(_, amount)| *amount != Amount::from_sat(330)).collect();
 
                         if !utxos_with_wrong_amount.is_empty() {
-                            eprintln!("{} The following UTXOs have amounts different than 330 sats. They will be ignored for withdrawal operations.", "WARNING".bold());
+                            eprintln!("{} The following UTXOs have amounts different than 0.00000330 btc. They will be ignored for withdrawal operations.", "WARNING".bold());
                             for (outpoint, amount) in utxos_with_wrong_amount {
                                 eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
                             }
-                            eprintln!("Please ensure you send exactly 330 sats to the signer address for each withdrawal operation.");
+                            eprintln!("Please ensure you send exactly 0.00000330 btc to the signer address for each withdrawal operation.");
 
                             // sleep for 2 seconds to ensure user sees the warning
                             std::thread::sleep(std::time::Duration::from_secs(2));
@@ -567,7 +567,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         utxos.retain(|(_, amount)| *amount == Amount::from_sat(330));
 
                         if utxos.is_empty() {
-                            eprintln!("No UTXOs found. Please send 330 sats first using 'withdrawal start' command");
+                            eprintln!("No UTXOs found. Please send 0.00000330 btc first using 'withdrawal start' command");
                         } else {
                             let print_withdrawal_cmd = |outpoint: &_| {
                                 println!(
