@@ -221,7 +221,7 @@ async fn broadcast_recovery_tx_with_mempool(
             serde_json::to_string_pretty(&response_body)?
         );
 
-        // Convert endiannes.
+        // Convert endianness.
         let response_body: String = response_body
             .as_bytes()
             .chunks(2)
