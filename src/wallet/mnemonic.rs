@@ -1,3 +1,28 @@
+//! BIP-39 mnemonic phrase utilities and secure seed management for Clementine CLI.
+//!
+//! This module provides secure handling of mnemonic phrases for Bitcoin wallet operations:
+//! - Generating cryptographically secure 12-word mnemonic phrases
+//! - Converting mnemonics to master seeds using BIP-39 standard
+//! - Loading encrypted mnemonics from wallet storage with passphrase decryption  
+//! - Deriving private keys from mnemonic phrases
+//! - Interactive secure mnemonic input with real-time validation
+//!
+//! ## Security Features
+//!
+//! All sensitive data is handled using secure memory constructs:
+//! - **Secure memory management**: Uses zeroization to clear sensitive data
+//! - **Encrypted storage**: Mnemonics are stored encrypted with AES encryption
+//! - **Input validation**: Real-time validation against BIP-39 English wordlist
+//! - **Private key isolation**: Handles wallets imported from private keys separately
+//!
+//! ## Mnemonic Standards
+//!
+//! - Uses BIP-39 standard with English language wordlist
+//! - Fixed 12-word mnemonic phrase length for consistency
+//! - Generates 256-bit entropy for cryptographic security
+//! - Converts to 32-byte master seeds for key derivation
+//!
+
 use bip39::{Language, Mnemonic};
 use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;

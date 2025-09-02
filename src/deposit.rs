@@ -50,10 +50,10 @@ pub async fn get_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let (calculated_deposit_address, _) =
@@ -105,8 +105,10 @@ pub async fn get_deposit_params(
     Ok(deposit_params)
 }
 
+/// Creates a signed raw transaction that can collect unminted funds from the
+/// deposit transaction after 200 blocks.
 #[allow(clippy::too_many_arguments)]
-pub fn sign_recovery_tx(
+pub fn create_signed_recovery_tx(
     citrea_addr: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     outpoint: &OutPoint,
@@ -119,10 +121,10 @@ pub fn sign_recovery_tx(
     let secure_passphrase = prompt_unlock_passphrase()?;
 
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
@@ -155,10 +157,10 @@ pub fn verify_recovery_tx(
     config: &BridgeCliConfig,
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     if recovery_taproot_address.purpose != Purpose::Deposit {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Deposit,
-            recovery_taproot_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Deposit,
+            found: recovery_taproot_address.purpose,
+        });
     }
 
     let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(

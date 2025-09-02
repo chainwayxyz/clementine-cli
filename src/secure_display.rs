@@ -302,7 +302,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Print("╔══════════════════════════════════════════════════════════════════════════════╗\r\n"),
             Print("║                          MNEMONIC DISPLAY COMPLETED                          ║\r\n"),
             Print("║                                                                              ║\r\n"),
-            Print("║  All words have been displayed. Please verify you have written them down.   ║\r\n"),
+            Print("║  All words have been displayed. Please verify you have written them down.    ║\r\n"),
             Print("║                                                                              ║\r\n"),
             Print("║    IMPORTANT REMINDERS:                                                      ║\r\n"),
             Print("║  - Store your written mnemonic in a secure location                          ║\r\n"),

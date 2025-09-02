@@ -121,7 +121,7 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         address: &str,
         network: bitcoin::Network,
     ) -> Result<Self, BridgeCliError> {
-        if address.len() < 4 {
+        if address.len() < 3 {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 

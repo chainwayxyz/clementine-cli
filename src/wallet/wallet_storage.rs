@@ -1,3 +1,40 @@
+//! Secure wallet data storage and registry management for Clementine CLI.
+//!
+//! This module handles persistent storage of encrypted wallet data and maintains
+//! a centralized registry of all wallets:
+//! - Storing encrypted wallet data with secure file permissions
+//! - Managing a centralized wallet registry (wallets.json)
+//! - Loading and retrieving stored wallet information
+//! - Handling wallet file operations and directory management
+//! - Supporting both generated and imported wallet workflows
+//!
+//! ## Storage Structure
+//!
+//! Wallets are stored in the `~/.clementine/keys/` directory:
+//! - **Individual wallet files**: `wallet_{address}.json` containing encrypted data
+//! - **Registry file**: `wallets.json` containing metadata for all wallets
+//! - **Secure permissions**: Unix file permissions set to 0o600 (owner read/write only)
+//!
+//! ## Data Structures
+//!
+//! - [`WalletRegistryEntry`]: Metadata stored in the centralized registry
+//! - [`GenericWalletData`]: Complete wallet data with encrypted secrets
+//!
+//! ## Encryption Standards
+//!
+//! All sensitive data is encrypted using:
+//! - **Algorithm**: AES-256-GCM for authenticated encryption
+//! - **Key derivation**: Argon2id for password-based key derivation
+//! - **Secure handling**: Automatic zeroization of sensitive memory
+//!
+//! ## Import Support
+//!
+//! Tracks wallet creation methods:
+//! - **Generated wallets**: Created from new mnemonic phrases
+//! - **Imported wallets**: Imported from existing mnemonics or private keys
+//! - **Import metadata**: Timestamps and import method tracking
+//!
+
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
 use serde::{Deserialize, Serialize};

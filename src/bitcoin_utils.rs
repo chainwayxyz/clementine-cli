@@ -9,7 +9,7 @@ use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
-    Amount, FeeRate, Network, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
+    Amount, FeeRate, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
 use bitcoincore_rpc::RpcApi;
@@ -33,15 +33,6 @@ pub struct Utxo {
     pub vout: u32,
     pub status: UtxoStatus,
     pub value: u64,
-}
-
-/// Calculate taproot address from a keypair
-pub(crate) fn calculate_taproot_address(
-    keypair: &SecureKeypair,
-    network: Network,
-) -> BitcoinAddress {
-    let (xonly_public_key, _parity) = keypair.as_ref().public_key().x_only_public_key();
-    BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
 
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
@@ -472,7 +463,10 @@ async fn get_current_block_height_from_rpc(
 
 #[cfg(test)]
 mod tests {
+    use crate::wallet::address::calculate_taproot_address;
+
     use super::*;
+    use bitcoin::Network;
     use bitcoin::address::AddressType;
     use bitcoin::key::Keypair;
     use bitcoin::secp256k1::SecretKey;

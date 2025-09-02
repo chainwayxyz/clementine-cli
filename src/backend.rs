@@ -15,13 +15,13 @@ pub struct DepositStatus {
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WithdrawalStatus {
-    pub id: u64,
+    pub idx: u64,
     pub status: String,
-    pub txid: String,
-    pub evm_addr: String,
-    pub move_txid: String,
+    pub btc_payment_txid: String,
+    pub from_safe_withdraw: bool,
+    pub optimistic_payout_started_at: Option<String>,
+    pub optimistic_payout_deadline_at: Option<String>,
     pub created_at: String,
-    pub mint_txid: String,
 }
 
 impl Display for DepositStatus {
@@ -57,30 +57,29 @@ impl Display for WithdrawalStatus {
         } else {
             &self.status
         };
-        let txid = if self.txid.is_empty() {
+        let btc_payment_txid = if self.btc_payment_txid.is_empty() {
             not_present
         } else {
-            &self.txid
+            &self.btc_payment_txid
         };
-        let evm_addr = if self.evm_addr.is_empty() {
-            not_present
-        } else {
-            &self.evm_addr
-        };
-        let move_txid = if self.move_txid.is_empty() {
-            not_present
-        } else {
-            &self.move_txid
-        };
-        let mint_txid = if self.mint_txid.is_empty() {
-            not_present
-        } else {
-            &self.mint_txid
-        };
+        let optimistic_payout_started_at = self
+            .optimistic_payout_started_at
+            .as_deref()
+            .unwrap_or(not_present);
+        let optimistic_payout_deadline_at = self
+            .optimistic_payout_deadline_at
+            .as_deref()
+            .unwrap_or(not_present);
         write!(
             f,
-            "Withdrawal ID: {}, Status: {}, TXID: {}, EVM Address: {}, Move TXID: {}, Mint TXID: {}",
-            self.id, status, txid, evm_addr, move_txid, mint_txid
+            "Withdrawal Index: {}, Status: {}, BTC Payment TXID: {}, From Safe Withdraw: {}, Payout Started: {}, Payout Deadline: {}, Created: {}",
+            self.idx,
+            status,
+            btc_payment_txid,
+            self.from_safe_withdraw,
+            optimistic_payout_started_at,
+            optimistic_payout_deadline_at,
+            self.created_at
         )
     }
 }
@@ -263,7 +262,7 @@ pub(crate) async fn send_withdrawal_signatures_to_operators(
     withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
-    amount: u64,
+    amount: f64,
 ) -> Result<(), BridgeCliError> {
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed

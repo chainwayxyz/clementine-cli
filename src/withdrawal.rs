@@ -35,10 +35,10 @@ pub fn generate_withdrawal_signature(
     network: Network,
 ) -> Result<Signature, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
@@ -150,17 +150,25 @@ pub(crate) async fn get_txout_details(
 
     Ok(txout.clone())
 }
-
 pub(crate) async fn get_tx_details(
     prepare_txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    match config.bitcoin_config {
-        Some(_) => {
-            let rpc = config.connect_to_bitcoin_rpc().await?;
-            Ok(get_tx_details_from_rpc(&rpc, prepare_txid).await?)
+    match get_tx_details_from_mempool(prepare_txid, config).await {
+        Ok(result) => Ok(result),
+        Err(mempool_error) => {
+            tracing::warn!(
+                "Mempool API failed: {}, falling back to Bitcoin RPC",
+                mempool_error
+            );
+
+            if config.bitcoin_config.is_some() {
+                let rpc = config.connect_to_bitcoin_rpc().await?;
+                get_tx_details_from_rpc(&rpc, prepare_txid).await
+            } else {
+                Err(mempool_error)
+            }
         }
-        None => get_tx_details_from_mempool(prepare_txid, config).await,
     }
 }
 
@@ -173,10 +181,10 @@ pub async fn safe_withdraw(
     config: &BridgeCliConfig,
 ) -> Result<String, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let payout_output = TxOut {
@@ -272,10 +280,10 @@ pub async fn send_safe_withdrawal(
         .connect_http(config.citrea_rpc_url.clone());
 
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let payout_output = TxOut {
@@ -339,16 +347,16 @@ pub async fn send_safe_withdrawal(
     Ok(receipt)
 }
 
-pub fn start_withdrawal(
+pub(crate) fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     _claim_address: &BitcoinAddress,
     _config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
     Ok(())
 }
@@ -359,10 +367,10 @@ pub async fn scan_withdrawal(
     config: &BridgeCliConfig,
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
     if signer_address.purpose != Purpose::Withdrawal {
-        return Err(BridgeCliError::PurposeMismatch(
-            Purpose::Withdrawal,
-            signer_address.purpose,
-        ));
+        return Err(BridgeCliError::PurposeMismatch {
+            expected: Purpose::Withdrawal,
+            found: signer_address.purpose,
+        });
     }
 
     let utxos = get_utxos_for_address(signer_address, config).await?;
