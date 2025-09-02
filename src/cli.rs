@@ -170,9 +170,7 @@ pub async fn deposit_status(
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let mut utxos = utxos_from_mempool_api(&taproot_address, config).await?;
-
     utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
-
     let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
         .iter()
         .filter(|utxo| utxo.value != config.bridge_amount.to_sat())
@@ -185,45 +183,47 @@ pub async fn deposit_status(
             taproot_address
         );
     }
+
+    let refund_message_default = "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.";
     let current_block_height = get_current_block_height(config).await?;
-    for utxo in deposits_with_incorrect_amount.iter() {
-        let refund_in_blocks = utxo.status.block_height.and_then(|utxo_block_height| {
-            utxo_block_height
-                .checked_add(config.user_takes_after)
+
+    // Helper closure for refund logic
+    let refund_info = |block_height: Option<u64>, move_txid_empty: bool| {
+        let refund_in_blocks = block_height.and_then(|h| {
+            h.checked_add(config.user_takes_after)
                 .map(|target| target.saturating_sub(current_block_height))
         });
-
-        let block_display = utxo
-            .status
-            .block_height
-            .map(|height| height.to_string())
-            .unwrap_or_else(|| "N/A".to_string());
-
-        let is_confirmed_display = if utxo.status.confirmed {
-            "Confirmed".to_string()
+        if move_txid_empty {
+            match refund_in_blocks {
+                Some(0) | None => refund_message_default.to_string(),
+                Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
+            }
         } else {
-            "Unconfirmed".to_string()
-        };
+            String::new()
+        }
+    };
 
-        let refund_in_blocks_display = refund_in_blocks
-            .map(|blocks| blocks.to_string())
-            .unwrap_or_else(|| "N/A".to_string());
+    let block_display = |block_height: Option<u64>| {
+        block_height.map(|h| h.to_string()).unwrap_or_else(|| "N/A".to_string())
+    };
 
-        let refund_message = if refund_in_blocks.is_some() && refund_in_blocks != Some(0) {
-            format!("\n  Refund in Blocks: {}", refund_in_blocks_display)
-        } else {
-            "\n  You can refund your deposit now using 'sign-recovery-tx' subcommand.".to_string()
-        };
+    let is_confirmed_display = |confirmed: bool| if confirmed { "Confirmed" } else { "Unconfirmed" };
 
-        print_incorrect_deposit(utxo, &refund_message, &block_display, &is_confirmed_display);
+    for utxo in &deposits_with_incorrect_amount {
+        let refund_msg = refund_info(utxo.status.block_height, true);
+        print_incorrect_deposit(
+            utxo,
+            &refund_msg,
+            &block_display(utxo.status.block_height),
+            is_confirmed_display(utxo.status.confirmed),
+        );
     }
-
+    
     if !deposits_with_incorrect_amount.is_empty() {
         println!();
     }
 
     let deposit_statuses_backend = backend_deposit_status(&taproot_address, config).await?;
-
     if deposit_statuses_backend.is_empty() {
         println!(
             "{} No deposits found for address {}",
@@ -232,43 +232,16 @@ pub async fn deposit_status(
         );
         return Ok(());
     }
-
     println!(
         "{} Deposit status(es) for address {}:",
         "INFO".bold(),
         taproot_address
     );
-
-    for status in deposit_statuses_backend.iter() {
+    for status in &deposit_statuses_backend {
         let corresponding_utxo = utxos.iter().find(|utxo| utxo.txid == status.txid);
-
-        let refund_in_blocks = if status.move_txid.is_empty() {
-            corresponding_utxo
-                .and_then(|utxo| utxo.status.block_height)
-                .and_then(|utxo_block_height| {
-                    utxo_block_height
-                        .checked_add(config.user_takes_after)
-                        .map(|target| target.saturating_sub(current_block_height))
-                })
-        } else {
-            None
-        };
-
-        let refund_in_blocks_display = if status.move_txid.is_empty() {
-            let refund_blocks = refund_in_blocks
-                .map(|blocks| blocks.to_string())
-                .unwrap_or_else(|| "N/A".to_string());
-            if refund_in_blocks.is_some() && refund_in_blocks != Some(0) {
-                format!("\n  Refund in (approx.) blocks: {}", refund_blocks)
-            } else {
-                "\n  You can refund your deposit now using 'sign-recovery-tx' subcommand."
-                    .to_string()
-            }
-        } else {
-            "".to_string()
-        };
-
-        println!("{} {}", status, refund_in_blocks_display);
+        let block_height = corresponding_utxo.and_then(|u| u.status.block_height);
+        let refund_msg = refund_info(block_height, status.move_txid.is_empty());
+        println!("{} {}", status, refund_msg);
     }
     Ok(())
 }
