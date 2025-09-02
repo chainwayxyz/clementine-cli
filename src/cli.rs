@@ -4,7 +4,8 @@ use std::{
 };
 
 use bitcoin::{
-    address::{NetworkChecked, NetworkUnchecked}, Address, Amount, Network, OutPoint
+    Address, Amount, Network, OutPoint,
+    address::{NetworkChecked, NetworkUnchecked},
 };
 use colored::Colorize;
 use eyre::eyre;
@@ -334,16 +335,15 @@ pub async fn cli_start_withdrawal(
     Ok(())
 }
 
-pub async fn cli_scan_withdrawals(signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>, claim_address: &BitcoinAddress, config: &BridgeCliConfig) -> Result<(), BridgeCliError> {
-    let utxos = withdrawal::scan_withdrawal(&signer_address, &claim_address, &config).await;
+pub async fn cli_scan_withdrawals(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    let utxos = withdrawal::scan_withdrawal(signer_address, claim_address, config).await;
 
-    let mut utxos = utxos.inspect_err(| e| {
-        eprintln!(
-            "{} Failed to scan withdrawals: {}",
-            "ERROR".red().bold(),
-            e
-        )
-    })?;
+    let mut utxos = utxos
+        .inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".red().bold(), e))?;
 
     utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
 
