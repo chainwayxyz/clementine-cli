@@ -134,12 +134,12 @@ clementine-cli --network testnet4 withdrawal safe-withdraw wittb1pf... tb1qg... 
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> withdrawal send-signature <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+clementine-cli --network <BITCOIN_NETWORK> withdrawal send-withdrawal-signatures-to-operators <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
 ```
 
 **Example:**
 ```sh
-clementine-cli --network testnet4 withdrawal send-signature wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
+clementine-cli --network testnet4 withdrawal send-withdrawal-signatures-to-operators wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
 ```
 
 > [!NOTE]
@@ -174,7 +174,7 @@ The status will show the response from the backend.
 5. **[Airgapped]** `generate-withdrawal-signature` - Create signature
 6. **[Transfer]** Move signature back to online device
 7. **[Online]** `safe-withdraw` - Verify, prepare, and send transaction on Citrea
-8. **[Online]** `send-signature` - Submit signature to bridge operators
+8. **[Online]** `send-withdrawal-signatures-to-operators` - Submit signature to bridge operators
 9. **[Online]** `withdrawal status` - Monitor completion
 
 **Critical Security Note:** ALL cryptographic operations (step 5) must be performed on the airgapped device. Network operations and transaction submission occur on the online device.
