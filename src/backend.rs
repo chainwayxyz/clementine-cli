@@ -1,3 +1,4 @@
+use std::borrow::Cow;
 use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
@@ -25,36 +26,25 @@ pub struct WithdrawalStatus {
 
 impl Display for DepositStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let not_present = "--";
+        fn display_or(v: &str) -> &str {
+            if v.is_empty() { "--" } else { v }
+        }
+
         let status = if self.status.is_empty() {
-            not_present.to_string()
+            Cow::Borrowed("--")
         } else {
-            DepositStatusEnum::from_backend_status(&self.status).as_string()
+            Cow::Owned(DepositStatusEnum::from_backend_status(&self.status).as_string())
         };
-        let txid = if self.txid.is_empty() {
-            not_present
-        } else {
-            &self.txid
-        };
-        let evm_addr = if self.evm_addr.is_empty() {
-            not_present
-        } else {
-            &self.evm_addr
-        };
-        let move_txid = if self.move_txid.is_empty() {
-            not_present
-        } else {
-            &self.move_txid
-        };
-        let mint_txid = if self.mint_txid.is_empty() {
-            not_present
-        } else {
-            &self.mint_txid
-        };
+
         write!(
             f,
             "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
-            self.id, status, txid, evm_addr, move_txid, mint_txid
+            self.id,
+            status,
+            display_or(&self.txid),
+            display_or(&self.evm_addr),
+            display_or(&self.move_txid),
+            display_or(&self.mint_txid)
         )
     }
 }
