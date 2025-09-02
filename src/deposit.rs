@@ -2,13 +2,13 @@
 
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::sign_recovery_tx as utils_sign_recovery_tx;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
+use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::{load_key_with_purpose_check, validate_address_purpose};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
@@ -32,6 +32,34 @@ pub struct VerifyRecoveryTxParams {
     pub citrea_address: CitreaAddress,
     pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     pub amount: Option<f64>,
+}
+
+pub(crate) enum DepositStatusEnum {
+    New,
+    InProgress,
+    Completed,
+    Unknown,
+}
+
+impl DepositStatusEnum {
+    pub(crate) fn from_backend_status(status: &str) -> Self {
+        match status {
+            "new" => DepositStatusEnum::New,
+            "minted" => DepositStatusEnum::Completed,
+            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" | "sent" => {
+                DepositStatusEnum::InProgress
+            }
+            _ => DepositStatusEnum::Unknown,
+        }
+    }
+    pub fn as_string(&self) -> String {
+        match self {
+            DepositStatusEnum::New => "New".to_string(),
+            DepositStatusEnum::InProgress => "In Progress".to_string(),
+            DepositStatusEnum::Completed => "Completed".to_string(),
+            DepositStatusEnum::Unknown => "Unknown".to_string(),
+        }
+    }
 }
 
 /// Get deposit address from backend
@@ -100,21 +128,25 @@ pub fn create_signed_recovery_tx(
     params: RecoveryTxParams,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
+    ensure_wallet_exists(&params.recovery_taproot_address)?;
     // Always prompt for passphrase for maximum security
     let keypair = load_key_with_purpose_check(&params.recovery_taproot_address, Purpose::Deposit)?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = convert_btc_to_amount(params.amount)?;
 
-    let fee_rate_opt = params.fee_rate.map(FeeRate::from_sat_per_vb_unchecked);
-    let signed_tx = utils_sign_recovery_tx(
+    let fee_rate = params.fee_rate
+        .map(FeeRate::from_sat_per_vb_unchecked)
+        .unwrap_or_else(|| FeeRate::from_sat_per_vb_unchecked(10)); // Default 10 sat/vbyte
+
+    let signed_tx = crate::bitcoin_utils::sign_recovery_tx(
         &keypair,
         &params.citrea_addr,
         &params.recovery_taproot_address.address,
         &params.outpoint,
-        deposit_amount,
+        deposit_amount.unwrap_or(config.bridge_amount),
         &params.claim_addr,
-        fee_rate_opt,
+        fee_rate,
         config,
     )?;
 
