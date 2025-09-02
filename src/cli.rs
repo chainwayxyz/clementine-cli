@@ -203,10 +203,18 @@ pub async fn deposit_status(
     };
 
     let block_display = |block_height: Option<u64>| {
-        block_height.map(|h| h.to_string()).unwrap_or_else(|| "N/A".to_string())
+        block_height
+            .map(|h| h.to_string())
+            .unwrap_or_else(|| "N/A".to_string())
     };
 
-    let is_confirmed_display = |confirmed: bool| if confirmed { "Confirmed" } else { "Unconfirmed" };
+    let is_confirmed_display = |confirmed: bool| {
+        if confirmed {
+            "Confirmed"
+        } else {
+            "Unconfirmed"
+        }
+    };
 
     for utxo in &deposits_with_incorrect_amount {
         let refund_msg = refund_info(utxo.status.block_height, true);
