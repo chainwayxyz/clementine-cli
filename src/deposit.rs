@@ -9,6 +9,7 @@ use crate::parameters::get_citrea_deposit_params;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
 use crate::wallet::passphrase::prompt_unlock_passphrase;
+use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::withdrawal::{get_tx_details, get_txout_details};
 use crate::{BitcoinAddress, CitreaAddress};
@@ -117,6 +118,8 @@ pub fn create_signed_recovery_tx(
     amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
+    
+    ensure_wallet_exists(recovery_taproot_address)?;
     // Always prompt for passphrase for maximum security
     let secure_passphrase = prompt_unlock_passphrase()?;
 
