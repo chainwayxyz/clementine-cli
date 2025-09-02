@@ -2,6 +2,7 @@ use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
 use clap::{Parser, Subcommand};
+use clementine_cli::cli::cli_scan_withdrawals;
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
@@ -545,67 +546,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })?;
 
                 let claim_address = parse_address(&claim_address, config.network)?;
-                handle_cli_command!(async
-                    withdrawal::scan_withdrawal(&signer_address, &claim_address, &config),
-                    mut utxos => {
-                        utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
-
-                        let utxos_with_wrong_amount: Vec<_> = utxos.iter().filter(|(_, amount)| *amount != Amount::from_sat(330)).collect();
-
-                        if !utxos_with_wrong_amount.is_empty() {
-                            eprintln!("{} The following UTXOs have amounts different than 0.00000330 btc. They will be ignored for withdrawal operations.", "WARNING".bold());
-                            for (outpoint, amount) in utxos_with_wrong_amount {
-                                eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
-                            }
-                            eprintln!("Please ensure you send exactly 0.00000330 btc to the signer address for each withdrawal operation.");
-
-                            // sleep for 2 seconds to ensure user sees the warning
-                            std::thread::sleep(std::time::Duration::from_secs(2));
-
-                            println!();
-                        }
-
-                        utxos.retain(|(_, amount)| *amount == Amount::from_sat(330));
-
-                        if utxos.is_empty() {
-                            eprintln!("No UTXOs found. Please send 0.00000330 btc first using 'withdrawal start' command");
-                        } else {
-                            let print_withdrawal_cmd = |outpoint: &_| {
-                                println!(
-                                    "clementine-cli withdrawal generate-withdrawal-signature --network {} {} {} {} {}",
-                                    config.network,
-                                    &signer_address.address_with_prefix(),
-                                    claim_address,
-                                    outpoint,
-                                    config.optimistic_withdrawal_amount.to_btc()
-                                );
-                            };
-                            let print_operator_note = || println!(
-                                "{} For operator-paid withdrawals, use the amount {}",
-                                "Important Note".bold(),
-                                config.operator_withdrawal_amount.to_btc()
-                            );
-                            if utxos.len() == 1 {
-                                println!("Run:");
-                                let (outpoint, _) = &utxos[0];
-                                print_withdrawal_cmd(outpoint);
-                                print_operator_note();
-                            } else {
-                                println!("{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation", "WARNING".bold());
-                                println!(
-                                    "{} For your security: Use a unique signer address for each withdrawal.",
-                                    "IMPORTANT NOTICE!".bold()
-                                );
-                                println!("Run one of these:");
-                                for (outpoint, _) in utxos.iter() {
-                                    print_withdrawal_cmd(outpoint);
-                                    println!()
-                                }
-                                print_operator_note();
-                            }
-                        }
-                    }
-                );
+                handle_cli_command!(
+                    cli_scan_withdrawals(&signer_address, &claim_address, &config).await,
+                    _ => { }
+                )
             }
             WithdrawalCommands::GenerateWithdrawalSignature {
                 signer_address,
