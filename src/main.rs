@@ -396,7 +396,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
-                        println!("Deposit address: {}", deposit_address);
+                        println!("Deposit address: {}", deposit_address.to_string().bold());
+                        println!("{} Send exactly 10 BTC to the above address to initiate the deposit.", "INFO".bold());
+                        println!("For Bitcoin Core users, you can send your deposit using the following command (add any necessary parameters as needed):");
+                        println!("bitcoin-cli sendtoaddress {} 10", deposit_address.to_string());
                     }
                 );
             }
