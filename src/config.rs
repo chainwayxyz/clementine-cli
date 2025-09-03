@@ -263,7 +263,7 @@ mod tests {
         assert_eq!(read_config.network, Network::Testnet4);
         assert_eq!(
             read_config.bitcoin_config.unwrap().url.as_str(),
-            "http://127.0.0.1:48332/"
+            "http://127.0.0.1:18443/"
         );
 
         fs::remove_file(file_name).unwrap();
