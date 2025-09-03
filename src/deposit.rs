@@ -19,7 +19,6 @@ use eyre::Result;
 use url::Url;
 
 pub(crate) enum DepositStatusEnum {
-    InMempool,
     New,
     InProgress,
     Completed,
@@ -29,7 +28,6 @@ pub(crate) enum DepositStatusEnum {
 impl DepositStatusEnum {
     pub(crate) fn from_status(status: &str) -> Self {
         match status {
-            "in_mempool" => DepositStatusEnum::InMempool, // Does not exist in backend
             "new" => DepositStatusEnum::New,
             "minted" => DepositStatusEnum::Completed,
             "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" | "sent" => {
@@ -41,7 +39,6 @@ impl DepositStatusEnum {
 
     pub fn as_string(&self) -> String {
         match self {
-            DepositStatusEnum::InMempool => "In Mempool".to_string(),
             DepositStatusEnum::New => "New".to_string(),
             DepositStatusEnum::InProgress => "In Progress".to_string(),
             DepositStatusEnum::Completed => "Completed".to_string(),
