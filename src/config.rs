@@ -102,12 +102,21 @@ impl BridgeCliConfig {
 
         let network_configs = toml::from_str::<NetworkConfigs>(&contents)?;
 
-        Ok(match network {
+        let mut config = match network {
             Network::Bitcoin => network_configs.bitcoin,
             Network::Testnet | Network::Testnet4 => network_configs.testnet4,
             Network::Signet => network_configs.signet,
             Network::Regtest => network_configs.regtest,
-        })
+        };
+
+        // All of the URLs needs a trailing slash. If not present, add it.
+        if !config.mempool_api_url.to_string().ends_with("/") {
+            let str_url = config.mempool_api_url.to_string() + "/";
+            config.mempool_api_url =
+                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+        }
+
+        Ok(config)
     }
 
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {

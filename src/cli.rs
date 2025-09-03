@@ -30,8 +30,9 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, parse_and_validate_imported_wallet,
-            report_integrity_results, validate_wallet_availability,
+            WalletValidationMode, ensure_wallet_exists, load_key,
+            parse_and_validate_imported_wallet, report_integrity_results,
+            validate_wallet_availability,
         },
     },
     withdrawal::{self, start_withdrawal},
@@ -250,6 +251,39 @@ pub async fn deposit_status(
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
         println!("{} {}", status, refund_msg);
     }
+    Ok(())
+}
+
+pub async fn deposit_create_signed_recovery_tx(
+    citrea_addr: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    outpoint: &OutPoint,
+    claim_addr: &BitcoinAddress,
+    fee_rate: u64,
+    amount: f64,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    ensure_wallet_exists(recovery_taproot_address)?;
+
+    // Always prompt for passphrase for maximum security
+    let secure_passphrase = prompt_unlock_passphrase()?;
+    let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
+    let keypair = keypair.as_ref();
+
+    let tx = deposit::create_signed_recovery_tx(
+        citrea_addr,
+        recovery_taproot_address,
+        outpoint,
+        claim_addr,
+        *keypair,
+        fee_rate,
+        amount,
+        config,
+    )?;
+
+    let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
+    println!("{raw_tx}");
+
     Ok(())
 }
 
