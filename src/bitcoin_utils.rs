@@ -40,10 +40,6 @@ pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
 pub const DUST_THRESHOLD_SATS: Amount = Amount::from_sat(546);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
-// Bridge contract constants
-pub const DEFAULT_BRIDGE_CONTRACT_ADDRESS: &str = "0x3100000000000000000000000000000000000002";
-pub const DEPOSIT_AMOUNT_IN_HEX: &str = "0x8AC7230489E80000";
-
 /// Convert optional BTC amount to optional Amount (reduces duplication)
 pub fn convert_btc_to_amount(btc_amount: Option<f64>) -> Result<Option<Amount>, BridgeCliError> {
     match btc_amount {
@@ -495,5 +491,12 @@ mod tests {
         let secure_keypair = SecureKeypair::new(keypair);
         let address = calculate_taproot_address(&secure_keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
+    }
+
+    #[test]
+    fn test_deposit_amount_hex() {
+        let deposit_amount_u64: u64 = 10_000_000_000_000_000_000;
+        let deposit_amount_hex = format!("0x{:X}", deposit_amount_u64);
+        assert_eq!(deposit_amount_hex, "0x8AC7230489E80000");
     }
 }

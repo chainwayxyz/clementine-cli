@@ -264,8 +264,6 @@ pub async fn deposit_create_signed_recovery_tx(
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
-    // Always prompt for passphrase for maximum security
-
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
         recovery_taproot_address: recovery_taproot_address.clone(),

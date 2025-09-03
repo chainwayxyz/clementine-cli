@@ -16,7 +16,7 @@ citrea_rpc_url = "https://rpc.citrea.xyz/"
 citrea_chain_id = 0
 
 [bitcoin.bitcoin_config]
-url = "http://127.0.0.1:8332/" # Add `/wallet/name` if necessary
+url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
 
@@ -24,7 +24,7 @@ password = "admin"
 [testnet4]
 network = "testnet4"
 
-aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
+aggregated_public_key = "a79c6eac75d1f10a01f302f86f78374ec66a22269cf01cf222a5ab8536d7c3c8"
 
 user_takes_after = 200
 bridge_amount = 1000000000
@@ -39,7 +39,7 @@ citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
 
 [testnet4.bitcoin_config]
-url = "http://127.0.0.1:48332/" # Add `/wallet/name` if necessary
+url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
 
@@ -86,6 +86,6 @@ citrea_rpc_url = "https://127.0.0.1:12345/"
 citrea_chain_id = 5655
 
 [regtest.bitcoin_config]
-url = "http://127.0.0.1:18443/wallet/admin"
+url = "http://127.0.0.1:20443/wallet/admin"
 user = "admin"
 password = "admin"

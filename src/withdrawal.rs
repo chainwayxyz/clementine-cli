@@ -2,8 +2,7 @@
 
 use crate::api_utils::get_tx_details;
 use crate::bitcoin_utils::{
-    DEFAULT_BRIDGE_CONTRACT_ADDRESS, DEPOSIT_AMOUNT_IN_HEX, sign_withdrawal_signature,
-    utxos_from_mempool_space_api, verify_withdrawal_signature,
+    sign_withdrawal_signature, utxos_from_mempool_space_api, verify_withdrawal_signature,
 };
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
@@ -123,7 +122,7 @@ pub async fn safe_withdraw(
     let tx_json = json!({
         "to": config.bridge_contract_address,
         "data": hex::encode(calldata_hex),
-        "value": DEPOSIT_AMOUNT_IN_HEX,
+        "value": format!("0x{:X}", config.bridge_amount.to_sat() * crate::bitcoin_utils::SATS_TO_WEI_MULTIPLIER),
         "chainId": config.citrea_chain_id,
     })
     .to_string();
@@ -188,11 +187,11 @@ pub async fn send_safe_withdrawal(
     )
     .await?;
 
-    let bridge_contract_address = DEFAULT_BRIDGE_CONTRACT_ADDRESS;
     let contract = BRIDGE_CONTRACT::new(
-        bridge_contract_address
+        config
+            .bridge_contract_address
             .parse()
-            .expect("Correct contract address"),
+            .wrap_err("Failed to parse bridge contract address")?,
         provider,
     );
     let citrea_withdrawal_tx = contract

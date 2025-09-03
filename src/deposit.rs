@@ -17,7 +17,6 @@ use eyre::Context;
 use eyre::Result;
 
 /// Parameters for creating a signed recovery transaction
-#[derive(Debug)]
 pub struct RecoveryTxParams {
     pub citrea_addr: CitreaAddress,
     pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,

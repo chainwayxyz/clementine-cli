@@ -28,9 +28,10 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
    cargo install --path .
    ```
 
-3. Install your configuration by copying your config file to `~/.clementine/`:
+3. Install your configuration by modifying according to your own Bitcoin configurations and copying your config file to `~/.clementine/`:
    ```sh
-   cp ./bridge_cli_config.toml ~/.clementine/
+   mkdir -p ~/.clementine/  
+   cp ./bridge_cli_config.toml ~/.clementine/  
    ```
 Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
 
