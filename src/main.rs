@@ -96,7 +96,7 @@ enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         /// Label for the wallet file
         label: String,
@@ -123,7 +123,7 @@ enum WalletCommands {
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         /// Label for the imported wallet
         label: String,
@@ -133,7 +133,7 @@ enum WalletCommands {
     /// Import wallet using secure private key input.
     ImportPrivateKey {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         /// Label for the imported wallet
         label: String,
@@ -158,7 +158,7 @@ enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         recovery_taproot_address: String,
         citrea_address: String,
@@ -179,7 +179,7 @@ enum DepositCommands {
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
         /// Bitcoin network (required for this subcommand)
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
     },
     /// Verify a recovery transaction before broadcasting.
@@ -190,26 +190,26 @@ enum DepositCommands {
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
     },
     // Check the status of a deposit.
     Status {
         deposit_address: String,
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
     },
     /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
     BroadcastRecoveryTx {
         /// Hex encoded raw transaction.
         raw_tx: String,
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
     },
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
         move_to_vault_txid: String,
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
     },
 }
@@ -218,21 +218,21 @@ enum DepositCommands {
 enum WithdrawalCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         claim_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
     Scan {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         claim_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         withdrawal_address: String,
@@ -241,7 +241,7 @@ enum WithdrawalCommands {
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         withdrawal_address: String,
@@ -251,7 +251,7 @@ enum WithdrawalCommands {
     },
     /// Send a safe withdrawal transaction.
     SendSafeWithdrawal {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         withdrawal_address: String,
@@ -261,7 +261,7 @@ enum WithdrawalCommands {
     },
     /// Check the status of a withdrawal.
     Status {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         withdrawal_index: u32,
     },
@@ -274,7 +274,7 @@ enum WithdrawalCommands {
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
-        #[arg(long)]
+        #[arg(long, default_value_t = Network::Bitcoin)]
         network: Network,
         signer_address: String,
         withdrawal_address: String,
