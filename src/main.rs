@@ -365,7 +365,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         println!(
                             "{} Note: This wallet was imported from a private key, so no mnemonic phrase is available.",
-                            "INFO".yellow()
+                            "INFO".bold()
                         );
                     }
                 );
@@ -634,7 +634,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal_ui_url => {
                         println!(
                             "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-                            "INFO".green().bold()
+                            "INFO".bold()
                         );
                     }
                 );

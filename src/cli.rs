@@ -87,7 +87,7 @@ pub fn cli_import_wallet_from_mnemonic(
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before mnemonic prompt for better UX
     validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
-    println!("{}", "Import Wallet with Mnemonic".blue().bold());
+    println!("{}", "Import Wallet with Mnemonic".bold());
 
     let mnemonic = prompt_mnemonic()?;
 
@@ -97,7 +97,7 @@ pub fn cli_import_wallet_from_mnemonic(
 pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir()?;
 
-    println!("{}", "Verifying Wallet Integrity".blue().bold());
+    println!("{}", "Verifying Wallet Integrity".bold());
     println!("Storage directory: {}", storage_dir.display());
     println!();
 
@@ -330,15 +330,15 @@ pub async fn withdrawal_status(
     if withdrawal_statuses.is_empty() {
         println!(
             "{} No withdrawals found for index {}",
-            "INFO".yellow().bold(),
-            withdrawal_index.to_string().blue().bold()
+            "INFO".bold(),
+            withdrawal_index.to_string().bold()
         );
         return Ok(());
     }
 
     println!(
         "{} Withdrawal status(es) for index {}: \n",
-        "INFO".blue().bold(),
+        "INFO".bold(),
         withdrawal_index
     );
 
@@ -433,8 +433,8 @@ pub async fn cli_scan_withdrawals(
 ) -> Result<(), BridgeCliError> {
     let utxos = withdrawal::scan_withdrawal(signer_address, claim_address, config).await;
 
-    let mut utxos = utxos
-        .inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".red().bold(), e))?;
+    let mut utxos =
+        utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
 
     utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
 
