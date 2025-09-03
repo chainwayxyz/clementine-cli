@@ -1,0 +1,19 @@
+{
+  "label": "test_0",
+  "address_with_prefix": "deptb1pxntyu8utmmk43q9z3q0k3988f036uzpvf2pnfjvxefsflg78ae0snh8043",
+  "network": "testnet4",
+  "encrypted_mnemonic": {
+    "ciphertext": "d2296f6df4ea87030e20c68d78d3569a6a50b0e902e7ecbd834e1cee35cc0e3486a77400ce6e6dbf7e4588e1aaa7fcb08439d2b0bab3b41f6e99363aa0a6df32eff7623d484bd280faa35d97c69d22dcec9d5dd90dec32445d8b9e56a5d1",
+    "nonce": "ef8c649b0015ce309dd86939",
+    "salt": "dbd532d4e0468b66b48a19fe58709d41803b570bbb18cf9a491ed098df3ae266"
+  },
+  "encrypted_private_key": {
+    "ciphertext": "2b6da29a2e9ca136915c9c0d3e8611c8450f3abb72951aa00e65ca9f252a297605ce223e920229e3ab71966db422a748b47460fcf1b1991d3bec0ef073c487a325c895d27e6cb10b745ea61460eb6eea",
+    "nonce": "da218178e87f5de28b55a520",
+    "salt": "f9c636285db50c0c7a3047e159867e6a3658b1eed0cfb28a5372edc5cbc5ba18"
+  },
+  "created_at": "2025-08-27T09:02:51.654162+00:00",
+  "encryption_method": "aes256_gcm_argon2id_secure",
+  "imported": true,
+  "import_method": "file_import"
+}
