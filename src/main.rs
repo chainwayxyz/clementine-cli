@@ -6,7 +6,7 @@ use clementine_cli::cli::cli_scan_withdrawals;
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
-    BitcoinAddress,
+    BitcoinAddress, broadcast_recovery_tx,
     cli::{
         cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
@@ -493,7 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
                 let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
 
-                handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
+                handle_cli_command!(async broadcast_recovery_tx(&config, raw_tx), txid => {
                     println!("{}", txid);
                 });
             }

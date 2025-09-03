@@ -41,6 +41,9 @@ pub use deposit::{
 // Withdrawal operations
 pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
 
+// API utilities
+pub use api_utils::broadcast_recovery_tx;
+
 // Constants
 pub use bitcoin_utils::{DUST_THRESHOLD_SATS, SATS_TO_WEI_MULTIPLIER, WITHDRAWAL_UTXO_AMOUNT};
 
