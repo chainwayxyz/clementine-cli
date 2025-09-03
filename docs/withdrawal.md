@@ -134,12 +134,12 @@ clementine-cli --network testnet4 withdrawal safe-withdraw wittb1pf... tb1qg... 
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> withdrawal send-withdrawal-signatures-to-operators <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+clementine-cli --network <BITCOIN_NETWORK> withdrawal send-withdrawal-signatures-to-operators <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
 ```
 
 **Example:**
 ```sh
-clementine-cli --network testnet4 withdrawal send-withdrawal-signatures-to-operators wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
+clementine-cli --network testnet4 withdrawal send-withdrawal-signatures-to-operators wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
 ```
 
 > [!NOTE]
