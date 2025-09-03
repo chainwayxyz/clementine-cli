@@ -198,6 +198,13 @@ enum DepositCommands {
         #[arg(long)]
         network: Network,
     },
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
+    BroadcastRecoveryTx {
+        /// Hex encoded raw transaction.
+        raw_tx: String,
+        #[arg(long)]
+        network: Network,
+    },
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
         move_to_vault_txid: String,
@@ -482,6 +489,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
+            }
+            DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+
+                handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
+                    println!("{}", txid);
+                });
             }
             DepositCommands::GetDepositParams {
                 move_to_vault_txid,

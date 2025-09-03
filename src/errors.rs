@@ -162,6 +162,14 @@ pub enum BridgeCliError {
     )]
     CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
+    #[error(
+        "Can't broadcast raw transaction by either Mempool API or Bitcoin RPC: {mempool_api_error} and {bitcoin_rpc_error}"
+    )]
+    CantBroadcastTransaction {
+        mempool_api_error: String,
+        bitcoin_rpc_error: String,
+    },
+
     // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),

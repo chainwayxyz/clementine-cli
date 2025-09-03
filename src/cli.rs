@@ -253,6 +253,36 @@ pub async fn deposit_status(
     Ok(())
 }
 
+pub async fn deposit_create_signed_recovery_tx(
+    citrea_addr: &CitreaAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    outpoint: &OutPoint,
+    claim_addr: &BitcoinAddress,
+    fee_rate: u64,
+    amount: f64,
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    ensure_wallet_exists(recovery_taproot_address)?;
+
+    // Always prompt for passphrase for maximum security
+
+    let recovery_params = deposit::RecoveryTxParams {
+        citrea_addr: *citrea_addr,
+        recovery_taproot_address: recovery_taproot_address.clone(),
+        outpoint: *outpoint,
+        claim_addr: claim_addr.clone(),
+        fee_rate: Some(fee_rate),
+        amount: Some(amount),
+    };
+
+    let tx = deposit::create_signed_recovery_tx(recovery_params, config)?;
+
+    let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
+    println!("{raw_tx}");
+
+    Ok(())
+}
+
 pub async fn withdrawal_status(
     withdrawal_index: u32,
     config: &BridgeCliConfig,
