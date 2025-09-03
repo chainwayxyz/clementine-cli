@@ -1,138 +1,63 @@
 # Clementine CLI
 
-[Clementine](https://github.com/chainwayxyz/clementine) is Citrea's BitVM-based, trust-minimized two-way peg program. This repository includes a CLI tool to interact with Clementine. For detailed usage and documentation, refer to this [guide](https://docs.citrea.xyz).
+A wallet-agnostic command-line tool for interacting with Citrea, supporting secure Bitcoin deposits and withdrawals without requiring wallet connection.
 
-The current functionality of the CLI includes:
+## Features
 
-- **Deposit** (work in progress)
-- **Withdraw** (fully functional)
-- **Deposit Reclaim** (fully functional)
+- **Bridge Operations**: Deposit to and withdraw from Citrea network
+- **Airgapped Security**: Key generation and signing in secure environments
+- **Wallet Management**: Create, import, and manage Clementine wallets locally
+- **Wallet-agnostic**: No external wallet connection required
+- **Recovery Support**: Built-in fund recovery mechanisms
 
-<details>
-  <summary><strong>Deposit</strong></summary>
+## Installation
 
-Currently, the deposit operation is provided through a [UI](https://citrea.xyz/bridge). The primary function is to communicate with a backend that generates a deposit address tied to the user's EVM address and initiates backend tasks for BitVM pre-signature collection.
+### Prerequisites
+- **Online Device**: Bitcoin node access or mempool API
+- **Both Devices**: Rust and Clementine CLI installation, secure data transfer method (USB, QR codes)
 
-In the future, we plan to migrate the deposit functionality into this CLI. The implementation is still **work in progress**.
+### Install
 
-</details>
+1. Install Rust:
+   ```sh
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
 
-<details>
-  <summary><strong>Withdraw</strong></summary>
+2. Install Clementine CLI:
+   ```sh
+   cargo install --path .
+   ```
 
-The withdraw operation is fully functional via this CLI. Users can initiate a withdrawal from Clementine using two main parameters:
+3. Install your configuration by copying your config file to `~/.clementine/`. Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
 
-- `min-amount`: The minimum BTC amount the user wants to withdraw.
-- `precision`: The decimal precision for the withdrawal amount.
+## Quick Usage
 
-The program will start publishing withdrawal intents, beginning with 10 BTC and decreasing in equal steps defined by the precision parameter. If there is no response from the Citrea node, the program will cancel the operation at the specified minimum withdrawal amount.
+```sh
+# Get help
+clementine-cli --help
 
-Example:
+# Create wallet for deposit (airgapped device only)
+clementine-cli --network testnet4 wallet create deposit my-deposit-wallet
 
-A user runs the CLI with `min-amount 9.995` and `precision 0.001`. The CLI will publish withdrawal intents as follows:
-
-1. Request **10 BTC**, if no response:
-2. Request **9.999 BTC**, if no response:
-3. Request **9.998 BTC**, if no response:
-4. Request **9.997 BTC**, if no response:
-5. Request **9.996 BTC**, if no response:
-6. Request **9.995 BTC**, if no response:
-7. Cancel the operation if there is no response at **9.995** BTC.
-
-</details>
-
-<details>
-  <summary><strong>Deposit Reclaim</strong></summary>
-
-The transaction can be generated using the `deposit-reclaim` command. The program will generate the hex of the transaction to reclaim the deposit amount. This transaction then can be be broadcasted to the network. This operation does not require the Bitcoin Core to be running.
-
-Example:
-
-```bash
-node ./deposit-reclaim.js \
-  --private-key YOUR_PRIVATE_KEY \
-  --address YOUR_BTC_ADDRESS \
-  --evm-address YOUR_EVM_ADDRESS \
-  --txid DEPOSIT_TXID \
-  --vout DEPOSIT_TX_VOUT \
-  --amount DEPOSIT_TX_AMOUNT \
-  --fee FEE_AMOUNT (optional)
+# Monitor deposits (online device)
+clementine-cli --network testnet4 deposit status <DEPADDRESS>
 ```
 
-</details>
+## Two-Device Security
 
----
+Clementine CLI requires two devices for maximum security:
 
-## Usage
+- **Airgapped Device**: All wallet creation, key generation, and signing operations
+- **Online Device**: Status monitoring, address generation, broadcasting
+- **Never**: Connect airgapped device to internet
+- **Always**: Verify the correctness of operations before interacting with Citrea or Bitcoin to prevent loss of funds
 
-### 0. Prerequisites
+## Documentation
 
-Before running the CLI, ensure you have the following prerequisites:
+- [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
+- [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
+- [Withdrawal Guide](docs/withdrawal.md) - Withdrawal from Citrea to Bitcoin
 
-- [Bitcoin Core](https://bitcoincore.org)
-- [Node.js](https://nodejs.org) & [npm](https://www.npmjs.com)
+## License
 
-### 1. Setup Prerequisites
-
-You may follow the instructions specific to your operating system to install prerequisites:
-
-#### Bitcoin Core:
-
-See the [official Bitcoin Core installation guide](https://bitcoin.org/en/download) for detailed instructions.
-
-#### Node.js and npm:
-
-##### Linux (Ubuntu/Debian):
-
-```bash
-sudo apt update
-sudo apt install nodejs npm
-```
-
-##### macOS:
-
-```bash
-brew install node
-```
-
-##### Windows:
-
-Download and install Node.js from the [official website](https://nodejs.org).
-
-### 2. Install Dependencies
-
-Clone this repository and install the dependencies:
-
-```bash
-npm install
-```
-
-### 3. Configure and Run
-
-Before running the CLI, you need to configure the `config.json`. Copy the `config.example.json` file and update as needed:
-
-```bash
-cp config.example.json config.json
-```
-
-Then, run the CLI with the following command to initiate a withdrawal with default parameters (min-amount 9.99 and precision 0.001):
-
-```bash
-./clementine-cli.js withdraw \
-  --withdrawal-address YOUR_BTC_ADDRESS
-```
-
-Alternatively, you can specify the `min-amount` and `precision` parameters:
-
-```bash
-./clementine-cli.js withdraw \
-  --withdrawal-address YOUR_BTC_ADDRESS \
-  --min-withdrawal-amount 9.995 \
-  --precision 0.001
-```
-
-## Important Notes
-
-- This CLI interacts with your **local Bitcoin Core wallet**. The wallet will receive the funds after the withdrawal is processed.
-- Use a **local and secure Bitcoin Core node** for the withdrawal process to ensure the safety of your funds.
-- While you can use any Citrea RPC endpoint, the funds are controlled locally by the provided private key.
+MIT
