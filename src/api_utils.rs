@@ -51,8 +51,13 @@ pub async fn get_tx_details_from_mempool(
         .mempool_api_url
         .join(&format!("block/{block_hash}/raw"))
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
-    let response = reqwest::get(url).await.unwrap();
-    let block_raw = response.bytes().await.unwrap();
+    let response = reqwest::get(url)
+        .await
+        .map_err(|e| eyre!("Failed to fetch block raw data for {block_hash}: {e}"))?;
+    let block_raw = response
+        .bytes()
+        .await
+        .map_err(|e| eyre!("Failed to read block raw bytes for {block_hash}: {e}"))?;
     tracing::debug!("block_raw: {:?}", block_raw);
     let block: Block = bitcoin::consensus::deserialize(&block_raw)?;
     tracing::debug!("block: {:?}", block);
