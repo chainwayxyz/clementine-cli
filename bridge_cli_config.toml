@@ -24,7 +24,7 @@ password = "admin"
 [testnet4]
 network = "testnet4"
 
-aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376"
+aggregated_public_key = "a79c6eac75d1f10a01f302f86f78374ec66a22269cf01cf222a5ab8536d7c3c8"
 
 user_takes_after = 200
 bridge_amount = 1000000000
