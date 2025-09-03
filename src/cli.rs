@@ -302,7 +302,7 @@ pub async fn withdrawal_status(
     }
 
     println!(
-        "{} Withdrawal status(es) for index {}: \n",
+        "{} Withdrawal status(es) for withdrawal index {}: \n",
         "INFO".bold(),
         withdrawal_index
     );
