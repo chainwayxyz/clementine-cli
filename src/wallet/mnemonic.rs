@@ -113,7 +113,7 @@ pub(crate) fn derive_private_key_from_mnemonic(
 
 /// Securely prompt for mnemonic phrase word by word with validation
 pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
-    println!("{}", "Secure Mnemonic Input".blue().bold());
+    println!("{}", "Secure Mnemonic Input".bold());
     println!(
         "Enter your {}-word mnemonic phrase word by word.",
         MNEMONIC_WORD_COUNT
@@ -132,9 +132,8 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let wordlist = Language::English.word_list();
 
     loop {
-        let word_input =
-            rpassword::prompt_password(format!("Word {}: ", word_index.to_string().cyan()))
-                .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
+        let word_input = rpassword::prompt_password(format!("Word {}: ", word_index))
+            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
 
         let word = word_input.trim().to_lowercase();
 
@@ -148,7 +147,7 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
                 println!();
                 println!(
                     "You have entered {} words (valid mnemonic length).",
-                    words.len().to_string().green()
+                    words.len()
                 );
                 break;
             }
@@ -171,7 +170,7 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     println!();
     println!(
         "{} Valid BIP-39 mnemonic phrase with 12 words",
-        "SUCCESS".green().bold(),
+        "SUCCESS".bold(),
     );
     println!("Mnemonic will be handled securely and zeroized from memory");
 

@@ -338,11 +338,9 @@ pub(crate) fn report_integrity_results(
 fn print_successful_matches(
     matching: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) {
-    use colored::Colorize;
-
     if !matching.is_empty() {
         print_wallet_list("Properly registered wallets:", matching, |address| {
-            format!("  - {}", address.address_with_prefix().green())
+            format!("  - {}", address.address_with_prefix())
         });
     }
 }
@@ -352,8 +350,6 @@ fn print_integrity_issues(
     registry_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
     files_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
 ) -> bool {
-    use colored::Colorize;
-
     let mut has_issues = false;
 
     // Report wallets in registry but missing files
@@ -365,7 +361,7 @@ fn print_integrity_issues(
             |address| {
                 format!(
                     "  - {} (file: wallet_{}.json not found)",
-                    address.address_with_prefix().yellow(),
+                    address.address_with_prefix(),
                     address.address_without_prefix()
                 )
             },
@@ -378,7 +374,7 @@ fn print_integrity_issues(
         print_wallet_list("Wallet files not in registry:", files_only, |address| {
             format!(
                 "  - {} (wallet_{}.json exists but not registered)",
-                address.address_with_prefix().yellow(),
+                address.address_with_prefix(),
                 address.address_without_prefix()
             )
         });
@@ -397,7 +393,7 @@ fn print_integrity_summary(
     use colored::Colorize;
 
     if has_issues {
-        println!("{}", "Integrity issues found!".red().bold());
+        println!("{}", "Integrity issues found!".bold());
         println!("Consider:");
         if !registry_only.is_empty() {
             println!("- Remove orphaned registry entries or restore missing wallet files");
@@ -406,16 +402,11 @@ fn print_integrity_summary(
             println!("- Register untracked wallet files or remove them if not needed");
         }
     } else if no_wallets {
-        println!(
-            "{}",
-            "No wallets found (this is normal for new installations)".blue()
-        );
+        println!("No wallets found (this is normal for new installations)");
     } else {
         println!(
             "{}",
-            "All wallets are properly registered and files exist!"
-                .green()
-                .bold()
+            "All wallets are properly registered and files exist!".bold()
         );
     }
 }
