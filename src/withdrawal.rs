@@ -1,6 +1,5 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::BitcoinAddress;
 use crate::api_utils::get_tx_details;
 use crate::bitcoin_utils::{
     DEFAULT_BRIDGE_CONTRACT_ADDRESS, DEPOSIT_AMOUNT_IN_HEX, sign_withdrawal_signature,
@@ -12,6 +11,7 @@ use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
+use crate::{BitcoinAddress, WITHDRAWAL_UTXO_AMOUNT};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -292,7 +292,7 @@ async fn get_utxos_from_rpc_with_client(
 
     let mut result = Vec::new();
     for utxo in res.unspents {
-        if utxo.amount == Amount::from_sat(crate::bitcoin_utils::WITHDRAWAL_UTXO_AMOUNT) {
+        if utxo.amount == WITHDRAWAL_UTXO_AMOUNT {
             result.push(UtxoInfo {
                 txid: utxo.txid,
                 vout: utxo.vout,
@@ -324,7 +324,7 @@ async fn get_utxos_from_mempool(
     let mut result = Vec::new();
 
     for utxo in utxos {
-        if utxo.value == crate::bitcoin_utils::WITHDRAWAL_UTXO_AMOUNT {
+        if utxo.value == WITHDRAWAL_UTXO_AMOUNT.to_sat() {
             let txid = bitcoin::Txid::from_str(&utxo.txid)
                 .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
             result.push(UtxoInfo {

@@ -528,7 +528,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
                         println!("bitcoin-cli sendtoaddress \"{}\" 0.00000{}",
-                            signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT);
+                            signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli withdrawal scan --network {} {} {}",
@@ -595,7 +595,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             serialize_and_encode(signature)
                         );
                         println!("Now run:");
-                        println!("clementine-cli --network {} withdrawal safe-withdraw {} {} {} {} {}",
+                        println!("clementine-cli withdrawal safe-withdraw --network {} {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
                         println!("on your online device to initiate withdrawal process on the Citrea network");
                     }

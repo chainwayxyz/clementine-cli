@@ -41,10 +41,10 @@ Please make sure that you did not rename the file, as this will prevent the CLI 
 clementine-cli --help
 
 # Create wallet for deposit (airgapped device only)
-clementine-cli --network testnet4 wallet create deposit my-deposit-wallet
+clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
 
 # Monitor deposits (online device)
-clementine-cli --network testnet4 deposit status <DEPOSIT_ADDRESS>
+clementine-cli deposit status --network testnet4 <DEPOSIT_ADDRESS>
 ```
 
 ## Two-Device Security

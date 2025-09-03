@@ -36,8 +36,8 @@ pub struct Utxo {
 }
 
 // Constants to reduce magic number duplication
-pub const WITHDRAWAL_UTXO_AMOUNT: u64 = 330;
-pub const DUST_THRESHOLD_SATS: u64 = 546;
+pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
+pub const DUST_THRESHOLD_SATS: Amount = Amount::from_sat(546);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
 // Bridge contract constants
@@ -116,10 +116,8 @@ pub(crate) fn sign_recovery_tx(
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
-    let recovery_script = create_recovery_script_for_address(
-        recovery_taproot_address,
-        config.user_takes_after as u32,
-    )?;
+    let recovery_script =
+        create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
 
     let txin = TxIn {
         previous_output: *deposit_outpoint,
@@ -235,10 +233,8 @@ pub(crate) fn verify_recovery_tx(
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
-    let recovery_script = create_recovery_script_for_address(
-        recovery_taproot_address,
-        config.user_takes_after as u32,
-    )?;
+    let recovery_script =
+        create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
 
     // 1. check that the second element of the witness is the recovery script
@@ -419,7 +415,7 @@ fn create_withdrawal_sighash(
 /// Create prevout for withdrawal transactions (reduces duplication)
 fn create_withdrawal_prevout(signer_address: &BitcoinAddress) -> TxOut {
     TxOut {
-        value: Amount::from_sat(WITHDRAWAL_UTXO_AMOUNT),
+        value: WITHDRAWAL_UTXO_AMOUNT,
         script_pubkey: signer_address.script_pubkey(),
     }
 }
@@ -435,10 +431,10 @@ fn extract_xonly_pubkey_from_address(
 /// Create recovery script from taproot address (reduces duplication)
 fn create_recovery_script_for_address(
     recovery_taproot_address: &BitcoinAddress,
-    user_takes_after: u32,
+    user_takes_after: u64,
 ) -> Result<ScriptBuf, BridgeCliError> {
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
-    Ok(recover_script(recovery_key, user_takes_after as u64))
+    Ok(recover_script(recovery_key, user_takes_after))
 }
 
 pub async fn utxos_from_mempool_space_api(
