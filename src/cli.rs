@@ -11,13 +11,33 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
+    BitcoinAddress, CitreaAddress,
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
-    }, backup_wallet, bitcoin_utils::{get_current_block_height, get_mempool_txs, utxos_from_mempool_space_api, MempoolTx, Utxo}, config::BridgeCliConfig, create_encrypted_wallet, deposit, errors::BridgeCliError, import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key, secure_display::display_mnemonic_securely, structs::{SecureString, TaprootAddressWithPrefix}, wallet::{
-        get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set, mnemonic::prompt_mnemonic, passphrase::{prompt_passphrase, prompt_unlock_passphrase}, scan_wallet_files, wallet_storage::get_storage_dir, wallet_utils::{
-            ensure_wallet_exists, load_key, parse_and_validate_imported_wallet, report_integrity_results, validate_wallet_availability, WalletValidationMode
-        }, Purpose
-    }, withdrawal::{self, start_withdrawal}, BitcoinAddress, CitreaAddress
+    },
+    backup_wallet,
+    bitcoin_utils::{
+        MempoolTx, Utxo, get_current_block_height, get_mempool_txs, utxos_from_mempool_space_api,
+    },
+    config::BridgeCliConfig,
+    create_encrypted_wallet, deposit,
+    errors::BridgeCliError,
+    import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
+    secure_display::display_mnemonic_securely,
+    structs::{SecureString, TaprootAddressWithPrefix},
+    wallet::{
+        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
+        mnemonic::prompt_mnemonic,
+        passphrase::{prompt_passphrase, prompt_unlock_passphrase},
+        scan_wallet_files,
+        wallet_storage::get_storage_dir,
+        wallet_utils::{
+            WalletValidationMode, ensure_wallet_exists, load_key,
+            parse_and_validate_imported_wallet, report_integrity_results,
+            validate_wallet_availability,
+        },
+    },
+    withdrawal::{self, start_withdrawal},
 };
 
 pub fn cli_create_wallet(
@@ -184,7 +204,7 @@ pub async fn deposit_status(
             match refund_in_blocks {
                 Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
-                None => "Refund information not available.".to_string(),
+                None => "\n  Refund information not available.".to_string(),
             }
         } else {
             String::new()
@@ -253,7 +273,7 @@ pub async fn deposit_status(
             vec![]
         }
     };
-    
+
     if !mempool_txs.is_empty() {
         println!(
             "\n{} Deposit transactions in mempool for address {}:",
@@ -361,20 +381,29 @@ fn print_incorrect_deposit(
 ) {
     println!(
         "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
-        utxo.txid, Amount::from_sat(utxo.value), block_display, is_confirmed_display, refund_message
+        utxo.txid,
+        Amount::from_sat(utxo.value),
+        block_display,
+        is_confirmed_display,
+        refund_message
     );
 }
 
 fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
     for out in &tx.vout {
-        out.get("scriptpubkey_address").and_then(|addr| addr.as_str()).map(|addr_str| {
-            if addr_str == address.to_string() {
-                let value = out.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
-                println!("\nDeposit in Mempool");
-                println!("  TxID:       {}\n  Value:      {}", tx.txid, Amount::from_sat(value));
-            }
-        });
-        
+        if let Some(addr_str) = out
+            .get("scriptpubkey_address")
+            .and_then(|addr| addr.as_str())
+            && addr_str == address.to_string()
+        {
+            let value = out.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
+            println!("\nDeposit in Mempool");
+            println!(
+                "  TxID:       {}\n  Value:      {}",
+                tx.txid,
+                Amount::from_sat(value)
+            );
+        };
     }
 }
 
