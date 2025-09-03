@@ -11,31 +11,13 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    BitcoinAddress, CitreaAddress,
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
-    },
-    backup_wallet,
-    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_space_api},
-    config::BridgeCliConfig,
-    create_encrypted_wallet, deposit,
-    errors::BridgeCliError,
-    import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
-    secure_display::display_mnemonic_securely,
-    structs::{SecureString, TaprootAddressWithPrefix},
-    wallet::{
-        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
-        mnemonic::prompt_mnemonic,
-        passphrase::{prompt_passphrase, prompt_unlock_passphrase},
-        scan_wallet_files,
-        wallet_storage::get_storage_dir,
-        wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, load_key,
-            parse_and_validate_imported_wallet, report_integrity_results,
-            validate_wallet_availability,
-        },
-    },
-    withdrawal::{self, start_withdrawal},
+    }, backup_wallet, bitcoin_utils::{get_current_block_height, get_mempool_txs, utxos_from_mempool_space_api, MempoolTx, Utxo}, config::BridgeCliConfig, create_encrypted_wallet, deposit, errors::BridgeCliError, import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key, secure_display::display_mnemonic_securely, structs::{SecureString, TaprootAddressWithPrefix}, wallet::{
+        get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set, mnemonic::prompt_mnemonic, passphrase::{prompt_passphrase, prompt_unlock_passphrase}, scan_wallet_files, wallet_storage::get_storage_dir, wallet_utils::{
+            ensure_wallet_exists, load_key, parse_and_validate_imported_wallet, report_integrity_results, validate_wallet_availability, WalletValidationMode
+        }, Purpose
+    }, withdrawal::{self, start_withdrawal}, BitcoinAddress, CitreaAddress
 };
 
 pub fn cli_create_wallet(
@@ -170,7 +152,13 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let mut utxos = utxos_from_mempool_space_api(&taproot_address, config).await?;
+    let mut utxos = match utxos_from_mempool_space_api(&taproot_address, config).await {
+        Ok(utxos) => utxos,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            vec![]
+        }
+    };
     utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
     let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
         .iter()
@@ -231,7 +219,13 @@ pub async fn deposit_status(
         println!();
     }
 
-    let deposit_statuses_backend = backend_deposit_status(&taproot_address, config).await?;
+    let deposit_statuses_backend = match backend_deposit_status(&taproot_address, config).await {
+        Ok(statuses) => statuses,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch deposit statuses from backend: {}", e);
+            vec![]
+        }
+    };
     if deposit_statuses_backend.is_empty() {
         println!(
             "{} No deposits found for address {}",
@@ -251,6 +245,27 @@ pub async fn deposit_status(
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
         println!("{} {}", status, refund_msg);
     }
+
+    let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
+        Ok(txs) => txs,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
+            vec![]
+        }
+    };
+    
+    if !mempool_txs.is_empty() {
+        println!(
+            "\n{} Deposit transactions in mempool for address {}:",
+            "INFO".bold(),
+            taproot_address
+        );
+
+        for tx in &mempool_txs {
+            print_mempool_tx(&taproot_address, tx);
+        }
+    }
+
     Ok(())
 }
 
@@ -346,8 +361,21 @@ fn print_incorrect_deposit(
 ) {
     println!(
         "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
-        utxo.txid, utxo.value, block_display, is_confirmed_display, refund_message
+        utxo.txid, Amount::from_sat(utxo.value), block_display, is_confirmed_display, refund_message
     );
+}
+
+fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
+    for out in &tx.vout {
+        out.get("scriptpubkey_address").and_then(|addr| addr.as_str()).map(|addr_str| {
+            if addr_str == address.to_string() {
+                let value = out.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
+                println!("\nDeposit in Mempool");
+                println!("  TxID:       {}\n  Value:      {}", tx.txid, Amount::from_sat(value));
+            }
+        });
+        
+    }
 }
 
 pub async fn cli_get_deposit_address(

@@ -14,6 +14,8 @@ use bitcoin::{
 };
 use bitcoincore_rpc::RpcApi;
 use eyre::{Context, Result};
+use serde::Deserialize;
+use serde_json::Value;
 use std::sync::LazyLock;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
@@ -33,6 +35,20 @@ pub struct Utxo {
     pub vout: u32,
     pub status: UtxoStatus,
     pub value: u64,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct MempoolTx {
+    pub txid: String,
+    pub version: i32,
+    pub locktime: u32,
+    pub size: u32,
+    pub weight: u32,
+    pub fee: u64,
+    pub status: Value,
+    pub vin: Vec<Value>,
+    pub vout: Vec<Value>,
 }
 
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
@@ -421,12 +437,16 @@ pub(crate) fn verify_withdrawal_signature(
 }
 
 pub async fn utxos_from_mempool_space_api(
-    taproot_address: &BitcoinAddress,
+    address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<Utxo>, BridgeCliError> {
+    if config.network == bitcoin::Network::Regtest {
+        println!("WARNING: UTXO fetching from mempool.space is disabled in regtest mode.");
+        return Ok(vec![]); // Disabled in regtest mode
+    }
     let url = config
         .mempool_api_url
-        .join(&format!("address/{taproot_address}/utxo"))
+        .join(&format!("address/{address}/utxo"))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let utxos: Vec<Utxo> = resp.json().await?;
@@ -459,6 +479,24 @@ async fn get_current_block_height_from_rpc(
     rpc.get_block_count()
         .await
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
+}
+
+pub async fn get_mempool_txs(
+    address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<MempoolTx>, BridgeCliError> {
+    if config.network == bitcoin::Network::Regtest {
+        println!("WARNING: Mempool TX fetching from mempool.space is disabled in regtest mode.");
+        return Ok(vec![]); // Disabled in regtest mode
+    }
+
+    let url = config
+        .mempool_api_url
+        .join(&format!("address/{address}/txs/mempool"))
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let txs: Vec<MempoolTx> = resp.json().await?;
+    Ok(txs)
 }
 
 #[cfg(test)]
