@@ -1,7 +1,7 @@
 use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use clementine_cli::cli::cli_scan_withdrawals;
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
@@ -26,6 +26,28 @@ use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
+
+/// Local copy of [`bitcoin::Network`], just to implement [`ValueEnum`].
+#[derive(Copy, Clone, Debug, ValueEnum)]
+enum CliNetwork {
+    Bitcoin,
+    Testnet,
+    Testnet4,
+    Signet,
+    Regtest,
+}
+
+impl From<CliNetwork> for Network {
+    fn from(value: CliNetwork) -> Self {
+        match value {
+            CliNetwork::Bitcoin => Network::Bitcoin,
+            CliNetwork::Testnet => Network::Testnet,
+            CliNetwork::Testnet4 => Network::Testnet4,
+            CliNetwork::Signet => Network::Signet,
+            CliNetwork::Regtest => Network::Regtest,
+        }
+    }
+}
 
 /// Initializes tracing to `Debug` level if verbose flag is given. If not,
 /// defaults to `RUST_LOG` env variable.
@@ -96,8 +118,8 @@ enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         /// Label for the wallet file
         label: String,
         /// Purpose for the wallet.
@@ -123,8 +145,8 @@ enum WalletCommands {
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         /// Label for the imported wallet
         label: String,
         /// Purpose for the imported wallet
@@ -133,8 +155,8 @@ enum WalletCommands {
     /// Import wallet using secure private key input.
     ImportPrivateKey {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         /// Label for the imported wallet
         label: String,
         /// Purpose for the imported wallet
@@ -158,8 +180,8 @@ enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
         /// Bitcoin network (required for this subcommand)
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         recovery_taproot_address: String,
         citrea_address: String,
     },
@@ -179,8 +201,8 @@ enum DepositCommands {
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
         /// Bitcoin network (required for this subcommand)
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
     },
     /// Verify a recovery transaction before broadcasting.
     VerifyRecoveryTx {
@@ -190,27 +212,27 @@ enum DepositCommands {
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
     },
     // Check the status of a deposit.
     Status {
         deposit_address: String,
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
     },
     /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
     BroadcastRecoveryTx {
         /// Hex encoded raw transaction.
         raw_tx: String,
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
     },
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
         move_to_vault_txid: String,
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
     },
 }
 
@@ -218,22 +240,22 @@ enum DepositCommands {
 enum WithdrawalCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         claim_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
     Scan {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         claim_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo: String,
@@ -241,8 +263,8 @@ enum WithdrawalCommands {
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -251,8 +273,8 @@ enum WithdrawalCommands {
     },
     /// Send a safe withdrawal transaction.
     SendSafeWithdrawal {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -261,8 +283,8 @@ enum WithdrawalCommands {
     },
     /// Check the status of a withdrawal.
     Status {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         withdrawal_index: u32,
     },
     /// Generate operator withdrawal signatures.
@@ -274,8 +296,8 @@ enum WithdrawalCommands {
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
-        #[arg(long, default_value_t = Network::Bitcoin)]
-        network: Network,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        network: CliNetwork,
         signer_address: String,
         withdrawal_address: String,
         withdrawal_utxo_outpoint: String,
@@ -301,7 +323,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_create_wallet(network, label, purpose),
+                    cli_create_wallet(network.into(), label, purpose),
                     _ => {}
                 );
             }
@@ -331,7 +353,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_mnemonic(network, &label, purpose),
+                    cli_import_wallet_from_mnemonic(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import completed for address: {}",
@@ -357,7 +379,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_private_key(network, &label, purpose),
+                    cli_import_wallet_from_private_key(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import from private key completed for address: {}",
@@ -394,7 +416,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 citrea_address,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
@@ -420,7 +443,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 amount,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
@@ -450,7 +474,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 amount,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
                 let citrea_address = parse_citrea_address(&evm_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
@@ -478,12 +503,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 deposit_address,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
             }
             DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
 
                 handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
                     println!("{}", txid);
@@ -493,7 +520,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 move_to_vault_txid,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let move_to_vault_txid = Txid::from_str(&move_to_vault_txid)?;
                 handle_cli_command!(async
                     get_deposit_params(&move_to_vault_txid, &config),
@@ -509,7 +537,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 claim_address,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
 
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
@@ -544,7 +573,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 claim_address,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -568,15 +598,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 amount,
                 network,
             } => {
-                let signer_address =
-                    TaprootAddressWithPrefix::from_string_with_prefix(&signer_address, network)
-                        .print_err()?;
+                let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
+                    &signer_address,
+                    network.into(),
+                )
+                .print_err()?;
 
                 should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
 
-                let claim_address = parse_address(&withdrawal_address, network)?;
+                let claim_address = parse_address(&withdrawal_address, network.into())?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
                 let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
@@ -589,7 +621,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &claim_address,
                         &withdrawal_outpoint,
                         &amount,
-                        network,
+                        network.into(),
                     ),
                     signature => {
                         println!(
@@ -607,7 +639,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signature,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -647,7 +680,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signature,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -681,7 +715,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_index,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 withdrawal_status(withdrawal_index, &config).await?;
             }
             WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
@@ -707,7 +742,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_amount,
                 network,
             } => {
-                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 send_withdrawal_signatures(
                     &signer_address,
                     &withdrawal_address,
