@@ -70,7 +70,7 @@ impl Display for WithdrawalStatus {
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
-            Cow::Owned(DepositStatusEnum::from_backend_status(&self.status).as_string())
+            Cow::Owned(WithdrawalStatusEnum::from_backend_status(&self.status).as_string())
         };
 
         write!(
@@ -92,6 +92,7 @@ use crate::config::BridgeCliConfig;
 use crate::deposit::DepositStatusEnum;
 use crate::errors::BridgeCliError;
 use crate::wallet::address::parse_taproot_address;
+use crate::withdrawal::WithdrawalStatusEnum;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Address, OutPoint};
 use colored::*;

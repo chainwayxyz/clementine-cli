@@ -27,6 +27,39 @@ use open;
 use serde_json::{Value, json};
 use urlencoding::encode;
 
+pub(crate) enum WithdrawalStatusEnum {
+    New,
+    InProgress,
+    Completed,
+    Unknown,
+}
+
+impl WithdrawalStatusEnum {
+    pub(crate) fn from_backend_status(status: &str) -> Self {
+        match status {
+            "new" => WithdrawalStatusEnum::New,
+            "completed" => WithdrawalStatusEnum::Completed,
+            "sending-to-optimistic-payout"
+            | "sent-to-optimistic-payout"
+            | "optimistic-payout-failed"
+            | "sending-to-operator-withdraw"
+            | "sent-to-operator-withdraw" => WithdrawalStatusEnum::InProgress,
+            unknown_status => {
+                tracing::debug!("Returned unknown status: {}", unknown_status);
+                WithdrawalStatusEnum::Unknown
+            }
+        }
+    }
+    pub fn as_string(&self) -> String {
+        match self {
+            WithdrawalStatusEnum::New => "New".to_string(),
+            WithdrawalStatusEnum::InProgress => "In Progress".to_string(),
+            WithdrawalStatusEnum::Completed => "Completed".to_string(),
+            WithdrawalStatusEnum::Unknown => "Unknown".to_string(),
+        }
+    }
+}
+
 pub fn generate_withdrawal_signature(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
