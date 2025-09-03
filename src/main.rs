@@ -10,8 +10,9 @@ use clementine_cli::{
     cli::{
         cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity, deposit_status,
-        send_withdrawal_signatures, withdrawal_status,
+        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
+        deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
+        withdrawal_status,
     },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
@@ -195,6 +196,13 @@ enum DepositCommands {
     // Check the status of a deposit.
     Status {
         deposit_address: String,
+        #[arg(long)]
+        network: Network,
+    },
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
+    BroadcastRecoveryTx {
+        /// Hex encoded raw transaction.
+        raw_tx: String,
         #[arg(long)]
         network: Network,
     },
@@ -424,24 +432,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let claim_address =
                     BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
 
-                fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
-                    hex::encode(bitcoin::consensus::serialize(&tx))
-                }
-
-                handle_cli_command!(
-                    deposit::create_signed_recovery_tx(
-                        &citrea_address,
-                        &recovery_taproot_address,
-                        &deposit_utxo_outpoint,
-                        &claim_address,
-                        fee_rate,
-                        amount,
-                        &config,
-                    ),
-                    tx => {
-                        println!("Recovery transaction hex: {}", serialize_and_encode(tx));
-                    }
-                );
+                deposit_create_signed_recovery_tx(
+                    &citrea_address,
+                    &recovery_taproot_address,
+                    &deposit_utxo_outpoint,
+                    &claim_address,
+                    fee_rate,
+                    amount,
+                    &config,
+                )
+                .await?;
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
@@ -481,6 +481,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
+            }
+            DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
+                let config = BridgeCliConfig::try_parse_config(cli.config_file, network).unwrap();
+
+                handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
+                    println!("{}", txid);
+                });
             }
             DepositCommands::GetDepositParams {
                 move_to_vault_txid,
