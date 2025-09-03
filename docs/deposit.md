@@ -2,14 +2,16 @@
 
 This guide covers the complete process for depositing Bitcoin to Citrea using Clementine CLI. The deposit process involves generating a deposit address, sending Bitcoin, and monitoring the bridging process.
 
-View all deposit commands: 
+View all deposit commands:
+
 ```sh
-clementine-cli --network <NETWORK> deposit --help
+clementine-cli deposit --help
 ```
 
 ## Prerequisites
 
 Before starting a deposit, ensure you have:
+
 - A Citrea address (Ethereum format)
 - A Clementine wallet with `deposit` purpose ("dep" prefix address) which will be used as the recovery taproot address
 - Access to a Bitcoin wallet or node for sending funds
@@ -18,6 +20,7 @@ Before starting a deposit, ensure you have:
 ## Deposit Process Overview
 
 The deposit process consists of several stages:
+
 1. **Generate deposit address** - Create a unique deposit address
 2. **Send Bitcoin** - Transfer funds to the deposit address
 3. **Monitor status** - Track the bridging process
@@ -25,6 +28,7 @@ The deposit process consists of several stages:
 
 > [!IMPORTANT]
 > The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure should the deposit fails, you can recover your funds back to your `CLAIM_ADDRESS`.
+
 ## Step 1: Generate Deposit Address
 
 **TWO-DEVICE PROCESS:**
@@ -34,12 +38,13 @@ The deposit process consists of several stages:
 Create a deposit address using your Citrea (EVM) address and recovery taproot address:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <CITREA_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+clementine-cli deposit get-deposit-address --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 ```
 
 **Example:**
+
 ```sh
-clementine-cli --network testnet4 deposit get-deposit-address 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be depbc1p...
+clementine-cli deposit get-deposit-address --network testnet4 depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 ```
 
 > [!IMPORTANT]
@@ -51,7 +56,7 @@ clementine-cli --network testnet4 deposit get-deposit-address 0x742d35Cc6631C053
 
 ```sh
 # Run this on airgapped device to verify the deposit address matches
-clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+clementine-cli deposit get-deposit-address --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS>
 ```
 
 ## Step 2: Send Bitcoin to Deposit Address
@@ -59,27 +64,30 @@ clementine-cli --network <BITCOIN_NETWORK> deposit get-deposit-address <EVM_ADDR
 Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client. The deposit address is fixed to `10 BTC`.
 
 **Using bitcoin-cli:**
+
 ```sh
 bitcoin-cli -<NETWORK> sendtoaddress <DEPOSIT_ADDRESS> 10
 ```
 
 **Example:**
+
 ```sh
 bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 ```
 
 > [!CAUTION]
-> Save your deposit transaction ID immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
+> Save your deposit TxId immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
 
 ## Step 3: Monitor Deposit Status
 
 **ONLINE DEVICE OPERATION:** Track the progress of your deposit through the bridging process:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> deposit status <DEPOSIT_ADDRESS>
+clementine-cli deposit status --network <BITCOIN_NETWORK> <DEPOSIT_ADDRESS>
 ```
 
 **Example:**
+
 ```sh
 clementine-cli --network testnet4 deposit status tb1pd...
 ```
@@ -87,6 +95,7 @@ clementine-cli --network testnet4 deposit status tb1pd...
 The status will show the response from the backend.
 
 **Two-Device Monitoring Protocol:**
+
 1. **Online Device**: Run status checks regularly
 2. **Document Status**: Record all status changes with timestamps
 3. **Critical Threshold**: Monitor closely around 200-block threshold
@@ -110,15 +119,17 @@ Gather all necessary information on your online device:
 **AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <CLAIM_ADDRESS>
+clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <CLAIM_ADDRESS> <FEE_RATE> <AMOUNT>
 ```
 
 **Example:**
+
 ```sh
-clementine-cli --network testnet4 deposit create-signed-recovery-tx tb1pd... 0x742d35... abc123def456... 0 tb1qe...
+clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x742d35... abc123def456... 0 tb1qe...
 ```
 
 **Airgapped Recovery Protocol:**
+
 1. **Transfer Data**: Move all recovery parameters to airgapped device via secure method
 2. **Generate TX**: Run create-signed-recovery-tx command on airgapped device
 3. **Verify Details**: Double-check all parameters before execution
@@ -129,8 +140,9 @@ clementine-cli --network testnet4 deposit create-signed-recovery-tx tb1pd... 0x7
 **BOTH DEVICES:** Verify the recovery transaction details before broadcasting:
 
 **Airgapped Device (Generate Verification):**
+
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> deposit verify-recovery-tx <RECOVERY_TX> <CITREA_ADDRESS> <RECOVERY_TAPROOT_ADDRESS>
+clementine-cli deposit verify-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 ```
 
 ### Broadcast Recovery Transaction (Online Device)
@@ -138,10 +150,16 @@ clementine-cli --network <BITCOIN_NETWORK> deposit verify-recovery-tx <RECOVERY_
 **ONLINE DEVICE ONLY:** Send the recovery transaction to the Bitcoin network:
 
 ```sh
-bitcoin-cli sendrawtransaction <RECOVERY_TX>
+clementine-cli deposit broadcast-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX>
 ```
 
+> [!TIP]
+> You don't have to use `clementine-cli` if you know how to send raw transactions
+> by yourself. `clementine-cli` only provides helping wrappers around Mempool
+> post tx api and Bitcoin CLI.
+
 **Broadcasting Protocol:**
+
 1. **Receive**: Get signed recovery transaction from airgapped device
 2. **Final Verification**: Optionally run verify-recovery-tx on online device
 3. **Broadcast**: Submit transaction to Bitcoin network
@@ -154,7 +172,7 @@ bitcoin-cli sendrawtransaction <RECOVERY_TX>
 Retrieve deposit parameters for advanced operations:
 
 ```sh
-clementine-cli --network <NETWORK> deposit get-deposit-params
+clementine-cli deposit get-deposit-params --network <NETWORK> <MOVE_TO_VAULT_TXID>
 ```
 
 ## Troubleshooting
@@ -162,16 +180,19 @@ clementine-cli --network <NETWORK> deposit get-deposit-params
 ### Common Issues
 
 **Deposit address generation fails:**
+
 - Verify EVM address format (0x...)
 - Check recovery taproot address format (bc1p...)
 - Ensure network parameter matches your Bitcoin network
 
 **Status check returns no results:**
+
 - Confirm deposit address is correct
 - Wait for Bitcoin network confirmation (usually 1-6 blocks)
 - Check if deposit transaction was actually broadcasted
 
 **Recovery transaction creation fails:**
+
 - Verify all parameters match original deposit exactly
 - Check that 200 blocks have actually passed
 - Ensure recovery taproot address is from the correct wallet
@@ -179,6 +200,7 @@ clementine-cli --network <NETWORK> deposit get-deposit-params
 ### Getting Help
 
 For command-specific help:
+
 ```sh
 clementine-cli deposit --help
 clementine-cli deposit <subcommand> --help
