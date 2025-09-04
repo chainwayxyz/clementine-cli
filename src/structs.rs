@@ -72,17 +72,13 @@ impl Drop for SecureSecretKey {
 }
 
 /// A secure wrapper for Keypair that automatically erases itself when dropped
-pub(crate) struct SecureKeypair {
+pub struct SecureKeypair {
     inner: Keypair,
 }
 
 impl SecureKeypair {
     pub fn new(keypair: Keypair) -> Self {
         Self { inner: keypair }
-    }
-
-    pub fn as_ref(&self) -> &Keypair {
-        &self.inner
     }
 
     pub fn secret_key(&self) -> SecureSecretKey {
@@ -93,6 +89,12 @@ impl SecureKeypair {
 impl Drop for SecureKeypair {
     fn drop(&mut self) {
         self.inner.non_secure_erase();
+    }
+}
+
+impl AsRef<Keypair> for SecureKeypair {
+    fn as_ref(&self) -> &Keypair {
+        &self.inner
     }
 }
 

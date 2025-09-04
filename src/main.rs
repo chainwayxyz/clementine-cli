@@ -6,7 +6,7 @@ use clementine_cli::cli::cli_scan_withdrawals;
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
-    BitcoinAddress,
+    BitcoinAddress, broadcast_recovery_tx,
     cli::{
         cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
@@ -125,7 +125,7 @@ enum WalletCommands {
         /// Purpose for the wallet.
         purpose: Purpose,
     },
-    /// Backup wallet to specified destination.
+    /// Backup a wallet to specified destination.
     Backup {
         /// Destination path for wallet backup
         destination: String,
@@ -258,7 +258,7 @@ enum WithdrawalCommands {
         network: CliNetwork,
         signer_address: String,
         withdrawal_address: String,
-        withdrawal_utxo: String,
+        withdrawal_utxo_outpoint: String,
         amount: f64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
@@ -425,14 +425,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
-                    deposit_address => {
-                        println!("Deposit address: {}", deposit_address.to_string().bold());
-                        println!("{} Send exactly 10 BTC to the above address to initiate the deposit.", "INFO".bold());
-                        println!("For Bitcoin Core users, you can send your deposit using the following command (add any necessary parameters as needed):");
-                        println!("bitcoin-cli sendtoaddress {} 10", deposit_address.to_string());
-                    }
-                );
+                                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                                    deposit_address => {
+                                        println! ("Deposit address: {}", deposit_address.to_string ().bold());
+                println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
+                println! ("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
+                println! ("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
+                                    }
+                                );
             }
             DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
@@ -456,16 +456,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let claim_address =
                     BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
 
-                deposit_create_signed_recovery_tx(
-                    &citrea_address,
-                    &recovery_taproot_address,
-                    &deposit_utxo_outpoint,
-                    &claim_address,
-                    fee_rate,
-                    amount,
-                    &config,
-                )
-                .await?;
+                handle_cli_command!(
+                    deposit_create_signed_recovery_tx(
+                        &citrea_address,
+                        &recovery_taproot_address,
+                        &deposit_utxo_outpoint,
+                        &claim_address,
+                        fee_rate,
+                        amount,
+                        &config,
+                    )
+                    .await
+                );
             }
             DepositCommands::VerifyRecoveryTx {
                 recovery_tx,
@@ -485,10 +487,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .print_err()?;
                 handle_cli_command!(
                     deposit::verify_recovery_tx(
-                        &recovery_tx,
-                        &citrea_address,
-                        &recovery_taproot_address,
-                        amount,
+                        deposit::VerifyRecoveryTxParams {
+                            recovery_tx,
+                            citrea_address,
+                            recovery_taproot_address,
+                            amount,
+                        },
                         &config,
                     ),
                     (txid, address, amount) => {
@@ -512,7 +516,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let config =
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
 
-                handle_cli_command!(async deposit::broadcast_recovery_tx(&config, raw_tx), txid => {
+                handle_cli_command!(async broadcast_recovery_tx(&config, raw_tx), txid => {
                     println!("{}", txid);
                 });
             }
@@ -560,7 +564,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &claim_address, &config),
                     _result => {
-                        println!("Send exactly 0.00000330 btc to {}", signer_address.address_without_prefix());
+                        println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
+                        println!("You can use:");
+                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000{}",
+                            signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
+                        println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli withdrawal scan --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), claim_address);
@@ -594,7 +602,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             WithdrawalCommands::GenerateWithdrawalSignature {
                 signer_address,
                 withdrawal_address,
-                withdrawal_utxo,
+                withdrawal_utxo_outpoint,
                 amount,
                 network,
             } => {
@@ -609,7 +617,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 })?;
 
                 let claim_address = parse_address(&withdrawal_address, network.into())?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
@@ -628,6 +636,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "Withdrawal signature hex: {}",
                             serialize_and_encode(signature)
                         );
+                        println!("Now run:");
+                        println!("clementine-cli withdrawal safe-withdraw --network {} {} {} {} {} {}",
+                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
+                        println!("on your online device to initiate withdrawal process on the Citrea network");
                     }
                 );
             }
@@ -698,11 +710,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdrawal::send_safe_withdrawal(
-                        &signer_address,
-                        &withdrawal_address,
-                        &withdrawal_outpoint,
-                        &withdrawal_amount,
-                        &sig,
+                        withdrawal::SafeWithdrawalParams {
+                            signer_address,
+                            withdrawal_address,
+                            withdrawal_outpoint,
+                            withdrawal_amount,
+                            signature: sig,
+                        },
                         &config,
                     ),
                     result => {
