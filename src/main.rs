@@ -10,8 +10,9 @@ use clementine_cli::{
     cli::{
         cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity, deposit_status,
-        send_withdrawal_signatures, withdrawal_status,
+        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
+        deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
+        withdrawal_status,
     },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
@@ -401,11 +402,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
-                    deposit_address => {
-                        println!("Deposit address: {}", deposit_address);
-                    }
-                );
+                                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                                    deposit_address => {
+                                        println! ("Deposit address: {}", deposit_address.to_string ().bold());
+                println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
+                println! ("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
+                println! ("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
+                                    }
+                                );
             }
             DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
@@ -428,25 +432,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let claim_address =
                     BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
 
-                fn serialize_and_encode(tx: bitcoin::Transaction) -> String {
-                    hex::encode(bitcoin::consensus::serialize(&tx))
-                }
-
                 handle_cli_command!(
-                    deposit::create_signed_recovery_tx(
-                        deposit::RecoveryTxParams {
-                            citrea_addr: citrea_address,
-                            recovery_taproot_address,
-                            outpoint: deposit_utxo_outpoint,
-                            claim_addr: claim_address,
-                            fee_rate: Some(fee_rate),
-                            amount: Some(amount),
-                        },
+                    deposit_create_signed_recovery_tx(
+                        &citrea_address,
+                        &recovery_taproot_address,
+                        &deposit_utxo_outpoint,
+                        &claim_address,
+                        fee_rate,
+                        amount,
                         &config,
-                    ),
-                    tx => {
-                        println!("Recovery transaction hex: {}", serialize_and_encode(tx));
-                    }
+                    )
+                    .await
                 );
             }
             DepositCommands::VerifyRecoveryTx {

@@ -1,9 +1,7 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::api_utils::get_tx_details;
-use crate::bitcoin_utils::{
-    sign_withdrawal_signature, utxos_from_mempool_space_api, verify_withdrawal_signature,
-};
+use crate::api_utils::{get_tx_details, utxos_from_mempool_space_api};
+use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::structs::TaprootAddressWithPrefix;

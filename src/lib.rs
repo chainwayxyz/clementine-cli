@@ -45,7 +45,7 @@ pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_wit
 pub use api_utils::broadcast_recovery_tx;
 
 // Constants
-pub use bitcoin_utils::{DUST_THRESHOLD_SATS, SATS_TO_WEI_MULTIPLIER, WITHDRAWAL_UTXO_AMOUNT};
+pub use bitcoin_utils::{SATS_TO_WEI_MULTIPLIER, WITHDRAWAL_UTXO_AMOUNT};
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;

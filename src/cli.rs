@@ -12,11 +12,12 @@ use eyre::eyre;
 
 use crate::{
     BitcoinAddress, CitreaAddress,
+    api_utils::{get_current_block_height, utxos_from_mempool_space_api},
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
-    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_space_api},
+    bitcoin_utils::Utxo,
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
@@ -30,8 +31,9 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, parse_and_validate_imported_wallet,
-            report_integrity_results, validate_wallet_availability,
+            WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
+            parse_and_validate_imported_wallet, report_integrity_results,
+            validate_wallet_availability,
         },
     },
     withdrawal::{self, start_withdrawal},
@@ -264,6 +266,8 @@ pub async fn deposit_create_signed_recovery_tx(
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
+    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
+
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
         recovery_taproot_address: recovery_taproot_address.clone(),
@@ -273,10 +277,10 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, config)?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair)?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
-    println!("{raw_tx}");
+    println!("Raw transaction: {raw_tx}");
 
     Ok(())
 }

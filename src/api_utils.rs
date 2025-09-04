@@ -1,7 +1,8 @@
 // API utility functions for handling fallback patterns
 
-use crate::config::BridgeCliConfig;
+use crate::bitcoin_utils::Utxo;
 use crate::errors::BridgeCliError;
+use crate::{BitcoinAddress, config::BridgeCliConfig};
 use bitcoin::{Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use eyre::{Context, eyre};
@@ -191,6 +192,47 @@ async fn broadcast_recovery_tx_with_mempool(
 
         Err(eyre::eyre!("Can't send raw: {} {}", status, error_text).into())
     }
+}
+
+pub async fn utxos_from_mempool_space_api(
+    taproot_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<Utxo>, BridgeCliError> {
+    let url = config
+        .mempool_api_url
+        .join(&format!("address/{taproot_address}/utxo"))
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let utxos: Vec<Utxo> = resp.json().await?;
+    Ok(utxos)
+}
+
+pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
+    match config.bitcoin_config {
+        Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
+        _ => get_current_block_height_from_mempool_space_api(config).await,
+    }
+}
+
+async fn get_current_block_height_from_mempool_space_api(
+    config: &BridgeCliConfig,
+) -> Result<u64, BridgeCliError> {
+    let url = config
+        .mempool_api_url
+        .join("blocks/tip/height")
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let height: u64 = resp.json().await?;
+    Ok(height)
+}
+
+async fn get_current_block_height_from_rpc(
+    config: &BridgeCliConfig,
+) -> Result<u64, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+    rpc.get_block_count()
+        .await
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
 }
 
 #[cfg(test)]

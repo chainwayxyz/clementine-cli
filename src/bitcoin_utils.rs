@@ -12,7 +12,6 @@ use bitcoin::{
     Amount, FeeRate, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use bitcoincore_rpc::RpcApi;
 use eyre::{Context, Result};
 use std::sync::LazyLock;
 
@@ -37,7 +36,6 @@ pub struct Utxo {
 
 // Constants to reduce magic number duplication
 pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
-pub const DUST_THRESHOLD_SATS: Amount = Amount::from_sat(546);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
 /// Convert optional BTC amount to optional Amount (reduces duplication)
@@ -431,47 +429,6 @@ fn create_recovery_script_for_address(
 ) -> Result<ScriptBuf, BridgeCliError> {
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
     Ok(recover_script(recovery_key, user_takes_after))
-}
-
-pub async fn utxos_from_mempool_space_api(
-    taproot_address: &BitcoinAddress,
-    config: &BridgeCliConfig,
-) -> Result<Vec<Utxo>, BridgeCliError> {
-    let url = config
-        .mempool_api_url
-        .join(&format!("address/{taproot_address}/utxo"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
-    let utxos: Vec<Utxo> = resp.json().await?;
-    Ok(utxos)
-}
-
-pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
-    match config.bitcoin_config {
-        Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
-        _ => get_current_block_height_from_mempool_space_api(config).await,
-    }
-}
-
-async fn get_current_block_height_from_mempool_space_api(
-    config: &BridgeCliConfig,
-) -> Result<u64, BridgeCliError> {
-    let url = config
-        .mempool_api_url
-        .join("blocks/tip/height")
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
-    let height: u64 = resp.json().await?;
-    Ok(height)
-}
-
-async fn get_current_block_height_from_rpc(
-    config: &BridgeCliConfig,
-) -> Result<u64, BridgeCliError> {
-    let rpc = config.connect_to_bitcoin_rpc().await?;
-    rpc.get_block_count()
-        .await
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
 }
 
 #[cfg(test)]
