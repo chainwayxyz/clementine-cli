@@ -38,7 +38,7 @@ use crate::{
             validate_wallet_availability,
         },
     },
-    withdrawal::{self, start_withdrawal},
+    withdraw::{self, start_withdrawal},
 };
 
 pub fn cli_create_wallet(
@@ -429,7 +429,7 @@ pub async fn cli_scan_withdrawals(
     claim_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let utxos = withdrawal::scan_withdrawal(signer_address, claim_address, config).await;
+    let utxos = withdraw::scan_withdrawal(signer_address, claim_address, config).await;
 
     let mut utxos =
         utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
@@ -468,7 +468,7 @@ pub async fn cli_scan_withdrawals(
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
             println!(
-                "clementine-cli withdrawal generate-withdrawal-signature --network {} {} {} {} {}",
+                "clementine-cli withdraw generate-withdrawal-signature --network {} {} {} {} {}",
                 config.network,
                 &signer_address.address_with_prefix(),
                 claim_address,

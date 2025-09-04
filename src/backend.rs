@@ -1,7 +1,17 @@
+use crate::config::BridgeCliConfig;
+use crate::deposit::DepositStatusEnum;
+use crate::errors::BridgeCliError;
+use crate::wallet::address::parse_taproot_address;
+use crate::withdraw::WithdrawStatusEnum;
+use crate::{BitcoinAddress, CitreaAddress};
+use bitcoin::{Address, OutPoint};
+use colored::*;
+use eyre::{Context, Result};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::borrow::Cow;
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
@@ -14,7 +24,7 @@ pub struct DepositStatus {
 }
 
 #[derive(Debug, Deserialize, Serialize)]
-pub struct WithdrawalStatus {
+pub struct WithdrawStatus {
     pub idx: u64,
     pub status: String,
     pub btc_payment_txid: String,
@@ -49,7 +59,7 @@ impl Display for DepositStatus {
     }
 }
 
-impl Display for WithdrawalStatus {
+impl Display for WithdrawStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn display_or(v: &str) -> &str {
             if v.is_empty() { "--" } else { v }
@@ -70,7 +80,7 @@ impl Display for WithdrawalStatus {
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
-            Cow::Owned(WithdrawalStatusEnum::from_backend_status(&self.status).as_string())
+            Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
         };
 
         write!(
@@ -86,18 +96,6 @@ impl Display for WithdrawalStatus {
         )
     }
 }
-// Backend communication logic for Clementine CLI
-
-use crate::config::BridgeCliConfig;
-use crate::deposit::DepositStatusEnum;
-use crate::errors::BridgeCliError;
-use crate::wallet::address::parse_taproot_address;
-use crate::withdrawal::WithdrawalStatusEnum;
-use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::{Address, OutPoint};
-use colored::*;
-use eyre::{Context, Result};
-use serde_json::json;
 
 /// Make a POST request to create a deposit account
 pub(crate) async fn create_deposit_account(
@@ -208,7 +206,7 @@ pub(crate) async fn backend_deposit_status(
 pub(crate) async fn backend_withdrawal_status(
     withdrawal_index: u32,
     config: &BridgeCliConfig,
-) -> Result<Vec<WithdrawalStatus>, BridgeCliError> {
+) -> Result<Vec<WithdrawStatus>, BridgeCliError> {
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed
         .join("withdrawals")
@@ -228,7 +226,7 @@ pub(crate) async fn backend_withdrawal_status(
         .await?;
 
     if response.status().is_success() {
-        let response_body: Vec<WithdrawalStatus> = response.json().await?;
+        let response_body: Vec<WithdrawStatus> = response.json().await?;
         tracing::info!("{} Withdrawal status request successful", "SUCCESS".bold(),);
         tracing::debug!(
             "Response: {}",

@@ -21,7 +21,7 @@ mod secure_display;
 pub mod structs;
 pub mod types;
 pub mod wallet;
-pub mod withdrawal;
+pub mod withdraw;
 
 // Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
@@ -39,7 +39,7 @@ pub use deposit::{
 };
 
 // Withdrawal operations
-pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
+pub use withdraw::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
 
 // API utilities
 pub use api_utils::broadcast_recovery_tx;

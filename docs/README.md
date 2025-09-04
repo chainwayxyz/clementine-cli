@@ -6,10 +6,11 @@ Welcome to the complete user guide for Clementine CLI.
 
 This documentation is organized into specialized guides for each major operation:
 
-### **User Guides**
+### User Guides
+
 - **[Wallet Operations](wallet.md)** - Create, import, backup, and manage Clementine wallets
 - **[Deposit Guide](deposit.md)** - Move Bitcoin to Citrea network
-- **[Withdrawal Guide](withdrawal.md)** - Move funds back to Bitcoin
+- **[Withdrawal Guide](withdraw.md)** - Move funds back to Bitcoin
 
 ## Getting Started
 
