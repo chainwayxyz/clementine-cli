@@ -340,7 +340,7 @@ pub async fn get_mempool_txs(
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
     if config.network == bitcoin::Network::Regtest {
-        println!("WARNING: Mempool TX fetching from mempool.space is disabled in regtest mode.");
+        tracing::warn!("Mempool TX fetching from mempool.space is disabled in regtest mode.");
         return Ok(vec![]); // Disabled in regtest mode
     }
 
