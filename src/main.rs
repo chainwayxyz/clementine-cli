@@ -622,6 +622,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
                 }
+                let network: Network = network.into();
 
                 handle_cli_command!(
                     withdrawal::generate_withdrawal_signature(
@@ -629,7 +630,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &claim_address,
                         &withdrawal_outpoint,
                         &amount,
-                        network.into(),
+                        network,
                     ),
                     signature => {
                         println!(
