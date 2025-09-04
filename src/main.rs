@@ -106,10 +106,10 @@ enum Commands {
         #[command(subcommand)]
         command: DepositCommands,
     },
-    /// Withdrawal related operations.
-    Withdrawal {
+    /// Withdraw related operations.
+    Withdraw {
         #[command(subcommand)]
-        command: WithdrawalCommands,
+        command: WithdrawCommands,
     },
 }
 
@@ -237,7 +237,7 @@ enum DepositCommands {
 }
 
 #[derive(Subcommand)]
-enum WithdrawalCommands {
+enum WithdrawCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
@@ -245,20 +245,20 @@ enum WithdrawalCommands {
         signer_address: String,
         claim_address: String,
     },
-    /// Scan for UTXOs to use in withdrawal.
+    /// Scan for UTXOs to use in a withdrawal.
     Scan {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         signer_address: String,
         claim_address: String,
     },
-    /// Generate a withdrawal signature (for air-gapped use).
-    GenerateWithdrawalSignature {
+    /// Generate a withdraw signature (for air-gapped use).
+    GenerateWithdrawSignature {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         signer_address: String,
-        withdrawal_address: String,
-        withdrawal_utxo_outpoint: String,
+        withdraw_address: String,
+        withdraw_utxo_outpoint: String,
         amount: f64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
@@ -266,13 +266,13 @@ enum WithdrawalCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         signer_address: String,
-        withdrawal_address: String,
-        withdrawal_utxo_outpoint: String,
+        withdraw_address: String,
+        withdraw_utxo_outpoint: String,
         amount: f64,
         signature: String,
     },
-    /// Send a safe withdrawal transaction.
-    SendSafeWithdrawal {
+    /// Send a safe withdraw transaction.
+    SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         signer_address: String,
@@ -535,8 +535,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         },
-        Commands::Withdrawal { command } => match command {
-            WithdrawalCommands::Start {
+        Commands::Withdraw { command } => match command {
+            WithdrawCommands::Start {
                 signer_address,
                 claim_address,
                 network,
@@ -576,7 +576,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawalCommands::Scan {
+            WithdrawCommands::Scan {
                 signer_address,
                 claim_address,
                 network,
@@ -599,10 +599,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => { }
                 )
             }
-            WithdrawalCommands::GenerateWithdrawalSignature {
+            WithdrawCommands::GenerateWithdrawSignature {
                 signer_address,
-                withdrawal_address,
-                withdrawal_utxo_outpoint,
+                withdraw_address,
+                withdraw_utxo_outpoint,
                 amount,
                 network,
             } => {
@@ -612,12 +612,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
-                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                should_not_have_purpose(&withdraw_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdraw_address.bold());
                 })?;
 
-                let claim_address = parse_address(&withdrawal_address, network.into())?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
+                let claim_address = parse_address(&withdraw_address, network.into())?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdraw_utxo_outpoint)?;
                 let amount = Amount::from_btc(amount)?;
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
@@ -639,15 +639,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         println!("Now run:");
                         println!("clementine-cli withdrawal safe-withdraw --network {} {} {} {} {} {}",
-                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
+                            network, &signer_address.address_with_prefix(), withdraw_address, withdraw_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
                         println!("on your online device to initiate withdrawal process on the Citrea network");
                     }
                 );
             }
-            WithdrawalCommands::SafeWithdraw {
+            WithdrawCommands::SafeWithdraw {
                 signer_address,
-                withdrawal_address,
-                withdrawal_utxo_outpoint,
+                withdraw_address,
+                withdraw_utxo_outpoint,
                 amount,
                 signature,
                 network,
@@ -660,18 +660,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                should_not_have_purpose(&withdrawal_address).inspect_err(|_| {
-                    eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
+                should_not_have_purpose(&withdraw_address).inspect_err(|_| {
+                    eprintln!("Invalid withdrawal address: {}", withdraw_address.bold());
                 })?;
 
-                let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
-                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
+                let withdraw_address = parse_address(&withdraw_address, config.network)?;
+                let withdrawal_outpoint = OutPoint::from_str(&withdraw_utxo_outpoint)?;
                 let withdrawal_amount = Amount::from_btc(amount)?;
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdrawal::safe_withdraw(
                         &signer_address,
-                        &withdrawal_address,
+                        &withdraw_address,
                         &withdrawal_outpoint,
                         &withdrawal_amount,
                         &sig,
@@ -685,7 +685,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawalCommands::SendSafeWithdrawal {
+            WithdrawCommands::SendSafeWithdraw {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
@@ -726,7 +726,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawalCommands::Status {
+            WithdrawCommands::Status {
                 withdrawal_index,
                 network,
             } => {
@@ -734,7 +734,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 withdrawal_status(withdrawal_index, &config).await?;
             }
-            WithdrawalCommands::GenerateOperatorWithdrawalSignatures {
+            WithdrawCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
                 signer_address,
                 withdrawal_utxo_outpoint,
@@ -748,7 +748,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     withdrawal_amount
                 );
             }
-            WithdrawalCommands::SendWithdrawalSignaturesToOperators {
+            WithdrawCommands::SendWithdrawalSignaturesToOperators {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
