@@ -41,7 +41,7 @@ pub(crate) enum DepositStatusEnum {
 }
 
 impl DepositStatusEnum {
-    pub(crate) fn from_backend_status(status: &str) -> Self {
+    pub(crate) fn from_status(status: &str) -> Self {
         match status {
             "new" => DepositStatusEnum::New,
             "minted" => DepositStatusEnum::Completed,
@@ -51,6 +51,7 @@ impl DepositStatusEnum {
             _ => DepositStatusEnum::Unknown,
         }
     }
+
     pub fn as_string(&self) -> String {
         match self {
             DepositStatusEnum::New => "New".to_string(),

@@ -6,8 +6,23 @@ use crate::{BitcoinAddress, config::BridgeCliConfig};
 use bitcoin::{Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::{Client, RpcApi};
 use eyre::{Context, eyre};
+use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
+
+#[allow(dead_code)]
+#[derive(Debug, Deserialize)]
+pub struct MempoolTx {
+    pub txid: String,
+    pub version: i32,
+    pub locktime: u32,
+    pub size: u32,
+    pub weight: u32,
+    pub fee: u64,
+    pub status: Value,
+    pub vin: Vec<Value>,
+    pub vout: Vec<Value>,
+}
 
 /// Get transaction details using mempool API
 pub async fn get_tx_details_from_mempool(
@@ -233,6 +248,24 @@ async fn get_current_block_height_from_rpc(
     rpc.get_block_count()
         .await
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
+}
+
+pub async fn get_mempool_txs(
+    address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<MempoolTx>, BridgeCliError> {
+    if config.network == bitcoin::Network::Regtest {
+        println!("WARNING: Mempool TX fetching from mempool.space is disabled in regtest mode.");
+        return Ok(vec![]); // Disabled in regtest mode
+    }
+
+    let url = config
+        .mempool_api_url
+        .join(&format!("address/{address}/txs/mempool"))
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    let txs: Vec<MempoolTx> = resp.json().await?;
+    Ok(txs)
 }
 
 #[cfg(test)]

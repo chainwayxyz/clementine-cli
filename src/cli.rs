@@ -12,7 +12,9 @@ use eyre::eyre;
 
 use crate::{
     BitcoinAddress, CitreaAddress,
-    api_utils::{get_current_block_height, utxos_from_mempool_space_api},
+    api_utils::{
+        MempoolTx, get_current_block_height, get_mempool_txs, utxos_from_mempool_space_api,
+    },
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
@@ -171,7 +173,13 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let mut utxos = utxos_from_mempool_space_api(&taproot_address, config).await?;
+    let mut utxos = match utxos_from_mempool_space_api(&taproot_address, config).await {
+        Ok(utxos) => utxos,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            vec![]
+        }
+    };
     utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
     let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
         .iter()
@@ -197,7 +205,7 @@ pub async fn deposit_status(
             match refund_in_blocks {
                 Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
-                None => "Refund information not available.".to_string(),
+                None => "\n  Refund information not available.".to_string(),
             }
         } else {
             String::new()
@@ -232,7 +240,13 @@ pub async fn deposit_status(
         println!();
     }
 
-    let deposit_statuses_backend = backend_deposit_status(&taproot_address, config).await?;
+    let deposit_statuses_backend = match backend_deposit_status(&taproot_address, config).await {
+        Ok(statuses) => statuses,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch deposit statuses from backend: {}", e);
+            vec![]
+        }
+    };
     if deposit_statuses_backend.is_empty() {
         println!(
             "{} No deposits found for address {}",
@@ -252,6 +266,27 @@ pub async fn deposit_status(
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
         println!("{} {}", status, refund_msg);
     }
+
+    let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
+        Ok(txs) => txs,
+        Err(e) => {
+            eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
+            vec![]
+        }
+    };
+
+    if !mempool_txs.is_empty() {
+        println!(
+            "\n{} Deposit transactions in mempool for address {}:",
+            "INFO".bold(),
+            taproot_address
+        );
+
+        for tx in &mempool_txs {
+            print_mempool_tx(&taproot_address, tx);
+        }
+    }
+
     Ok(())
 }
 
@@ -344,8 +379,30 @@ fn print_incorrect_deposit(
 ) {
     println!(
         "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
-        utxo.txid, utxo.value, block_display, is_confirmed_display, refund_message
+        utxo.txid,
+        Amount::from_sat(utxo.value),
+        block_display,
+        is_confirmed_display,
+        refund_message
     );
+}
+
+fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
+    for out in &tx.vout {
+        if let Some(addr_str) = out
+            .get("scriptpubkey_address")
+            .and_then(|addr| addr.as_str())
+            && addr_str == address.to_string()
+        {
+            let value = out.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
+            println!("\nDeposit in Mempool");
+            println!(
+                "  TxID:       {}\n  Value:      {}",
+                tx.txid,
+                Amount::from_sat(value)
+            );
+        };
+    }
 }
 
 pub async fn cli_get_deposit_address(
