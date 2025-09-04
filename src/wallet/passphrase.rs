@@ -72,7 +72,7 @@ pub(crate) fn derive_key_from_passphrase(
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
         .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
 
-    println!("Encryption (also decryption) key derived successfully.");
+    tracing::debug!("Encryption (also decryption) key derived successfully.");
 
     Ok(SecureByteSlice::init_with(|| key))
 }
@@ -81,7 +81,7 @@ pub(crate) fn derive_key_from_passphrase(
 /// empty; however, it is recommended to use a non-empty passphrase for security, since
 /// it protects your private key from unauthorized access.
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
-    println!("{}", "Passphrase Protection".blue().bold());
+    println!("{}", "Passphrase Protection".bold());
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
 
@@ -97,7 +97,7 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 
     println!(
         "{} Private key will be encrypted with AES-256-GCM",
-        "SECURE".green().bold()
+        "SECURE".bold()
     );
 
     let secure_passphrase = SecureString::init_with(|| passphrase);

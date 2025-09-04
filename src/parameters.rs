@@ -168,6 +168,16 @@ impl std::fmt::Debug for CitreaMerkleProof {
     }
 }
 
+/// Structured return type for safe withdraw parameters instead of complex tuple
+#[derive(Debug)]
+pub struct SafeWithdrawParams {
+    pub prepare_tx: CitreaTransaction,
+    pub prepare_proof: CitreaMerkleProof,
+    pub payout_tx: CitreaTransaction,
+    pub block_header: Vec<u8>,
+    pub output_script_pk: Vec<u8>,
+}
+
 fn get_transaction_merkle_proof_for_citrea(
     block_height: u32,
     block: &Block,
@@ -220,7 +230,6 @@ pub(crate) fn get_citrea_deposit_params(
     Ok(data)
 }
 
-#[allow(clippy::type_complexity)]
 pub(crate) fn get_citrea_safe_withdraw_params(
     withdrawal_utxo: &OutPoint,
     payout_output: &bitcoin::TxOut,
@@ -228,16 +237,7 @@ pub(crate) fn get_citrea_safe_withdraw_params(
     prepare_tx: &Transaction,
     prepare_tx_block: &Block,
     prepare_tx_block_height: u32,
-) -> Result<
-    (
-        CitreaTransaction,
-        CitreaMerkleProof,
-        CitreaTransaction,
-        Vec<u8>,
-        Vec<u8>,
-    ),
-    BridgeCliError,
-> {
+) -> Result<SafeWithdrawParams, BridgeCliError> {
     let prepare_tx_struct = get_transaction_details_for_citrea(prepare_tx)?;
 
     let prepare_tx_mp = get_transaction_merkle_proof_for_citrea(
@@ -289,11 +289,11 @@ pub(crate) fn get_citrea_safe_withdraw_params(
         )
     );
 
-    Ok((
-        prepare_tx_struct,
-        prepare_tx_mp,
-        payout_tx_params,
-        block_header_bytes,
-        output_script_pk_bytes.to_vec(),
-    ))
+    Ok(SafeWithdrawParams {
+        prepare_tx: prepare_tx_struct,
+        prepare_proof: prepare_tx_mp,
+        payout_tx: payout_tx_params,
+        block_header: block_header_bytes,
+        output_script_pk: output_script_pk_bytes.to_vec(),
+    })
 }

@@ -33,7 +33,7 @@ impl Display for DepositStatus {
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
-            Cow::Owned(DepositStatusEnum::from_backend_status(&self.status).as_string())
+            Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
         };
 
         write!(
@@ -135,10 +135,7 @@ pub(crate) async fn create_deposit_account(
 
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json().await?;
-        tracing::info!(
-            "{} Deposit address request successful",
-            "SUCCESS".green().bold(),
-        );
+        tracing::info!("{} Deposit address request successful", "SUCCESS".bold(),);
         tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
@@ -187,10 +184,7 @@ pub(crate) async fn backend_deposit_status(
 
     if response.status().is_success() {
         let response_body: Vec<DepositStatus> = response.json().await?;
-        tracing::info!(
-            "{} Deposit status request successful",
-            "SUCCESS".green().bold(),
-        );
+        tracing::info!("{} Deposit status request successful", "SUCCESS".bold(),);
         tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
@@ -235,10 +229,7 @@ pub(crate) async fn backend_withdrawal_status(
 
     if response.status().is_success() {
         let response_body: Vec<WithdrawalStatus> = response.json().await?;
-        tracing::info!(
-            "{} Withdrawal status request successful",
-            "SUCCESS".green().bold(),
-        );
+        tracing::info!("{} Withdrawal status request successful", "SUCCESS".bold(),);
         tracing::debug!(
             "Response: {}",
             serde_json::to_string_pretty(&response_body)?
@@ -303,7 +294,7 @@ pub(crate) async fn send_withdrawal_signatures_to_operators(
         let response_body: serde_json::Value = response.json().await?;
         tracing::info!(
             "{} Withdrawal signatures sent successfully",
-            "SUCCESS".green().bold(),
+            "SUCCESS".bold(),
         );
         tracing::debug!(
             "Response: {}",

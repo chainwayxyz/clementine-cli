@@ -97,7 +97,7 @@ impl BridgeCliConfig {
     fn try_parse_file(path: PathBuf, network: Network) -> Result<Self, ConfigErrors> {
         let mut contents = String::new();
 
-        let mut file = File::open(path.clone())?;
+        let mut file = File::open(&path)?;
         file.read_to_string(&mut contents)?;
 
         let network_configs = toml::from_str::<NetworkConfigs>(&contents)?;
