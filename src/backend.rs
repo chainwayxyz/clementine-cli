@@ -51,35 +51,38 @@ impl Display for DepositStatus {
 
 impl Display for WithdrawalStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let not_present = "--";
+        fn display_or(v: &str) -> &str {
+            if v.is_empty() { "--" } else { v }
+        }
+
+        fn display_option_or<T: ToString>(v: &Option<T>) -> String {
+            if v.is_none() {
+                "--".to_string()
+            } else {
+                v.as_ref().unwrap().to_string()
+            }
+        }
+
+        fn display_t<T: ToString + Display>(v: &T) -> String {
+            v.to_string()
+        }
+
         let status = if self.status.is_empty() {
-            not_present
+            Cow::Borrowed("--")
         } else {
-            &self.status
+            Cow::Owned(WithdrawalStatusEnum::from_backend_status(&self.status).as_string())
         };
-        let btc_payment_txid = if self.btc_payment_txid.is_empty() {
-            not_present
-        } else {
-            &self.btc_payment_txid
-        };
-        let optimistic_payout_started_at = self
-            .optimistic_payout_started_at
-            .as_deref()
-            .unwrap_or(not_present);
-        let optimistic_payout_deadline_at = self
-            .optimistic_payout_deadline_at
-            .as_deref()
-            .unwrap_or(not_present);
+
         write!(
             f,
-            "Withdrawal Index: {}, Status: {}, BTC Payment TXID: {}, From Safe Withdraw: {}, Payout Started: {}, Payout Deadline: {}, Created: {}",
+            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}",
             self.idx,
             status,
-            btc_payment_txid,
-            self.from_safe_withdraw,
-            optimistic_payout_started_at,
-            optimistic_payout_deadline_at,
-            self.created_at
+            display_or(&self.btc_payment_txid),
+            display_t(&self.from_safe_withdraw),
+            display_option_or(&self.optimistic_payout_started_at),
+            display_option_or(&self.optimistic_payout_deadline_at),
+            display_or(&self.created_at)
         )
     }
 }
@@ -89,6 +92,7 @@ use crate::config::BridgeCliConfig;
 use crate::deposit::DepositStatusEnum;
 use crate::errors::BridgeCliError;
 use crate::wallet::address::parse_taproot_address;
+use crate::withdrawal::WithdrawalStatusEnum;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Address, OutPoint};
 use colored::*;

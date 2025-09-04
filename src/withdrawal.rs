@@ -24,6 +24,44 @@ use open;
 use serde_json::json;
 use urlencoding::encode;
 
+pub(crate) enum WithdrawalStatusEnum {
+    New,
+    InProgress,
+    OptimisticPayoutFailed,
+    Completed,
+    Unknown,
+}
+
+impl WithdrawalStatusEnum {
+    pub(crate) fn from_backend_status(status: &str) -> Self {
+        match status {
+            "new" => WithdrawalStatusEnum::New,
+            "completed" => WithdrawalStatusEnum::Completed,
+            "sending-to-optimistic-payout"
+            | "sent-to-optimistic-payout"
+            | "sending-to-operator-withdraw"
+            | "sent-to-operator-withdraw" => WithdrawalStatusEnum::InProgress,
+            "optimistic-payout-failed" => WithdrawalStatusEnum::OptimisticPayoutFailed,
+            unknown_status => {
+                tracing::debug!("Returned unknown status: {}", unknown_status);
+                WithdrawalStatusEnum::Unknown
+            }
+        }
+    }
+    pub fn as_string(&self) -> String {
+        match self {
+            WithdrawalStatusEnum::New => "New".to_string(),
+            WithdrawalStatusEnum::InProgress => "In Progress".to_string(),
+            WithdrawalStatusEnum::OptimisticPayoutFailed => {
+                "Optimistic payout failed! Please proceed with operator paid withdrawal..."
+                    .to_string()
+            }
+            WithdrawalStatusEnum::Completed => "Completed".to_string(),
+            WithdrawalStatusEnum::Unknown => "Unknown".to_string(),
+        }
+    }
+}
+
 /// Parameters for safe withdrawal operations  
 #[derive(Debug)]
 pub struct SafeWithdrawalParams {

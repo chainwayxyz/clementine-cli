@@ -115,6 +115,16 @@ impl BridgeCliConfig {
             config.mempool_api_url =
                 Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
         }
+        if !config.citrea_backend_endpoint.to_string().ends_with("/") {
+            let str_url = config.citrea_backend_endpoint.to_string() + "/";
+            config.citrea_backend_endpoint =
+                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+        }
+        if !config.citrea_rpc_url.to_string().ends_with("/") {
+            let str_url = config.citrea_rpc_url.to_string() + "/";
+            config.citrea_rpc_url =
+                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+        }
 
         Ok(config)
     }
