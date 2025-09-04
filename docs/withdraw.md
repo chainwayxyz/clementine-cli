@@ -158,7 +158,7 @@ clementine-cli --network <BITCOIN_NETWORK> withdraw status <WITHDRAWAL_INDEX>
 
 **Example:**
 ```sh
-clementine-cli withdraw status --network testnet4  123
+clementine-cli withdraw status --network testnet4 123
 ```
 
 The status will show the response from the backend.
