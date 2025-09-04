@@ -2,17 +2,19 @@ use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
 use clap::{Parser, Subcommand, ValueEnum};
-use clementine_cli::cli::cli_scan_withdrawals;
+use clementine_cli::commands::deposit::{deposit_create_signed_recovery_tx, deposit_status};
+use clementine_cli::commands::withdraw::{
+    cli_get_deposit_address, cli_scan_withdrawals, cli_start_withdrawal,
+    send_withdrawal_signatures, withdrawal_status,
+};
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
-    cli::{
-        cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
+    commands::wallet::{
+        cli_backup_wallet, cli_create_wallet, cli_import_wallet_from_file,
         cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
-        deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
-        withdrawal_status,
+        cli_show_private_key, cli_verify_wallet_integrity,
     },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
