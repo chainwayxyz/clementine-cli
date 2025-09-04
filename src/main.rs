@@ -19,7 +19,7 @@ use clementine_cli::{
     print_all_wallets_with_addresses,
     structs::TaprootAddressWithPrefix,
     wallet::{Purpose, parse_address, parse_taproot_address},
-    withdrawal,
+    withdraw,
 };
 use colored::Colorize;
 use std::path::PathBuf;
@@ -625,7 +625,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let network: Network = network.into();
 
                 handle_cli_command!(
-                    withdrawal::generate_withdrawal_signature(
+                    withdraw::generate_withdrawal_signature(
                         &signer_address,
                         &claim_address,
                         &withdrawal_outpoint,
@@ -669,7 +669,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let withdrawal_amount = Amount::from_btc(amount)?;
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
-                    withdrawal::safe_withdraw(
+                    withdraw::safe_withdraw(
                         &signer_address,
                         &withdrawal_address,
                         &withdrawal_outpoint,
@@ -710,8 +710,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let withdrawal_amount = Amount::from_btc(amount)?;
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
-                    withdrawal::send_safe_withdrawal(
-                        withdrawal::SafeWithdrawalParams {
+                    withdraw::send_safe_withdrawal(
+                        withdraw::SafeWithdrawalParams {
                             signer_address,
                             withdrawal_address,
                             withdrawal_outpoint,
