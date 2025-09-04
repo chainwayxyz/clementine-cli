@@ -1,7 +1,17 @@
+use crate::config::BridgeCliConfig;
+use crate::deposit::DepositStatusEnum;
+use crate::errors::BridgeCliError;
+use crate::wallet::address::parse_taproot_address;
+use crate::withdrawal::WithdrawStatusEnum;
+use crate::{BitcoinAddress, CitreaAddress};
+use bitcoin::{Address, OutPoint};
+use colored::*;
+use eyre::{Context, Result};
+use serde::{Deserialize, Serialize};
+use serde_json::json;
 use std::borrow::Cow;
 use std::fmt::Display;
 
-use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
@@ -86,18 +96,6 @@ impl Display for WithdrawStatus {
         )
     }
 }
-// Backend communication logic for Clementine CLI
-
-use crate::config::BridgeCliConfig;
-use crate::deposit::DepositStatusEnum;
-use crate::errors::BridgeCliError;
-use crate::wallet::address::parse_taproot_address;
-use crate::withdrawal::WithdrawStatusEnum;
-use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::{Address, OutPoint};
-use colored::*;
-use eyre::{Context, Result};
-use serde_json::json;
 
 /// Make a POST request to create a deposit account
 pub(crate) async fn create_deposit_account(

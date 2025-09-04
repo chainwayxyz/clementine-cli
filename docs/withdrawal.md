@@ -2,7 +2,7 @@
 
 This guide covers the withdrawal process from Citrea back to Bitcoin using Clementine CLI. Withdrawals follow a specific sequential process using two devices for maximum security.
 
-All available withdrawal commands can be viewed using `clementine-cli withdrawal --help` command and `clementine-cli withdrawal <subcommand> --help`.
+All available withdrawal commands can be viewed using `clementine-cli withdraw --help` command and `clementine-cli withdraw <subcommand> --help`.
 
 ## Prerequisites
 
@@ -134,12 +134,12 @@ clementine-cli --network testnet4 withdrawal safe-withdraw wittb1pf... tb1qg... 
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
 
 ```sh
-clementine-cli withdrawal send-withdrawal-signatures-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
+clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
 ```
 
 **Example:**
 ```sh
-clementine-cli withdrawal send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
+clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
 ```
 
 > [!NOTE]
@@ -208,8 +208,9 @@ The status will show the response from the backend.
 
 ### Getting Help
 
-For additional help with withdrawal commands:
+For additional help with withdraw commands:
+
 ```sh
-clementine-cli withdrawal --help
-clementine-cli withdrawal <command> --help
+clementine-cli withdraw --help
+clementine-cli withdraw <command> --help
 ```

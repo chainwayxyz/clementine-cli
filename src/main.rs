@@ -570,7 +570,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
-                        println!("clementine-cli withdrawal scan --network {} {} {}",
+                        println!("clementine-cli withdraw scan --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), claim_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
@@ -638,7 +638,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             serialize_and_encode(signature)
                         );
                         println!("Now run:");
-                        println!("clementine-cli withdrawal safe-withdraw --network {} {} {} {} {} {}",
+                        println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
                         println!("on your online device to initiate withdrawal process on the Citrea network");
                     }
