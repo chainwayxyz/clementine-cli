@@ -241,7 +241,8 @@ pub(crate) async fn get_utxos(
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
     let utxos_to_info = |utxos: Vec<Utxo>| {
-        utxos.into_iter()
+        utxos
+            .into_iter()
             .map(|utxo| UtxoInfo {
                 txid: utxo.txid,
                 vout: utxo.vout,
