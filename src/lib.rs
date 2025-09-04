@@ -6,6 +6,7 @@ use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
 
+mod api_utils;
 mod backend;
 mod bitcoin_merkle;
 mod bitcoin_utils;
@@ -33,10 +34,18 @@ pub use wallet::{
 };
 
 // Deposit operations
-pub use deposit::{create_signed_recovery_tx, get_deposit_params, verify_recovery_tx};
+pub use deposit::{
+    RecoveryTxParams, create_signed_recovery_tx, get_deposit_params, verify_recovery_tx,
+};
 
 // Withdrawal operations
 pub use withdrawal::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
+
+// API utilities
+pub use api_utils::broadcast_recovery_tx;
+
+// Constants
+pub use bitcoin_utils::{SATS_TO_WEI_MULTIPLIER, WITHDRAWAL_UTXO_AMOUNT};
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;

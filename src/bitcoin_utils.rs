@@ -12,10 +12,7 @@ use bitcoin::{
     Amount, FeeRate, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
     TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
 };
-use bitcoincore_rpc::RpcApi;
 use eyre::{Context, Result};
-use serde::Deserialize;
-use serde_json::Value;
 use std::sync::LazyLock;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
@@ -37,18 +34,16 @@ pub struct Utxo {
     pub value: u64,
 }
 
-#[allow(dead_code)]
-#[derive(Debug, Deserialize)]
-pub struct MempoolTx {
-    pub txid: String,
-    pub version: i32,
-    pub locktime: u32,
-    pub size: u32,
-    pub weight: u32,
-    pub fee: u64,
-    pub status: Value,
-    pub vin: Vec<Value>,
-    pub vout: Vec<Value>,
+// Constants to reduce magic number duplication
+pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
+pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
+
+/// Convert optional BTC amount to optional Amount (reduces duplication)
+pub fn convert_btc_to_amount(btc_amount: Option<f64>) -> Result<Option<Amount>, BridgeCliError> {
+    match btc_amount {
+        Some(btc) => Ok(Some(Amount::from_btc(btc)?)),
+        None => Ok(None),
+    }
 }
 
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
@@ -58,8 +53,7 @@ pub(crate) fn calculate_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
     let deposit_script = deposit_script(*citrea_address, config.aggregated_public_key);
-    let recovery_key =
-        XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
+    let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
     let recover_script = recover_script(recovery_key, config.user_takes_after);
 
     let taproot_spend_info = TaprootBuilder::new()
@@ -116,10 +110,8 @@ pub(crate) fn sign_recovery_tx(
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
-    let recovery_script = recover_script(
-        XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?,
-        config.user_takes_after,
-    );
+    let recovery_script =
+        create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
 
     let txin = TxIn {
         previous_output: *deposit_outpoint,
@@ -171,7 +163,7 @@ pub(crate) fn sign_recovery_tx(
     tracing::debug!("recovery_script: {:?}", recovery_script);
     tracing::debug!(
         "recovery key: {:?}",
-        XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])
+        extract_xonly_pubkey_from_address(recovery_taproot_address)
     );
     tracing::debug!("input_amount: {:?}", deposit_amount);
 
@@ -235,10 +227,9 @@ pub(crate) fn verify_recovery_tx(
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
-    let recovery_key =
-        XOnlyPublicKey::from_slice(&recovery_taproot_address.script_pubkey().to_bytes()[2..34])?;
-
-    let recovery_script = recover_script(recovery_key, config.user_takes_after);
+    let recovery_script =
+        create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
+    let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
 
     // 1. check that the second element of the witness is the recovery script
     if recovery_tx.input[0].witness[1] != recovery_script.as_script().to_bytes() {
@@ -341,6 +332,23 @@ pub(crate) fn sign_withdrawal_signature(
     claim_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<bitcoin::taproot::Signature, BridgeCliError> {
+    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, claim_address, amount);
+    let prevout = create_withdrawal_prevout(signer_address);
+
+    let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
+    let sig = sign_with_tweak(keypair, sighash, None);
+
+    Ok(bitcoin::taproot::Signature {
+        signature: sig,
+        sighash_type: bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
+    })
+}
+
+fn create_withdrawal_transaction(
+    withdrawal_utxo: &OutPoint,
+    claim_address: &BitcoinAddress,
+    amount: Amount,
+) -> Transaction {
     let txin = TxIn {
         previous_output: *withdrawal_utxo,
         script_sig: ScriptBuf::default(),
@@ -353,36 +361,12 @@ pub(crate) fn sign_withdrawal_signature(
         script_pubkey: claim_address.script_pubkey(),
     };
 
-    let withdrawal_tx = Transaction {
+    Transaction {
         version: bitcoin::transaction::Version::non_standard(3),
         lock_time: bitcoin::absolute::LockTime::ZERO,
         input: vec![txin],
         output: vec![txout],
-    };
-
-    let prevout = TxOut {
-        value: Amount::from_sat(330),
-        script_pubkey: signer_address.script_pubkey(),
-    };
-
-    let mut sighash_cache = bitcoin::sighash::SighashCache::new(withdrawal_tx.clone());
-
-    let sighash = sighash_cache
-        .taproot_key_spend_signature_hash(
-            0,
-            &bitcoin::sighash::Prevouts::One(0, &prevout),
-            bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
-        )
-        .unwrap();
-
-    let sig = sign_with_tweak(keypair, sighash, None);
-
-    let taproot_signature = bitcoin::taproot::Signature {
-        signature: sig,
-        sighash_type: bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
-    };
-
-    Ok(taproot_signature)
+    }
 }
 
 pub(crate) fn verify_withdrawal_signature(
@@ -392,111 +376,59 @@ pub(crate) fn verify_withdrawal_signature(
     claim_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<(), BridgeCliError> {
-    let txin = TxIn {
-        previous_output: *withdrawal_utxo,
-        script_sig: ScriptBuf::default(),
-        sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
-        witness: Witness::default(),
-    };
+    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, claim_address, amount);
+    let prevout = create_withdrawal_prevout(signer_address);
 
-    let txout = TxOut {
-        value: amount,
-        script_pubkey: claim_address.script_pubkey(),
-    };
-
-    let withdrawal_tx = Transaction {
-        version: bitcoin::transaction::Version::non_standard(3),
-        lock_time: bitcoin::absolute::LockTime::ZERO,
-        input: vec![txin],
-        output: vec![txout],
-    };
-
-    let prevout = TxOut {
-        value: Amount::from_sat(330),
-        script_pubkey: signer_address.script_pubkey(),
-    };
-
-    let mut sighash_cache = bitcoin::sighash::SighashCache::new(withdrawal_tx.clone());
-
-    let sighash = sighash_cache
-        .taproot_key_spend_signature_hash(
-            0,
-            &bitcoin::sighash::Prevouts::One(0, &prevout),
-            bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
-        )
-        .unwrap();
+    let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
 
     SECP.verify_schnorr(
         &sig.signature,
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
-        &XOnlyPublicKey::from_slice(&signer_address.script_pubkey().to_bytes()[2..34])?,
+        &extract_xonly_pubkey_from_address(signer_address)?,
     )
     .wrap_err("Signature verification failed")?;
 
     Ok(())
 }
 
-pub async fn utxos_from_mempool_space_api(
+/// Create a sighash for withdrawal transactions (reduces duplication)
+fn create_withdrawal_sighash(
+    withdrawal_tx: &Transaction,
+    prevout: &TxOut,
+) -> Result<TapSighash, BridgeCliError> {
+    let mut sighash_cache = bitcoin::sighash::SighashCache::new(withdrawal_tx.clone());
+    Ok(sighash_cache
+        .taproot_key_spend_signature_hash(
+            0,
+            &bitcoin::sighash::Prevouts::One(0, prevout),
+            bitcoin::TapSighashType::SinglePlusAnyoneCanPay,
+        )
+        .unwrap())
+}
+
+/// Create prevout for withdrawal transactions (reduces duplication)
+fn create_withdrawal_prevout(signer_address: &BitcoinAddress) -> TxOut {
+    TxOut {
+        value: WITHDRAWAL_UTXO_AMOUNT,
+        script_pubkey: signer_address.script_pubkey(),
+    }
+}
+
+/// Extract XOnly public key from taproot address (reduces duplication)
+fn extract_xonly_pubkey_from_address(
     address: &BitcoinAddress,
-    config: &BridgeCliConfig,
-) -> Result<Vec<Utxo>, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        println!("WARNING: UTXO fetching from mempool.space is disabled in regtest mode.");
-        return Ok(vec![]); // Disabled in regtest mode
-    }
-    let url = config
-        .mempool_api_url
-        .join(&format!("address/{address}/utxo"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
-    let utxos: Vec<Utxo> = resp.json().await?;
-    Ok(utxos)
+) -> Result<XOnlyPublicKey, BridgeCliError> {
+    XOnlyPublicKey::from_slice(&address.script_pubkey().to_bytes()[2..34])
+        .map_err(|e| eyre::eyre!("Failed to extract XOnly public key: {e}").into())
 }
 
-pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
-    match config.bitcoin_config {
-        Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
-        _ => get_current_block_height_from_mempool_space_api(config).await,
-    }
-}
-
-async fn get_current_block_height_from_mempool_space_api(
-    config: &BridgeCliConfig,
-) -> Result<u64, BridgeCliError> {
-    let url = config
-        .mempool_api_url
-        .join("blocks/tip/height")
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
-    let height: u64 = resp.json().await?;
-    Ok(height)
-}
-
-async fn get_current_block_height_from_rpc(
-    config: &BridgeCliConfig,
-) -> Result<u64, BridgeCliError> {
-    let rpc = config.connect_to_bitcoin_rpc().await?;
-    rpc.get_block_count()
-        .await
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
-}
-
-pub async fn get_mempool_txs(
-    address: &BitcoinAddress,
-    config: &BridgeCliConfig,
-) -> Result<Vec<MempoolTx>, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        println!("WARNING: Mempool TX fetching from mempool.space is disabled in regtest mode.");
-        return Ok(vec![]); // Disabled in regtest mode
-    }
-
-    let url = config
-        .mempool_api_url
-        .join(&format!("address/{address}/txs/mempool"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
-    let txs: Vec<MempoolTx> = resp.json().await?;
-    Ok(txs)
+/// Create recovery script from taproot address (reduces duplication)
+fn create_recovery_script_for_address(
+    recovery_taproot_address: &BitcoinAddress,
+    user_takes_after: u64,
+) -> Result<ScriptBuf, BridgeCliError> {
+    let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
+    Ok(recover_script(recovery_key, user_takes_after))
 }
 
 #[cfg(test)]
@@ -516,5 +448,12 @@ mod tests {
         let secure_keypair = SecureKeypair::new(keypair);
         let address = calculate_taproot_address(&secure_keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
+    }
+
+    #[test]
+    fn test_deposit_amount_hex() {
+        let deposit_amount_u64: u64 = 10_000_000_000_000_000_000;
+        let deposit_amount_hex = format!("0x{:X}", deposit_amount_u64);
+        assert_eq!(deposit_amount_hex, "0x8AC7230489E80000");
     }
 }

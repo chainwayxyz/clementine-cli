@@ -182,7 +182,7 @@ where
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
     if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(address.to_string()));
+        return Err(BridgeCliError::WalletNotFound(address));
     }
 
     let json_data = fs::read_to_string(&wallet_file).map_err(|e| {
