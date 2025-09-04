@@ -12,11 +12,12 @@ use eyre::eyre;
 
 use crate::{
     BitcoinAddress, CitreaAddress,
+    api_utils::{get_current_block_height, utxos_from_mempool_space_api},
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
-    bitcoin_utils::{Utxo, get_current_block_height, utxos_from_mempool_space_api},
+    bitcoin_utils::Utxo,
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
@@ -30,7 +31,7 @@ use crate::{
         scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, load_key,
+            WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
             parse_and_validate_imported_wallet, report_integrity_results,
             validate_wallet_availability,
         },
@@ -265,24 +266,21 @@ pub async fn deposit_create_signed_recovery_tx(
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
-    // Always prompt for passphrase for maximum security
-    let secure_passphrase = prompt_unlock_passphrase()?;
-    let keypair = load_key(recovery_taproot_address, &secure_passphrase)?;
-    let keypair = keypair.as_ref();
+    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
 
-    let tx = deposit::create_signed_recovery_tx(
-        citrea_addr,
-        recovery_taproot_address,
-        outpoint,
-        claim_addr,
-        *keypair,
-        fee_rate,
-        amount,
-        config,
-    )?;
+    let recovery_params = deposit::RecoveryTxParams {
+        citrea_addr: *citrea_addr,
+        recovery_taproot_address: recovery_taproot_address.clone(),
+        outpoint: *outpoint,
+        claim_addr: claim_addr.clone(),
+        fee_rate: Some(fee_rate),
+        amount: Some(amount),
+    };
+
+    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair)?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
-    println!("{raw_tx}");
+    println!("Raw transaction: {raw_tx}");
 
     Ok(())
 }

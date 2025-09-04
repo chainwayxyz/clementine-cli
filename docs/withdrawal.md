@@ -20,7 +20,8 @@ The withdrawal process follows these sequential steps:
 3. **Scan for Withdrawals** - Find available withdrawal UTXOs
 4. **Generate Withdrawal Signature** - Create signature on airgapped device
 5. **Safe Withdraw** - Submit withdrawal request with signature to Citrea
-6. **Check Status** - Monitor withdrawal progress
+6. **Send Signature to Operators** - Submit signature to Clementine operators for processing
+7. **Check Status** - Monitor withdrawal progress
 
 > [!IMPORTANT]
 > The `SIGNER_ADDRESS` and the `CLAIM_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `CLAIM_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
@@ -128,7 +129,23 @@ clementine-cli --network testnet4 withdrawal safe-withdraw wittb1pf... tb1qg... 
 - Submits the withdrawal transaction to Citrea network
 - Returns transaction confirmation
 
-## Step 6: Check Withdrawal Status (Online Device)
+## Step 6: Send the Signature to the Operators
+
+**ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
+
+```sh
+clementine-cli withdrawal send-withdrawal-signatures-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
+```
+
+**Example:**
+```sh
+clementine-cli withdrawal send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
+```
+
+> [!NOTE]
+> After sending the signature, operators will validate and process the withdrawal. Use Step 7 to monitor the status.
+
+## Step 7: Check Withdrawal Status (Online Device)
 
 **ONLINE DEVICE OPERATION:** Monitor the status of your withdrawal:
 
@@ -157,7 +174,8 @@ The status will show the response from the backend.
 5. **[Airgapped]** `generate-withdrawal-signature` - Create signature
 6. **[Transfer]** Move signature back to online device
 7. **[Online]** `safe-withdraw` - Verify, prepare, and send transaction on Citrea
-8. **[Online]** `withdrawal status` - Monitor completion
+8. **[Online]** `send-withdrawal-signatures-to-operators` - Submit signature to bridge operators
+9. **[Online]** `withdrawal status` - Monitor completion
 
 **Critical Security Note:** ALL cryptographic operations (step 5) must be performed on the airgapped device. Network operations and transaction submission occur on the online device.
 

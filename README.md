@@ -28,7 +28,12 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
    cargo install --path .
    ```
 
-3. Install your configuration by copying your config file to `~/.clementine/`. Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
+3. Install your configuration by modifying according to your own Bitcoin configurations and copying your config file to `~/.clementine/`:
+   ```sh
+   mkdir -p ~/.clementine/  
+   cp ./bridge_cli_config.toml ~/.clementine/  
+   ```
+Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
 
 ## Quick Usage
 
@@ -37,10 +42,10 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 clementine-cli --help
 
 # Create wallet for deposit (airgapped device only)
-clementine-cli --network testnet4 wallet create deposit my-deposit-wallet
+clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
 
 # Monitor deposits (online device)
-clementine-cli --network testnet4 deposit status <DEPADDRESS>
+clementine-cli deposit status --network testnet4 <DEPOSIT_ADDRESS>
 ```
 
 ## Two-Device Security
