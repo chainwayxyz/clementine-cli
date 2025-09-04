@@ -24,7 +24,7 @@ use open;
 use serde_json::json;
 use urlencoding::encode;
 
-pub(crate) enum WithdrawalStatusEnum {
+pub(crate) enum WithdrawStatusEnum {
     New,
     InProgress,
     OptimisticPayoutFailed,
@@ -32,32 +32,32 @@ pub(crate) enum WithdrawalStatusEnum {
     Unknown,
 }
 
-impl WithdrawalStatusEnum {
+impl WithdrawStatusEnum {
     pub(crate) fn from_backend_status(status: &str) -> Self {
         match status {
-            "new" => WithdrawalStatusEnum::New,
-            "completed" => WithdrawalStatusEnum::Completed,
+            "new" => WithdrawStatusEnum::New,
+            "completed" => WithdrawStatusEnum::Completed,
             "sending-to-optimistic-payout"
             | "sent-to-optimistic-payout"
             | "sending-to-operator-withdraw"
-            | "sent-to-operator-withdraw" => WithdrawalStatusEnum::InProgress,
-            "optimistic-payout-failed" => WithdrawalStatusEnum::OptimisticPayoutFailed,
+            | "sent-to-operator-withdraw" => WithdrawStatusEnum::InProgress,
+            "optimistic-payout-failed" => WithdrawStatusEnum::OptimisticPayoutFailed,
             unknown_status => {
                 tracing::debug!("Returned unknown status: {}", unknown_status);
-                WithdrawalStatusEnum::Unknown
+                WithdrawStatusEnum::Unknown
             }
         }
     }
     pub fn as_string(&self) -> String {
         match self {
-            WithdrawalStatusEnum::New => "New".to_string(),
-            WithdrawalStatusEnum::InProgress => "In Progress".to_string(),
-            WithdrawalStatusEnum::OptimisticPayoutFailed => {
+            WithdrawStatusEnum::New => "New".to_string(),
+            WithdrawStatusEnum::InProgress => "In Progress".to_string(),
+            WithdrawStatusEnum::OptimisticPayoutFailed => {
                 "Optimistic payout failed! Please proceed with operator paid withdrawal..."
                     .to_string()
             }
-            WithdrawalStatusEnum::Completed => "Completed".to_string(),
-            WithdrawalStatusEnum::Unknown => "Unknown".to_string(),
+            WithdrawStatusEnum::Completed => "Completed".to_string(),
+            WithdrawStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
 }
