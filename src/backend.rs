@@ -33,7 +33,7 @@ impl Display for DepositStatus {
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
-            Cow::Owned(DepositStatusEnum::from_backend_status(&self.status).as_string())
+            Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
         };
 
         write!(
