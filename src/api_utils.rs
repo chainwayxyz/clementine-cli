@@ -240,35 +240,30 @@ pub(crate) async fn get_utxos(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        println!("WARNING: UTXO fetching from mempool.space is disabled in regtest mode.");
-        let utxos = get_utxos_from_rpc(address, config).await?;
-        return Ok(utxos
-            .into_iter()
+    let utxos_to_info = |utxos: Vec<Utxo>| {
+        utxos.into_iter()
             .map(|utxo| UtxoInfo {
                 txid: utxo.txid,
                 vout: utxo.vout,
                 value: utxo.amount,
                 block_height: Some(utxo.height),
             })
-            .collect());
+            .collect::<Vec<_>>()
+    };
+
+    if config.network == bitcoin::Network::Regtest {
+        tracing::info!("UTXO fetching from mempool.space is disabled in regtest mode.");
+        let utxos = get_utxos_from_rpc(address, config).await?;
+        return Ok(utxos_to_info(utxos));
     }
 
     let utxos = match get_utxos_from_mempool_space_api(address, config).await {
         Ok(utxos) => utxos,
         Err(e) => {
-            eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
-            eprintln!("Falling back to Bitcoin RPC...");
-            return Ok(get_utxos_from_rpc(address, config)
-                .await?
-                .into_iter()
-                .map(|utxo| UtxoInfo {
-                    txid: utxo.txid,
-                    vout: utxo.vout,
-                    value: utxo.amount,
-                    block_height: Some(utxo.height),
-                })
-                .collect());
+            tracing::debug!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            tracing::debug!("Falling back to Bitcoin RPC...");
+            let utxos = get_utxos_from_rpc(address, config).await?;
+            return Ok(utxos_to_info(utxos));
         }
     };
 
