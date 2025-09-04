@@ -27,6 +27,7 @@ use urlencoding::encode;
 pub(crate) enum WithdrawalStatusEnum {
     New,
     InProgress,
+    OptimisticPayoutFailed,
     Completed,
     Unknown,
 }
@@ -38,9 +39,9 @@ impl WithdrawalStatusEnum {
             "completed" => WithdrawalStatusEnum::Completed,
             "sending-to-optimistic-payout"
             | "sent-to-optimistic-payout"
-            | "optimistic-payout-failed"
             | "sending-to-operator-withdraw"
             | "sent-to-operator-withdraw" => WithdrawalStatusEnum::InProgress,
+            "optimistic-payout-failed" => WithdrawalStatusEnum::OptimisticPayoutFailed,
             unknown_status => {
                 tracing::debug!("Returned unknown status: {}", unknown_status);
                 WithdrawalStatusEnum::Unknown
@@ -51,6 +52,10 @@ impl WithdrawalStatusEnum {
         match self {
             WithdrawalStatusEnum::New => "New".to_string(),
             WithdrawalStatusEnum::InProgress => "In Progress".to_string(),
+            WithdrawalStatusEnum::OptimisticPayoutFailed => {
+                "Optimistic payout failed! Please proceed with operator paid withdrawal..."
+                    .to_string()
+            }
             WithdrawalStatusEnum::Completed => "Completed".to_string(),
             WithdrawalStatusEnum::Unknown => "Unknown".to_string(),
         }
