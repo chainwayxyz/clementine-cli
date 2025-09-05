@@ -21,14 +21,6 @@
 //! - **Withdrawal addresses**: Prefixed with "wit"
 //!
 
-use bip39::Mnemonic;
-use bitcoin::address::NetworkChecked;
-use bitcoin::secp256k1::{Keypair, SecretKey};
-use bitcoin::{AddressType, Network};
-use clap::ValueEnum;
-use colored::Colorize;
-use secrecy::ExposeSecret;
-
 use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
 use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
@@ -36,7 +28,14 @@ use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
+use bip39::Mnemonic;
+use bitcoin::address::NetworkChecked;
+use bitcoin::secp256k1::{Keypair, SecretKey};
+use bitcoin::{AddressType, Network};
 use chrono::{DateTime, TimeZone, Utc};
+use clap::ValueEnum;
+use colored::Colorize;
+use secrecy::ExposeSecret;
 
 const DEPOSIT_PREFIX: &str = "dep";
 const WITHDRAWAL_PREFIX: &str = "wit";

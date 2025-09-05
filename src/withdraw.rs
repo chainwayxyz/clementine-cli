@@ -5,7 +5,7 @@ use crate::api_utils::{get_tx_details, get_utxos};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
-use crate::structs::TaprootAddressWithPrefix;
+use crate::structs::{SecureKeypair, TaprootAddressWithPrefix};
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
@@ -81,6 +81,7 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
 }
 
 pub fn generate_withdrawal_signature(
+    keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -106,11 +107,6 @@ pub fn generate_withdrawal_signature(
     if address_exists(&claim_wallet_address)? {
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
-
-    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
-        signer_address,
-        Purpose::Withdrawal,
-    )?;
 
     let signature = sign_withdrawal_signature(
         &keypair,

@@ -6,6 +6,7 @@ use std::{
 use bitcoin::{
     Address, Amount, Network, OutPoint,
     address::{NetworkChecked, NetworkUnchecked},
+    taproot::Signature,
 };
 use colored::Colorize;
 use eyre::eyre;
@@ -20,7 +21,8 @@ use crate::{
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
-    import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
+    generate_withdrawal_signature, import_wallet_from_file, import_wallet_from_mnemonic,
+    import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
     structs::{SecureString, TaprootAddressWithPrefix},
     wallet::{
@@ -487,4 +489,26 @@ pub async fn cli_scan_withdrawals(
     }
 
     Ok(())
+}
+
+pub fn cli_generate_withdrawal_signature(
+    signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    claim_address: &BitcoinAddress,
+    withdrawal_utxo: &OutPoint,
+    amount: &Amount,
+    network: Network,
+) -> Result<Signature, BridgeCliError> {
+    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
+        signer_address,
+        Purpose::Withdrawal,
+    )?;
+
+    generate_withdrawal_signature(
+        keypair,
+        signer_address,
+        claim_address,
+        withdrawal_utxo,
+        amount,
+        network,
+    )
 }

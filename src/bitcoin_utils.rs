@@ -416,9 +416,8 @@ fn create_recovery_script_for_address(
 
 #[cfg(test)]
 mod tests {
-    use crate::wallet::address::calculate_taproot_address;
-
     use super::*;
+    use crate::wallet::address::calculate_taproot_address;
     use bitcoin::Network;
     use bitcoin::address::AddressType;
     use bitcoin::key::Keypair;

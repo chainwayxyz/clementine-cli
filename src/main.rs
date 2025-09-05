@@ -2,18 +2,18 @@ use bitcoin::{
     Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
 };
 use clap::{Parser, Subcommand, ValueEnum};
-use clementine_cli::cli::cli_scan_withdrawals;
+use clementine_cli::cli::{
+    cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signature,
+    cli_get_deposit_address, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
+    cli_import_wallet_from_private_key, cli_scan_withdrawals, cli_show_mnemonic,
+    cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
+    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
+    withdrawal_status,
+};
 use clementine_cli::errors::PrintErr;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
-    cli::{
-        cli_backup_wallet, cli_create_wallet, cli_get_deposit_address, cli_import_wallet_from_file,
-        cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key, cli_show_mnemonic,
-        cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
-        deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
-        withdrawal_status,
-    },
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
     print_all_wallets_with_addresses,
@@ -425,14 +425,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
                 handle_cli_command!(async
-                                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
-                                    deposit_address => {
-                                        println! ("Deposit address: {}", deposit_address.to_string ().bold());
-                println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
-                println! ("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                println! ("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
-                                    }
-                                );
+                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    deposit_address => {
+                        println!("Deposit address: {}", deposit_address.to_string ().bold());
+                        println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
+                        println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
+                        println!("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
+                    }
+                );
             }
             DepositCommands::CreateSignedRecoveryTx {
                 recovery_taproot_address,
@@ -625,7 +625,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let network: Network = network.into();
 
                 handle_cli_command!(
-                    withdraw::generate_withdrawal_signature(
+                    cli_generate_withdrawal_signature(
                         &signer_address,
                         &claim_address,
                         &withdrawal_outpoint,
