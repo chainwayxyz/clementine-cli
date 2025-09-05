@@ -84,7 +84,7 @@ clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM
 clementine-cli withdraw scan --network testnet4 wittb1pf... tb1qg...
 ```
 
-THis command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature.
+This command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature.
 
 ## Step 4: Generate Withdrawal Signature (Airgapped Device)
 
