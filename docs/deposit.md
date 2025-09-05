@@ -125,7 +125,7 @@ clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RE
 **Example:**
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x742d35... abc123def456... 0 tb1qe...
+clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x742d35... abc123def456... 0 tb1qe... 1 10
 ```
 
 **Airgapped Recovery Protocol:**
