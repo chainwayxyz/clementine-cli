@@ -27,16 +27,18 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 - **Provide validation layer** to catch user errors before interacting with Clementine protocol
 - **Enable operation-specific security** tailored to each bridge function
 
-**Critical Warning:** Never manually remove or modify address prefixes, as this can lead to:
-- Failed Clementine interactions
-- Permanent loss of funds due to misinterpretation or confusion
-- Inability to recover funds from bridge operations
+> [!CAUTION] 
+> Never manually remove or modify address prefixes, as this can lead to:
+> - Failed Clementine interactions
+> - Permanent loss of funds due to misinterpretation or confusion
+> - Inability to recover funds from bridge operations
 
 View all wallet commands: `clementine-cli --network <NETWORK> wallet --help`
 
-## Create Wallet
+> [!IMPORTANT]
+> It is strongly advised to perform all wallet-related operations on an air-gapped device.
 
-**AIRGAPPED DEVICE ONLY:** Create a new wallet with secure mnemonic generation. This operation MUST be performed on the airgapped device.
+## Create Wallet
 
 ```sh
 clementine-cli --network <NETWORK> wallet create <WALLET-LABEL> <PURPOSE>
@@ -70,7 +72,7 @@ Wallet files that are generated elsewhere or previously exported can be imported
 clementine-cli wallet import-file <FILE-NAME> <WALLET-LABEL>
 
 # Example of importing a wallet named `wallet1` in the current directory
-clementine-cli wallet import-file wallet_wallet1.json wallet1
+clementine-cli wallet import-file wallet_<address>.json wallet1
 ```
 
 ### Import Private Key
@@ -79,7 +81,8 @@ If you already have a recovery taproot address, you can import it as a wallet
 using the import utility with your secret key. It will be marked as imported via
 private key when you list wallets using `clementine-cli wallet list`.
 
-**Note**: This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
+> [!NOTE]
+> This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
 
 ```sh
 clementine-cli wallet import-private-key <WALLET-LABEL>
@@ -136,25 +139,6 @@ clementine-cli --network <NETWORK> wallet verify-integrity
 - **Secure Storage**: Store mnemonic phrases and private keys in encrypted, offline storage
 - **Multiple Backups**: Keep wallet backups in multiple secure, geographically distributed locations
 - **Access Control**: Limit access to wallet files and ensure proper file system permissions
-
-### Two-Device Workflow
-
-**Airgapped Device Operations:**
-1. **Create wallet**: `clementine-cli --network <NETWORK> wallet create <NAME>`
-2. **Backup wallet**: `clementine-cli --network <NETWORK> wallet backup ./backup <NAME>`
-3. **Generate signatures**: All signing operations stay on airgapped device
-4. **Show addresses**: Copy addresses to online device for verification
-
-**Online Device Operations:**
-1. **Verify addresses**: Confirm addresses match airgapped device output
-2. **Monitor operations**: Use addresses for status checking
-3. **No sensitive operations**: Never import wallets or keys on online device
-
-**Secure Data Transfer Protocol:**
-- Use USB drives formatted with secure filesystems
-- Employ QR codes for short data transfers
-- Always verify data integrity after transfer
-- Never transfer private keys or mnemonics to online device
 
 ## Troubleshooting
 
