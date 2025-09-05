@@ -530,7 +530,7 @@ mod tests {
                 calculate_taproot_address(&secure_keypair, network)
             }
             AddressType::P2wpkh => BitcoinAddress::p2wpkh(&claim_compressed_pubkey, network),
-            AddressType::P2pkh => BitcoinAddress::p2pkh(&claim_compressed_pubkey, network),
+            AddressType::P2pkh => BitcoinAddress::p2pkh(claim_compressed_pubkey, network),
             AddressType::P2sh => {
                 let claim_redeem_script = Builder::new()
                     .push_int(0)
