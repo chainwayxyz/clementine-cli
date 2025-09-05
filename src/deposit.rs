@@ -36,6 +36,7 @@ pub struct VerifyRecoveryTxParams {
 pub(crate) enum DepositStatusEnum {
     New,
     InProgress,
+    MoveTxSent,
     Completed,
     Unknown,
 }
@@ -45,9 +46,10 @@ impl DepositStatusEnum {
         match status {
             "new" => DepositStatusEnum::New,
             "minted" => DepositStatusEnum::Completed,
-            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" | "sent" => {
+            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" => {
                 DepositStatusEnum::InProgress
             }
+            "sent" => DepositStatusEnum::MoveTxSent,
             _ => DepositStatusEnum::Unknown,
         }
     }
@@ -57,6 +59,7 @@ impl DepositStatusEnum {
             DepositStatusEnum::New => "New".to_string(),
             DepositStatusEnum::InProgress => "In Progress".to_string(),
             DepositStatusEnum::Completed => "Completed".to_string(),
+            DepositStatusEnum::MoveTxSent => "Move Transaction Sent".to_string(),
             DepositStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
