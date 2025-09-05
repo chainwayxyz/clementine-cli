@@ -177,6 +177,7 @@ pub async fn deposit_status(
             vec![]
         }
     };
+
     utxos.sort_by_key(|utxo| utxo.block_height.unwrap_or(u64::MAX));
     let deposits_with_incorrect_amount: Vec<&UtxoInfo> = utxos
         .iter()
@@ -193,12 +194,12 @@ pub async fn deposit_status(
 
     let current_block_height = get_current_block_height(config).await?;
 
-    let refund_info = |block_height: Option<u64>, move_txid_empty: bool| {
+    let refund_info = |block_height: Option<u64>, move_tx_on_chain: bool| {
         let refund_in_blocks = block_height.and_then(|h| {
             h.checked_add(config.user_takes_after)
                 .map(|target| target.saturating_sub(current_block_height))
         });
-        if move_txid_empty {
+        if move_tx_on_chain {
             match refund_in_blocks {
                 Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
@@ -239,11 +240,13 @@ pub async fn deposit_status(
         );
         return Ok(());
     }
+
     println!(
         "{} Deposit status(es) for address {}:",
         "INFO".bold(),
         taproot_address
     );
+
     for status in &deposit_statuses_backend {
         let corresponding_utxo = utxos
             .iter()
