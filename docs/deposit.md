@@ -129,7 +129,7 @@ clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x7
 ```
 
 > [!IMPORTANT]
-> Please make sure that `amount` you enter is the exact amount of BTC you sent to the deposit address. This is necessary to recover your funds if you accidentally send any amount other than `10 BTC`
+> Please make sure that `amount` you enter is the exact amount of BTC you sent to the deposit address. This is necessary to recover your funds if you accidentally send any amount other than `10 BTC`.
 
 **Airgapped Recovery Protocol:**
 
