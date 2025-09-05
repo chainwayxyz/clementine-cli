@@ -128,6 +128,9 @@ clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RE
 clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x742d35... abc123def456... 0 tb1qe... 1 10
 ```
 
+> [!IMPORTANT]
+> Please make sure that `amount` you enter is the exact amount of BTC you sent to the deposit address. This is necessary to recover your funds if you accidentally send any amount other than `10 BTC`
+
 **Airgapped Recovery Protocol:**
 
 1. **Transfer Data**: Move all recovery parameters to airgapped device via secure method
