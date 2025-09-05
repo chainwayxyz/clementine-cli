@@ -412,9 +412,8 @@ fn create_recovery_script_for_address(
 
 #[cfg(test)]
 mod tests {
-    use crate::wallet::address::calculate_taproot_address;
-
     use super::*;
+    use crate::wallet::address::calculate_taproot_address;
     use bitcoin::Network;
     use bitcoin::address::AddressType;
     use bitcoin::key::Keypair;
@@ -424,7 +423,6 @@ mod tests {
     fn test_calculate_taproot_address() {
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
-        // let secure_keypair = SecureKeypair::new(keypair);
         let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
     }
