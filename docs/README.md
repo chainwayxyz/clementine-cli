@@ -19,12 +19,14 @@ This documentation is organized into specialized guides for each major operation
 Clementine CLI is designed for maximum security using separate airgapped and online devices:
 
 **Airgapped Device (Offline):**
+
 - Install Rust and Clementine CLI via USB or secure offline method
 - Perform ALL wallet creation and key operations
 - Generate ALL signatures and cryptographic operations
 - NEVER connect to internet or networks
 
 **Online Device (Internet-Connected):**
+
 - Monitor deposit/withdrawal status
 - Generate addresses for verification
 - Broadcast transactions to Bitcoin network
@@ -59,6 +61,7 @@ flowchart TB
 ```
 
 **Secure Workflow Steps:**
+
 1. **[Airgapped]** [Create wallet](wallet.md#create-wallet) and backup securely
 2. **[Transfer]** Move recovery address to online device
 3. **[Online]** Generate deposit addresses and monitor status
@@ -68,19 +71,22 @@ flowchart TB
 7. **[Online]** Broadcast transactions to network
 
 ## Command Structure
+
 See:
-```
+
+```sh
 clementine-cli --help
 ```
 
 ### Global Options
+
 | Option | Description | Required |
 |--------|-------------|----------|
-| `--network` | Bitcoin network (mainnet/testnet4/signet/regtest) | Yes |
 | `--config-file` | Custom config file path | No |
 | `--verbose` | Enable detailed logging | No |
 
 ### Main Commands
+
 | Command | Purpose | Guide |
 |---------|---------|-------|
 | `wallet` | Wallet management | [→ Wallet Guide](wallet.md) |
@@ -107,8 +113,7 @@ clementine-cli --help
 ## Support & Troubleshooting
 
 ### Getting Help
+
 - **Command Help**: `clementine-cli --help` or `clementine-cli <command> --help`
 - **Verbose Logging**: Add `--verbose` flag for detailed operation logs
 - **Configuration**: Check config file location and network settings
-
-
