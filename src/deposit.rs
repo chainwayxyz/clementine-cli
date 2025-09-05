@@ -140,7 +140,7 @@ pub fn create_signed_recovery_tx(
         .unwrap_or_else(|| FeeRate::from_sat_per_vb_unchecked(10)); // Default 10 sat/vbyte
 
     let signed_tx = crate::bitcoin_utils::sign_recovery_tx(
-        &keypair,
+        &keypair.as_ref(),
         &params.citrea_addr,
         &params.recovery_taproot_address.address,
         &params.outpoint,

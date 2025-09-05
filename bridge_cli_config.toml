@@ -6,7 +6,7 @@ aggregated_public_key = "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc223
 user_takes_after = 200
 bridge_amount = 1000000000
 optimistic_withdrawal_amount = 1000000000
-operator_withdrawal_amount = 997000000 # in satoshis
+operator_withdrawal_amount = 997000000                                 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://mempool.space/api/"
@@ -29,7 +29,7 @@ aggregated_public_key = "a79c6eac75d1f10a01f302f86f78374ec66a22269cf01cf222a5ab8
 user_takes_after = 200
 bridge_amount = 1000000000
 optimistic_withdrawal_amount = 1000000000
-operator_withdrawal_amount = 997000000 # in satoshis
+operator_withdrawal_amount = 997000000                                 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://mempool.space/testnet4/api/"
@@ -39,7 +39,7 @@ citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
 
 [testnet4.bitcoin_config]
-url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+url = "http://127.0.0.1:22443/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
 
@@ -52,7 +52,7 @@ aggregated_public_key = "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093
 user_takes_after = 200
 bridge_amount = 1000000000
 optimistic_withdrawal_amount = 1000000000
-operator_withdrawal_amount = 997000000 # in satoshis
+operator_withdrawal_amount = 997000000                                 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://mempool.devnet.citrea.xyz/api/"
@@ -76,7 +76,7 @@ aggregated_public_key = "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f
 user_takes_after = 200
 bridge_amount = 1000000000
 optimistic_withdrawal_amount = 1000000000
-operator_withdrawal_amount = 997000000 # in satoshis
+operator_withdrawal_amount = 997000000                                 # in satoshis
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
 mempool_api_url = "https://127.0.0.1"

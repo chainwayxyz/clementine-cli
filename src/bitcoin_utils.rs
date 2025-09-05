@@ -3,9 +3,9 @@
 use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::errors::BridgeCliError;
 use crate::script::{deposit_script, recover_script};
-use crate::structs::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
+use bitcoin::key::Keypair;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
@@ -74,7 +74,7 @@ pub(crate) fn calculate_deposit_address(
 }
 
 fn sign_with_tweak(
-    keypair: &SecureKeypair,
+    keypair: &Keypair,
     sighash: TapSighash,
     merkle_root: Option<TapNodeHash>,
 ) -> schnorr::Signature {
@@ -82,14 +82,10 @@ fn sign_with_tweak(
     SECP.sign_schnorr(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &keypair
-            .as_ref()
             .add_xonly_tweak(
                 &SECP,
-                &TapTweakHash::from_key_and_tweak(
-                    keypair.as_ref().x_only_public_key().0,
-                    merkle_root,
-                )
-                .to_scalar(),
+                &TapTweakHash::from_key_and_tweak(keypair.x_only_public_key().0, merkle_root)
+                    .to_scalar(),
             )
             .unwrap(),
     )
@@ -98,7 +94,7 @@ fn sign_with_tweak(
 #[allow(clippy::too_many_arguments)]
 /// Sign a recovery transaction with a given keypair, Citrea address, recovery taproot address, deposit outpoint, deposit amount, claim address, fee rate, and network
 pub(crate) fn sign_recovery_tx(
-    keypair: &SecureKeypair,
+    keypair: &Keypair,
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     deposit_outpoint: &OutPoint,
@@ -326,7 +322,7 @@ pub(crate) fn verify_recovery_tx(
 }
 
 pub(crate) fn sign_withdrawal_signature(
-    keypair: &SecureKeypair,
+    keypair: &Keypair,
     signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
     claim_address: &BitcoinAddress,
@@ -445,8 +441,8 @@ mod tests {
     fn test_calculate_taproot_address() {
         let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
         let keypair = Keypair::from_secret_key(&SECP, &secret_key);
-        let secure_keypair = SecureKeypair::new(keypair);
-        let address = calculate_taproot_address(&secure_keypair, Network::Testnet4);
+        // let secure_keypair = SecureKeypair::new(keypair);
+        let address = calculate_taproot_address(&keypair, Network::Testnet4);
         assert_eq!(address.address_type(), Some(AddressType::P2tr));
     }
 

@@ -138,7 +138,7 @@ pub(crate) fn validate_private_key_import(
                             &crate::bitcoin_utils::SECP,
                             secure_secret_key.as_ref_inner(),
                         ));
-                        let derived_address = calculate_taproot_address(&keypair, network);
+                        let derived_address = calculate_taproot_address(&keypair.as_ref(), network);
 
                         if derived_address.to_string() != wallet_address {
                             return Err(BridgeCliError::AddressMismatch);

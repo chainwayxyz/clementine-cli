@@ -281,7 +281,7 @@ pub fn import_wallet_from_private_key(
         &SECP,
         master_private_key.as_ref_inner(),
     ));
-    let address = calculate_taproot_address(&keypair, network);
+    let address = calculate_taproot_address(&keypair.as_ref(), network);
 
     let address = TaprootAddressWithPrefix::new(address, purpose)?;
 

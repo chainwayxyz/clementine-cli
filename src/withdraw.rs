@@ -15,6 +15,7 @@ use alloy::providers::ProviderBuilder;
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
+use bitcoin::key::Keypair;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Network, OutPoint, TxOut};
 use bitcoincore_rpc::json::ScanTxOutRequest;
@@ -83,6 +84,7 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
 }
 
 pub fn generate_withdrawal_signature(
+    keypair: Keypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -108,11 +110,6 @@ pub fn generate_withdrawal_signature(
     if address_exists(&claim_wallet_address)? {
         return Err(BridgeCliError::ClaimAddressIsWalletAddress);
     }
-
-    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
-        signer_address,
-        Purpose::Withdrawal,
-    )?;
 
     let signature = sign_withdrawal_signature(
         &keypair,
