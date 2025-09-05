@@ -1,6 +1,7 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
-use crate::api_utils::{get_tx_details, utxos_from_mempool_space_api};
+use crate::BitcoinAddress;
+use crate::api_utils::{get_tx_details, get_utxos};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
@@ -8,7 +9,6 @@ use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
-use crate::{BitcoinAddress, WITHDRAWAL_UTXO_AMOUNT};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -18,8 +18,6 @@ use alloy::signers::local::PrivateKeySigner;
 use bitcoin::key::Keypair;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Network, OutPoint, TxOut};
-use bitcoincore_rpc::json::ScanTxOutRequest;
-use bitcoincore_rpc::{Client, RpcApi};
 use eyre::Context;
 use open;
 use serde_json::json;
@@ -265,7 +263,7 @@ pub async fn scan_withdrawal(
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
-    let utxos = get_utxos_for_address(signer_address, config).await?;
+    let utxos = get_utxos(&signer_address.address, config).await?;
     let mut results = Vec::new();
 
     for utxo in utxos {
@@ -277,97 +275,6 @@ pub async fn scan_withdrawal(
     }
 
     Ok(results)
-}
-
-#[derive(Debug)]
-struct UtxoInfo {
-    txid: bitcoin::Txid,
-    vout: u32,
-    value: Amount,
-}
-
-async fn get_utxos_for_address(
-    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    config: &BridgeCliConfig,
-) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    match get_utxos_from_mempool(address, config).await {
-        Ok(utxos) => Ok(utxos),
-        Err(mempool_error) => {
-            tracing::warn!(
-                "Mempool API failed for get_utxos_for_address: {}, falling back to Bitcoin RPC",
-                mempool_error
-            );
-
-            // Fallback to Bitcoin RPC if available
-            if config.bitcoin_config.is_some() {
-                let rpc = config.connect_to_bitcoin_rpc().await?;
-                get_utxos_from_rpc_with_client(address, &rpc).await
-            } else {
-                // If no Bitcoin RPC config, return the original mempool error
-                Err(mempool_error)
-            }
-        }
-    }
-}
-
-/// This might take a little while
-async fn get_utxos_from_rpc_with_client(
-    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    rpc: &Client,
-) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    let res = rpc
-        .scan_tx_out_set_blocking(&[ScanTxOutRequest::Single(format!(
-            "addr({})",
-            address.address
-        ))])
-        .await?;
-
-    let mut result = Vec::new();
-    for utxo in res.unspents {
-        if utxo.amount == WITHDRAWAL_UTXO_AMOUNT {
-            result.push(UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-            });
-        }
-    }
-
-    Ok(result)
-}
-
-async fn get_utxos_from_mempool(
-    address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    config: &BridgeCliConfig,
-) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    use std::str::FromStr;
-
-    let utxos = utxos_from_mempool_space_api(&address.address, config)
-        .await
-        .map_err(|e| -> BridgeCliError {
-            eyre::eyre!(
-                "Failed to get UTXOs from mempool API for address {}: {}",
-                address.address,
-                e
-            )
-            .into()
-        })?;
-
-    let mut result = Vec::new();
-
-    for utxo in utxos {
-        if utxo.value == WITHDRAWAL_UTXO_AMOUNT.to_sat() {
-            let txid = bitcoin::Txid::from_str(&utxo.txid)
-                .map_err(|e| eyre::eyre!("Invalid txid: {e}"))?;
-            result.push(UtxoInfo {
-                txid,
-                vout: utxo.vout,
-                value: Amount::from_sat(utxo.value),
-            });
-        }
-    }
-
-    Ok(result)
 }
 
 /// Common withdrawal parameter preparation pattern (reduces major duplication)  
