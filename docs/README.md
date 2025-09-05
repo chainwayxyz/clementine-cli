@@ -59,16 +59,16 @@ flowchart TB
     E --> F
     F --> G
     
-    style AG fill:#e1f5fe
-    style ON fill:#f3e5f5
-    style TR fill:#fff3e0
-    style A fill:#c8e6c9
-    style E fill:#c8e6c9
-    style C fill:#e1bee7
-    style G fill:#e1bee7
-    style B fill:#ffcc02
-    style D fill:#ffcc02
-    style F fill:#ffcc02
+    style AG fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style ON fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style TR fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style A fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style E fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style C fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style G fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style B fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style D fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style F fill:#fff,color:#000,stroke:#000,stroke-width:2px
 ```
 
 **Secure Workflow Steps:**
