@@ -7,6 +7,7 @@ All available withdrawal commands can be viewed using `clementine-cli withdraw -
 ## Prerequisites
 
 Before starting a withdrawal, ensure you have:
+
 - A Clementine wallet with `withdrawal` purpose ("wit" prefix address)
 - A Bitcoin address where funds will be sent (claim address)
 - Access to both airgapped and online devices
@@ -15,6 +16,7 @@ Before starting a withdrawal, ensure you have:
 ## Withdrawal Process Overview
 
 The withdrawal process follows these sequential steps:
+
 1. **Start Withdrawal** - Initiate withdrawal process (prompts for Bitcoin transaction)
 2. **Send Bitcoin Transaction** - Send required transaction to signer address
 3. **Scan for Withdrawals** - Find available withdrawal UTXOs
@@ -35,10 +37,12 @@ clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAI
 ```
 
 **Parameters:**
+
 - `SIGNER_ADDRESS`: Withdrawal wallet address with "wit" prefix (from airgapped device)
 - `CLAIM_ADDRESS`: Bitcoin address where funds will be sent
 
 **Example:**
+
 ```sh
 clementine-cli withdraw start --network testnet4 wittb1pf... tb1qg...
 ```
@@ -59,6 +63,7 @@ bitcoin-cli -testnet4 sendtoaddress <SIGNER_ADDRESS> <AMOUNT>
 ```
 
 **Example:**
+
 ```sh
 bitcoin-cli -testnet4 sendtoaddress wittb1pf... 0.00000330
 ```
@@ -74,11 +79,12 @@ clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM
 ```
 
 **Example:**
+
 ```sh
 clementine-cli withdraw scan --network testnet4 wittb1pf... tb1qg...
 ```
 
-THis command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature. 
+This command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature.
 
 ## Step 4: Generate Withdrawal Signature (Airgapped Device)
 
@@ -87,6 +93,7 @@ THis command will scan Bitcoin network and return possible withdrawal scenarios 
 ### Prepare Data Transfer
 
 **Transfer from online device to airgapped device:**
+
 - Signer address (with "wit" prefix)
 - Withdrawal address (claim address)
 - Withdrawal UTXO details (from scan command)
@@ -99,6 +106,7 @@ clementine-cli withdraw generate-withdrawal-signature --network <BITCOIN_NETWORK
 ```
 
 **Example:**
+
 ```sh
 clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1pf... tb1qg... abc123def456...:0 9.9 BTC
 ```
@@ -115,16 +123,19 @@ clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRES
 ```
 
 **Example:**
+
 ```sh
 clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
 ```
 
 **What this does:**
+
 - Verifies the signature matches the withdrawal parameters
 - Provides final transaction confirmation
 - Prompts to Metamask to submit the withdrawal transaction to Citrea
 
 **What happens:**
+
 - Verifies the signature from airgapped device
 - Submits the withdrawal transaction to Citrea network
 - Returns transaction confirmation
@@ -138,6 +149,7 @@ clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCO
 ```
 
 **Example:**
+
 ```sh
 clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
 ```
@@ -154,9 +166,11 @@ clementine-cli --network <BITCOIN_NETWORK> withdraw status <WITHDRAWAL_INDEX>
 ```
 
 **Parameters:**
+
 - `WITHDRAWAL_INDEX`: Index number from withdrawal initiation or scan results
 
 **Example:**
+
 ```sh
 clementine-cli withdraw status --network testnet4 123
 ```

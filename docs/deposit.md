@@ -27,7 +27,7 @@ The deposit process consists of several stages:
 4. **Recovery (if needed)** - Recover funds if bridging fails
 
 > [!IMPORTANT]
-> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure should the deposit fails, you can recover your funds back to your `CLAIM_ADDRESS`.
+> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `CLAIM_ADDRESS`.
 
 ## Step 1: Generate Deposit Address
 
@@ -61,7 +61,7 @@ clementine-cli deposit get-deposit-address --network <BITCOIN_NETWORK> <RECOVERY
 
 ## Step 2: Send Bitcoin to Deposit Address
 
-Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client. The deposit address is fixed to `10 BTC`.
+Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client. The deposit amount is fixed to `10 BTC`.
 
 **Using bitcoin-cli:**
 
@@ -76,7 +76,7 @@ bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 ```
 
 > [!CAUTION]
-> Save your deposit TxId immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
+> Save your deposit transaction ID immediately. This is required for recovery if the Move to Vault transaction fails after 200 blocks.
 
 ## Step 3: Monitor Deposit Status
 
@@ -125,8 +125,11 @@ clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RE
 **Example:**
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx --network testnet4 tb1pd... 0x742d35... abc123def456... 0 tb1qe...
+clementine-cli deposit create-signed-recovery-tx --network testnet4 deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
 ```
+
+> [!IMPORTANT]
+> Please make sure that `amount` you enter is the exact amount of BTC you sent to the deposit address. This is necessary to recover your funds if you accidentally send any amount other than `10 BTC`.
 
 **Airgapped Recovery Protocol:**
 

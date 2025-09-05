@@ -30,45 +30,56 @@ Clementine CLI is designed for maximum security using separate airgapped and onl
 - Monitor deposit/withdrawal status
 - Generate addresses for verification
 - Broadcast transactions to Bitcoin network
-- Access mempool APIs and Bitcoin nodes
+- Access to [mempool.space](mempool.space) and Bitcoin nodes
 
 ### Essential Two-Device Workflow
 
 ```mermaid
 flowchart TB
     subgraph AG["Airgapped Device"]
-        A[Create Wallet]
-        B[Generate Keys]
-        C[Sign Transactions]
-        A --> B --> C
+        A["1. Create Wallet<br/>& Backup Securely"]
+        E["5. Sign Transactions<br/>Offline"]
     end
     
     subgraph ON["Online Device"]
-        D[Get Addresses]
-        E[Monitor Status]
-        F[Broadcast TX]
-        D --> E --> F
+        C["3. Start Deposit/Withdrawal<br/>Operations"]
+        G["7. Broadcast Transactions<br/>& Monitor Status"]
     end
     
-    subgraph TR["Secure Transfer"]
-        G[USB/QR Transfer]
+    subgraph TR["Secure Transfer Methods"]
+        B["2. Transfer Wallet Address<br/>AG → Online"]
+        D["4. Transfer Transaction Data<br/>Online → AG"]
+        F["6. Transfer Signed TX<br/>AG → Online"]
     end
     
-    C -.-> TR
-    TR -.-> F
-    D -.-> TR
-    TR -.-> A
+    A --> B
+    B --> C
+    C --> D
+    D --> E
+    E --> F
+    F --> G
+    
+    style AG fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style ON fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style TR fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style A fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style E fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style C fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style G fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style B fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style D fill:#fff,color:#000,stroke:#000,stroke-width:2px
+    style F fill:#fff,color:#000,stroke:#000,stroke-width:2px
 ```
 
 **Secure Workflow Steps:**
 
 1. **[Airgapped]** [Create wallet](wallet.md#create-wallet) and backup securely
-2. **[Transfer]** Move recovery address to online device
-3. **[Online]** Generate deposit addresses and monitor status
+2. **[Transfer]** Move the wallet address to online device
+3. **[Online]** Start deposit/withdrawal operations using the wallet address
 4. **[Transfer]** Move transaction data to airgapped device for signing
 5. **[Airgapped]** Sign transactions securely offline
 6. **[Transfer]** Move signed transactions back to online device
-7. **[Online]** Broadcast transactions to network
+7. **[Online]** Broadcast transactions to network and monitor status
 
 ## Command Structure
 

@@ -120,7 +120,9 @@ pub(crate) fn sign_recovery_tx(
         output: vec![txout],
     };
 
-    let weight = Weight::from_wu(550);
+    let mut weight = Weight::from_wu(422);
+    let claim_address_script_len = claim_address.script_pubkey().to_bytes().len();
+    weight += Weight::from_wu(claim_address_script_len as u64 * 4);
     let fee = fee_rate.fee_wu(weight).expect("fee is valid");
     let output_amount: Amount = match deposit_amount.checked_sub(fee) {
         Some(amt) => amt,
