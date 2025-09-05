@@ -59,7 +59,7 @@ impl DepositStatusEnum {
             DepositStatusEnum::New => "New".to_string(),
             DepositStatusEnum::InProgress => "In Progress".to_string(),
             DepositStatusEnum::Completed => "Completed".to_string(),
-            DepositStatusEnum::MoveTxSent => "Move Transaction Sent".to_string(),
+            DepositStatusEnum::MoveTxSent => "Move To Vault Transaction Sent".to_string(),
             DepositStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
