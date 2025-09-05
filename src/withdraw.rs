@@ -5,7 +5,7 @@ use crate::api_utils::{get_tx_details, get_utxos};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
-use crate::structs::TaprootAddressWithPrefix;
+use crate::structs::{SecureKeypair, TaprootAddressWithPrefix};
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
@@ -15,7 +15,6 @@ use alloy::providers::ProviderBuilder;
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
-use bitcoin::key::Keypair;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Network, OutPoint, TxOut};
 use eyre::Context;
@@ -82,7 +81,7 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
 }
 
 pub fn generate_withdrawal_signature(
-    keypair: Keypair,
+    keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,

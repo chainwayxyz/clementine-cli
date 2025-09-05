@@ -39,7 +39,7 @@ citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
 
 [testnet4.bitcoin_config]
-url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
+url = "http://127.0.0.1:22443/" # Add `/wallet/name` if necessary
 user = "admin"
 password = "admin"
 

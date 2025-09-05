@@ -300,7 +300,7 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, config, *keypair.as_ref())?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair)?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
@@ -501,7 +501,7 @@ pub fn cli_generate_withdrawal_signature(
     )?;
 
     generate_withdrawal_signature(
-        *keypair.as_ref(),
+        keypair,
         signer_address,
         claim_address,
         withdrawal_utxo,

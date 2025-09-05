@@ -6,12 +6,11 @@ use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
-use crate::structs::TaprootAddressWithPrefix;
+use crate::structs::{SecureKeypair, TaprootAddressWithPrefix};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::validate_address_purpose;
 use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::key::Keypair;
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
 
@@ -128,7 +127,7 @@ pub async fn get_deposit_params(
 pub fn create_signed_recovery_tx(
     params: RecoveryTxParams,
     config: &BridgeCliConfig,
-    keypair: Keypair,
+    keypair: SecureKeypair,
 ) -> Result<Transaction, BridgeCliError> {
     ensure_wallet_exists(&params.recovery_taproot_address)?;
 

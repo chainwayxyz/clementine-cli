@@ -23,7 +23,7 @@
 
 use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureSecretKey, TaprootAddressWithPrefix};
+use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;
@@ -78,7 +78,10 @@ pub(crate) fn generate_address_from_mnemonic(
 
     let master_private_key =
         SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
-    let keypair = Keypair::from_secret_key(&SECP, master_private_key.as_ref_inner());
+    let keypair = SecureKeypair::new(Keypair::from_secret_key(
+        &SECP,
+        master_private_key.as_ref_inner(),
+    ));
 
     let address = calculate_taproot_address(&keypair, network);
 
@@ -88,8 +91,11 @@ pub(crate) fn generate_address_from_mnemonic(
 }
 
 /// Calculate taproot address from a keypair
-pub(crate) fn calculate_taproot_address(keypair: &Keypair, network: Network) -> BitcoinAddress {
-    let (xonly_public_key, _parity) = keypair.public_key().x_only_public_key();
+pub(crate) fn calculate_taproot_address(
+    keypair: &SecureKeypair,
+    network: Network,
+) -> BitcoinAddress {
+    let (xonly_public_key, _parity) = keypair.as_ref().public_key().x_only_public_key();
     BitcoinAddress::p2tr(&SECP, xonly_public_key, None, network)
 }
 
