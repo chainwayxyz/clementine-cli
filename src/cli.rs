@@ -11,15 +11,12 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    BitcoinAddress, CitreaAddress,
-    api_utils::{
-        MempoolTx, get_current_block_height, get_mempool_txs, utxos_from_mempool_space_api,
-    },
+    BitcoinAddress, CitreaAddress, WITHDRAWAL_UTXO_AMOUNT,
+    api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_utxos},
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
     },
     backup_wallet,
-    bitcoin_utils::Utxo,
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
@@ -173,17 +170,17 @@ pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let mut utxos = match utxos_from_mempool_space_api(&taproot_address, config).await {
+    let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
         Err(e) => {
             eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
             vec![]
         }
     };
-    utxos.sort_by_key(|utxo| utxo.status.block_height.unwrap_or(u64::MAX));
-    let deposits_with_incorrect_amount: Vec<&Utxo> = utxos
+    utxos.sort_by_key(|utxo| utxo.block_height.unwrap_or(u64::MAX));
+    let deposits_with_incorrect_amount: Vec<&UtxoInfo> = utxos
         .iter()
-        .filter(|utxo| utxo.value != config.bridge_amount.to_sat())
+        .filter(|utxo| utxo.value != config.bridge_amount)
         .collect();
 
     if !deposits_with_incorrect_amount.is_empty() {
@@ -218,22 +215,9 @@ pub async fn deposit_status(
             .unwrap_or_else(|| "N/A".to_string())
     };
 
-    let is_confirmed_display = |confirmed: bool| {
-        if confirmed {
-            "Confirmed"
-        } else {
-            "Unconfirmed"
-        }
-    };
-
     for utxo in &deposits_with_incorrect_amount {
-        let refund_msg = refund_info(utxo.status.block_height, true);
-        print_incorrect_deposit(
-            utxo,
-            &refund_msg,
-            &block_display(utxo.status.block_height),
-            is_confirmed_display(utxo.status.confirmed),
-        );
+        let refund_msg = refund_info(utxo.block_height, true);
+        print_incorrect_deposit(utxo, &refund_msg, &block_display(utxo.block_height));
     }
 
     if !deposits_with_incorrect_amount.is_empty() {
@@ -261,8 +245,10 @@ pub async fn deposit_status(
         taproot_address
     );
     for status in &deposit_statuses_backend {
-        let corresponding_utxo = utxos.iter().find(|utxo| utxo.txid == status.txid);
-        let block_height = corresponding_utxo.and_then(|u| u.status.block_height);
+        let corresponding_utxo = utxos
+            .iter()
+            .find(|utxo| utxo.txid.to_string() == status.txid);
+        let block_height = corresponding_utxo.and_then(|u| u.block_height);
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
         println!("{} {}", status, refund_msg);
     }
@@ -371,19 +357,10 @@ pub async fn send_withdrawal_signatures(
     Ok(())
 }
 
-fn print_incorrect_deposit(
-    utxo: &Utxo,
-    refund_message: &str,
-    block_display: &str,
-    is_confirmed_display: &str,
-) {
+fn print_incorrect_deposit(utxo: &UtxoInfo, refund_message: &str, block_display: &str) {
     println!(
-        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}\n  UTXO Status: {}{}",
-        utxo.txid,
-        Amount::from_sat(utxo.value),
-        block_display,
-        is_confirmed_display,
-        refund_message
+        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}{}",
+        utxo.txid, utxo.value, block_display, refund_message
     );
 }
 
@@ -438,7 +415,7 @@ pub async fn cli_scan_withdrawals(
 
     let utxos_with_wrong_amount: Vec<_> = utxos
         .iter()
-        .filter(|(_, amount)| *amount != Amount::from_sat(330))
+        .filter(|(_, amount)| *amount != WITHDRAWAL_UTXO_AMOUNT)
         .collect();
 
     if !utxos_with_wrong_amount.is_empty() {
@@ -459,7 +436,7 @@ pub async fn cli_scan_withdrawals(
         println!();
     }
 
-    utxos.retain(|(_, amount)| *amount == Amount::from_sat(330));
+    utxos.retain(|(_, amount)| *amount == WITHDRAWAL_UTXO_AMOUNT);
 
     if utxos.is_empty() {
         eprintln!(

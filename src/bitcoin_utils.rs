@@ -17,23 +17,6 @@ use std::sync::LazyLock;
 
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
-#[allow(dead_code)]
-#[derive(Debug, serde::Deserialize)]
-pub struct UtxoStatus {
-    pub confirmed: bool,
-    pub block_height: Option<u64>,
-    pub block_hash: Option<String>,
-    pub block_time: Option<u64>,
-}
-
-#[derive(Debug, serde::Deserialize)]
-pub struct Utxo {
-    pub txid: String,
-    pub vout: u32,
-    pub status: UtxoStatus,
-    pub value: u64,
-}
-
 // Constants to reduce magic number duplication
 pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;

@@ -1,14 +1,41 @@
 // API utility functions for handling fallback patterns
 
-use crate::bitcoin_utils::Utxo;
+use std::str::FromStr;
+
 use crate::errors::BridgeCliError;
 use crate::{BitcoinAddress, config::BridgeCliConfig};
-use bitcoin::{Block, Transaction, TxOut, Txid};
+use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
+use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
 use bitcoincore_rpc::{Client, RpcApi};
 use eyre::{Context, eyre};
 use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
+
+#[derive(Debug)]
+pub(crate) struct UtxoInfo {
+    pub txid: bitcoin::Txid,
+    pub vout: u32,
+    pub value: Amount,
+    pub block_height: Option<u64>,
+}
+
+#[allow(dead_code)]
+#[derive(Debug, serde::Deserialize)]
+pub struct UtxoStatus {
+    pub confirmed: bool,
+    pub block_height: Option<u64>,
+    pub block_hash: Option<String>,
+    pub block_time: Option<u64>,
+}
+
+#[derive(Debug, serde::Deserialize)]
+pub struct MempoolSpaceUtxo {
+    pub txid: String,
+    pub vout: u32,
+    pub status: UtxoStatus,
+    pub value: u64,
+}
 
 #[allow(dead_code)]
 #[derive(Debug, Deserialize)]
@@ -209,16 +236,74 @@ async fn broadcast_recovery_tx_with_mempool(
     }
 }
 
-pub async fn utxos_from_mempool_space_api(
-    taproot_address: &BitcoinAddress,
+pub(crate) async fn get_utxos(
+    address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
+    let utxos_to_info = |utxos: Vec<Utxo>| {
+        utxos
+            .into_iter()
+            .map(|utxo| UtxoInfo {
+                txid: utxo.txid,
+                vout: utxo.vout,
+                value: utxo.amount,
+                block_height: Some(utxo.height),
+            })
+            .collect::<Vec<_>>()
+    };
+
+    if config.network == bitcoin::Network::Regtest {
+        tracing::info!("UTXO fetching from mempool.space is disabled in regtest mode.");
+        let utxos = get_utxos_from_rpc(address, config).await?;
+        return Ok(utxos_to_info(utxos));
+    }
+
+    let utxos = match get_utxos_from_mempool_space_api(address, config).await {
+        Ok(utxos) => utxos,
+        Err(e) => {
+            tracing::debug!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            tracing::debug!("Falling back to Bitcoin RPC...");
+            let utxos = get_utxos_from_rpc(address, config).await?;
+            return Ok(utxos_to_info(utxos));
+        }
+    };
+
+    let mut utxo_infos = Vec::new();
+    for utxo in utxos {
+        let txid = Txid::from_str(&utxo.txid).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
+        })?;
+        utxo_infos.push(UtxoInfo {
+            txid,
+            vout: utxo.vout,
+            value: Amount::from_sat(utxo.value),
+            block_height: utxo.status.block_height,
+        });
+    }
+
+    Ok(utxo_infos)
+}
+
+pub(crate) async fn get_utxos_from_rpc(
+    address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<Utxo>, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+    let res = rpc
+        .scan_tx_out_set_blocking(&[ScanTxOutRequest::Single(format!("addr({})", address))])
+        .await?;
+    Ok(res.unspents)
+}
+pub(crate) async fn get_utxos_from_mempool_space_api(
+    taproot_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<Vec<MempoolSpaceUtxo>, BridgeCliError> {
     let url = config
         .mempool_api_url
         .join(&format!("address/{taproot_address}/utxo"))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
-    let utxos: Vec<Utxo> = resp.json().await?;
+    let utxos: Vec<MempoolSpaceUtxo> = resp.json().await?;
     Ok(utxos)
 }
 
@@ -255,7 +340,7 @@ pub async fn get_mempool_txs(
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
     if config.network == bitcoin::Network::Regtest {
-        println!("WARNING: Mempool TX fetching from mempool.space is disabled in regtest mode.");
+        tracing::warn!("Mempool TX fetching from mempool.space is disabled in regtest mode.");
         return Ok(vec![]); // Disabled in regtest mode
     }
 
