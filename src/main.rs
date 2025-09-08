@@ -328,8 +328,8 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats)
-        withdrawal_amount: u64,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
+        withdrawal_amount: f64,
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
