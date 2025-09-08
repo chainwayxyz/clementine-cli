@@ -33,7 +33,7 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 > - Permanent loss of funds due to misinterpretation or confusion
 > - Inability to recover funds from bridge operations
 
-View all wallet commands: `clementine-cli --network <NETWORK> wallet --help`
+View all wallet commands: `clementine-cli wallet --help`
 
 > [!IMPORTANT]
 > It is strongly advised to perform all wallet-related operations on an air-gapped device.
@@ -41,12 +41,12 @@ View all wallet commands: `clementine-cli --network <NETWORK> wallet --help`
 ## Create Wallet
 
 ```sh
-clementine-cli --network <NETWORK> wallet create <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet create --network <NETWORK> <WALLET-LABEL> <PURPOSE>
 ```
 
 **Example:**
 ```sh
-clementine-cli --network testnet4 wallet create my-wallet deposit
+clementine-cli wallet create --network testnet4 my-wallet deposit
 ```
 
 ## Backup and Importing a Wallet
@@ -69,11 +69,15 @@ After that, a `wallet_<address>.json` file will be available as a backup.
 Wallet files that are generated elsewhere or previously exported can be imported using `import-file` command:
 
 ```sh
-clementine-cli wallet import-file <FILE-NAME> <WALLET-LABEL>
+clementine-cli wallet import-file <FILE-NAME> [WALLET-LABEL]
 
-# Example of importing a wallet named `wallet1` in the current directory
+# Example of importing a wallet in the current directory:
+clementine-cli wallet import-file wallet_<address>.json
+# Example with label:
 clementine-cli wallet import-file wallet_<address>.json wallet1
 ```
+
+- `<WALLET-LABEL>` is optional. If omitted, the label will be inferred from the file.
 
 ### Import Private Key
 
@@ -85,7 +89,7 @@ private key when you list wallets using `clementine-cli wallet list`.
 > This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
 
 ```sh
-clementine-cli wallet import-private-key <WALLET-LABEL>
+clementine-cli wallet import-private-key --network <NETWORK> <WALLET-LABEL> <PURPOSE>
 ```
 
 ### Import Using Mnemonic
@@ -93,7 +97,7 @@ clementine-cli wallet import-private-key <WALLET-LABEL>
 You can also import a wallet using the 12 word mnemonic:
 
 ```sh
-clementine-cli --network <NETWORK> wallet import-mnemonic <WALLET-LABEL>
+clementine-cli wallet import-mnemonic --network <NETWORK> <WALLET-LABEL> <PURPOSE>
 ```
 This command will prompt you to enter all the mnemonic words step by step.
 
@@ -112,7 +116,7 @@ clementine-cli wallet list
 Securely display the mnemonic for an existing wallet (use with extreme caution):
 
 ```sh
-clementine-cli --network <NETWORK> wallet show-mnemonic <WALLET_NAME>
+clementine-cli wallet show-mnemonic <WALLET_ADDRESS>
 ```
 
 ### Show Private Key
@@ -120,7 +124,7 @@ clementine-cli --network <NETWORK> wallet show-mnemonic <WALLET_NAME>
 Display the private key for a wallet (use with extreme caution):
 
 ```sh
-clementine-cli --network <NETWORK> wallet show-private-key <WALLET_NAME>
+clementine-cli wallet show-private-key <WALLET_ADDRESS>
 ```
 
 ### Verify Wallet Integrity
@@ -128,7 +132,7 @@ clementine-cli --network <NETWORK> wallet show-private-key <WALLET_NAME>
 Check the integrity of wallet registry and files:
 
 ```sh
-clementine-cli --network <NETWORK> wallet verify-integrity
+clementine-cli wallet verify-integrity
 ```
 
 ## Security Best Practices

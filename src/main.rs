@@ -31,7 +31,6 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum CliNetwork {
     Bitcoin,
-    Testnet,
     Testnet4,
     Signet,
     Regtest,
@@ -41,7 +40,6 @@ impl From<CliNetwork> for Network {
     fn from(value: CliNetwork) -> Self {
         match value {
             CliNetwork::Bitcoin => Network::Bitcoin,
-            CliNetwork::Testnet => Network::Testnet,
             CliNetwork::Testnet4 => Network::Testnet4,
             CliNetwork::Signet => Network::Signet,
             CliNetwork::Regtest => Network::Regtest,
@@ -117,7 +115,7 @@ enum Commands {
 enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
-        /// Bitcoin network (required for this subcommand)
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         /// Label for the wallet file
@@ -144,7 +142,7 @@ enum WalletCommands {
     },
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
-        /// Bitcoin network (required for this subcommand)
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         /// Label for the imported wallet
@@ -154,7 +152,7 @@ enum WalletCommands {
     },
     /// Import wallet using secure private key input.
     ImportPrivateKey {
-        /// Bitcoin network (required for this subcommand)
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         /// Label for the imported wallet
@@ -179,58 +177,68 @@ enum WalletCommands {
 enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
-        /// Bitcoin network (required for this subcommand)
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
         recovery_taproot_address: String,
+        /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
     },
-    /// Creates a raw Bitcoin transaction that can collect funds back to the
-    /// given address
+    /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
     CreateSignedRecoveryTx {
-        /// Recovery taproot address, which deposit has been made
+        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
         recovery_taproot_address: String,
-        /// Your Citrea address, which deposit has been made
+        /// Citrea address
         citrea_address: String,
-        /// UTXO outpoint of the deposit transaction
+        /// UTXO outpoint of the deposit transaction (format: <txid>:<vout>)
         deposit_utxo_outpoint: String,
-        /// Your Bitcoin address, which will collect the 10 BTC (- fees)
+        /// Bitcoin address to collect the recovered funds
         claim_address: String,
-        /// Fee rate to be used when creating the recovery tx
+        /// Fee rate to use for the recovery transaction (in sats/vB)
         fee_rate: u64,
-        /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
+        /// Amount to recover (in BTC, e.g., 0.1)
         amount: f64,
-        /// Bitcoin network (required for this subcommand)
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
     },
     /// Verify a recovery transaction before broadcasting.
     VerifyRecoveryTx {
+        /// Raw recovery transaction (hex-encoded)
         recovery_tx: String,
+        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
         recovery_taproot_address: String,
+        /// Citrea address
         evm_address: String,
         /// Amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
     },
-    // Check the status of a deposit.
+    /// Check the status of a deposit.
     Status {
+        /// Deposit address (taproot address used for deposit)
         deposit_address: String,
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
     },
-    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC.
     BroadcastRecoveryTx {
-        /// Hex encoded raw transaction.
+        /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
     },
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
+        /// Move-to-vault transaction ID (txid)
         move_to_vault_txid: String,
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
     },
@@ -240,70 +248,105 @@ enum DepositCommands {
 enum WithdrawCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Claim address (Bitcoin address to receive withdrawn funds)
         claim_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
     Scan {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Claim address (Bitcoin address to receive withdrawn funds)
         claim_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
         amount: f64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
         amount: f64,
+        /// Withdrawal signature (hex-encoded)
         signature: String,
     },
     /// Send a safe withdrawal transaction.
     SendSafeWithdrawal {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
         amount: f64,
+        /// Withdrawal signature (hex-encoded)
         signature: String,
     },
     /// Check the status of a withdrawal.
     Status {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
         /// Withdrawal UTXO in TxId:vout format
         withdrawal_utxo: String,
     },
-    /// Generate operator withdrawal signatures.
+    /// Generate operator withdrawal signatures (for advanced/bridge operator use).
     GenerateOperatorWithdrawalSignatures {
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        withdrawal_amount: u64,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
+        withdrawal_amount: f64,
     },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
+        /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
+        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
+        /// Amount to withdraw (in BTC, e.g., 0.1)
         withdrawal_amount: f64,
+        /// Withdrawal signature (hex-encoded)
         signature: String,
+        /// Withdrawal index
         withdrawal_index: u32,
     },
 }

@@ -145,7 +145,7 @@ clementine-cli deposit create-signed-recovery-tx --network testnet4 deptb1pd... 
 **Airgapped Device (Generate Verification):**
 
 ```sh
-clementine-cli deposit verify-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit verify-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]
 ```
 
 ### Broadcast Recovery Transaction (Online Device)

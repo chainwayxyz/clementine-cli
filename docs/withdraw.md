@@ -102,7 +102,7 @@ This command will scan Bitcoin network and return possible withdrawal scenarios 
 ### Generate Signature
 
 ```sh
-clementine-cli withdraw generate-withdrawal-signature --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT>
+clementine-cli withdraw generate-withdrawal-signature --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT>
 ```
 
 **Example:**
@@ -119,7 +119,7 @@ clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1p
 **ONLINE DEVICE OPERATION:** Execute the withdrawal with signature verification and submit to Citrea:
 
 ```sh
-clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
 ```
 
 **Example:**
@@ -145,7 +145,7 @@ clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... ab
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
 
 ```sh
-clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
+clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE> <WITHDRAWAL_INDEX>
 ```
 
 **Example:**
@@ -162,7 +162,7 @@ clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testn
 **ONLINE DEVICE OPERATION:** Monitor the status of your withdrawal:
 
 ```sh
-clementine-cli --network <BITCOIN_NETWORK> withdraw status <WITHDRAWAL_UTXO>
+clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_UTXO>
 ```
 
 **Parameters:**
