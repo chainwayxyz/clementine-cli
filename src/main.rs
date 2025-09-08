@@ -317,7 +317,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Withdrawal UTXO in TxId:vout format
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo: String,
     },
     /// Generate operator withdrawal signatures (for advanced/bridge operator use).
