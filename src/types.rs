@@ -21,6 +21,13 @@ sol! {
         uint256 index;
     }
 
+
+    #[derive(Debug)]
+    struct UTXO {
+        bytes32 txId;
+        bytes4 outputId;
+    }
+
     #[derive(Debug)]
     #[sol(rpc)]
     interface BRIDGE_CONTRACT {
@@ -37,6 +44,9 @@ sol! {
             bytes calldata blockHeader,
             bytes memory withdrawalAddressPubKey
         ) external payable;
+
+        UTXO[] public withdrawalUTXOs;
+        function getWithdrawalCount() external view returns (uint256);
     }
 }
 

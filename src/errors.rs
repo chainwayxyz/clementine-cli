@@ -19,6 +19,7 @@
 //!    modules that are trying to match the error.
 
 use crate::{BitcoinAddress, config::ConfigErrors, wallet::Purpose};
+use bitcoin::OutPoint;
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -169,6 +170,9 @@ pub enum BridgeCliError {
         mempool_api_error: String,
         bitcoin_rpc_error: String,
     },
+
+    #[error("Can't find the UTXO {0} in withdrawals")]
+    CantFindUTXO(OutPoint),
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]

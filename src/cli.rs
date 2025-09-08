@@ -37,7 +37,7 @@ use crate::{
             validate_wallet_availability,
         },
     },
-    withdraw::{self, start_withdrawal},
+    withdraw::{self, get_withdrawal_index, start_withdrawal},
 };
 
 pub fn cli_create_wallet(
@@ -312,15 +312,17 @@ pub async fn deposit_create_signed_recovery_tx(
 }
 
 pub async fn withdrawal_status(
-    withdrawal_index: u32,
+    withdrawal_utxo: OutPoint,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_statuses = backend_withdrawal_status(withdrawal_index, config).await?;
+    let index = get_withdrawal_index(withdrawal_utxo, config).await?; // todo
+
+    let withdrawal_statuses = backend_withdrawal_status(index, config).await?;
     if withdrawal_statuses.is_empty() {
         println!(
             "{} No withdrawals found for index {}",
             "INFO".bold(),
-            withdrawal_index.to_string().bold()
+            withdrawal_utxo.to_string().bold()
         );
         return Ok(());
     }
@@ -328,7 +330,7 @@ pub async fn withdrawal_status(
     println!(
         "{} Withdrawal status(es) for withdrawal index {}: \n",
         "INFO".bold(),
-        withdrawal_index
+        withdrawal_utxo
     );
 
     for (i, status) in withdrawal_statuses.iter().enumerate() {

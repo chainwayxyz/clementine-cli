@@ -10,6 +10,7 @@ use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
+use alloy::eips::{BlockId, BlockNumberOrTag};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::fillers::{
@@ -19,8 +20,9 @@ use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
+use bitcoin::hashes::Hash;
 use bitcoin::taproot::Signature;
-use bitcoin::{Amount, Network, OutPoint, TxOut};
+use bitcoin::{Amount, Network, OutPoint, TxOut, Txid};
 use eyre::Context;
 use open;
 use serde_json::json;
@@ -258,6 +260,49 @@ pub async fn send_safe_withdrawal(
         .wrap_err("Can't get receipt")?;
 
     Ok(receipt)
+}
+
+/// Checks every UTXO in the contract and finds the index for it.
+pub async fn get_withdrawal_index(
+    withdrawal_utxo: OutPoint,
+    config: &BridgeCliConfig,
+) -> Result<u32, BridgeCliError> {
+    let signer = get_secret_key_from_env().unwrap_or(PrivateKeySigner::random());
+    let chain_id: u64 = config.citrea_chain_id;
+    let key = signer.with_chain_id(Some(chain_id));
+    let contract = create_bridge_contract(key, config)?;
+
+    let withdrawal_count = contract
+        .getWithdrawalCount()
+        .block(BlockId::Number(BlockNumberOrTag::Latest))
+        .call()
+        .await
+        .wrap_err("Can't get withdrawal count")?;
+    let withdrawal_count: u32 = withdrawal_count
+        .try_into()
+        .wrap_err("Can't convert withdrawal count")?;
+    tracing::debug!("Current withdrawal count: {}", withdrawal_count);
+
+    for i in (0..withdrawal_count).rev() {
+        let contract_withdrawal_utxo = contract
+            .withdrawalUTXOs(U256::from(i))
+            .call()
+            .await
+            .wrap_err("Can't get withdrawal UTXO")?;
+        tracing::debug!("Received withdrawal UTXO {:?}", contract_withdrawal_utxo);
+
+        let txid = contract_withdrawal_utxo._0;
+        let txid = Txid::from_slice(txid.as_ref()).wrap_err("Failed to convert txid to Txid")?;
+        let vout = contract_withdrawal_utxo._1;
+        let vout = u32::from_le_bytes(*vout);
+        let utxo = OutPoint { txid, vout };
+
+        if utxo == withdrawal_utxo {
+            return Ok(i);
+        }
+    }
+
+    Err(BridgeCliError::CantFindUTXO(withdrawal_utxo))
 }
 
 pub(crate) fn start_withdrawal(
