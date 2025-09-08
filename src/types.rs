@@ -1,4 +1,10 @@
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
+use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
+use alloy::network::EthereumWallet;
+use alloy::providers::RootProvider;
+use alloy::providers::fillers::{
+    BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller,
+};
 use alloy::sol;
 use alloy::sol_types::SolCall;
 use alloy::sol_types::private;
@@ -21,6 +27,13 @@ sol! {
         uint256 index;
     }
 
+
+    #[derive(Debug)]
+    struct UTXO {
+        bytes32 txId;
+        bytes4 outputId;
+    }
+
     #[derive(Debug)]
     #[sol(rpc)]
     interface BRIDGE_CONTRACT {
@@ -37,6 +50,9 @@ sol! {
             bytes calldata blockHeader,
             bytes memory withdrawalAddressPubKey
         ) external payable;
+
+        UTXO[] public withdrawalUTXOs;
+        function getWithdrawalCount() external view returns (uint256);
     }
 }
 
@@ -121,3 +137,16 @@ pub(crate) fn encode_safe_withdraw_params(
     let data = call.abi_encode();
     data.to_vec()
 }
+
+pub type CitreaContract = BRIDGE_CONTRACTInstance<
+    FillProvider<
+        JoinFill<
+            JoinFill<
+                alloy::providers::Identity,
+                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+            >,
+            WalletFiller<EthereumWallet>,
+        >,
+        RootProvider,
+    >,
+>;

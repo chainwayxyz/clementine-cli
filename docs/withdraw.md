@@ -162,17 +162,17 @@ clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testn
 **ONLINE DEVICE OPERATION:** Monitor the status of your withdrawal:
 
 ```sh
-clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_INDEX>
+clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_UTXO>
 ```
 
 **Parameters:**
 
-- `WITHDRAWAL_INDEX`: Index number from withdrawal initiation or scan results
+- `WITHDRAWAL_UTXO`: Withdrawal UTXO in TxId:vout format
 
 **Example:**
 
 ```sh
-clementine-cli withdraw status --network testnet4 123
+clementine-cli withdraw status --network testnet4 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
 ```
 
 The status will show the response from the backend.

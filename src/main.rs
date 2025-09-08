@@ -317,8 +317,8 @@ enum WithdrawCommands {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Withdrawal index (from withdrawal initiation or scan results)
-        withdrawal_index: u32,
+        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
+        withdrawal_utxo: String,
     },
     /// Generate operator withdrawal signatures (for advanced/bridge operator use).
     GenerateOperatorWithdrawalSignatures {
@@ -771,12 +771,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WithdrawCommands::Status {
-                withdrawal_index,
+                withdrawal_utxo,
                 network,
             } => {
+                let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
+
                 let config =
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
-                withdrawal_status(withdrawal_index, &config).await?;
+                withdrawal_status(withdrawal_outpoint, &config).await?;
             }
             WithdrawCommands::GenerateOperatorWithdrawalSignatures {
                 withdrawal_address,
