@@ -285,13 +285,6 @@ enum WithdrawCommands {
         network: CliNetwork,
         withdrawal_index: u32,
     },
-    /// Generate operator withdrawal signatures.
-    GenerateOperatorWithdrawalSignatures {
-        signer_address: String,
-        withdrawal_address: String,
-        withdrawal_utxo_outpoint: String,
-        withdrawal_amount: u64,
-    },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
@@ -731,20 +724,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let config =
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 withdrawal_status(withdrawal_index, &config).await?;
-            }
-            WithdrawCommands::GenerateOperatorWithdrawalSignatures {
-                withdrawal_address,
-                signer_address,
-                withdrawal_utxo_outpoint,
-                withdrawal_amount,
-            } => {
-                unimplemented!(
-                    "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {}",
-                    withdrawal_address,
-                    signer_address,
-                    withdrawal_utxo_outpoint,
-                    withdrawal_amount
-                );
             }
             WithdrawCommands::SendWithdrawalSignaturesToOperators {
                 signer_address,
