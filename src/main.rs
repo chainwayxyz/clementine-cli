@@ -251,7 +251,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Claim address (Bitcoin address to receive withdrawn funds)
         claim_address: String,
@@ -261,7 +261,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Claim address (Bitcoin address to receive withdrawn funds)
         claim_address: String,
@@ -271,7 +271,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
@@ -285,7 +285,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
@@ -301,7 +301,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
@@ -322,7 +322,7 @@ enum WithdrawCommands {
     },
     /// Generate operator withdrawal signatures (for advanced/bridge operator use).
     GenerateOperatorWithdrawalSignatures {
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
@@ -336,7 +336,7 @@ enum WithdrawCommands {
         /// Bitcoin network to use (e.g., bitcoin, testnet4, signet, regtest)
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed)
+        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
         /// Withdrawal address (Bitcoin address to receive withdrawn funds)
         withdrawal_address: String,
