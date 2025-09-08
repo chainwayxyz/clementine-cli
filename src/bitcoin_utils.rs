@@ -120,7 +120,8 @@ pub(crate) fn sign_recovery_tx(
         output: vec![txout],
     };
 
-    let mut weight = Weight::from_wu(422);
+    // This is the weight of the transaction without script_pubkey.
+    let mut weight = Weight::from_wu(414);
     let claim_address_script_len = claim_address.script_pubkey().to_bytes().len();
     weight += Weight::from_wu(claim_address_script_len as u64 * 4);
     let fee = fee_rate.fee_wu(weight).expect("fee is valid");
@@ -439,5 +440,211 @@ mod tests {
         let deposit_amount_u64: u64 = 10_000_000_000_000_000_000;
         let deposit_amount_hex = format!("0x{:X}", deposit_amount_u64);
         assert_eq!(deposit_amount_hex, "0x8AC7230489E80000");
+    }
+
+    fn create_test_config() -> BridgeCliConfig {
+        use crate::config::{BridgeCliConfig, NetworkConfigs};
+
+        // Use default regtest config from NetworkConfigs
+        let network_configs = NetworkConfigs {
+            bitcoin: BridgeCliConfig::default(),
+            testnet4: BridgeCliConfig::default(),
+            signet: BridgeCliConfig::default(),
+            regtest: BridgeCliConfig {
+                network: Network::Regtest,
+                aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
+                mempool_api_url: reqwest::Url::parse("http://localhost:3006").unwrap(),
+                citrea_chain_id: 5115,
+                citrea_rpc_url: reqwest::Url::parse("http://localhost:8545").unwrap(),
+                citrea_backend_endpoint: reqwest::Url::parse("http://localhost:8080").unwrap(),
+                user_takes_after: 4320,
+                bridge_amount: Amount::from_sat(100000),
+                optimistic_withdrawal_amount: Amount::from_sat(50000),
+                operator_withdrawal_amount: Amount::from_sat(1000),
+                bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
+                bitcoin_config: None,
+            },
+        };
+
+        network_configs.regtest
+    }
+
+    fn create_test_keypair() -> SecureKeypair {
+        let secret_key = SecretKey::from_slice(&[1u8; 32]).unwrap();
+        let keypair = Keypair::from_secret_key(&SECP, &secret_key);
+        SecureKeypair::new(keypair)
+    }
+
+    fn create_test_outpoint() -> OutPoint {
+        use bitcoin::Txid;
+        OutPoint {
+            txid: Txid::from_byte_array([1u8; 32]),
+            vout: 0,
+        }
+    }
+
+    struct TestSetup {
+        config: BridgeCliConfig,
+        recovery_keypair: SecureKeypair,
+        recovery_address: BitcoinAddress,
+        citrea_address: CitreaAddress,
+        deposit_outpoint: OutPoint,
+        deposit_amount: Amount,
+    }
+
+    impl TestSetup {
+        fn new() -> Self {
+            let config = create_test_config();
+            let recovery_keypair = create_test_keypair();
+            let recovery_address = calculate_taproot_address(&recovery_keypair, config.network);
+            let citrea_address = CitreaAddress::from([0u8; 20]);
+            let deposit_outpoint = create_test_outpoint();
+            let deposit_amount = Amount::from_sat(100000);
+
+            Self {
+                config,
+                recovery_keypair,
+                recovery_address,
+                citrea_address,
+                deposit_outpoint,
+                deposit_amount,
+            }
+        }
+    }
+
+    fn create_claim_address(
+        address_type: AddressType,
+        network: Network,
+        key_offset: u8,
+    ) -> BitcoinAddress {
+        use bitcoin::key::{CompressedPublicKey, PublicKey};
+        use bitcoin::script::Builder;
+
+        let claim_secret = SecretKey::from_slice(&[key_offset; 32]).unwrap();
+        let claim_keypair = Keypair::from_secret_key(&SECP, &claim_secret);
+        let claim_pubkey = PublicKey::from(claim_keypair.public_key());
+        let claim_compressed_pubkey = CompressedPublicKey::try_from(claim_pubkey).unwrap();
+
+        match address_type {
+            AddressType::P2tr => {
+                let secure_keypair = SecureKeypair::new(claim_keypair);
+                calculate_taproot_address(&secure_keypair, network)
+            }
+            AddressType::P2wpkh => BitcoinAddress::p2wpkh(&claim_compressed_pubkey, network),
+            AddressType::P2pkh => BitcoinAddress::p2pkh(claim_compressed_pubkey, network),
+            AddressType::P2sh => {
+                let claim_redeem_script = Builder::new()
+                    .push_int(0)
+                    .push_slice(claim_compressed_pubkey.pubkey_hash())
+                    .into_script();
+                BitcoinAddress::p2sh(&claim_redeem_script, network).unwrap()
+            }
+            AddressType::P2wsh => {
+                let witness_script = Builder::new()
+                    .push_slice(claim_compressed_pubkey.to_bytes())
+                    .push_opcode(bitcoin::opcodes::all::OP_CHECKSIG)
+                    .into_script();
+                BitcoinAddress::p2wsh(&witness_script, network)
+            }
+            _ => panic!("Unsupported address type"),
+        }
+    }
+
+    fn get_test_fee_rates() -> [FeeRate; 4] {
+        [
+            FeeRate::from_sat_per_vb(1).unwrap(),
+            FeeRate::from_sat_per_vb(10).unwrap(),
+            FeeRate::from_sat_per_vb(50).unwrap(),
+            FeeRate::from_sat_per_vb(100).unwrap(),
+        ]
+    }
+
+    fn assert_fee_rate_correctness(
+        signed_tx: &Transaction,
+        fee_rate: FeeRate,
+        deposit_amount: Amount,
+    ) {
+        assert_eq!(
+            signed_tx.input.len(),
+            1,
+            "Transaction must have exactly one input"
+        );
+        assert_eq!(
+            signed_tx.output.len(),
+            1,
+            "Transaction must have exactly one output"
+        );
+
+        let actual_weight = signed_tx.weight();
+        let expected_fee = fee_rate.fee_wu(actual_weight).unwrap();
+        let expected_output_amount = deposit_amount.checked_sub(expected_fee).unwrap();
+
+        assert_eq!(
+            signed_tx.output[0].value, expected_output_amount,
+            "Output amount should account for fees correctly"
+        );
+
+        let actual_fee = deposit_amount - signed_tx.output[0].value;
+        assert_eq!(
+            actual_fee, expected_fee,
+            "Fee calculation should be correct"
+        );
+
+        assert!(
+            signed_tx.output[0].value >= Amount::from_sat(546),
+            "Output should be above dust threshold"
+        );
+    }
+
+    fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
+        let setup = TestSetup::new();
+        let claim_address = create_claim_address(address_type, setup.config.network, key_offset);
+
+        for fee_rate in get_test_fee_rates() {
+            let result = sign_recovery_tx(
+                &setup.recovery_keypair,
+                &setup.citrea_address,
+                &setup.recovery_address,
+                &setup.deposit_outpoint,
+                setup.deposit_amount,
+                &claim_address,
+                fee_rate,
+                &setup.config,
+            );
+
+            assert!(
+                result.is_ok(),
+                "Failed to sign recovery tx with fee rate {:?} for address type",
+                fee_rate
+            );
+
+            let signed_tx = result.unwrap();
+            assert_fee_rate_correctness(&signed_tx, fee_rate, setup.deposit_amount);
+        }
+    }
+
+    #[test]
+    fn test_sign_recovery_tx_p2tr_fee_rate_correctness() {
+        test_fee_rate_correctness_for_address_type(AddressType::P2tr, 2);
+    }
+
+    #[test]
+    fn test_sign_recovery_tx_p2wpkh_fee_rate_correctness() {
+        test_fee_rate_correctness_for_address_type(AddressType::P2wpkh, 3);
+    }
+
+    #[test]
+    fn test_sign_recovery_tx_p2pkh_fee_rate_correctness() {
+        test_fee_rate_correctness_for_address_type(AddressType::P2pkh, 4);
+    }
+
+    #[test]
+    fn test_sign_recovery_tx_p2sh_fee_rate_correctness() {
+        test_fee_rate_correctness_for_address_type(AddressType::P2sh, 5);
+    }
+
+    #[test]
+    fn test_sign_recovery_tx_p2wsh_fee_rate_correctness() {
+        test_fee_rate_correctness_for_address_type(AddressType::P2wsh, 6);
     }
 }
