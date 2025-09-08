@@ -6,12 +6,16 @@ use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signatur
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::structs::{SecureKeypair, TaprootAddressWithPrefix};
+use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
 use crate::types::{BRIDGE_CONTRACT, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
-use alloy::providers::ProviderBuilder;
+use alloy::providers::fillers::{
+    BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller, WalletFiller,
+};
+use alloy::providers::{ProviderBuilder, RootProvider};
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
@@ -68,6 +72,25 @@ pub struct SafeWithdrawalParams {
     pub withdrawal_outpoint: OutPoint,
     pub withdrawal_amount: Amount,
     pub signature: bitcoin::taproot::Signature,
+}
+
+fn create_bridge_contract(
+    key: PrivateKeySigner,
+    config: &BridgeCliConfig,
+) -> Result<CitreaContract, BridgeCliError> {
+    let provider = ProviderBuilder::new()
+        .wallet(EthereumWallet::from(key))
+        .connect_http(config.citrea_rpc_url.clone());
+
+    let contract = BRIDGE_CONTRACT::new(
+        config
+            .bridge_contract_address
+            .parse()
+            .wrap_err("Failed to parse bridge contract address")?,
+        provider,
+    );
+
+    Ok(contract)
 }
 
 /// Helper function to securely load environment variable with better error handling
@@ -189,10 +212,6 @@ pub async fn send_safe_withdrawal(
 
     tracing::debug!("Wallet address: {}", wallet_address);
 
-    let provider = ProviderBuilder::new()
-        .wallet(EthereumWallet::from(key))
-        .connect_http(config.citrea_rpc_url.clone());
-
     validate_address_purpose(&params.signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
@@ -217,13 +236,8 @@ pub async fn send_safe_withdrawal(
     )
     .await?;
 
-    let contract = BRIDGE_CONTRACT::new(
-        config
-            .bridge_contract_address
-            .parse()
-            .wrap_err("Failed to parse bridge contract address")?,
-        provider,
-    );
+    let contract = create_bridge_contract(key, config)?;
+
     let citrea_withdrawal_tx = contract
         .safeWithdraw(
             withdrawal_params.0,
@@ -313,3 +327,17 @@ pub async fn prepare_withdrawal_params(
         &params.output_script_pk,
     ))
 }
+
+// Ugly typedefs.
+type CitreaContract = BRIDGE_CONTRACTInstance<
+    FillProvider<
+        JoinFill<
+            JoinFill<
+                alloy::providers::Identity,
+                JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+            >,
+            WalletFiller<EthereumWallet>,
+        >,
+        RootProvider,
+    >,
+>;
