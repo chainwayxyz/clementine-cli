@@ -315,7 +315,7 @@ pub async fn withdrawal_status(
     withdrawal_utxo: OutPoint,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let index = get_withdrawal_index(withdrawal_utxo, config).await?; // todo
+    let index = get_withdrawal_index(withdrawal_utxo, config).await?;
 
     let withdrawal_statuses = backend_withdrawal_status(index, config).await?;
     if withdrawal_statuses.is_empty() {
