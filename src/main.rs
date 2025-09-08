@@ -320,17 +320,6 @@ enum WithdrawCommands {
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo: String,
     },
-    /// Generate operator withdrawal signatures (for advanced/bridge operator use).
-    GenerateOperatorWithdrawalSignatures {
-        /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
-        signer_address: String,
-        /// Withdrawal address (Bitcoin address to receive withdrawn funds)
-        withdrawal_address: String,
-        /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
-        withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in BTC, e.g., 0.1)
-        withdrawal_amount: f64,
-    },
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignaturesToOperators {
         /// Bitcoin network to use
@@ -779,20 +768,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let config =
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 withdrawal_status(withdrawal_outpoint, &config).await?;
-            }
-            WithdrawCommands::GenerateOperatorWithdrawalSignatures {
-                withdrawal_address,
-                signer_address,
-                withdrawal_utxo_outpoint,
-                withdrawal_amount,
-            } => {
-                unimplemented!(
-                    "withdrawal.generate_operator_withdrawal_signatures: {} {} {} {}",
-                    withdrawal_address,
-                    signer_address,
-                    withdrawal_utxo_outpoint,
-                    withdrawal_amount
-                );
             }
             WithdrawCommands::SendWithdrawalSignaturesToOperators {
                 signer_address,
