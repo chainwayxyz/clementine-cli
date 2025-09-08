@@ -120,6 +120,7 @@ pub(crate) fn sign_recovery_tx(
         output: vec![txout],
     };
 
+    // This is the weight of the transaction without script_pubkey.
     let mut weight = Weight::from_wu(414);
     let claim_address_script_len = claim_address.script_pubkey().to_bytes().len();
     weight += Weight::from_wu(claim_address_script_len as u64 * 4);
