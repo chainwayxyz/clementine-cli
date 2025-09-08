@@ -773,9 +773,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                withdrawal_index,
-                signature,
                 withdrawal_amount,
+                signature,
+                withdrawal_index,
                 network,
             } => {
                 let config =
