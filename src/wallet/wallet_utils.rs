@@ -36,6 +36,7 @@ use bitcoin::address::NetworkValidation;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
 use bitcoin::secp256k1::SecretKey;
+use eyre::Context;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use std::collections::HashSet;
@@ -105,11 +106,12 @@ pub(crate) fn validate_mnemonic_import(
 pub(crate) fn parse_network(network_str: &str) -> Result<Network, BridgeCliError> {
     match network_str {
         "testnet4" => Ok(Network::Testnet4),
-        "testnet" => Ok(Network::Testnet),
         "regtest" => Ok(Network::Regtest),
         "signet" => Ok(Network::Signet),
         "bitcoin" => Ok(Network::Bitcoin),
-        _ => Err(BridgeCliError::UnsupportedNetwork),
+        rest => Err(BridgeCliError::UnsupportedNetwork(
+            Network::from_str(rest).wrap_err("Network is not a valid Bitcoin network name")?,
+        )),
     }
 }
 

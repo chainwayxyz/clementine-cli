@@ -23,6 +23,8 @@ pub enum ConfigErrors {
     FileReadFailure(#[from] std::io::Error),
     #[error("Can't parse TOML file: {0}")]
     TomlError(#[from] toml::de::Error),
+    #[error("Network {0} is not supported!")]
+    UnsportedNetwork(Network),
 
     #[error(transparent)]
     Other(#[from] eyre::Report),
@@ -100,9 +102,10 @@ impl BridgeCliConfig {
 
         let mut config = match network {
             Network::Bitcoin => network_configs.bitcoin,
-            Network::Testnet | Network::Testnet4 => network_configs.testnet4,
+            Network::Testnet4 => network_configs.testnet4,
             Network::Signet => network_configs.signet,
             Network::Regtest => network_configs.regtest,
+            rest => return Err(ConfigErrors::UnsportedNetwork(rest)),
         };
 
         // All of the URLs needs a trailing slash. If not present, add it.
@@ -202,9 +205,10 @@ impl BridgeCliConfig {
     pub fn get_withdrawal_sign_url(&self) -> &'static str {
         match self.network {
             Network::Bitcoin => "https://citrea.xyz/withdrawal/sign",
-            Network::Testnet | Network::Testnet4 => "https://citrea.xyz/withdrawal/sign", // #43
+            Network::Testnet4 => "https://citrea.xyz/withdrawal/sign", // #43
             Network::Signet => "https://devnet.citrea.xyz/withdrawal/sign",
             Network::Regtest => "http://127.0.0.1:12345",
+            rest => panic!("Network {rest} is not supported!"),
         }
     }
 }
