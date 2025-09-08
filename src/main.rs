@@ -31,7 +31,6 @@ use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 #[derive(Copy, Clone, Debug, ValueEnum)]
 enum CliNetwork {
     Bitcoin,
-    Testnet,
     Testnet4,
     Signet,
     Regtest,
@@ -41,7 +40,6 @@ impl From<CliNetwork> for Network {
     fn from(value: CliNetwork) -> Self {
         match value {
             CliNetwork::Bitcoin => Network::Bitcoin,
-            CliNetwork::Testnet => Network::Testnet,
             CliNetwork::Testnet4 => Network::Testnet4,
             CliNetwork::Signet => Network::Signet,
             CliNetwork::Regtest => Network::Regtest,

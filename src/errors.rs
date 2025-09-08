@@ -19,6 +19,7 @@
 //!    modules that are trying to match the error.
 
 use crate::{BitcoinAddress, config::ConfigErrors, wallet::Purpose};
+use bitcoin::Network;
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -29,8 +30,8 @@ use thiserror::Error;
 #[non_exhaustive]
 pub enum BridgeCliError {
     // Shared error messages
-    #[error("Unsupported network")]
-    UnsupportedNetwork,
+    #[error("Unsupported Bitcoin network: {0}")]
+    UnsupportedNetwork(Network),
 
     // Address-related errors
     #[error("Failed to generate master seed from mnemonic: {0}")]
@@ -283,7 +284,7 @@ mod tests {
     #[test]
     fn test_downcast() {
         assert_eq!(
-            BridgeCliError::UnsupportedNetwork
+            BridgeCliError::UnsupportedNetwork(Network::Testnet)
                 .into_eyre()
                 .wrap_err("Some other error")
                 .into_eyre()
@@ -291,7 +292,7 @@ mod tests {
                 .downcast_ref::<BridgeCliError>()
                 .unwrap()
                 .to_string(),
-            BridgeCliError::UnsupportedNetwork.to_string()
+            BridgeCliError::UnsupportedNetwork(Network::Testnet).to_string()
         );
     }
 }
