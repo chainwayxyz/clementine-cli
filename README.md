@@ -19,7 +19,7 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 
 ### Configuration
 
-Provided [`bridge_cli_config.toml`](bridge_cli_config.toml) file should not be
+The provided [`bridge_cli_config.toml`](bridge_cli_config.toml) file should not be
 modified, apart from `.bitcoin_config` sections. Some operations might require
 Bitcoin RPC connection. For each network you wish to use Clementine Bridge on,
 you need to provide correct Bitcoin RPC configuration.
