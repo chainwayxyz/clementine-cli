@@ -140,6 +140,12 @@ clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... ab
 - Submits the withdrawal transaction to Citrea network
 - Returns transaction confirmation
 
+In case `safe-withdraw` fails, you can send your directly to the bridge contract by using `send-safe-withdrawal`:
+
+```sh
+clementine-cli withdraw send-safe-withdrawal --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+```
+
 ## Step 6: Send the Signature to the Operators
 
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:

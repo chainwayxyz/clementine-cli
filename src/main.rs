@@ -296,7 +296,7 @@ enum WithdrawCommands {
         /// Withdrawal signature (hex-encoded)
         signature: String,
     },
-    /// Send a safe withdrawal transaction.
+    /// Send a safe withdrawal transaction directly to the bridge contract.
     SendSafeWithdrawal {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
