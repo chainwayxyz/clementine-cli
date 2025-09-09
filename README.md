@@ -13,38 +13,61 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 ## Installation
 
 ### Prerequisites
+
 - **Online Device**: Bitcoin node access or mempool API
 - **Both Devices**: Rust and Clementine CLI installation, secure data transfer method (USB, QR codes)
 
-### Install
+### Configuration
+
+The provided [`bridge_cli_config.toml`](bridge_cli_config.toml) file should not be
+modified, apart from `.bitcoin_config` sections. Some operations might require
+Bitcoin RPC connection. For each network you wish to use Clementine Bridge on,
+you need to provide correct Bitcoin RPC configuration.
+
+> [!IMPORTANT]
+> If a protocol wide change is introduced by Chainway Labs, you will need to
+> update your configuration file with the new settings.
+
+### Installing
 
 1. Install Rust:
+
    ```sh
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. Install Clementine CLI:
+
    ```sh
    cargo install --path .
    ```
 
-3. Install your configuration by modifying according to your own Bitcoin configurations and copying your config file to `~/.clementine/`:
+3. Install configuration file by copying your config file to `~/.clementine/`:
+
    ```sh
    mkdir -p ~/.clementine/  
    cp ./bridge_cli_config.toml ~/.clementine/  
    ```
-Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
+
+> [!CAUTION]
+> Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
 
 ## Quick Usage
+
+By default, `clementine-cli` uses `bitcoin` (mainnet) network. If you wish to
+make deposits and withdrawals on other networks, please provide `--network` flag
+every time you invoke `clementine-cli`.
 
 ```sh
 # Get help
 clementine-cli --help
 
 # Create wallet for deposit (airgapped device only)
+clementine-cli wallet create my-deposit-wallet deposit # Mainnet
 clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
 
 # Monitor deposits (online device)
+clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
 clementine-cli deposit status --network testnet4 <DEPOSIT_ADDRESS>
 ```
 
@@ -58,6 +81,9 @@ Clementine CLI requires two devices for maximum security:
 - **Always**: Verify the correctness of operations before interacting with Citrea or Bitcoin to prevent loss of funds
 
 ## Documentation
+
+See [docs/README.md](docs/README.md) for an overview of how to use this CLI to
+deposit to and withdraw from Citrea.
 
 - [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
