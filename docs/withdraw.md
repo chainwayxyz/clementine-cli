@@ -108,7 +108,7 @@ clementine-cli withdraw generate-withdrawal-signature --network <BITCOIN_NETWORK
 **Example:**
 
 ```sh
-clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1pf... tb1qg... abc123def456...:0 9.9 BTC
+clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1pf... tb1qg... abc123def456...:0 990000000
 ```
 
 > [!CAUTION]
@@ -125,7 +125,7 @@ clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRES
 **Example:**
 
 ```sh
-clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
+clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 990000000 807c42770...
 ```
 
 **What this does:**
@@ -157,7 +157,7 @@ clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCO
 **Example:**
 
 ```sh
-clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
+clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 990000000 807c42770... 1
 ```
 
 > [!NOTE]

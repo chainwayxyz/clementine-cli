@@ -345,7 +345,7 @@ pub async fn send_withdrawal_signatures(
     signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo_outpoint: &str,
-    amount: f64,
+    amount: u64,
     signature: &str,
     config: &BridgeCliConfig,
     withdrawal_index: u32,

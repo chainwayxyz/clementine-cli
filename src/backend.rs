@@ -255,7 +255,7 @@ pub(crate) async fn send_withdrawal_signatures_to_operators(
     withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
-    amount: f64,
+    amount: u64,
 ) -> Result<(), BridgeCliError> {
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed

@@ -111,7 +111,7 @@ clementine-cli --help
 - **Airgapped Operations**: Key generation and signing MUST be performed offline
 - **Backup Everything**: Wallet files, recovery phrases, and transaction IDs
 - **Verify Always**: Double-check addresses and amounts before signing
-- **Recovery Planning**: Save all recovery information in multiple secure locations
+- **Recovery Planning**: Save all recovery information to use if needed
 
 ### **Operational Security**
 
