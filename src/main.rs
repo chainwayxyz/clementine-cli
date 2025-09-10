@@ -277,7 +277,7 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10_000_000 for 0.1 BTC)
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
         amount: u64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
@@ -291,7 +291,7 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10_000_000 for 0.1 BTC)
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
         amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
@@ -307,7 +307,7 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10_000_000 for 0.1 BTC)
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
         amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
@@ -331,7 +331,7 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10_000_000 for 0.1 BTC)
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
         withdrawal_amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
