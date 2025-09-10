@@ -277,8 +277,8 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in BTC, e.g., 0.1)
-        amount: f64,
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
+        amount: u64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
@@ -291,12 +291,12 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in BTC, e.g., 0.1)
-        amount: f64,
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
+        amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
     },
-    /// Send a safe withdrawal transaction.
+    /// Send a safe withdrawal transaction directly to the bridge contract.
     SendSafeWithdrawal {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
@@ -307,8 +307,8 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in BTC, e.g., 0.1)
-        amount: f64,
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
+        amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
     },
@@ -331,8 +331,8 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in BTC, e.g., 0.1)
-        withdrawal_amount: f64,
+        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
+        withdrawal_amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
         /// Withdrawal index
@@ -651,7 +651,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let claim_address = parse_address(&withdrawal_address, network.into())?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let amount = Amount::from_btc(amount)?;
+                let amount = Amount::from_sat(amount);
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
                 }
@@ -699,7 +699,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let withdrawal_amount = Amount::from_btc(amount)?;
+                let withdrawal_amount = Amount::from_sat(amount);
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdraw::safe_withdraw(
@@ -740,7 +740,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let withdrawal_amount = Amount::from_btc(amount)?;
+                let withdrawal_amount = Amount::from_sat(amount);
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdraw::send_safe_withdrawal(
@@ -773,9 +773,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                withdrawal_index,
-                signature,
                 withdrawal_amount,
+                signature,
+                withdrawal_index,
                 network,
             } => {
                 let config =

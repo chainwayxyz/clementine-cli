@@ -108,7 +108,7 @@ clementine-cli withdraw generate-withdrawal-signature --network <BITCOIN_NETWORK
 **Example:**
 
 ```sh
-clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1pf... tb1qg... abc123def456...:0 9.9 BTC
+clementine-cli withdraw generate-withdrawal-signature --network testnet4 wittb1pf... tb1qg... abc123def456...:0 990000000
 ```
 
 > [!CAUTION]
@@ -125,7 +125,7 @@ clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRES
 **Example:**
 
 ```sh
-clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770...
+clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 990000000 807c42770...
 ```
 
 **What this does:**
@@ -140,6 +140,12 @@ clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... ab
 - Submits the withdrawal transaction to Citrea network
 - Returns transaction confirmation
 
+In case `safe-withdraw` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdrawal`:
+
+```sh
+clementine-cli withdraw send-safe-withdrawal --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <SIGNATURE>
+```
+
 ## Step 6: Send the Signature to the Operators
 
 **ONLINE DEVICE OPERATION:** Submit the generated signature to bridge operators for final withdrawal processing:
@@ -151,7 +157,7 @@ clementine-cli withdraw send-withdrawal-signatures-to-operators --network <BITCO
 **Example:**
 
 ```sh
-clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 9.9 807c42770... 1
+clementine-cli withdraw send-withdrawal-signatures-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 990000000 807c42770... 1
 ```
 
 > [!NOTE]
