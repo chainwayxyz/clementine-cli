@@ -14,7 +14,7 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 
 ### Prerequisites
 
-- **Online Device**: Bitcoin node access or mempool API
+- **Online Device**: Bitcoin node or mempool.space API access
 - **Both Devices**: Rust and Clementine CLI installation, secure data transfer method (USB, QR codes)
 
 ### Configuration
