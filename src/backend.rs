@@ -68,21 +68,6 @@ pub struct OptimisticPayoutStatus {
     pub txid: String,
 }
 
-impl Display for OptimisticPayoutStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn display_or(v: &str) -> &str {
-            if v.is_empty() { "--" } else { v }
-        }
-
-        write!(
-            f,
-            "\nOptimistic Payout Info\n  Raw TX: {}\n  TXID:   {}",
-            display_or(&self.tx_raw),
-            display_or(&self.txid)
-        )
-    }
-}
-
 impl Display for WithdrawStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         fn display_or(v: &str) -> &str {
@@ -107,14 +92,15 @@ impl Display for WithdrawStatus {
             Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
         };
 
-        let optimistic_payout_display = match &self.optimistic_payout_payment {
-            Some(payout) => format!("{}", payout),
-            None => "--".to_string(),
-        };
+        let optimistic_payout_display = format!(
+            "  Optimistic Payout Info\n    Raw TX: {}\n    TXID:   {}",
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.tx_raw)),
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.txid))
+        );
 
         write!(
             f,
-            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n  Optimistic Payout:    {}",
+            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n{}",
             self.idx,
             status,
             display_or(&self.btc_payment_txid),
