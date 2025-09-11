@@ -22,6 +22,7 @@ use clementine_cli::{
     withdraw,
 };
 use colored::Colorize;
+use secrecy::ExposeSecret;
 use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
@@ -74,6 +75,34 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
             .with(standard_layer)
             .with(filter),
     );
+}
+
+fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
+    let mut command = "bitcoin-cli".to_string();
+
+    match config.network {
+        Network::Bitcoin => (),
+        Network::Testnet4 => command.push_str(" -testnet4"),
+        Network::Signet => command.push_str(" -signet"),
+        Network::Regtest => command.push_str(" -regtest"),
+        Network::Testnet => todo!(),
+    }
+
+    if let Some(bitcoin_config) = &config.bitcoin_config {
+        if let Some(port) = bitcoin_config.url.port() {
+            command.push_str(&format!(" -rpcport={port}"));
+        }
+        command.push_str(&format!(
+            " -rpcuser={}",
+            bitcoin_config.user.expose_secret()
+        ));
+        command.push_str(&format!(
+            " -rpcpassword={}",
+            bitcoin_config.password.expose_secret()
+        ));
+    }
+
+    command
 }
 
 #[derive(Parser)]
@@ -463,7 +492,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
+                        println!("{} sendtoaddress \"{}\" 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
                     }
                 );
             }
@@ -599,7 +628,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000{}",
+                        println!("{} sendtoaddress \"{}\" 0.00000{}",
+                            get_bitcoin_cli_command(&config),
                             signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
