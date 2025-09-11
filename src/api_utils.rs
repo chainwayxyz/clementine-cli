@@ -308,9 +308,20 @@ pub(crate) async fn get_utxos_from_mempool_space_api(
 }
 
 pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
-    match config.bitcoin_config {
-        Some(ref _bitcoin_config) => get_current_block_height_from_rpc(config).await,
-        _ => get_current_block_height_from_mempool_space_api(config).await,
+    match get_current_block_height_from_mempool_space_api(config).await {
+        Ok(height) => Ok(height),
+        Err(mempool_error) => {
+            tracing::warn!(
+                "Mempool API failed for get_current_block_height: {}, falling back to Bitcoin RPC",
+                mempool_error
+            );
+
+            if config.bitcoin_config.is_some() {
+                get_current_block_height_from_rpc(config).await
+            } else {
+                Err(mempool_error)
+            }
+        }
     }
 }
 

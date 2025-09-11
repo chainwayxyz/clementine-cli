@@ -39,6 +39,18 @@ struct SecureMnemonicDisplay<'a> {
     alternate_screen_active: bool,
 }
 
+#[derive(PartialEq)]
+enum UserInput {
+    Continue,
+    Exit,
+}
+
+#[derive(PartialEq)]
+enum MnemomicDisplayResult {
+    EarlyExit,
+    Completed,
+}
+
 impl<'a> SecureMnemonicDisplay<'a> {
     /// Create a new secure display instance
     fn new(mnemonic: &'a Mnemonic) -> Self {
@@ -58,7 +70,16 @@ impl<'a> SecureMnemonicDisplay<'a> {
             Ok(()) => {
                 let result = self.display_in_alternate_screen();
                 self.cleanup_alternate_screen();
-                result
+                match result {
+                    Ok(MnemomicDisplayResult::EarlyExit) => {
+                        println!();
+                        println!("{}", "Mnemonic display cancelled by user.".bold());
+                        println!();
+                        Ok(())
+                    }
+                    Ok(MnemomicDisplayResult::Completed) => Ok(()),
+                    Err(e) => Err(e),
+                }
             }
             Err(e) => {
                 // Ensure we're in a clean state before showing fallback
@@ -154,12 +175,15 @@ impl<'a> SecureMnemonicDisplay<'a> {
     }
 
     /// Display mnemonic with security warnings and user interaction
-    fn display_in_alternate_screen(&self) -> Result<()> {
+    fn display_in_alternate_screen(&self) -> Result<MnemomicDisplayResult> {
         self.clear_screen()?;
         self.display_header()?;
-        self.display_mnemonic_step_by_step()?;
+        match self.display_mnemonic_step_by_step()? {
+            MnemomicDisplayResult::EarlyExit => return Ok(MnemomicDisplayResult::EarlyExit),
+            MnemomicDisplayResult::Completed => {}
+        }
         self.display_completion_message()?;
-        Ok(())
+        Ok(MnemomicDisplayResult::Completed)
     }
 
     /// Clear the screen and position cursor at top
@@ -188,7 +212,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
     }
 
     /// Display the mnemonic words step by step, one word at a time
-    fn display_mnemonic_step_by_step(&self) -> Result<()> {
+    fn display_mnemonic_step_by_step(&self) -> Result<MnemomicDisplayResult> {
         let words: Vec<SecureString> = self
             .mnemonic
             .words()
@@ -216,17 +240,20 @@ impl<'a> SecureMnemonicDisplay<'a> {
             )
             .map_err(|e| eyre!("Failed to display word {}: {}", word_num, e))?;
 
-            // Wait for user input or timeout (30 seconds per word)
-            if let Err(e) = self.wait_for_word_confirmation() {
-                return Err(eyre!("Error during word display: {}", e));
+            let resp = self
+                .wait_for_word_confirmation()
+                .map_err(|e| eyre!("Error during word display: {}", e))?;
+
+            if UserInput::Exit == resp {
+                return Ok(MnemomicDisplayResult::EarlyExit);
             }
         }
 
-        Ok(())
+        Ok(MnemomicDisplayResult::Completed)
     }
 
     /// Wait for user confirmation for each word with timeout
-    fn wait_for_word_confirmation(&self) -> Result<()> {
+    fn wait_for_word_confirmation(&self) -> Result<UserInput> {
         let start_time = Instant::now();
 
         loop {
@@ -235,7 +262,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
             if remaining.is_zero() {
                 // Timeout reached, automatically proceed to next word
-                return Ok(());
+                return Ok(UserInput::Continue);
             }
 
             // Update countdown display for current word
@@ -250,10 +277,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 match key_event.code {
                     KeyCode::Enter => {
                         // User pressed Enter, proceed to next word
-                        return Ok(());
+                        return Ok(UserInput::Continue);
                     }
                     KeyCode::Esc => {
-                        return Err(eyre!("User cancelled mnemonic display"));
+                        return Ok(UserInput::Exit);
                     }
                     _ => {
                         // Ignore other keys
