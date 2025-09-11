@@ -57,18 +57,17 @@ fn format_deposit_status(
             v.to_string()
         }
     };
-    let vout_str = vout.map_or(String::new(), |v| format!("\n  VOUT:       {}", v));
-    write!(
-        f,
-        "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}{}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
-        id,
-        status,
-        display_or(txid),
-        vout_str,
-        display_or(evm_addr),
-        display_or(move_txid),
-        display_or(mint_txid)
-    )
+
+    writeln!(f, "\nDeposit Info")?;
+    writeln!(f, "  ID:            {}", id)?;
+    writeln!(f, "  Status:        {}", status)?;
+    writeln!(f, "  TXID:          {}", display_or(txid))?;
+    if let Some(v) = vout {
+        writeln!(f, "  UTXO Outpoint: {}:{}", txid, v)?;
+    }
+    writeln!(f, "  EVM Addr:      {}", display_or(evm_addr))?;
+    writeln!(f, "  Move TXID:     {}", display_or(move_txid))?;
+    writeln!(f, "  Mint TXID:     {}", display_or(mint_txid))
 }
 
 impl Display for DepositStatus {
