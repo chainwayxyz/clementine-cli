@@ -20,7 +20,6 @@ use bitcoin::hashes::Hash;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Network, OutPoint, TxOut, Txid};
 use eyre::Context;
-use open;
 use serde_json::json;
 use urlencoding::encode;
 
@@ -101,14 +100,15 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid SECRET_KEY format: {}", e)))
 }
 
-pub fn generate_withdrawal_signature(
+pub fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    amount: &Amount,
+    optimistic_withdrawal_amount: &Amount,
+    operator_withdrawal_amount: &Amount,
     network: Network,
-) -> Result<Signature, BridgeCliError> {
+) -> Result<(Signature, Signature), BridgeCliError> {
     ensure_wallet_exists(signer_address)?;
 
     if signer_address.purpose != Purpose::Withdrawal {
@@ -118,26 +118,40 @@ pub fn generate_withdrawal_signature(
         });
     }
 
-    let destination_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-        &destination_address.to_string(),
-        Purpose::Withdrawal,
-        network,
-    )?;
+    // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
+    if destination_address.address_type() == Some(bitcoin::AddressType::P2tr) {
+        let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
+            &destination_address.to_string(),
+            Purpose::Withdrawal,
+            network,
+        )?;
 
-    // Check if the destination address belongs to any of our wallets
-    if address_exists(&destination_wallet_address)? {
-        return Err(BridgeCliError::DestinationAddressIsWalletAddress);
+        // Check if the claim address belongs to any of our wallets
+        if address_exists(&claim_wallet_address)? {
+            return Err(BridgeCliError::DestinationAddressIsWalletAddress);
+        }
     }
 
-    let signature = sign_withdrawal_signature(
+    let optimistic_withdrawal_signature = sign_withdrawal_signature(
         &keypair,
         &signer_address.address,
         withdrawal_utxo,
         destination_address,
-        *amount,
+        *optimistic_withdrawal_amount,
     )?;
 
-    Ok(signature)
+    let operator_withdrawal_signature = sign_withdrawal_signature(
+        &keypair,
+        &signer_address.address,
+        withdrawal_utxo,
+        destination_address,
+        *operator_withdrawal_amount,
+    )?;
+
+    Ok((
+        optimistic_withdrawal_signature,
+        operator_withdrawal_signature,
+    ))
 }
 
 pub async fn safe_withdraw(
@@ -185,15 +199,6 @@ pub async fn safe_withdraw(
         encode(&withdrawal_address.to_string())
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
-
-    if let Err(e) = open::that(&withdrawal_ui_url) {
-        return Err(eyre::eyre!(
-            "Failed to open browser: {}. Please visit the following URL manually: {}",
-            e,
-            withdrawal_ui_url
-        )
-        .into());
-    }
 
     Ok(withdrawal_ui_url)
 }

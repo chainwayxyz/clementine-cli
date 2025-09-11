@@ -172,7 +172,7 @@ pub(crate) async fn backend_deposit_status(
     // Create HTTP client
     let client = reqwest::Client::new();
 
-    // Make POST request
+    // Make GET request
     let response = client
         .get(url.as_str())
         .header("Content-Type", "application/json")
@@ -248,7 +248,7 @@ pub(crate) async fn backend_withdrawal_status(
     }
 }
 
-pub(crate) async fn send_withdrawal_signatures_to_operators(
+pub(crate) async fn send_withdrawal_signature_to_operators(
     _signer_address: &str,
     withdrawal_address: &str,
     withdrawal_outpoint: OutPoint,

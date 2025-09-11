@@ -39,7 +39,7 @@ pub use deposit::{
 };
 
 // Withdrawal operations
-pub use withdraw::{generate_withdrawal_signature, safe_withdraw, send_safe_withdrawal};
+pub use withdraw::{generate_withdrawal_signatures, safe_withdraw, send_safe_withdrawal};
 
 // API utilities
 pub use api_utils::broadcast_recovery_tx;

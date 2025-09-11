@@ -13,7 +13,7 @@ clementine-cli deposit --help
 Before starting a deposit, ensure you have:
 
 - A Citrea address (Ethereum format)
-- A Clementine wallet with `deposit` purpose ("dep" prefix address) which will be used as the recovery taproot address
+- A Clementine wallet with `deposit` purpose ("dep" prefix address) which will be used as the `recovery taproot address`
 - Access to a Bitcoin wallet or node for sending funds
 - Sufficient Bitcoin for the deposit
 
@@ -27,11 +27,9 @@ The deposit process consists of several stages:
 4. **Recovery (if needed)** - Recover funds if bridging fails
 
 > [!IMPORTANT]
-> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTIONATION_ADDRESS`.
+> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas the `DEPOSIT_ADDRESS` is the address you send Bitcoin to in order to perform the deposit operation. Your `RECOVERY_TAPROOT_ADDRESS` is used alongside the `N_of_N_ADDRESS` when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTIONATION_ADDRESS`.
 
 ## Step 1: Generate Deposit Address
-
-**TWO-DEVICE PROCESS:**
 
 ### Online Device: Generate Deposit Address
 
@@ -49,15 +47,6 @@ clementine-cli deposit get-deposit-address --network testnet4 depbc1p... 0x742d3
 
 > [!IMPORTANT]
 > **About the "dep" prefix:** The recovery taproot address should belong to Clementine wallet with `deposit` purpose and should be prefixed with "dep" to indicate it's being used for deposit operations. This prefix helps distinguish deposit-specific addresses from regular wallet addresses and ensures proper address derivation in the Clementine bridge system.
-
-### Airgapped Device: Verify Deposit Address
-
-**CRITICAL VERIFICATION STEP:** Transfer the generated deposit address to your airgapped device and verify it:
-
-```sh
-# Run this on airgapped device to verify the deposit address matches
-clementine-cli deposit get-deposit-address --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS>
-```
 
 ## Step 2: Send Bitcoin to Deposit Address
 
@@ -80,7 +69,7 @@ bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 
 ## Step 3: Monitor Deposit Status
 
-**ONLINE DEVICE OPERATION:** Track the progress of your deposit through the bridging process:
+**ONLINE DEVICE OPERATION:** Track the progress of your deposit throughout the bridging process:
 
 ```sh
 clementine-cli deposit status --network <BITCOIN_NETWORK> <DEPOSIT_ADDRESS>
@@ -140,9 +129,7 @@ clementine-cli deposit create-signed-recovery-tx --network testnet4 deptb1pd... 
 
 ### Verify Recovery Transaction (Optional)
 
-**BOTH DEVICES:** Verify the recovery transaction details before broadcasting:
-
-**Airgapped Device (Generate Verification):**
+**Online Device:** Verify the recovery transaction details before broadcasting:
 
 ```sh
 clementine-cli deposit verify-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]
@@ -158,8 +145,7 @@ clementine-cli deposit broadcast-recovery-tx --network <BITCOIN_NETWORK> <RECOVE
 
 > [!TIP]
 > You don't have to use `clementine-cli` if you know how to send raw transactions
-> by yourself. `clementine-cli` only provides helping wrappers around Mempool
-> post tx api and Bitcoin CLI.
+> by yourself. `clementine-cli` only provides helping wrappers around mempool.space API and Bitcoin Core CLI.
 
 **Broadcasting Protocol:**
 
@@ -184,7 +170,7 @@ clementine-cli deposit get-deposit-params --network <NETWORK> <MOVE_TO_VAULT_TXI
 
 **Deposit address generation fails:**
 
-- Verify EVM address format (0x...)
+- Verify Citrea (EVM) address format (0x...)
 - Check recovery taproot address format (bc1p...)
 - Ensure network parameter matches your Bitcoin network
 
