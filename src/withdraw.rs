@@ -103,7 +103,7 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
 pub fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
     optimistic_withdrawal_amount: &Amount,
     operator_withdrawal_amount: &Amount,
@@ -119,16 +119,16 @@ pub fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if claim_address.address_type() == Some(bitcoin::AddressType::P2tr) {
+    if destination_address.address_type() == Some(bitcoin::AddressType::P2tr) {
         let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-            &claim_address.to_string(),
+            &destination_address.to_string(),
             Purpose::Withdrawal,
             network,
         )?;
 
         // Check if the claim address belongs to any of our wallets
         if address_exists(&claim_wallet_address)? {
-            return Err(BridgeCliError::ClaimAddressIsWalletAddress);
+            return Err(BridgeCliError::DestinationAddressIsWalletAddress);
         }
     }
 
@@ -136,7 +136,7 @@ pub fn generate_withdrawal_signatures(
         &keypair,
         &signer_address.address,
         withdrawal_utxo,
-        claim_address,
+        destination_address,
         *optimistic_withdrawal_amount,
     )?;
 
@@ -144,7 +144,7 @@ pub fn generate_withdrawal_signatures(
         &keypair,
         &signer_address.address,
         withdrawal_utxo,
-        claim_address,
+        destination_address,
         *operator_withdrawal_amount,
     )?;
 
@@ -308,7 +308,7 @@ pub async fn get_withdrawal_index(
 
 pub(crate) fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    _claim_address: &BitcoinAddress,
+    _destination_address: &BitcoinAddress,
     _config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
@@ -317,7 +317,7 @@ pub(crate) fn start_withdrawal(
 
 pub async fn scan_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    _claim_address: &BitcoinAddress,
+    _destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
