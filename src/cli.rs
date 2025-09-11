@@ -452,12 +452,11 @@ pub async fn cli_scan_withdrawals(
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
             println!(
-                "clementine-cli withdraw generate-withdrawal-signature --network {} {} {} {} {}",
+                "clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
                 &signer_address.address_with_prefix(),
                 claim_address,
                 outpoint,
-                config.optimistic_withdrawal_amount.to_sat()
             );
         };
         let print_operator_note = || {
