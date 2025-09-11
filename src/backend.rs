@@ -39,6 +39,7 @@ pub struct WithdrawStatus {
     pub created_at: String,
 }
 
+#[allow(clippy::too_many_arguments)]
 fn format_deposit_status(
     f: &mut std::fmt::Formatter<'_>,
     id: u64,
