@@ -1,13 +1,11 @@
-use bitcoin::{
-    Amount, Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature,
-};
+use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature};
 use clap::{Parser, Subcommand, ValueEnum};
 use clementine_cli::cli::{
-    cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signature,
+    cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
     cli_import_wallet_from_private_key, cli_scan_withdrawals, cli_show_mnemonic,
     cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
-    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signatures,
+    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
     withdrawal_status,
 };
 use clementine_cli::errors::PrintErr;
@@ -309,7 +307,7 @@ enum WithdrawCommands {
         claim_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
-    GenerateWithdrawalSignature {
+    GenerateWithdrawalSignatures {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
@@ -319,8 +317,6 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
-        amount: u64,
     },
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
@@ -333,8 +329,6 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
-        amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
     },
@@ -349,8 +343,6 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
-        amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
     },
@@ -363,7 +355,7 @@ enum WithdrawCommands {
         withdrawal_utxo: String,
     },
     /// Send withdrawal signatures to operators.
-    SendWithdrawalSignaturesToOperators {
+    SendWithdrawalSignatureToOperators {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
@@ -373,8 +365,6 @@ enum WithdrawCommands {
         withdrawal_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
-        /// Amount to withdraw (in sats, e.g., 10000000 for 0.1 BTC)
-        withdrawal_amount: u64,
         /// Withdrawal signature (hex-encoded)
         signature: String,
         /// Withdrawal index
@@ -675,13 +665,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => { }
                 )
             }
-            WithdrawCommands::GenerateWithdrawalSignature {
+            WithdrawCommands::GenerateWithdrawalSignatures {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                amount,
                 network,
             } => {
+                let config =
+                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     network.into(),
@@ -694,29 +685,40 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let claim_address = parse_address(&withdrawal_address, network.into())?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let amount = Amount::from_sat(amount);
                 fn serialize_and_encode(signature: Signature) -> String {
                     hex::encode(signature.serialize())
                 }
                 let network: Network = network.into();
 
                 handle_cli_command!(
-                    cli_generate_withdrawal_signature(
+                    cli_generate_withdrawal_signatures(
                         &signer_address,
                         &claim_address,
                         &withdrawal_outpoint,
-                        &amount,
+                        &config.optimistic_withdrawal_amount,
+                        &config.operator_withdrawal_amount,
                         network,
                     ),
-                    signature => {
+                    (optimistic_signature, operator_signature) => {
                         println!(
-                            "Withdrawal signature hex: {}",
-                            serialize_and_encode(signature)
+                            "Optimistic withdrawal signature hex: {}",
+                            serialize_and_encode(optimistic_signature)
+                        );
+                        println!(
+                            "Operator-paid withdrawal signature hex: {}",
+                            serialize_and_encode(operator_signature)
                         );
                         println!("Now run:");
-                        println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {} {}",
-                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
-                        println!("on your online device to initiate withdrawal process on the Citrea network");
+                        println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {}",
+                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, serialize_and_encode(optimistic_signature));
+                        println!("on your online device to initiate optimistic withdrawal process on the Citrea network");
+                        println!("Then monitor withdrawal status for 12 hours using:");
+                        println!("clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);
+                        println!("This command will also give you the withdrawal index needed for the next step");
+                        println!("If the optimistic withdrawal does not complete in 12 hours, run:");
+                        println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {} <WITHDRAWAL_INDEX>",
+                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, serialize_and_encode(operator_signature));
+                        println!("to submit the operator-paid withdrawal signature to Clementine Operators");
                     }
                 );
             }
@@ -724,7 +726,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                amount,
                 signature,
                 network,
             } => {
@@ -742,14 +743,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let withdrawal_amount = Amount::from_sat(amount);
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdraw::safe_withdraw(
                         &signer_address,
                         &withdrawal_address,
                         &withdrawal_outpoint,
-                        &withdrawal_amount,
+                        &config.optimistic_withdrawal_amount,
                         &sig,
                         &config,
                     ),
@@ -758,6 +758,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
                             "INFO".bold()
                         );
+                        if let Err(e) = open::that(&withdrawal_ui_url) {
+                            return Err(eyre::eyre!(
+                            "Failed to open browser: {}. Please visit the following URL manually: {}",
+                            e,
+                            withdrawal_ui_url
+                            )
+                            .into());
+                        }
                     }
                 );
             }
@@ -765,7 +773,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                amount,
                 signature,
                 network,
             } => {
@@ -783,7 +790,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let withdrawal_address = parse_address(&withdrawal_address, config.network)?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
-                let withdrawal_amount = Amount::from_sat(amount);
                 let sig = bitcoin::taproot::Signature::from_slice(&hex::decode(signature)?)?;
                 handle_cli_command!(async
                     withdraw::send_safe_withdrawal(
@@ -791,7 +797,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             signer_address,
                             withdrawal_address,
                             withdrawal_outpoint,
-                            withdrawal_amount,
+                            withdrawal_amount: config.optimistic_withdrawal_amount,
                             signature: sig,
                         },
                         &config,
@@ -812,28 +818,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
                 withdrawal_status(withdrawal_outpoint, &config).await?;
             }
-            WithdrawCommands::SendWithdrawalSignaturesToOperators {
+            WithdrawCommands::SendWithdrawalSignatureToOperators {
                 signer_address,
                 withdrawal_address,
                 withdrawal_utxo_outpoint,
-                withdrawal_amount,
                 signature,
                 withdrawal_index,
                 network,
             } => {
                 let config =
                     BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
-                send_withdrawal_signatures(
+                send_withdrawal_signature(
                     &signer_address,
                     &withdrawal_address,
                     &withdrawal_utxo_outpoint,
-                    withdrawal_amount,
+                    config.operator_withdrawal_amount.to_sat(),
                     &signature,
                     &config,
                     withdrawal_index,
                 )
                 .await?;
-                println!("Withdrawal signatures sent successfully to operators");
+                println!("Withdrawal signature sent successfully to Clementine Operators");
             }
         },
     }
