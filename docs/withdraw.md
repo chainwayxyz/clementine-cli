@@ -9,7 +9,7 @@ All available withdrawal commands can be viewed using `clementine-cli withdraw -
 Before starting a withdrawal, ensure you have:
 
 - A Clementine wallet with `withdrawal` purpose ("wit" prefix address)
-- A Bitcoin address where funds will be sent (claim address)
+- A Bitcoin address where funds will be sent (destination address)
 - Access to both airgapped and online devices
 - Sufficient balance on Citrea to withdraw
 
@@ -26,20 +26,20 @@ The withdrawal process follows these sequential steps:
 7. **Check Status** - Monitor withdrawal progress
 
 > [!IMPORTANT]
-> The `SIGNER_ADDRESS` and the `CLAIM_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `CLAIM_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
+> The `SIGNER_ADDRESS` and the `DESTIONATION_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `DESTIONATION_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
 
 ## Step 1: Start Withdrawal (Online Device)
 
 **BOTH DEVICES:** Start the withdrawal process:
 
 ```sh
-clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS>
+clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTIONATION_ADDRESS>
 ```
 
 **Parameters:**
 
 - `SIGNER_ADDRESS`: Withdrawal wallet address with "wit" prefix (from airgapped device)
-- `CLAIM_ADDRESS`: Bitcoin address where funds will be sent
+- `DESTIONATION_ADDRESS`: Bitcoin address where funds will be sent
 
 **Example:**
 
@@ -75,7 +75,7 @@ This creates the 0-value UTXO needed for the withdrawal operation.
 **ONLINE DEVICE OPERATION:** Scan for available withdrawal UTXOs that can be used for the withdrawal operation:
 
 ```sh
-clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <CLAIM_ADDRESS>
+clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTIONATION_ADDRESS>
 ```
 
 **Example:**
@@ -95,7 +95,7 @@ This command will scan Bitcoin network and return possible withdrawal scenarios 
 **Transfer from online device to airgapped device:**
 
 - Signer address (with "wit" prefix)
-- Withdrawal address (claim address)
+- Withdrawal address (destination address)
 - Withdrawal UTXO details (from scan command)
 - Amount to withdraw (in BTC)
 
@@ -204,7 +204,7 @@ The status will show the response from the backend.
 **Critical Security Requirements:**
 
 - **Airgapped Signing**: ALL signature generation must occur on airgapped device
-- **Address Verification**: Always verify withdrawal and claim addresses before signing
+- **Address Verification**: Always verify withdrawal and destination addresses before signing
 - **Signature Protection**: Never share or expose withdrawal signatures
 - **Data Verification**: Cross-check all parameters between devices
 - **Status Monitoring**: Regularly monitor withdrawal progress

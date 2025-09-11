@@ -27,7 +27,7 @@ The deposit process consists of several stages:
 4. **Recovery (if needed)** - Recover funds if bridging fails
 
 > [!IMPORTANT]
-> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `CLAIM_ADDRESS`.
+> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas `DEPOSIT_ADDRESS` is the address that the deposited BTC funds are sent to. Your `RECOVERY_TAPROOT_ADDRESS` is used when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTIONATION_ADDRESS`.
 
 ## Step 1: Generate Deposit Address
 
@@ -112,14 +112,14 @@ Gather all necessary information on your online device:
 - `RECOVERY_TAPROOT_ADDRESS`: Your wallet's recovery address (from airgapped device)
 - `EVM_ADDRESS`: Your Citrea address used for the deposit
 - `DEPOSIT_UTXO_OUTPOINT`: Your deposit Outpoint (`txid:vout`)
-- `CLAIM_ADDRESS`: Bitcoin address where recovered funds will be sent
+- `DESTIONATION_ADDRESS`: Bitcoin address where recovered funds will be sent
 
 ### Create Recovery Transaction (Airgapped Device)
 
 **AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <CLAIM_ADDRESS> <FEE_RATE> <AMOUNT>
+clementine-cli deposit create-signed-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT>
 ```
 
 **Example:**
