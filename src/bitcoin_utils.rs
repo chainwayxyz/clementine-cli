@@ -79,14 +79,14 @@ fn sign_with_tweak(
 }
 
 #[allow(clippy::too_many_arguments)]
-/// Sign a recovery transaction with a given keypair, Citrea address, recovery taproot address, deposit outpoint, deposit amount, claim address, fee rate, and network
+/// Sign a recovery transaction with a given keypair, Citrea address, recovery taproot address, deposit outpoint, deposit amount, destination address, fee rate, and network
 pub(crate) fn sign_recovery_tx(
     keypair: &SecureKeypair,
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     deposit_outpoint: &OutPoint,
     deposit_amount: Amount,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     fee_rate: FeeRate,
     config: &BridgeCliConfig,
 ) -> Result<Transaction, BridgeCliError> {
@@ -110,7 +110,7 @@ pub(crate) fn sign_recovery_tx(
 
     let txout = TxOut {
         value: deposit_amount,
-        script_pubkey: claim_address.script_pubkey(),
+        script_pubkey: destination_address.script_pubkey(),
     };
 
     let mut recovery_tx = Transaction {
@@ -122,8 +122,8 @@ pub(crate) fn sign_recovery_tx(
 
     // This is the weight of the transaction without script_pubkey.
     let mut weight = Weight::from_wu(414);
-    let claim_address_script_len = claim_address.script_pubkey().to_bytes().len();
-    weight += Weight::from_wu(claim_address_script_len as u64 * 4);
+    let destination_address_script_len = destination_address.script_pubkey().to_bytes().len();
+    weight += Weight::from_wu(destination_address_script_len as u64 * 4);
     let fee = fee_rate.fee_wu(weight).expect("fee is valid");
     let output_amount: Amount = match deposit_amount.checked_sub(fee) {
         Some(amt) => amt,
@@ -315,10 +315,10 @@ pub(crate) fn sign_withdrawal_signature(
     keypair: &SecureKeypair,
     signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<bitcoin::taproot::Signature, BridgeCliError> {
-    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, claim_address, amount);
+    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, destination_address, amount);
     let prevout = create_withdrawal_prevout(signer_address);
 
     let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
@@ -332,7 +332,7 @@ pub(crate) fn sign_withdrawal_signature(
 
 fn create_withdrawal_transaction(
     withdrawal_utxo: &OutPoint,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     amount: Amount,
 ) -> Transaction {
     let txin = TxIn {
@@ -344,7 +344,7 @@ fn create_withdrawal_transaction(
 
     let txout = TxOut {
         value: amount,
-        script_pubkey: claim_address.script_pubkey(),
+        script_pubkey: destination_address.script_pubkey(),
     };
 
     Transaction {
@@ -359,10 +359,10 @@ pub(crate) fn verify_withdrawal_signature(
     sig: &bitcoin::taproot::Signature,
     signer_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     amount: Amount,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, claim_address, amount);
+    let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, destination_address, amount);
     let prevout = create_withdrawal_prevout(signer_address);
 
     let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
@@ -512,7 +512,7 @@ mod tests {
         }
     }
 
-    fn create_claim_address(
+    fn create_destination_address(
         address_type: AddressType,
         network: Network,
         key_offset: u8,
@@ -520,28 +520,29 @@ mod tests {
         use bitcoin::key::{CompressedPublicKey, PublicKey};
         use bitcoin::script::Builder;
 
-        let claim_secret = SecretKey::from_slice(&[key_offset; 32]).unwrap();
-        let claim_keypair = Keypair::from_secret_key(&SECP, &claim_secret);
-        let claim_pubkey = PublicKey::from(claim_keypair.public_key());
-        let claim_compressed_pubkey = CompressedPublicKey::try_from(claim_pubkey).unwrap();
+        let destination_secret = SecretKey::from_slice(&[key_offset; 32]).unwrap();
+        let destination_keypair = Keypair::from_secret_key(&SECP, &destination_secret);
+        let destination_pubkey = PublicKey::from(destination_keypair.public_key());
+        let destination_compressed_pubkey =
+            CompressedPublicKey::try_from(destination_pubkey).unwrap();
 
         match address_type {
             AddressType::P2tr => {
-                let secure_keypair = SecureKeypair::new(claim_keypair);
+                let secure_keypair = SecureKeypair::new(destination_keypair);
                 calculate_taproot_address(&secure_keypair, network)
             }
-            AddressType::P2wpkh => BitcoinAddress::p2wpkh(&claim_compressed_pubkey, network),
-            AddressType::P2pkh => BitcoinAddress::p2pkh(claim_compressed_pubkey, network),
+            AddressType::P2wpkh => BitcoinAddress::p2wpkh(&destination_compressed_pubkey, network),
+            AddressType::P2pkh => BitcoinAddress::p2pkh(destination_compressed_pubkey, network),
             AddressType::P2sh => {
-                let claim_redeem_script = Builder::new()
+                let destination_redeem_script = Builder::new()
                     .push_int(0)
-                    .push_slice(claim_compressed_pubkey.pubkey_hash())
+                    .push_slice(destination_compressed_pubkey.pubkey_hash())
                     .into_script();
-                BitcoinAddress::p2sh(&claim_redeem_script, network).unwrap()
+                BitcoinAddress::p2sh(&destination_redeem_script, network).unwrap()
             }
             AddressType::P2wsh => {
                 let witness_script = Builder::new()
-                    .push_slice(claim_compressed_pubkey.to_bytes())
+                    .push_slice(destination_compressed_pubkey.to_bytes())
                     .push_opcode(bitcoin::opcodes::all::OP_CHECKSIG)
                     .into_script();
                 BitcoinAddress::p2wsh(&witness_script, network)
@@ -598,7 +599,8 @@ mod tests {
 
     fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
         let setup = TestSetup::new();
-        let claim_address = create_claim_address(address_type, setup.config.network, key_offset);
+        let destination_address =
+            create_destination_address(address_type, setup.config.network, key_offset);
 
         for fee_rate in get_test_fee_rates() {
             let result = sign_recovery_tx(
@@ -607,7 +609,7 @@ mod tests {
                 &setup.recovery_address,
                 &setup.deposit_outpoint,
                 setup.deposit_amount,
-                &claim_address,
+                &destination_address,
                 fee_rate,
                 &setup.config,
             );
