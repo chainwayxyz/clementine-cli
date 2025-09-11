@@ -85,7 +85,7 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
         Network::Testnet4 => command.push_str(" -testnet4"),
         Network::Signet => command.push_str(" -signet"),
         Network::Regtest => command.push_str(" -regtest"),
-        Network::Testnet => todo!(),
+        Network::Testnet => panic!("Statically not possible to get here"),
     }
 
     if let Some(bitcoin_config) = &config.bitcoin_config {
