@@ -21,6 +21,7 @@
 use crate::{BitcoinAddress, config::ConfigErrors, wallet::Purpose};
 use bitcoin::Network;
 use bitcoin::OutPoint;
+use bitcoin::address::ParseError;
 use clap::builder::StyledStr;
 use core::fmt::Debug;
 use hex::FromHexError;
@@ -201,7 +202,7 @@ pub enum BridgeCliError {
     #[error("{0}")]
     BitcoinSecp256k1Error(#[from] bitcoin::secp256k1::Error),
     #[error("{0}")]
-    BitcoinParseError(#[from] bitcoin::address::ParseError),
+    BitcoinParseError(String),
     #[error("{0}")]
     BitcoinHexParseError(#[from] bitcoin::hex::HexToArrayError),
     #[error("{0}")]
@@ -278,6 +279,18 @@ impl<U: Sized, T: Into<BridgeCliError>> ResultExt for Result<U, T> {
 
     fn map_to_eyre(self) -> Result<Self::Output, eyre::Report> {
         self.map_err(ErrorExt::into_eyre)
+    }
+}
+
+impl From<bitcoin::address::ParseError> for BridgeCliError {
+    fn from(err: bitcoin::address::ParseError) -> Self {
+        match err {
+            ParseError::NetworkValidation(_) => {
+                Self::BitcoinParseError("Address network doesn't match expected network. You might have forgotten to specify the network. Please check your configuration and your address.".to_string())
+            },
+            // For other variants, use the default error message
+            _ => Self::BitcoinParseError(err.to_string())
+        }
     }
 }
 
