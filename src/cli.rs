@@ -263,11 +263,20 @@ pub async fn deposit_status(
 
         let (vout, found) = match tx_details {
             Ok((tx, _, _)) => {
-                let vout = tx
+                match tx
                     .output
                     .iter()
-                    .position(|o| o.script_pubkey == taproot_address.script_pubkey());
-                (vout.map(|v| v as u32).unwrap_or(0), vout.is_some())
+                    .position(|o| o.script_pubkey == taproot_address.script_pubkey())
+                {
+                    Some(v) => (v as u32, true),
+                    None => {
+                        return Err(BridgeCliError::Eyre(eyre!(
+                            "Could not find vout for deposit txid {} and address {}",
+                            status.txid,
+                            taproot_address
+                        )));
+                    }
+                }
             }
             Err(_) => (0, false),
         };
