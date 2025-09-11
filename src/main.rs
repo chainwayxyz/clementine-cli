@@ -486,8 +486,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let deposit_utxo_outpoint = OutPoint::from_str(&deposit_utxo_outpoint)?;
-                let destination_address =
-                    BitcoinAddress::from_str(&destination_address)?.require_network(config.network)?;
+                let destination_address = BitcoinAddress::from_str(&destination_address)?
+                    .require_network(config.network)?;
 
                 handle_cli_command!(
                     deposit_create_signed_recovery_tx(
@@ -586,12 +586,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 // Use wrap_err to preserve inner error location and context
 
                 should_not_have_purpose(&destination_address).inspect_err(|_| {
-                    eprintln!("Invalid destination address: {}", destination_address.bold());
+                    eprintln!(
+                        "Invalid destination address: {}",
+                        destination_address.bold()
+                    );
                 })?;
 
-                let destination_address =
-                    parse_address(&destination_address, config.network).inspect_err(|_| {
-                        eprintln!("Invalid destination address: {}", destination_address.bold());
+                let destination_address = parse_address(&destination_address, config.network)
+                    .inspect_err(|_| {
+                        eprintln!(
+                            "Invalid destination address: {}",
+                            destination_address.bold()
+                        );
                     })?;
 
                 handle_cli_command!(async
@@ -623,7 +629,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .print_err()?;
 
                 should_not_have_purpose(&destination_address).inspect_err(|_| {
-                    eprintln!("Invalid destination address: {}", destination_address.bold());
+                    eprintln!(
+                        "Invalid destination address: {}",
+                        destination_address.bold()
+                    );
                 })?;
 
                 let destination_address = parse_address(&destination_address, config.network)?;
