@@ -172,7 +172,7 @@ pub(crate) async fn backend_deposit_status(
     // Create HTTP client
     let client = reqwest::Client::new();
 
-    // Make POST request
+    // Make GET request
     let response = client
         .get(url.as_str())
         .header("Content-Type", "application/json")

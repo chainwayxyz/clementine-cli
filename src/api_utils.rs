@@ -232,7 +232,12 @@ async fn broadcast_recovery_tx_with_mempool(
         tracing::error!("Deposit address request failed: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!("Can't send raw: {} {}", status, error_text).into())
+        Err(eyre::eyre!(
+            "Can't send raw tx\nError Status: {}\nError Text: {}",
+            status,
+            error_text
+        )
+        .into())
     }
 }
 

@@ -328,7 +328,7 @@ pub async fn withdrawal_status(
     }
 
     println!(
-        "{} Withdrawal status(es) for withdrawal index {}: \n",
+        "{} Withdrawal status(es) for withdrawal OutPoint {}: \n",
         "INFO".bold(),
         withdrawal_utxo
     );
@@ -457,14 +457,14 @@ pub async fn cli_scan_withdrawals(
                 &signer_address.address_with_prefix(),
                 claim_address,
                 outpoint,
-                config.optimistic_withdrawal_amount.to_btc()
+                config.optimistic_withdrawal_amount.to_sat()
             );
         };
         let print_operator_note = || {
             println!(
                 "{} For operator-paid withdrawals, use the amount {}",
                 "Important Note".bold(),
-                config.operator_withdrawal_amount.to_btc()
+                config.operator_withdrawal_amount.to_sat()
             )
         };
         if utxos.len() == 1 {

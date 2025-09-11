@@ -50,15 +50,6 @@ clementine-cli deposit get-deposit-address --network testnet4 depbc1p... 0x742d3
 > [!IMPORTANT]
 > **About the "dep" prefix:** The recovery taproot address should belong to Clementine wallet with `deposit` purpose and should be prefixed with "dep" to indicate it's being used for deposit operations. This prefix helps distinguish deposit-specific addresses from regular wallet addresses and ensures proper address derivation in the Clementine bridge system.
 
-### Airgapped Device: Verify Deposit Address
-
-**CRITICAL VERIFICATION STEP:** Transfer the generated deposit address to your airgapped device and verify it:
-
-```sh
-# Run this on airgapped device to verify the deposit address matches
-clementine-cli deposit get-deposit-address --network <BITCOIN_NETWORK> <RECOVERY_TAPROOT_ADDRESS> <EVM_ADDRESS>
-```
-
 ## Step 2: Send Bitcoin to Deposit Address
 
 Send your Bitcoin to the generated deposit address. You can use any Bitcoin wallet or client. The deposit amount is fixed to `10 BTC`.
@@ -140,9 +131,7 @@ clementine-cli deposit create-signed-recovery-tx --network testnet4 deptb1pd... 
 
 ### Verify Recovery Transaction (Optional)
 
-**BOTH DEVICES:** Verify the recovery transaction details before broadcasting:
-
-**Airgapped Device (Generate Verification):**
+**Online Device:** Verify the recovery transaction details before broadcasting:
 
 ```sh
 clementine-cli deposit verify-recovery-tx --network <BITCOIN_NETWORK> <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]

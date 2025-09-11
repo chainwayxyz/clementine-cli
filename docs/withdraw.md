@@ -173,7 +173,7 @@ clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_UTXO>
 
 **Parameters:**
 
-- `WITHDRAWAL_UTXO`: Withdrawal UTXO in TxId:vout format
+- `WITHDRAWAL_UTXO`: Withdrawal UTXO in `txid:vout` format
 
 **Example:**
 

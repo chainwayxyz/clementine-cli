@@ -672,7 +672,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
                         println!("Now run:");
                         println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {} {}",
-                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_btc(), serialize_and_encode(signature));
+                            network, &signer_address.address_with_prefix(), withdrawal_address, withdrawal_utxo_outpoint, amount.to_sat(), serialize_and_encode(signature));
                         println!("on your online device to initiate withdrawal process on the Citrea network");
                     }
                 );
