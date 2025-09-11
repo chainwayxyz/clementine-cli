@@ -194,7 +194,7 @@ enum DepositCommands {
         /// UTXO outpoint of the deposit transaction (format: <txid>:<vout>)
         deposit_utxo_outpoint: String,
         /// Bitcoin address to collect the recovered funds
-        claim_address: String,
+        destination_address: String,
         /// Fee rate to use for the recovery transaction (in sats/vB)
         fee_rate: u64,
         /// Amount to recover (in BTC, e.g., 0.1)
@@ -253,8 +253,8 @@ enum WithdrawCommands {
         network: CliNetwork,
         /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
-        /// Claim address (Bitcoin address to receive withdrawn funds)
-        claim_address: String,
+        /// Destination address (Bitcoin address to receive withdrawn funds)
+        destination_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
     Scan {
@@ -263,8 +263,8 @@ enum WithdrawCommands {
         network: CliNetwork,
         /// Signer address (must be a Clementine withdrawal address, wit-prefixed, taproot)
         signer_address: String,
-        /// Claim address (Bitcoin address to receive withdrawn funds)
-        claim_address: String,
+        /// Destination address (Bitcoin address to receive withdrawn funds)
+        destination_address: String,
     },
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignature {
@@ -471,7 +471,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 recovery_taproot_address,
                 citrea_address,
                 deposit_utxo_outpoint,
-                claim_address,
+                destination_address,
                 fee_rate,
                 amount,
                 network,
@@ -486,15 +486,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let deposit_utxo_outpoint = OutPoint::from_str(&deposit_utxo_outpoint)?;
-                let claim_address =
-                    BitcoinAddress::from_str(&claim_address)?.require_network(config.network)?;
+                let destination_address =
+                    BitcoinAddress::from_str(&destination_address)?.require_network(config.network)?;
 
                 handle_cli_command!(
                     deposit_create_signed_recovery_tx(
                         &citrea_address,
                         &recovery_taproot_address,
                         &deposit_utxo_outpoint,
-                        &claim_address,
+                        &destination_address,
                         fee_rate,
                         amount,
                         &config,
@@ -571,7 +571,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Withdraw { command } => match command {
             WithdrawCommands::Start {
                 signer_address,
-                claim_address,
+                destination_address,
                 network,
             } => {
                 let config =
@@ -585,17 +585,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 // Use wrap_err to preserve inner error location and context
 
-                should_not_have_purpose(&claim_address).inspect_err(|_| {
-                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                should_not_have_purpose(&destination_address).inspect_err(|_| {
+                    eprintln!("Invalid destination address: {}", destination_address.bold());
                 })?;
 
-                let claim_address =
-                    parse_address(&claim_address, config.network).inspect_err(|_| {
-                        eprintln!("Invalid claim address: {}", claim_address.bold());
+                let destination_address =
+                    parse_address(&destination_address, config.network).inspect_err(|_| {
+                        eprintln!("Invalid destination address: {}", destination_address.bold());
                     })?;
 
                 handle_cli_command!(async
-                    cli_start_withdrawal(&signer_address, &claim_address, &config),
+                    cli_start_withdrawal(&signer_address, &destination_address, &config),
                     _result => {
                         println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
@@ -604,14 +604,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli withdraw scan --network {} {} {}",
-                            config.network, signer_address.address_with_prefix(), claim_address);
+                            config.network, signer_address.address_with_prefix(), destination_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                     }
                 );
             }
             WithdrawCommands::Scan {
                 signer_address,
-                claim_address,
+                destination_address,
                 network,
             } => {
                 let config =
@@ -622,13 +622,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 )
                 .print_err()?;
 
-                should_not_have_purpose(&claim_address).inspect_err(|_| {
-                    eprintln!("Invalid claim address: {}", claim_address.bold());
+                should_not_have_purpose(&destination_address).inspect_err(|_| {
+                    eprintln!("Invalid destination address: {}", destination_address.bold());
                 })?;
 
-                let claim_address = parse_address(&claim_address, config.network)?;
+                let destination_address = parse_address(&destination_address, config.network)?;
                 handle_cli_command!(
-                    cli_scan_withdrawals(&signer_address, &claim_address, &config).await,
+                    cli_scan_withdrawals(&signer_address, &destination_address, &config).await,
                     _ => { }
                 )
             }
@@ -649,7 +649,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     eprintln!("Invalid withdrawal address: {}", withdrawal_address.bold());
                 })?;
 
-                let claim_address = parse_address(&withdrawal_address, network.into())?;
+                let withdrawal_address = parse_address(&withdrawal_address, network.into())?;
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo_outpoint)?;
                 let amount = Amount::from_sat(amount);
                 fn serialize_and_encode(signature: Signature) -> String {
@@ -660,7 +660,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(
                     cli_generate_withdrawal_signature(
                         &signer_address,
-                        &claim_address,
+                        &withdrawal_address,
                         &withdrawal_outpoint,
                         &amount,
                         network,
