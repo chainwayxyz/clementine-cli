@@ -13,9 +13,12 @@ use eyre::eyre;
 
 use crate::{
     BitcoinAddress, CitreaAddress, WITHDRAWAL_UTXO_AMOUNT,
-    api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_utxos},
+    api_utils::{
+        MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
+    },
     backend::{
-        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
+        DepositStatusWithVout, backend_deposit_status, backend_withdrawal_status,
+        send_withdrawal_signature_to_operators,
     },
     backup_wallet,
     config::BridgeCliConfig,
@@ -234,28 +237,48 @@ pub async fn deposit_status(
             vec![]
         }
     };
-    if deposit_statuses_backend.is_empty() {
-        println!(
+
+    let deposit_statuses_message = if deposit_statuses_backend.is_empty() {
+        format!(
             "{} No deposits found for address {}",
             "INFO".bold(),
             taproot_address.to_string().bold()
-        );
-        return Ok(());
-    }
+        )
+    } else {
+        format!(
+            "{} Deposit status(es) for address {}:",
+            "INFO".bold(),
+            taproot_address
+        )
+    };
 
-    println!(
-        "{} Deposit status(es) for address {}:",
-        "INFO".bold(),
-        taproot_address
-    );
+    println!("{}", deposit_statuses_message);
 
     for status in &deposit_statuses_backend {
         let corresponding_utxo = utxos
             .iter()
             .find(|utxo| utxo.txid.to_string() == status.txid);
         let block_height = corresponding_utxo.and_then(|u| u.block_height);
+        let tx_details = get_tx_details(&bitcoin::Txid::from_str(&status.txid)?, config).await;
+
+        let (vout, found) = match tx_details {
+            Ok((tx, _, _)) => {
+                let vout = tx
+                    .output
+                    .iter()
+                    .position(|o| o.script_pubkey == taproot_address.script_pubkey());
+                (vout.map(|v| v as u32).unwrap_or(0), vout.is_some())
+            }
+            Err(_) => (0, false),
+        };
+
+        let deposit_status_with_vout = DepositStatusWithVout {
+            deposit_status: status,
+            vout: if found { Some(vout) } else { None },
+        };
+
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
-        println!("{} {}", status, refund_msg);
+        println!("{} {}", deposit_status_with_vout, refund_msg);
     }
 
     let mempool_txs = match get_mempool_txs(&taproot_address, config).await {

@@ -23,6 +23,11 @@ pub struct DepositStatus {
     pub mint_txid: String,
 }
 
+pub struct DepositStatusWithVout<'a> {
+    pub deposit_status: &'a DepositStatus,
+    pub vout: Option<u32>,
+}
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct WithdrawStatus {
     pub idx: u64,
@@ -34,27 +39,73 @@ pub struct WithdrawStatus {
     pub created_at: String,
 }
 
+fn format_deposit_status(
+    f: &mut std::fmt::Formatter<'_>,
+    id: u64,
+    status: &str,
+    txid: &str,
+    vout: Option<u32>,
+    evm_addr: &str,
+    move_txid: &str,
+    mint_txid: &str,
+) -> std::fmt::Result {
+    let display_or = |v: &str| {
+        if v.is_empty() {
+            "--".to_string()
+        } else {
+            v.to_string()
+        }
+    };
+    let vout_str = vout.map_or(String::new(), |v| format!("\n  VOUT:       {}", v));
+    write!(
+        f,
+        "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}{}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
+        id,
+        status,
+        display_or(txid),
+        vout_str,
+        display_or(evm_addr),
+        display_or(move_txid),
+        display_or(mint_txid)
+    )
+}
+
 impl Display for DepositStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn display_or(v: &str) -> &str {
-            if v.is_empty() { "--" } else { v }
-        }
-
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
             Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
         };
-
-        write!(
+        format_deposit_status(
             f,
-            "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
             self.id,
-            status,
-            display_or(&self.txid),
-            display_or(&self.evm_addr),
-            display_or(&self.move_txid),
-            display_or(&self.mint_txid)
+            &status,
+            &self.txid,
+            None,
+            &self.evm_addr,
+            &self.move_txid,
+            &self.mint_txid,
+        )
+    }
+}
+
+impl Display for DepositStatusWithVout<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = if self.deposit_status.status.is_empty() {
+            Cow::Borrowed("--")
+        } else {
+            Cow::Owned(DepositStatusEnum::from_status(&self.deposit_status.status).as_string())
+        };
+        format_deposit_status(
+            f,
+            self.deposit_status.id,
+            &status,
+            &self.deposit_status.txid,
+            self.vout,
+            &self.deposit_status.evm_addr,
+            &self.deposit_status.move_txid,
+            &self.deposit_status.mint_txid,
         )
     }
 }
