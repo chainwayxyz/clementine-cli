@@ -203,7 +203,7 @@ pub async fn deposit_status(
         });
         if move_tx_on_chain {
             match refund_in_blocks {
-                Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
+                Some(0) => "\n  You can refund your deposit now using 'deposit create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
                 None => "\n  Refund information not available.".to_string(),
             }
