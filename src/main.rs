@@ -505,7 +505,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("{} sendtoaddress \"{}\" 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
+                        println!("{} sendtoaddress {} 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
                     }
                 );
             }
@@ -641,7 +641,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("{} sendtoaddress \"{}\" 0.00000{}",
+                        println!("{} sendtoaddress {} 0.00000{}",
                             get_bitcoin_cli_command(&config),
                             signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
                         println!("or a similar command from a wallet you are using");
