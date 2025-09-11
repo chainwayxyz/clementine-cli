@@ -76,7 +76,7 @@ impl Display for OptimisticPayoutStatus {
 
         write!(
             f,
-            "\nOptimistic Payout Info\n  TX Raw: {}\n  TXID:   {}",
+            "\nOptimistic Payout Info\n  Raw TX: {}\n  TXID:   {}",
             display_or(&self.tx_raw),
             display_or(&self.txid)
         )
@@ -107,16 +107,22 @@ impl Display for WithdrawStatus {
             Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
         };
 
+        let optimistic_payout_display = match &self.optimistic_payout_payment {
+            Some(payout) => format!("{}", payout),
+            None => "--".to_string(),
+        };
+
         write!(
             f,
-            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}",
+            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n  Optimistic Payout:    {}",
             self.idx,
             status,
             display_or(&self.btc_payment_txid),
             display_t(&self.from_safe_withdraw),
             display_option_or(&self.optimistic_payout_started_at),
             display_option_or(&self.optimistic_payout_deadline_at),
-            display_or(&self.created_at)
+            display_or(&self.created_at),
+            optimistic_payout_display
         )
     }
 }
