@@ -74,6 +74,25 @@ pub(crate) fn initialize_logger(is_verbose: bool) {
     );
 }
 
+fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
+    let mut command = "bitcoin-cli".to_string();
+
+    match config.network {
+        Network::Bitcoin => (),
+        Network::Testnet4 => command.push_str(" -testnet4"),
+        Network::Signet => command.push_str(" -signet"),
+        Network::Regtest => command.push_str(" -regtest"),
+        Network::Testnet => panic!("Statically not possible to get here"),
+    }
+
+    command.push_str(" -rpcport=<rpcport>");
+    command.push_str(" -rpcuser=<rpcuser>");
+    command.push_str(" -rpcpassword=<rpcpassword>");
+    command.push_str(" -rpcwallet=<rpcwallet>");
+
+    command
+}
+
 #[derive(Parser)]
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
@@ -453,7 +472,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("bitcoin-cli sendtoaddress \"{}\" 10", deposit_address.to_string());
+                        println!("{} sendtoaddress {} 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
                     }
                 );
             }
@@ -595,7 +614,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("bitcoin-cli sendtoaddress \"{}\" 0.00000{}",
+                        println!("{} sendtoaddress {} 0.00000{}",
+                            get_bitcoin_cli_command(&config),
                             signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
