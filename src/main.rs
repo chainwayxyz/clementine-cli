@@ -20,7 +20,6 @@ use clementine_cli::{
     withdraw,
 };
 use colored::Colorize;
-use secrecy::ExposeSecret;
 use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
@@ -86,32 +85,10 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
         Network::Testnet => panic!("Statically not possible to get here"),
     }
 
-    if let Some(bitcoin_config) = &config.bitcoin_config {
-        if let Some(port) = bitcoin_config.url.port() {
-            command.push_str(&format!(" -rpcport={port}"));
-        }
-        command.push_str(&format!(
-            " -rpcuser={}",
-            bitcoin_config.user.expose_secret()
-        ));
-        command.push_str(&format!(
-            " -rpcpassword={}",
-            bitcoin_config.password.expose_secret()
-        ));
-
-        // Get wallet name from URL, if present.
-        let path = bitcoin_config.url.path().to_string();
-        tracing::debug!("Path fetched from URL: {path}");
-        let mut path = path.split('/').collect::<Vec<_>>();
-        // Because path starts with "/", there will be an extra empty member in `path`.
-        path.remove(0);
-
-        if path.len() == 2 && path[0] == "wallet" {
-            command.push_str(&format!(" -rpcwallet={}", path[1]));
-        } else {
-            command.push_str(" -rpcwallet=<walletname>");
-        }
-    }
+    command.push_str(" -rpcport=<rpcport>");
+    command.push_str(" -rpcuser=<rpcuser>");
+    command.push_str(" -rpcpassword=<rpcpassword>");
+    command.push_str(" -rpcwallet=<rpcwallet>");
 
     command
 }
