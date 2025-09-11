@@ -100,6 +100,19 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
             " -rpcpassword={}",
             bitcoin_config.password.expose_secret()
         ));
+
+        // Get wallet name from URL, if present.
+        let path = bitcoin_config.url.path().to_string();
+        tracing::debug!("Path fetched from URL: {path}");
+        let mut path = path.split('/').collect::<Vec<_>>();
+        // Because path starts with "/", there will be an extra empty member in `path`.
+        path.remove(0);
+
+        if path.len() == 2 && path[0] == "wallet" {
+            command.push_str(&format!(" -rpcwallet={}", path[1]));
+        } else {
+            command.push_str(" -rpcwallet=<walletname>");
+        }
     }
 
     command
