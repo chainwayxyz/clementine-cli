@@ -27,7 +27,7 @@ The deposit process consists of several stages:
 4. **Recovery (if needed)** - Recover funds if bridging fails
 
 > [!IMPORTANT]
-> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas the `DEPOSIT_ADDRESS` is the address you send Bitcoin to in order to perform the deposit operation. Your `RECOVERY_TAPROOT_ADDRESS` is used alongside the `N_of_N_ADDRESS` when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTIONATION_ADDRESS`.
+> The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas the `DEPOSIT_ADDRESS` is the address you send Bitcoin to in order to perform the deposit operation. Your `RECOVERY_TAPROOT_ADDRESS` is used alongside the `N_of_N_ADDRESS` when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTINATION_ADDRESS`.
 
 ## Step 1: Generate Deposit Address
 
@@ -101,7 +101,7 @@ Gather all necessary information on your online device:
 - `RECOVERY_TAPROOT_ADDRESS`: Your wallet's recovery address (from airgapped device)
 - `EVM_ADDRESS`: Your Citrea address used for the deposit
 - `DEPOSIT_UTXO_OUTPOINT`: Your deposit Outpoint (`txid:vout`)
-- `DESTIONATION_ADDRESS`: Bitcoin address where recovered funds will be sent
+- `DESTINATION_ADDRESS`: Bitcoin address where recovered funds will be sent
 
 ### Create Recovery Transaction (Airgapped Device)
 

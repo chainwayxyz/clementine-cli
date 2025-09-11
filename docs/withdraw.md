@@ -27,20 +27,20 @@ The withdrawal process follows these sequential steps:
 8. **Check Status** - Monitor withdrawal progress for operator-paid withdrawal
 
 > [!IMPORTANT]
-> The `SIGNER_ADDRESS` and the `DESTIONATION_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `DESTIONATION_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
+> The `SIGNER_ADDRESS` and the `DESTINATION_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `DESTINATION_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
 
 ## Step 1: Start Withdrawal
 
 **ONLINE DEVICE OPERATION:** Start the withdrawal process:
 
 ```sh
-clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTIONATION_ADDRESS>
+clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
 ```
 
 **Parameters:**
 
 - `SIGNER_ADDRESS`: Withdrawal wallet address with "wit" prefix (from airgapped device)
-- `DESTIONATION_ADDRESS`: Bitcoin address where funds will be sent
+- `DESTINATION_ADDRESS`: Bitcoin address where funds will be sent
 
 **Example:**
 
@@ -76,7 +76,7 @@ This creates the 0-value UTXO needed for the withdrawal operation.
 **ONLINE DEVICE OPERATION:** Scan for available withdrawal UTXOs that can be used for the withdrawal operation:
 
 ```sh
-clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTIONATION_ADDRESS>
+clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
 ```
 
 **Example:**
