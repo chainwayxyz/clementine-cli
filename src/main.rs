@@ -715,6 +715,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
                             "INFO".bold()
                         );
+                        if let Err(e) = open::that(&withdrawal_ui_url) {
+                            return Err(eyre::eyre!(
+                            "Failed to open browser: {}. Please visit the following URL manually: {}",
+                            e,
+                            withdrawal_ui_url
+                            )
+                            .into());
+                        }
                     }
                 );
             }

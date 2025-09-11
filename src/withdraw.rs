@@ -20,7 +20,6 @@ use bitcoin::hashes::Hash;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, Network, OutPoint, TxOut, Txid};
 use eyre::Context;
-use open;
 use serde_json::json;
 use urlencoding::encode;
 
@@ -188,15 +187,6 @@ pub async fn safe_withdraw(
         encode(&withdrawal_address.to_string())
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
-
-    if let Err(e) = open::that(&withdrawal_ui_url) {
-        return Err(eyre::eyre!(
-            "Failed to open browser: {}. Please visit the following URL manually: {}",
-            e,
-            withdrawal_ui_url
-        )
-        .into());
-    }
 
     Ok(withdrawal_ui_url)
 }
