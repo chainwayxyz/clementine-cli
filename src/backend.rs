@@ -49,6 +49,7 @@ fn format_deposit_status(
     evm_addr: &str,
     move_txid: &str,
     mint_txid: &str,
+    print_na_for_vout: bool,
 ) -> std::fmt::Result {
     let display_or = |v: &str| {
         if v.is_empty() {
@@ -62,14 +63,33 @@ fn format_deposit_status(
     writeln!(f, "  ID:            {}", id)?;
     writeln!(f, "  Status:        {}", status)?;
     writeln!(f, "  TXID:          {}", display_or(txid))?;
-    if let Some(v) = vout {
-        writeln!(f, "  UTXO Outpoint: {}:{}", txid, v)?;
+    match vout {
+        Some(v) => writeln!(f, "  UTXO Outpoint: {}:{}", txid, v)?,
+        None => {
+            if print_na_for_vout {
+                writeln!(f, "  UTXO Outpoint: N/A")?
+            }
+        }
     }
     writeln!(f, "  EVM Addr:      {}", display_or(evm_addr))?;
     writeln!(f, "  Move TXID:     {}", display_or(move_txid))?;
     writeln!(f, "  Mint TXID:     {}", display_or(mint_txid))
 }
 
+// Overload for default print_na_for_vout = false
+fn format_deposit_status_default(
+    f: &mut std::fmt::Formatter<'_>,
+    id: u64,
+    status: &str,
+    txid: &str,
+    evm_addr: &str,
+    move_txid: &str,
+    mint_txid: &str,
+) -> std::fmt::Result {
+    format_deposit_status(
+        f, id, status, txid, None, evm_addr, move_txid, mint_txid, false,
+    )
+}
 impl Display for DepositStatus {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         let status = if self.status.is_empty() {
@@ -77,12 +97,11 @@ impl Display for DepositStatus {
         } else {
             Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
         };
-        format_deposit_status(
+        format_deposit_status_default(
             f,
             self.id,
             &status,
             &self.txid,
-            None,
             &self.evm_addr,
             &self.move_txid,
             &self.mint_txid,
@@ -106,6 +125,7 @@ impl Display for DepositStatusWithVout<'_> {
             &self.deposit_status.evm_addr,
             &self.deposit_status.move_txid,
             &self.deposit_status.mint_txid,
+            true,
         )
     }
 }
