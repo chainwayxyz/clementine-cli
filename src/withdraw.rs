@@ -118,15 +118,18 @@ pub fn generate_withdrawal_signature(
         });
     }
 
-    let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-        &claim_address.to_string(),
-        Purpose::Withdrawal,
-        network,
-    )?;
+    // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
+    if claim_address.address_type() == Some(bitcoin::AddressType::P2tr) {
+        let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
+            &claim_address.to_string(),
+            Purpose::Withdrawal,
+            network,
+        )?;
 
-    // Check if the claim address belongs to any of our wallets
-    if address_exists(&claim_wallet_address)? {
-        return Err(BridgeCliError::ClaimAddressIsWalletAddress);
+        // Check if the claim address belongs to any of our wallets
+        if address_exists(&claim_wallet_address)? {
+            return Err(BridgeCliError::ClaimAddressIsWalletAddress);
+        }
     }
 
     let signature = sign_withdrawal_signature(
