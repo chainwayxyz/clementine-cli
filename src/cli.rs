@@ -15,13 +15,13 @@ use crate::{
     BitcoinAddress, CitreaAddress, WITHDRAWAL_UTXO_AMOUNT,
     api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_utxos},
     backend::{
-        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signatures_to_operators,
+        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
     },
     backup_wallet,
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
-    generate_withdrawal_signature, import_wallet_from_file, import_wallet_from_mnemonic,
+    generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
     import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
     structs::{SecureString, TaprootAddressWithPrefix},
@@ -341,7 +341,7 @@ pub async fn withdrawal_status(
 }
 
 #[allow(clippy::too_many_arguments)]
-pub async fn send_withdrawal_signatures(
+pub async fn send_withdrawal_signature(
     signer_address: &str,
     withdrawal_address: &str,
     withdrawal_utxo_outpoint: &str,
@@ -351,7 +351,7 @@ pub async fn send_withdrawal_signatures(
     withdrawal_index: u32,
 ) -> Result<(), BridgeCliError> {
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
-    send_withdrawal_signatures_to_operators(
+    send_withdrawal_signature_to_operators(
         signer_address,
         withdrawal_address,
         withdrawal_outpoint,
@@ -493,24 +493,26 @@ pub async fn cli_scan_withdrawals(
     Ok(())
 }
 
-pub fn cli_generate_withdrawal_signature(
+pub fn cli_generate_withdrawal_signatures(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    amount: &Amount,
+    optimistic_withdrawal_amount: &Amount,
+    operator_withdrawal_amount: &Amount,
     network: Network,
-) -> Result<Signature, BridgeCliError> {
+) -> Result<(Signature, Signature), BridgeCliError> {
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
         Purpose::Withdrawal,
     )?;
 
-    generate_withdrawal_signature(
+    generate_withdrawal_signatures(
         keypair,
         signer_address,
         claim_address,
         withdrawal_utxo,
-        amount,
+        optimistic_withdrawal_amount,
+        operator_withdrawal_amount,
         network,
     )
 }

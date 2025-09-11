@@ -100,14 +100,15 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid SECRET_KEY format: {}", e)))
 }
 
-pub fn generate_withdrawal_signature(
+pub fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     claim_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
-    amount: &Amount,
+    optimistic_withdrawal_amount: &Amount,
+    operator_withdrawal_amount: &Amount,
     network: Network,
-) -> Result<Signature, BridgeCliError> {
+) -> Result<(Signature, Signature), BridgeCliError> {
     ensure_wallet_exists(signer_address)?;
 
     if signer_address.purpose != Purpose::Withdrawal {
@@ -131,15 +132,26 @@ pub fn generate_withdrawal_signature(
         }
     }
 
-    let signature = sign_withdrawal_signature(
+    let optimistic_withdrawal_signature = sign_withdrawal_signature(
         &keypair,
         &signer_address.address,
         withdrawal_utxo,
         claim_address,
-        *amount,
+        *optimistic_withdrawal_amount,
     )?;
 
-    Ok(signature)
+    let operator_withdrawal_signature = sign_withdrawal_signature(
+        &keypair,
+        &signer_address.address,
+        withdrawal_utxo,
+        claim_address,
+        *operator_withdrawal_amount,
+    )?;
+
+    Ok((
+        optimistic_withdrawal_signature,
+        operator_withdrawal_signature,
+    ))
 }
 
 pub async fn safe_withdraw(
