@@ -282,6 +282,18 @@ impl<U: Sized, T: Into<BridgeCliError>> ResultExt for Result<U, T> {
     }
 }
 
+impl From<bitcoin::address::ParseError> for BridgeCliError {
+    fn from(err: bitcoin::address::ParseError) -> Self {
+        match err {
+            ParseError::NetworkValidation(_) => {
+                Self::BitcoinParseError("Address network doesn't match expected network. You might have forgotten to specify the network. Please check your configuration and your address.".to_string())
+            },
+            // For other variants, use the default error message
+            _ => Self::BitcoinParseError(err.to_string())
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -299,17 +311,5 @@ mod tests {
                 .to_string(),
             BridgeCliError::UnsupportedNetwork(Network::Testnet).to_string()
         );
-    }
-}
-
-impl From<bitcoin::address::ParseError> for BridgeCliError {
-    fn from(err: bitcoin::address::ParseError) -> Self {
-        match err {
-            ParseError::NetworkValidation(_) => {
-                Self::BitcoinParseError("Address network doesn't match expected network. You might have forgotten to specify the network. Please check your configuration and your address.".to_string())
-            },
-            // For other variants, use the default error message
-            _ => Self::BitcoinParseError(err.to_string())
-        }
     }
 }
