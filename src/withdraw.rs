@@ -66,7 +66,7 @@ impl WithdrawStatusEnum {
 #[derive(Debug)]
 pub struct SafeWithdrawalParams {
     pub signer_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    pub withdrawal_address: BitcoinAddress,
+    pub destination_address: BitcoinAddress,
     pub withdrawal_outpoint: OutPoint,
     pub withdrawal_amount: Amount,
     pub signature: bitcoin::taproot::Signature,
@@ -157,7 +157,7 @@ pub fn generate_withdrawal_signatures(
 
 pub async fn safe_withdraw(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    withdrawal_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     withdrawal_outpoint: &OutPoint,
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
@@ -167,7 +167,7 @@ pub async fn safe_withdraw(
 
     let payout_output = TxOut {
         value: *withdrawal_amount,
-        script_pubkey: withdrawal_address.script_pubkey(),
+        script_pubkey: destination_address.script_pubkey(),
     };
 
     // verify signature
@@ -175,7 +175,7 @@ pub async fn safe_withdraw(
         sig,
         &signer_address.address,
         withdrawal_outpoint,
-        withdrawal_address,
+        destination_address,
         *withdrawal_amount,
     )?;
 
@@ -197,7 +197,7 @@ pub async fn safe_withdraw(
     let query = format!(
         "?transaction_request={}&withdrawal_address={}",
         encode(&tx_json),
-        encode(&withdrawal_address.to_string())
+        encode(&destination_address.to_string())
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
 
@@ -220,7 +220,7 @@ pub async fn send_safe_withdrawal(
 
     let payout_output = TxOut {
         value: params.withdrawal_amount,
-        script_pubkey: params.withdrawal_address.script_pubkey(),
+        script_pubkey: params.destination_address.script_pubkey(),
     };
 
     // verify signature
@@ -228,7 +228,7 @@ pub async fn send_safe_withdrawal(
         &params.signature,
         &params.signer_address.address,
         &params.withdrawal_outpoint,
-        &params.withdrawal_address,
+        &params.destination_address,
         params.withdrawal_amount,
     )?;
 

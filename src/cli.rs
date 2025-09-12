@@ -375,7 +375,7 @@ pub async fn withdrawal_status(
 #[allow(clippy::too_many_arguments)]
 pub async fn send_withdrawal_signature(
     signer_address: &str,
-    withdrawal_address: &str,
+    destination_address: &str,
     withdrawal_utxo_outpoint: &str,
     amount: u64,
     signature: &str,
@@ -385,7 +385,7 @@ pub async fn send_withdrawal_signature(
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
     send_withdrawal_signature_to_operators(
         signer_address,
-        withdrawal_address,
+        destination_address,
         withdrawal_outpoint,
         withdrawal_index,
         signature,
