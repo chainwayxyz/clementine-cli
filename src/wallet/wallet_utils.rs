@@ -16,10 +16,10 @@
 //!
 
 use crate::errors::BridgeCliError;
+use crate::secure_types::SecureKeypair;
+use crate::secure_types::SecureSecretKey;
+use crate::secure_types::SecureString;
 use crate::structs::AddrDisplay;
-use crate::structs::SecureKeypair;
-use crate::structs::SecureSecretKey;
-use crate::structs::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
 use crate::wallet::address::calculate_taproot_address;

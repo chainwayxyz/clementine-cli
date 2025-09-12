@@ -58,11 +58,8 @@
 //! - **Memory Protection**: All sensitive data automatically zeroized after use
 //! - **Forward Secrecy**: Compromised derived keys don't reveal original passphrase
 
-use crate::{
-    errors::BridgeCliError,
-    structs::{SecureByteVec, SecureString},
-    wallet::passphrase::derive_key_from_passphrase,
-};
+use crate::secure_types::{SecureByteVec, SecureString};
+use crate::{errors::BridgeCliError, wallet::passphrase::derive_key_from_passphrase};
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use secrecy::ExposeSecret;
