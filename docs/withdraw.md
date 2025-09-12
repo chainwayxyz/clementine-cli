@@ -42,6 +42,12 @@ clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DEST
 - `SIGNER_ADDRESS`: Withdrawal wallet address with "wit" prefix (from airgapped device)
 - `DESTINATION_ADDRESS`: Bitcoin address where funds will be sent
 
+> [!TIP]
+> After you start a withdrawal with `withdrawal start` command, it will prompt
+> you the next steps with correct values. You may be better off returning this
+> document though, as there are details and security suggestions for the next
+> steps.
+
 **Example:**
 
 ```sh
@@ -101,6 +107,9 @@ This command will scan Bitcoin network and return possible withdrawal scenarios 
 
 ### Generate Signature
 
+> [!IMPORTANT]
+> This command will generate two signatures: one for `optimistic` withdrawal (which has an exact amount of 999999760 satoshis, or 9.9999976 BTC), and one for `operator-paid` withdrawal (which hash an exact amount of 997000000 satoshis, or 9.97 BTC).
+
 ```sh
 clementine-cli withdraw generate-withdrawal-signatures --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO>
 ```
@@ -113,10 +122,6 @@ clementine-cli withdraw generate-withdrawal-signatures --network testnet4 wittb1
 
 > [!CAUTION]
 > Save the generated signatures since they will be used to authorize the operations that will be done later.
-
-> [!IMPORTANT]
-> This command will generate two signatures: one for `optimistic` withdrawal (which has an exact amount of 999999760 satoshis, or 9.9999976 BTC), and one for `operator-paid` withdrawal (which hash an exact amount of 997000000 satoshis, or 9.97 BTC).
-
 
 ## Step 5: Safe Withdraw
 
