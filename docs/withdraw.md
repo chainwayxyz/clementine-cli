@@ -14,8 +14,8 @@ Before starting a withdrawal, ensure you have:
 - Sufficient balance on Citrea to withdraw
 
 > [!CAUTION]
-> Don't forget to specify `--network` flag, if you plan to use a different Bitcoin
-> network, other than the mainnet: Mainnet is selected implicitly for every
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
+> network other than mainnet. Mainnet is selected implicitly for every
 > command.
 
 ## Withdrawal Process Overview

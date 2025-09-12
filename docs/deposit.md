@@ -12,6 +12,7 @@ clementine-cli deposit --help
 > Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
 > network other than mainnet. Mainnet is selected implicitly for every
 > command.
+
 ## Prerequisites
 
 Before starting a deposit, ensure you have:

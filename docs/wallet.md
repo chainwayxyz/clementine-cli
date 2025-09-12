@@ -3,8 +3,8 @@
 Clementine CLI provides comprehensive wallet management capabilities with strong security features. All wallet operations can be performed offline for maximum security.
 
 > [!CAUTION]
-> Don't forget to specify `--network` flag, if you plan to use a different Bitcoin
-> network, other than the mainnet: Mainnet is selected implicitly for every
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
+> network other than mainnet. Mainnet is selected implicitly for every
 > command.
 
 ## About Clementine Wallets
@@ -26,14 +26,16 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 **These are not ordinary Bitcoin addresses** - they are specialized bridge addresses with different spending conditions specifically generated for Clementine bridge operations.
 
 **Why prefixes matter:**
+
 - **Prevent accidental copy-paste errors** that could result in permanent fund loss
 - **Ensure proper address derivation** with bridge-specific cryptographic schemes
 - **Distinguish between different signature algorithms** required by deposit vs withdrawal operations
 - **Provide validation layer** to catch user errors before interacting with Clementine protocol
 - **Enable operation-specific security** tailored to each bridge function
 
-> [!CAUTION] 
+> [!CAUTION]
 > Never manually remove or modify address prefixes, as this can lead to:
+>
 > - Failed Clementine interactions
 > - Permanent loss of funds due to misinterpretation or confusion
 > - Inability to recover funds from bridge operations
