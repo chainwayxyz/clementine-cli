@@ -19,7 +19,7 @@ pub struct RecoveryTxParams {
     pub citrea_addr: CitreaAddress,
     pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     pub outpoint: OutPoint,
-    pub claim_addr: BitcoinAddress,
+    pub destination_addr: BitcoinAddress,
     pub fee_rate: Option<u64>,
     pub amount: Option<f64>,
 }
@@ -148,7 +148,7 @@ pub fn create_signed_recovery_tx(
         &params.recovery_taproot_address.address,
         &params.outpoint,
         deposit_amount.unwrap_or(config.bridge_amount),
-        &params.claim_addr,
+        &params.destination_addr,
         fee_rate,
         config,
     )?;

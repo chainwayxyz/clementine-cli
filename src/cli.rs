@@ -203,7 +203,7 @@ pub async fn deposit_status(
         });
         if move_tx_on_chain {
             match refund_in_blocks {
-                Some(0) => "\n  You can refund your deposit now using 'create-signed-recovery-tx' subcommand.".to_string(),
+                Some(0) => "\n  You can refund your deposit now using 'deposit create-signed-recovery-tx' subcommand.".to_string(),
                 Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
                 None => "\n  Refund information not available.".to_string(),
             }
@@ -285,7 +285,7 @@ pub async fn deposit_create_signed_recovery_tx(
     citrea_addr: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     outpoint: &OutPoint,
-    claim_addr: &BitcoinAddress,
+    destination_addr: &BitcoinAddress,
     fee_rate: u64,
     amount: f64,
     config: &BridgeCliConfig,
@@ -298,7 +298,7 @@ pub async fn deposit_create_signed_recovery_tx(
         citrea_addr: *citrea_addr,
         recovery_taproot_address: recovery_taproot_address.clone(),
         outpoint: *outpoint,
-        claim_addr: claim_addr.clone(),
+        destination_addr: destination_addr.clone(),
         fee_rate: Some(fee_rate),
         amount: Some(amount),
     };
@@ -401,19 +401,19 @@ pub async fn cli_get_deposit_address(
 
 pub async fn cli_start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    start_withdrawal(signer_address, claim_address, config)?;
+    start_withdrawal(signer_address, destination_address, config)?;
     Ok(())
 }
 
 pub async fn cli_scan_withdrawals(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let utxos = withdraw::scan_withdrawal(signer_address, claim_address, config).await;
+    let utxos = withdraw::scan_withdrawal(signer_address, destination_address, config).await;
 
     let mut utxos =
         utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
@@ -455,7 +455,7 @@ pub async fn cli_scan_withdrawals(
                 "clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
                 &signer_address.address_with_prefix(),
-                claim_address,
+                destination_address,
                 outpoint,
             );
         };
@@ -485,7 +485,7 @@ pub async fn cli_scan_withdrawals(
 
 pub fn cli_generate_withdrawal_signatures(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    claim_address: &BitcoinAddress,
+    destination_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
     optimistic_withdrawal_amount: &Amount,
     operator_withdrawal_amount: &Amount,
@@ -499,7 +499,7 @@ pub fn cli_generate_withdrawal_signatures(
     generate_withdrawal_signatures(
         keypair,
         signer_address,
-        claim_address,
+        destination_address,
         withdrawal_utxo,
         optimistic_withdrawal_amount,
         operator_withdrawal_amount,

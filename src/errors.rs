@@ -147,9 +147,9 @@ pub enum BridgeCliError {
     #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
     AddressMismatch,
     #[error(
-        "Claim address cannot be a wallet address. The claim address belongs to one of your wallets."
+        "Destination address cannot be a wallet address. The destination address belongs to one of your wallets."
     )]
-    ClaimAddressIsWalletAddress,
+    DestinationAddressIsWalletAddress,
     #[error("Address '{0}' should not have a prefix.")]
     AddressShouldNotHavePrefix(String),
 
