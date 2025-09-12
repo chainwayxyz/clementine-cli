@@ -2,6 +2,11 @@
 
 Clementine CLI provides comprehensive wallet management capabilities with strong security features. All wallet operations can be performed offline for maximum security.
 
+> [!CAUTION]
+> Don't forget to specify `--network` flag, if you plan to use a diffrent Bitcoin
+> network, other than the mainnet: Mainnet is selected implicitly for every
+> command.
+
 ## About Clementine Wallets
 
 Clementine wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine wallet corresponds to a single Bitcoin address with its associated private key. Clementine wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds. 
