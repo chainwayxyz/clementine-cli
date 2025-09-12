@@ -2,6 +2,11 @@
 
 Clementine CLI provides comprehensive wallet management capabilities with strong security features. All wallet operations can be performed offline for maximum security.
 
+> [!CAUTION]
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
+> network other than mainnet. Mainnet is selected implicitly for every
+> command.
+
 ## About Clementine Wallets
 
 Clementine wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine wallet corresponds to a single Bitcoin address with its associated private key. Clementine wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds. 
@@ -21,14 +26,16 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 **These are not ordinary Bitcoin addresses** - they are specialized bridge addresses with different spending conditions specifically generated for Clementine bridge operations.
 
 **Why prefixes matter:**
+
 - **Prevent accidental copy-paste errors** that could result in permanent fund loss
 - **Ensure proper address derivation** with bridge-specific cryptographic schemes
 - **Distinguish between different signature algorithms** required by deposit vs withdrawal operations
 - **Provide validation layer** to catch user errors before interacting with Clementine protocol
 - **Enable operation-specific security** tailored to each bridge function
 
-> [!CAUTION] 
+> [!CAUTION]
 > Never manually remove or modify address prefixes, as this can lead to:
+>
 > - Failed Clementine interactions
 > - Permanent loss of funds due to misinterpretation or confusion
 > - Inability to recover funds from bridge operations
@@ -41,12 +48,16 @@ View all wallet commands: `clementine-cli wallet --help`
 ## Create Wallet
 
 ```sh
-clementine-cli wallet create --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet create [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPOSE>
 ```
 
 **Example:**
+
 ```sh
-clementine-cli wallet create --network testnet4 my-wallet deposit
+# For mainnet:
+clementine-cli wallet create my-wallet deposit
+# For a different network:
+clementine-cli wallet --network testnet4 create my-wallet deposit
 ```
 
 ## Backup and Importing a Wallet
@@ -89,7 +100,7 @@ private key when you list wallets using `clementine-cli wallet list`.
 > This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
 
 ```sh
-clementine-cli wallet import-private-key --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet import-private-key [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPOSE>
 ```
 
 ### Import Using Mnemonic
@@ -97,8 +108,9 @@ clementine-cli wallet import-private-key --network <NETWORK> <WALLET-LABEL> <PUR
 You can also import a wallet using the 12 word mnemonic:
 
 ```sh
-clementine-cli wallet import-mnemonic --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet import-mnemonic [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPOSE>
 ```
+
 This command will prompt you to enter all the mnemonic words step by step.
 
 ## Wallet Management
