@@ -41,12 +41,12 @@ View all wallet commands: `clementine-cli wallet --help`
 ## Create Wallet
 
 ```sh
-clementine-cli wallet create --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet create <WALLET-LABEL> <PURPOSE>
 ```
 
 **Example:**
 ```sh
-clementine-cli wallet create --network testnet4 my-wallet deposit
+clementine-cli wallet create my-wallet deposit
 ```
 
 ## Backup and Importing a Wallet
@@ -89,7 +89,7 @@ private key when you list wallets using `clementine-cli wallet list`.
 > This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
 
 ```sh
-clementine-cli wallet import-private-key --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet import-private-key <WALLET-LABEL> <PURPOSE>
 ```
 
 ### Import Using Mnemonic
@@ -97,7 +97,7 @@ clementine-cli wallet import-private-key --network <NETWORK> <WALLET-LABEL> <PUR
 You can also import a wallet using the 12 word mnemonic:
 
 ```sh
-clementine-cli wallet import-mnemonic --network <NETWORK> <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet import-mnemonic <WALLET-LABEL> <PURPOSE>
 ```
 This command will prompt you to enter all the mnemonic words step by step.
 

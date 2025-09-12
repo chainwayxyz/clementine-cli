@@ -34,7 +34,7 @@ The withdrawal process follows these sequential steps:
 **ONLINE DEVICE OPERATION:** Start the withdrawal process:
 
 ```sh
-clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
+clementine-cli withdraw start <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
 ```
 
 **Parameters:**
@@ -45,7 +45,7 @@ clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DEST
 **Example:**
 
 ```sh
-clementine-cli withdraw start --network testnet4 wittb1pf... tb1qg...
+clementine-cli withdraw start wittb1pf... tb1qg...
 ```
 
 This command will prompt the user to send a Bitcoin transaction that will create the 0-value UTXO needed for the withdrawal operation.
@@ -76,13 +76,13 @@ This creates the 0-value UTXO needed for the withdrawal operation.
 **ONLINE DEVICE OPERATION:** Scan for available withdrawal UTXOs that can be used for the withdrawal operation:
 
 ```sh
-clementine-cli withdraw scan --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
+clementine-cli withdraw scan <SIGNER_ADDRESS> <DESTINATION_ADDRESS>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw scan --network testnet4 wittb1pf... tb1qg...
+clementine-cli withdraw scan wittb1pf... tb1qg...
 ```
 
 This command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature.
@@ -102,13 +102,13 @@ This command will scan Bitcoin network and return possible withdrawal scenarios 
 ### Generate Signature
 
 ```sh
-clementine-cli withdraw generate-withdrawal-signatures --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO>
+clementine-cli withdraw generate-withdrawal-signatures <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw generate-withdrawal-signatures --network testnet4 wittb1pf... tb1qg... abc123def456...:0
+clementine-cli withdraw generate-withdrawal-signatures wittb1pf... tb1qg... abc123def456...:0
 ```
 
 > [!CAUTION]
@@ -123,13 +123,13 @@ clementine-cli withdraw generate-withdrawal-signatures --network testnet4 wittb1
 **ONLINE DEVICE OPERATION:** Execute the `optimistic` withdrawal with signature verification and submit to Citrea:
 
 ```sh
-clementine-cli withdraw safe-withdraw --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
+clementine-cli withdraw safe-withdraw <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 807c42770...
+clementine-cli withdraw safe-withdraw wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 **What this does:**
@@ -141,7 +141,7 @@ clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... ab
 In case `safe-withdraw` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdrawal`:
 
 ```sh
-clementine-cli withdraw send-safe-withdrawal --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <OPTIMISTIC_SIGNATURE>
+clementine-cli withdraw send-safe-withdrawal <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <OPTIMISTIC_SIGNATURE>
 ```
 
 > [!IMPORTANT]
@@ -152,7 +152,7 @@ clementine-cli withdraw send-safe-withdrawal --network <BITCOIN_NETWORK> <SIGNER
 **ONLINE DEVICE OPERATION:** Monitor the status of your withdrawal:
 
 ```sh
-clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_UTXO>
+clementine-cli withdraw status <WITHDRAWAL_UTXO>
 ```
 
 **Parameters:**
@@ -162,7 +162,7 @@ clementine-cli withdraw status --network <BITCOIN_NETWORK> <WITHDRAWAL_UTXO>
 **Example:**
 
 ```sh
-clementine-cli withdraw status --network testnet4 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
+clementine-cli withdraw status 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
 ```
 
 The status will show the response from the backend.
@@ -172,13 +172,13 @@ The status will show the response from the backend.
 **ONLINE DEVICE OPERATION:** If Step 5 fails (Clementine Signers fail to provide `optimistic` withdrawal in 12 hours), submit the generated `operator-paid` withdrawal signature to bridge operators for `operator-paid` withdrawal processing:
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <OPERATOR_PAID_SIGNATURE> <WITHDRAWAL_INDEX>
+clementine-cli withdraw send-withdrawal-signature-to-operators <SIGNER_ADDRESS> <WITHDRAWAL_ADDRESS> <WITHDRAWAL_UTXO> <AMOUNT> <OPERATOR_PAID_SIGNATURE> <WITHDRAWAL_INDEX>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators  --network testnet4 wittb1pf... tb1qg... abc123def456:0 807c42770... 1
+clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770... 1
 ```
 
 > [!NOTE]
