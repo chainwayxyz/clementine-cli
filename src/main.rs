@@ -686,24 +686,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         network,
                     ),
                     (optimistic_signature, operator_signature) => {
+                        println!();
                         println!(
                             "Optimistic withdrawal signature hex: {}",
                             serialize_and_encode(optimistic_signature)
                         );
+                        println!();
                         println!(
                             "Operator-paid withdrawal signature hex: {}",
                             serialize_and_encode(operator_signature)
                         );
+                        println!();
                         println!("Now run:");
+                        println!();
                         println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(optimistic_signature));
+                        println!();
                         println!("on your online device to initiate optimistic withdrawal process on the Citrea network");
                         println!("Then monitor withdrawal status for 12 hours using:");
+                        println!();
                         println!("clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);
+                        println!();
                         println!("This command will also give you the withdrawal index needed for the next step");
                         println!("If the optimistic withdrawal does not complete in 12 hours, run:");
+                        println!();
                         println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {} <WITHDRAWAL_INDEX>",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(operator_signature));
+                        println!();
                         println!("to submit the operator-paid withdrawal signature to Clementine Operators");
                     }
                 );
