@@ -214,7 +214,7 @@ enum DepositCommands {
         destination_address: String,
         /// Fee rate to use for the recovery transaction (in sats/vB)
         fee_rate: u64,
-        /// Deposit transaction's output amount in BTC (e.g., 0.1 for 0.1 BTC)
+        /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
@@ -228,7 +228,7 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
-        /// Deposit transaction's output amount in BTC (e.g., 0.1 for 0.1 BTC)
+        /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
         /// Bitcoin network to use
