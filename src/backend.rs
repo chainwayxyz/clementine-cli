@@ -1,117 +1,12 @@
 use crate::config::BridgeCliConfig;
-use crate::deposit::DepositStatusEnum;
 use crate::errors::BridgeCliError;
+use crate::structs::{DepositStatus, WithdrawStatus};
 use crate::wallet::address::parse_taproot_address;
-use crate::withdraw::WithdrawStatusEnum;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Address, OutPoint};
 use colored::*;
 use eyre::{Context, Result};
-use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::borrow::Cow;
-use std::fmt::Display;
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct DepositStatus {
-    pub id: u64,
-    pub status: String,
-    pub txid: String,
-    pub evm_addr: String,
-    pub move_tx_raw: String,
-    pub move_txid: String,
-    pub created_at: String,
-    pub mint_txid: String,
-}
-
-impl Display for DepositStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn display_or(v: &str) -> &str {
-            if v.is_empty() { "--" } else { v }
-        }
-
-        let status = if self.status.is_empty() {
-            Cow::Borrowed("--")
-        } else {
-            Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
-        };
-
-        write!(
-            f,
-            "\nDeposit Info\n  ID:                 {}\n  Status:             {}\n  TXID:               {}\n  EVM Addr:           {}\n  Raw MoveToVault TX: {}\n  Move TXID:          {}\n  Mint TXID:          {}",
-            self.id,
-            status,
-            display_or(&self.txid),
-            display_or(&self.evm_addr),
-            display_or(&self.move_tx_raw),
-            display_or(&self.move_txid),
-            display_or(&self.mint_txid)
-        )
-    }
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WithdrawStatus {
-    pub idx: u64,
-    pub status: String,
-    pub btc_payment_txid: String,
-    pub from_safe_withdraw: bool,
-    pub optimistic_payout_started_at: Option<String>,
-    pub optimistic_payout_deadline_at: Option<String>,
-    pub created_at: String,
-    pub optimistic_payout_payment: Option<OptimisticPayoutStatus>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct OptimisticPayoutStatus {
-    pub tx_raw: String,
-    pub txid: String,
-}
-
-impl Display for WithdrawStatus {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        fn display_or(v: &str) -> &str {
-            if v.is_empty() { "--" } else { v }
-        }
-
-        fn display_option_or<T: ToString>(v: &Option<T>) -> String {
-            if v.is_none() {
-                "--".to_string()
-            } else {
-                v.as_ref().unwrap().to_string()
-            }
-        }
-
-        fn display_t<T: ToString + Display>(v: &T) -> String {
-            v.to_string()
-        }
-
-        let status = if self.status.is_empty() {
-            Cow::Borrowed("--")
-        } else {
-            Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
-        };
-
-        let optimistic_payout_display = format!(
-            "  Optimistic Payout Info\n    Raw TX: {}\n    TXID:   {}",
-            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.tx_raw)),
-            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.txid))
-        );
-
-        write!(
-            f,
-            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n{}",
-            self.idx,
-            status,
-            display_or(&self.btc_payment_txid),
-            display_t(&self.from_safe_withdraw),
-            display_option_or(&self.optimistic_payout_started_at),
-            display_option_or(&self.optimistic_payout_deadline_at),
-            display_or(&self.created_at),
-            optimistic_payout_display
-        )
-    }
-}
 
 /// Make a POST request to create a deposit account
 pub(crate) async fn create_deposit_account(

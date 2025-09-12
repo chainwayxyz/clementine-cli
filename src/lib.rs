@@ -18,6 +18,7 @@ pub mod errors;
 mod parameters;
 mod script;
 mod secure_display;
+mod secure_types;
 pub mod structs;
 pub mod types;
 pub mod wallet;
