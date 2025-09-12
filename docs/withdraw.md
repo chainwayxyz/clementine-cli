@@ -17,7 +17,7 @@ Before starting a withdrawal, ensure you have:
 
 The withdrawal process follows these sequential steps:
 
-1. [**Create Withdrawal Wallet**](#step-1-create-a-wallet-for-withdrawal) - todo
+1. [**Create Withdrawal Wallet**](#step-1-create-a-wallet-for-withdrawal) - Create a withdrawal wallet for the signer address
 2. [**Start Withdrawal**](#step-2-start-withdrawal) - Initiate withdrawal process (prompts for Bitcoin transaction)
 3. [**Send Bitcoin Transaction**](#step-3-send-required-bitcoin-transaction) - Send required transaction to signer address to create withdrawal UTXO
 4. [**Scan for Withdrawals**](#step-4-scan-for-withdrawals) - Find available withdrawal UTXOs
