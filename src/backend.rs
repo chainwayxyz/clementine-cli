@@ -250,7 +250,7 @@ pub(crate) async fn backend_withdrawal_status(
 
 pub(crate) async fn send_withdrawal_signature_to_operators(
     _signer_address: &str,
-    withdrawal_address: &str,
+    destination_address: &str,
     withdrawal_outpoint: OutPoint,
     withdrawal_index: u32,
     signature: &str,
@@ -267,7 +267,7 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
         "withdrawal_idx": withdrawal_index,
         "signature": signature,
         "input_outpoint": withdrawal_outpoint.to_string(),
-        "output_script_pubkey": withdrawal_address,
+        "output_script_pubkey": destination_address,
         "output_amount": amount
     });
 
