@@ -28,10 +28,10 @@ use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;
 
 use crate::errors::BridgeCliError;
-use crate::structs::{
-    AddrDisplay, SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
-    TaprootAddressWithPrefix,
+use crate::secure_types::{
+    SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
 };
+use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
 use bitcoin::secp256k1::SecretKey;

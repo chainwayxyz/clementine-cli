@@ -1,6 +1,5 @@
 //! Secure display for sensitive cryptographic data (mnemonics and private keys).
 
-use crate::structs::{SecureSecretKey, SecureString};
 use bip39::Mnemonic;
 use colored::Colorize;
 use crossterm::{
@@ -14,6 +13,8 @@ use eyre::{Result, eyre};
 use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
+
+use crate::secure_types::{SecureSecretKey, SecureString};
 
 /// Display timeout for individual words (30 seconds)
 const WORD_TIMEOUT_SECS: u64 = 30;
