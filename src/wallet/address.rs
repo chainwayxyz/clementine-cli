@@ -23,7 +23,8 @@
 
 use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureKeypair, SecureSecretKey, TaprootAddressWithPrefix};
+use crate::secure_types::{SecureKeypair, SecureSecretKey};
+use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{get_storage_dir, get_wallets_from_registry};
 use crate::wallet::wallet_utils::parse_network;

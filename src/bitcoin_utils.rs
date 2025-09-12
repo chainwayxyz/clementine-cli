@@ -3,7 +3,7 @@
 use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
 use crate::errors::BridgeCliError;
 use crate::script::{deposit_script, recover_script};
-use crate::structs::SecureKeypair;
+use crate::secure_types::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};

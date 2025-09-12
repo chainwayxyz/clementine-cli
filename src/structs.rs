@@ -1,102 +1,19 @@
+use std::{borrow::Cow, fmt::Display};
+
 use bitcoin::{
     Address,
     address::{NetworkChecked, NetworkUnchecked, NetworkValidation},
-    secp256k1::{Keypair, SecretKey},
 };
-use secrecy::SecretBox;
-use serde::Deserialize;
-use zeroize::Zeroize;
+
+use serde::{Deserialize, Serialize};
 
 use crate::{
     BitcoinAddress,
+    deposit::DepositStatusEnum,
     errors::BridgeCliError,
     wallet::{Purpose, address::parse_taproot_address},
+    withdraw::WithdrawStatusEnum,
 };
-
-pub(crate) type SecureString = SecretBox<String>;
-pub(crate) type SecureByteSlice = SecretBox<[u8; 32]>;
-pub(crate) type SecureByteVec = SecretBox<Vec<u8>>;
-pub(crate) type SecureSeed = SecretBox<[u8; 64]>;
-
-/// A secure wrapper for Vec<String> that automatically erases itself when dropped
-pub(crate) struct SecureWordVec {
-    inner: Vec<String>,
-}
-
-impl SecureWordVec {
-    pub fn new() -> Self {
-        Self { inner: Vec::new() }
-    }
-
-    pub fn push(&mut self, word: String) {
-        self.inner.push(word);
-    }
-
-    pub fn len(&self) -> usize {
-        self.inner.len()
-    }
-
-    pub fn join(&self, separator: &str) -> String {
-        self.inner.join(separator)
-    }
-}
-
-impl Drop for SecureWordVec {
-    fn drop(&mut self) {
-        for word in &mut self.inner {
-            word.zeroize();
-        }
-        self.inner.clear();
-    }
-}
-
-/// A secure wrapper for SecretKey that automatically erases itself when dropped
-pub struct SecureSecretKey {
-    inner: SecretKey,
-}
-
-impl SecureSecretKey {
-    pub fn new(key: SecretKey) -> Self {
-        Self { inner: key }
-    }
-
-    pub fn as_ref_inner(&self) -> &SecretKey {
-        &self.inner
-    }
-}
-
-impl Drop for SecureSecretKey {
-    fn drop(&mut self) {
-        self.inner.non_secure_erase();
-    }
-}
-
-/// A secure wrapper for Keypair that automatically erases itself when dropped
-pub struct SecureKeypair {
-    inner: Keypair,
-}
-
-impl SecureKeypair {
-    pub fn new(keypair: Keypair) -> Self {
-        Self { inner: keypair }
-    }
-
-    pub fn secret_key(&self) -> SecureSecretKey {
-        SecureSecretKey::new(self.inner.secret_key())
-    }
-}
-
-impl Drop for SecureKeypair {
-    fn drop(&mut self) {
-        self.inner.non_secure_erase();
-    }
-}
-
-impl AsRef<Keypair> for SecureKeypair {
-    fn as_ref(&self) -> &Keypair {
-        &self.inner
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct TaprootAddressWithPrefix<T: NetworkValidation> {
@@ -211,13 +128,209 @@ where
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
     pub status: String,
     pub txid: String,
     pub evm_addr: String,
+    pub move_tx_raw: String,
     pub move_txid: String,
     pub created_at: String,
     pub mint_txid: String,
+}
+
+pub struct DepositStatusWithVout<'a> {
+    pub deposit_status: &'a DepositStatus,
+    pub vout: Option<u32>,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn format_deposit_status(
+    f: &mut std::fmt::Formatter<'_>,
+    id: u64,
+    status: &str,
+    txid: &str,
+    vout: Option<u32>,
+    evm_addr: &str,
+    move_txid: &str,
+    move_tx_raw: &str,
+    mint_txid: &str,
+    print_na_for_vout: bool,
+) -> std::fmt::Result {
+    let display_or = |v: &str| {
+        if v.is_empty() {
+            "--".to_string()
+        } else {
+            v.to_string()
+        }
+    };
+
+    writeln!(f, "\nDeposit Info")?;
+    writeln!(f, "  ID:                 {}", id)?;
+    writeln!(f, "  Status:             {}", status)?;
+    writeln!(f, "  TXID:               {}", display_or(txid))?;
+    match vout {
+        Some(v) => {
+            writeln!(f, "  Vout:               {}", v)?;
+            writeln!(f, "  UTXO Outpoint:      {}:{}", txid, v)?;
+        }
+        None => {
+            if print_na_for_vout {
+                writeln!(f, "  Vout:               N/A")?;
+                writeln!(f, "  UTXO Outpoint:      N/A")?;
+            }
+        }
+    }
+    writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
+    writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;
+    writeln!(f, "  Mint TXID:          {}", display_or(mint_txid))?;
+    writeln!(f, "  Raw MoveToVault TX: {}", display_or(move_tx_raw))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn format_deposit_status_default(
+    f: &mut std::fmt::Formatter<'_>,
+    id: u64,
+    status: &str,
+    txid: &str,
+    move_tx_raw: &str,
+    evm_addr: &str,
+    move_txid: &str,
+    mint_txid: &str,
+) -> std::fmt::Result {
+    format_deposit_status(
+        f,
+        id,
+        status,
+        txid,
+        None,
+        evm_addr,
+        move_txid,
+        move_tx_raw,
+        mint_txid,
+        false,
+    )
+}
+impl Display for DepositStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = if self.status.is_empty() {
+            Cow::Borrowed("--")
+        } else {
+            Cow::Owned(DepositStatusEnum::from_status(&self.status).as_string())
+        };
+        format_deposit_status_default(
+            f,
+            self.id,
+            &status,
+            &self.txid,
+            &self.move_tx_raw,
+            &self.evm_addr,
+            &self.move_txid,
+            &self.mint_txid,
+        )
+    }
+}
+
+impl Display for DepositStatusWithVout<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = if self.deposit_status.status.is_empty() {
+            Cow::Borrowed("--")
+        } else {
+            Cow::Owned(DepositStatusEnum::from_status(&self.deposit_status.status).as_string())
+        };
+        format_deposit_status(
+            f,
+            self.deposit_status.id,
+            &status,
+            &self.deposit_status.txid,
+            self.vout,
+            &self.deposit_status.evm_addr,
+            &self.deposit_status.move_txid,
+            &self.deposit_status.move_tx_raw,
+            &self.deposit_status.mint_txid,
+            true,
+        )
+    }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WithdrawStatus {
+    pub idx: u64,
+    pub status: String,
+    pub btc_payment_txid: String,
+    pub from_safe_withdraw: bool,
+    pub optimistic_payout_started_at: Option<String>,
+    pub optimistic_payout_deadline_at: Option<String>,
+    pub created_at: String,
+    pub optimistic_payout_payment: Option<OptimisticPayoutStatus>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OptimisticPayoutStatus {
+    pub tx_raw: String,
+    pub txid: String,
+}
+
+impl Display for WithdrawStatus {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        fn display_or(v: &str) -> &str {
+            if v.is_empty() { "--" } else { v }
+        }
+
+        fn display_option_or<T: ToString>(v: &Option<T>) -> String {
+            if v.is_none() {
+                "--".to_string()
+            } else {
+                v.as_ref().unwrap().to_string()
+            }
+        }
+
+        fn display_t<T: ToString + Display>(v: &T) -> String {
+            v.to_string()
+        }
+
+        let status = if self.status.is_empty() {
+            Cow::Borrowed("--")
+        } else {
+            Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
+        };
+
+        writeln!(f, "\nWithdrawal Info")?;
+        writeln!(f, "  Index:                 {}", self.idx)?;
+        writeln!(f, "  Status:                {}", status)?;
+        writeln!(
+            f,
+            "  BTC Payment TXID:      {}",
+            display_or(&self.btc_payment_txid)
+        )?;
+        writeln!(
+            f,
+            "  From Safe Withdraw:    {}",
+            display_t(&self.from_safe_withdraw)
+        )?;
+        writeln!(
+            f,
+            "  Payout Started:        {}",
+            display_option_or(&self.optimistic_payout_started_at)
+        )?;
+        writeln!(
+            f,
+            "  Payout Deadline:       {}",
+            display_option_or(&self.optimistic_payout_deadline_at)
+        )?;
+        writeln!(
+            f,
+            "  Created:               {}",
+            display_or(&self.created_at)
+        )?;
+        writeln!(f, "  Optimistic Payout Info")?;
+        let (raw_tx, txid) = match &self.optimistic_payout_payment {
+            Some(payout) => (display_or(&payout.tx_raw), display_or(&payout.txid)),
+            None => ("--", "--"),
+        };
+        writeln!(f, "    Raw TX: {}", raw_tx)?;
+        writeln!(f, "    TXID:   {}", txid)?;
+        Ok(())
+    }
 }

@@ -102,7 +102,7 @@ pub(crate) fn prepare_safe_withdraw_params(
     prepare_proof: &CitreaMerkleProof,
     payout_tx: &CitreaTransaction,
     block_header: &[u8],
-    withdrawal_address_pubkey: &[u8],
+    destination_address_pubkey: &[u8],
 ) -> (
     Transaction,
     MerkleProof,
@@ -115,7 +115,7 @@ pub(crate) fn prepare_safe_withdraw_params(
         prepare_proof.into(),
         payout_tx.into(),
         private::Bytes::from(block_header.to_vec()),
-        private::Bytes::from(withdrawal_address_pubkey.to_vec()),
+        private::Bytes::from(destination_address_pubkey.to_vec()),
     )
 }
 

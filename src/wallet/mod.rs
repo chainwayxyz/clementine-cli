@@ -40,6 +40,10 @@ use std::path::Path;
 use std::path::PathBuf;
 
 use crate::bitcoin_utils::SECP;
+use crate::secure_types::SecureByteVec;
+use crate::secure_types::SecureKeypair;
+use crate::secure_types::SecureSecretKey;
+use crate::secure_types::SecureString;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::address::generate_address_from_mnemonic;
@@ -60,7 +64,6 @@ use crate::wallet::wallet_utils::{
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
-use crate::structs::{SecureByteVec, SecureKeypair, SecureSecretKey, SecureString};
 use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, validate_mnemonic_import, validate_private_key_import,
