@@ -172,13 +172,13 @@ fn format_deposit_status(
     writeln!(f, "  TXID:               {}", display_or(txid))?;
     match vout {
         Some(v) => {
-            writeln!(f, "  UTXO Outpoint:      {}:{}", txid, v)?;
             writeln!(f, "  Vout:               {}", v)?;
+            writeln!(f, "  UTXO Outpoint:      {}:{}", txid, v)?;
         }
         None => {
             if print_na_for_vout {
-                writeln!(f, "  UTXO Outpoint:      N/A")?;
                 writeln!(f, "  Vout:               N/A")?;
+                writeln!(f, "  UTXO Outpoint:      N/A")?;
             }
         }
     }
