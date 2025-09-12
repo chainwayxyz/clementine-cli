@@ -17,15 +17,15 @@ Before starting a withdrawal, ensure you have:
 
 The withdrawal process follows these sequential steps:
 
-1. **Create Withdrawal Wallet** - todo
-2. **Start Withdrawal** - Initiate withdrawal process (prompts for Bitcoin transaction)
-3. **Send Bitcoin Transaction** - Send required transaction to signer address to create withdrawal UTXO
-4. **Scan for Withdrawals** - Find available withdrawal UTXOs
-5. **Generate Withdrawal Signatures** - Create signatures on airgapped device
-6. **Safe Withdraw** - Submit withdrawal request with signature to Citrea for optimistic withdrawal
-7. **Check Status** - Monitor withdrawal progress for optimistic withdrawal for 12 hours
-8. **(Optional) Send Signature to Operators** - If Step 6 fails, submit signature to Clementine operators for processing
-9. **Check Status** - Monitor withdrawal progress for operator-paid withdrawal
+1. [**Create Withdrawal Wallet**](#step-1-create-a-wallet-for-withdrawal) - todo
+2. [**Start Withdrawal**](#step-2-start-withdrawal) - Initiate withdrawal process (prompts for Bitcoin transaction)
+3. [**Send Bitcoin Transaction**](#step-3-send-required-bitcoin-transaction) - Send required transaction to signer address to create withdrawal UTXO
+4. [**Scan for Withdrawals**](#step-4-scan-for-withdrawals) - Find available withdrawal UTXOs
+5. [**Generate Withdrawal Signatures**](#step-5-generate-withdrawal-signatures) - Create signatures on airgapped device
+6. [**Safe Withdraw**](#step-6-safe-withdraw) - Submit withdrawal request with signature to Citrea for optimistic withdrawal
+7. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for optimistic withdrawal for 12 hours
+8. [**(Optional) Send Signature to Operators**](#step-8-send-the-signature-to-the-operators) - If Step 6 fails, submit signature to Clementine operators for processing
+9. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for operator-paid withdrawal
 
 > [!IMPORTANT]
 > The `SIGNER_ADDRESS` and the `DESTINATION_ADDRESS` are different. The `SIGNER_ADDRESS` will belong to your Clementine wallet to be able to perform withdrawal specific signing operations, whereas `DESTINATION_ADDRESS` is the address that the withdrawn BTC funds will be sent to.
