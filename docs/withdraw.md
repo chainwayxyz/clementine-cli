@@ -95,8 +95,8 @@ This command will scan Bitcoin network and return possible withdrawal scenarios 
 
 **Transfer from online device to airgapped device:**
 
-- Signer address (with "wit" prefix)
-- Destination address (where withdrawn BTC will be sent)
+- Signer address for signing withdrawals (wit-prefixed, taproot)
+- Destination address where withdrawn BTC will be sent
 - Withdrawal UTXO details (from scan command)
 
 ### Generate Signature

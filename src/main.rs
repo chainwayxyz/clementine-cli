@@ -336,9 +336,9 @@ enum WithdrawCommands {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
-        /// This is your Clementine wallet address for signing withdrawals. (wit-prefixed, taproot)
+        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
-        /// This is the address where withdrawn BTC will be sent.
+        /// Destination address for withdrawn BTC
         destination_address: String,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
