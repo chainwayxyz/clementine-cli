@@ -281,14 +281,6 @@ pub async fn deposit_status(
             Err(_) => (0, false),
         };
 
-        println!("{}", status);
-        let test_deposit_status_with_vout = DepositStatusWithVout {
-            deposit_status: status,
-            vout: None,
-        };
-
-        println!("{}", test_deposit_status_with_vout);
-
         let deposit_status_with_vout = DepositStatusWithVout {
             deposit_status: status,
             vout: if found { Some(vout) } else { None },
