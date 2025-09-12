@@ -41,7 +41,7 @@ The deposit process consists of several stages:
 Create a deposit address using your Citrea (EVM) address and recovery taproot address:
 
 ```sh
-clementine-cli deposit get-deposit-address <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit get-deposit-address [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 ```
 
 **Example:**
@@ -77,7 +77,7 @@ bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 **ONLINE DEVICE OPERATION:** Track the progress of your deposit throughout the bridging process:
 
 ```sh
-clementine-cli deposit status <DEPOSIT_ADDRESS>
+clementine-cli deposit status [--network <BITCOIN_NETWORK>] <DEPOSIT_ADDRESS>
 ```
 
 **Example:**
@@ -113,7 +113,7 @@ Gather all necessary information on your online device:
 **AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT>
+clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT>
 ```
 
 **Example:**
@@ -137,7 +137,7 @@ clementine-cli deposit create-signed-recovery-tx deptb1pd... 0x742d35... abc123d
 **Online Device:** Verify the recovery transaction details before broadcasting:
 
 ```sh
-clementine-cli deposit verify-recovery-tx <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]
+clementine-cli deposit verify-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]
 ```
 
 ### Broadcast Recovery Transaction (Online Device)
@@ -166,7 +166,7 @@ clementine-cli deposit broadcast-recovery-tx <RECOVERY_TX>
 Retrieve deposit parameters for advanced operations:
 
 ```sh
-clementine-cli deposit get-deposit-params <MOVE_TO_VAULT_TXID>
+clementine-cli deposit get-deposit-params [--network <BITCOIN_NETWORK>] <MOVE_TO_VAULT_TXID>
 ```
 
 ## Troubleshooting
