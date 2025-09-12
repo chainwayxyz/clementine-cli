@@ -1,7 +1,7 @@
 // Withdrawal-related commands and logic for Clementine CLI
 
 use crate::BitcoinAddress;
-use crate::api_utils::{get_tx_details, get_utxos};
+use crate::api_utils::{get_tx_details, get_utxos, is_tx_on_chain};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
@@ -354,6 +354,12 @@ pub async fn prepare_withdrawal_params(
     BridgeCliError,
 > {
     // Get the prepare tx details
+    if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
+        return Err(BridgeCliError::TransactionNotOnChain(
+            withdrawal_outpoint.txid,
+        ));
+    }
+
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 

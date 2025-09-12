@@ -696,8 +696,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "Operator-paid withdrawal signature hex: {}",
                             serialize_and_encode(operator_signature)
                         );
-                        println!();
-                        println!("Now run:");
+                        println!("If the transaction that created your withdrawal UTXO is not yet confirmed, please wait for it to be confirmed before proceeding.");
+                        println!("After its confirmation run:");
                         println!();
                         println!("clementine-cli withdraw safe-withdraw --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(optimistic_signature));
