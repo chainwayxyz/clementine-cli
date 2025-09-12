@@ -18,20 +18,10 @@ pub struct DepositStatus {
     pub status: String,
     pub txid: String,
     pub evm_addr: String,
+    pub move_tx_raw: String,
     pub move_txid: String,
     pub created_at: String,
     pub mint_txid: String,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WithdrawStatus {
-    pub idx: u64,
-    pub status: String,
-    pub btc_payment_txid: String,
-    pub from_safe_withdraw: bool,
-    pub optimistic_payout_started_at: Option<String>,
-    pub optimistic_payout_deadline_at: Option<String>,
-    pub created_at: String,
 }
 
 impl Display for DepositStatus {
@@ -48,15 +38,34 @@ impl Display for DepositStatus {
 
         write!(
             f,
-            "\nDeposit Info\n  ID:         {}\n  Status:     {}\n  TXID:       {}\n  EVM Addr:   {}\n  Move TXID:  {}\n  Mint TXID:  {}",
+            "\nDeposit Info\n  ID:                 {}\n  Status:             {}\n  TXID:               {}\n  EVM Addr:           {}\n  Raw MoveToVault TX: {}\n  Move TXID:          {}\n  Mint TXID:          {}",
             self.id,
             status,
             display_or(&self.txid),
             display_or(&self.evm_addr),
+            display_or(&self.move_tx_raw),
             display_or(&self.move_txid),
             display_or(&self.mint_txid)
         )
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WithdrawStatus {
+    pub idx: u64,
+    pub status: String,
+    pub btc_payment_txid: String,
+    pub from_safe_withdraw: bool,
+    pub optimistic_payout_started_at: Option<String>,
+    pub optimistic_payout_deadline_at: Option<String>,
+    pub created_at: String,
+    pub optimistic_payout_payment: Option<OptimisticPayoutStatus>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OptimisticPayoutStatus {
+    pub tx_raw: String,
+    pub txid: String,
 }
 
 impl Display for WithdrawStatus {
@@ -83,16 +92,23 @@ impl Display for WithdrawStatus {
             Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
         };
 
+        let optimistic_payout_display = format!(
+            "  Optimistic Payout Info\n    Raw TX: {}\n    TXID:   {}",
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.tx_raw)),
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.txid))
+        );
+
         write!(
             f,
-            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}",
+            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n{}",
             self.idx,
             status,
             display_or(&self.btc_payment_txid),
             display_t(&self.from_safe_withdraw),
             display_option_or(&self.optimistic_payout_started_at),
             display_option_or(&self.optimistic_payout_deadline_at),
-            display_or(&self.created_at)
+            display_or(&self.created_at),
+            optimistic_payout_display
         )
     }
 }
