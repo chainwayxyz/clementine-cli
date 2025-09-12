@@ -17,8 +17,7 @@ use crate::{
         MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
     },
     backend::{
-        DepositStatusWithVout, backend_deposit_status, backend_withdrawal_status,
-        send_withdrawal_signature_to_operators,
+        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
     },
     backup_wallet,
     config::BridgeCliConfig,
@@ -27,7 +26,8 @@ use crate::{
     generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
     import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
-    structs::{SecureString, TaprootAddressWithPrefix},
+    secure_types::SecureString,
+    structs::{DepositStatusWithVout, TaprootAddressWithPrefix},
     wallet::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
         mnemonic::prompt_mnemonic,
