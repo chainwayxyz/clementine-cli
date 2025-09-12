@@ -281,6 +281,14 @@ pub async fn deposit_status(
             Err(_) => (0, false),
         };
 
+        println!("{}", status);
+        let test_deposit_status_with_vout = DepositStatusWithVout {
+            deposit_status: status,
+            vout: None,
+        };
+
+        println!("{}", test_deposit_status_with_vout);
+
         let deposit_status_with_vout = DepositStatusWithVout {
             deposit_status: status,
             vout: if found { Some(vout) } else { None },
@@ -491,18 +499,10 @@ pub async fn cli_scan_withdrawals(
                 outpoint,
             );
         };
-        let print_operator_note = || {
-            println!(
-                "{} For operator-paid withdrawals, use the amount {}",
-                "Important Note".bold(),
-                config.operator_withdrawal_amount.to_sat()
-            )
-        };
         if utxos.len() == 1 {
             println!("Run:");
             let (outpoint, _) = &utxos[0];
             print_withdrawal_cmd(outpoint);
-            print_operator_note();
         } else {
             println!(
                 "{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation",
@@ -517,7 +517,6 @@ pub async fn cli_scan_withdrawals(
                 print_withdrawal_cmd(outpoint);
                 println!()
             }
-            print_operator_note();
         }
     }
 

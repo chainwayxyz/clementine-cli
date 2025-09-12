@@ -18,6 +18,7 @@ pub struct DepositStatus {
     pub status: String,
     pub txid: String,
     pub evm_addr: String,
+    pub move_tx_raw: String,
     pub move_txid: String,
     pub created_at: String,
     pub mint_txid: String,
@@ -26,17 +27,6 @@ pub struct DepositStatus {
 pub struct DepositStatusWithVout<'a> {
     pub deposit_status: &'a DepositStatus,
     pub vout: Option<u32>,
-}
-
-#[derive(Debug, Deserialize, Serialize)]
-pub struct WithdrawStatus {
-    pub idx: u64,
-    pub status: String,
-    pub btc_payment_txid: String,
-    pub from_safe_withdraw: bool,
-    pub optimistic_payout_started_at: Option<String>,
-    pub optimistic_payout_deadline_at: Option<String>,
-    pub created_at: String,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -48,6 +38,7 @@ fn format_deposit_status(
     vout: Option<u32>,
     evm_addr: &str,
     move_txid: &str,
+    move_tx_raw: &str,
     mint_txid: &str,
     print_na_for_vout: bool,
 ) -> std::fmt::Result {
@@ -60,20 +51,21 @@ fn format_deposit_status(
     };
 
     writeln!(f, "\nDeposit Info")?;
-    writeln!(f, "  ID:            {}", id)?;
-    writeln!(f, "  Status:        {}", status)?;
-    writeln!(f, "  TXID:          {}", display_or(txid))?;
+    writeln!(f, "  ID:                 {}", id)?;
+    writeln!(f, "  Status:             {}", status)?;
+    writeln!(f, "  TXID:               {}", display_or(txid))?;
     match vout {
-        Some(v) => writeln!(f, "  UTXO Outpoint: {}:{}", txid, v)?,
+        Some(v) => writeln!(f, "  UTXO Outpoint:      {}:{}", txid, v)?,
         None => {
             if print_na_for_vout {
-                writeln!(f, "  UTXO Outpoint: N/A")?
+                writeln!(f, "  UTXO Outpoint:      N/A")?
             }
         }
     }
-    writeln!(f, "  EVM Addr:      {}", display_or(evm_addr))?;
-    writeln!(f, "  Move TXID:     {}", display_or(move_txid))?;
-    writeln!(f, "  Mint TXID:     {}", display_or(mint_txid))
+    writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
+    writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;
+    writeln!(f, "  Mint TXID:          {}", display_or(mint_txid))?;
+    writeln!(f, "  Raw MoveToVault TX: {}", display_or(move_tx_raw))
 }
 
 // Overload for default print_na_for_vout = false
@@ -82,12 +74,22 @@ fn format_deposit_status_default(
     id: u64,
     status: &str,
     txid: &str,
+    move_tx_raw: &str,
     evm_addr: &str,
     move_txid: &str,
     mint_txid: &str,
 ) -> std::fmt::Result {
     format_deposit_status(
-        f, id, status, txid, None, evm_addr, move_txid, mint_txid, false,
+        f,
+        id,
+        status,
+        txid,
+        None,
+        evm_addr,
+        move_txid,
+        move_tx_raw,
+        mint_txid,
+        false,
     )
 }
 impl Display for DepositStatus {
@@ -102,6 +104,7 @@ impl Display for DepositStatus {
             self.id,
             &status,
             &self.txid,
+            &self.move_tx_raw,
             &self.evm_addr,
             &self.move_txid,
             &self.mint_txid,
@@ -124,10 +127,29 @@ impl Display for DepositStatusWithVout<'_> {
             self.vout,
             &self.deposit_status.evm_addr,
             &self.deposit_status.move_txid,
+            &self.deposit_status.move_tx_raw,
             &self.deposit_status.mint_txid,
             true,
         )
     }
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct WithdrawStatus {
+    pub idx: u64,
+    pub status: String,
+    pub btc_payment_txid: String,
+    pub from_safe_withdraw: bool,
+    pub optimistic_payout_started_at: Option<String>,
+    pub optimistic_payout_deadline_at: Option<String>,
+    pub created_at: String,
+    pub optimistic_payout_payment: Option<OptimisticPayoutStatus>,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct OptimisticPayoutStatus {
+    pub tx_raw: String,
+    pub txid: String,
 }
 
 impl Display for WithdrawStatus {
@@ -154,16 +176,23 @@ impl Display for WithdrawStatus {
             Cow::Owned(WithdrawStatusEnum::from_backend_status(&self.status).as_string())
         };
 
+        let optimistic_payout_display = format!(
+            "  Optimistic Payout Info\n    Raw TX: {}\n    TXID:   {}",
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.tx_raw)),
+            display_option_or(&self.optimistic_payout_payment.as_ref().map(|p| &p.txid))
+        );
+
         write!(
             f,
-            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}",
+            "\nWithdrawal Info\n  Index:                {}\n  Status:               {}\n  BTC Payment TXID:     {}\n  From Safe Withdraw:   {}\n  Payout Started:       {}\n  Payout Deadline:      {}\n  Created:              {}\n{}",
             self.idx,
             status,
             display_or(&self.btc_payment_txid),
             display_t(&self.from_safe_withdraw),
             display_option_or(&self.optimistic_payout_started_at),
             display_option_or(&self.optimistic_payout_deadline_at),
-            display_or(&self.created_at)
+            display_or(&self.created_at),
+            optimistic_payout_display
         )
     }
 }
