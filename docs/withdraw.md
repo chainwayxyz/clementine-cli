@@ -43,10 +43,10 @@ clementine-cli withdraw start --network <BITCOIN_NETWORK> <SIGNER_ADDRESS> <DEST
 - `DESTINATION_ADDRESS`: Bitcoin address where funds will be sent
 
 > [!TIP]
-> After you start a withdrawal with `withdrawal start` command, it will prompt
-> you the next steps with correct values. You may be better off returning this
-> document though, as there are details and security suggestions for the next
-> steps.
+> After you start a withdrawal with the withdrawal start command, it will prompt
+> you with the next steps and the correct values. However, you may want to
+> return to this document, as it contains details and security suggestions for
+> the following steps.
 
 **Example:**
 
