@@ -3,7 +3,7 @@
 Clementine CLI provides comprehensive wallet management capabilities with strong security features. All wallet operations can be performed offline for maximum security.
 
 > [!CAUTION]
-> Don't forget to specify `--network` flag, if you plan to use a diffrent Bitcoin
+> Don't forget to specify `--network` flag, if you plan to use a different Bitcoin
 > network, other than the mainnet: Mainnet is selected implicitly for every
 > command.
 
