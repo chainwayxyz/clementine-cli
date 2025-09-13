@@ -15,6 +15,10 @@ use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
 
 use crate::secure_types::{SecureSecretKey, SecureString};
+use crossterm::{
+    cursor::MoveTo,
+    terminal::{Clear, ClearType},
+};
 
 /// Display timeout for individual words (30 seconds)
 const WORD_TIMEOUT_SECS: u64 = 30;
@@ -64,7 +68,12 @@ impl<'a> SecureMnemonicDisplay<'a> {
     /// Display the mnemonic in a secure alternate screen
     fn display_securely(&mut self) -> Result<()> {
         // Show pre-display warning
-        self.show_timeout_warning()?;
+        let resp = self.show_timeout_warning()?;
+
+        if resp == MnemomicDisplayResult::EarlyExit {
+            println!("{}", "Mnemonic display cancelled by user.".bold());
+            return Ok(());
+        }
 
         // Try to enter alternate screen, fallback to normal display if it fails
         match self.enter_alternate_screen() {
@@ -73,9 +82,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 self.cleanup_alternate_screen();
                 match result {
                     Ok(MnemomicDisplayResult::EarlyExit) => {
-                        println!();
                         println!("{}", "Mnemonic display cancelled by user.".bold());
-                        println!();
                         Ok(())
                     }
                     Ok(MnemomicDisplayResult::Completed) => Ok(()),
@@ -98,41 +105,122 @@ impl<'a> SecureMnemonicDisplay<'a> {
     }
 
     /// Show timeout warning before displaying the mnemonic
-    fn show_timeout_warning(&self) -> Result<()> {
-        println!();
-        println!("{}", "IMPORTANT SECURITY NOTICE".bold());
-        println!();
-        println!("{}", " STEP-BY-STEP DISPLAY MODE:".bold());
-        println!(
-            "   - The mnemonic will be displayed {} at a time",
+    fn show_timeout_warning(&self) -> Result<MnemomicDisplayResult> {
+        use crossterm::{
+            cursor::MoveTo,
+            execute,
+            terminal::{Clear, ClearType},
+        };
+        use std::io::Write;
+
+        let mut in_alt_screen = false;
+        if self.is_alternate_screen_supported() {
+            if terminal::enable_raw_mode().is_ok() {
+                if execute!(
+                    io::stdout(),
+                    EnterAlternateScreen,
+                    Clear(ClearType::All),
+                    MoveTo(0, 0)
+                )
+                .is_ok()
+                {
+                    in_alt_screen = true;
+                } else {
+                    let _ = terminal::disable_raw_mode();
+                }
+            }
+        } else {
+            execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0))?;
+        }
+
+        print!("{}", " STEP-BY-STEP DISPLAY MODE:\r\n".bold());
+        print!(
+            "   - The mnemonic will be displayed {} at a time\r\n",
             "ONE WORD".bold()
         );
-        println!(
-            "   - Each word has a {} timeout before auto-advancing",
+        print!(
+            "   - Each word has a {} timeout before auto-advancing\r\n",
             "30-second".bold()
         );
-        println!("   - Press Enter to advance immediately to the next word");
-        println!("   - Write down each word as it appears");
-        println!("   - This is a security feature to prevent prolonged exposure");
-        println!();
-        println!("{}", "  PREPARATION CHECKLIST:".bold());
-        println!("   - Have pen and paper ready");
-        println!("   - Ensure you have good lighting");
-        println!("   - Find a private, secure location");
-        println!("   - Remove any recording devices or cameras");
-        println!("   - Be ready to write quickly and legibly");
-        println!();
-        println!(
+        print!("   - Press Enter to advance immediately to the next word\r\n");
+        print!("   - Write down each word as it appears\r\n");
+        print!("   - This is a security feature to prevent prolonged exposure\r\n"); //\r\n
+        print!("{}", "  PREPARATION CHECKLIST:\r\n".bold());
+        print!("   - Have pen and paper ready\r\n");
+        print!("   - Ensure you have good lighting\r\n");
+        print!("   - Find a private, secure location\r\n");
+        print!("   - Remove any recording devices or cameras\r\n");
+        print!("   - Be ready to write quickly and legibly\r\n"); //\r\n
+        print!(
             "{}",
-            "Press Enter when you are ready to view the mnemonic step-by-step...".bold()
+            "Press Enter when you are ready to view the mnemonic step-by-step...\r\n".bold()
         );
+        print!("(Press ESC to cancel and return to the main menu)\r\n");
 
-        let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(|e| eyre!("Failed to read user input: {}", e))?;
-
-        Ok(())
+        // If in alternate screen, handle ESC/Enter with raw mode
+        if in_alt_screen {
+            loop {
+                if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
+                    && let Event::Key(key_event) =
+                        event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    match key_event.code {
+                        KeyCode::Enter => {
+                            // Clear the screen so the warning disappears
+                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+                            let _ = io::stdout().flush();
+                            // Clean up alternate screen before returning
+                            let _ = terminal::disable_raw_mode();
+                            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+                            let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
+                            let _ = io::stdout().flush();
+                            return Ok(MnemomicDisplayResult::Completed);
+                        }
+                        KeyCode::Esc => {
+                            // Clear the screen so the warning disappears
+                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+                            let _ = io::stdout().flush();
+                            // Clean up alternate screen before returning error
+                            let _ = terminal::disable_raw_mode();
+                            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+                            let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
+                            let _ = io::stdout().flush();
+                            return Ok(MnemomicDisplayResult::EarlyExit);
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        } else {
+            // Fallback: use crossterm event polling for instant Enter/ESC, with raw mode
+            let _ = crossterm::terminal::enable_raw_mode();
+            let result = loop {
+                if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
+                    && let Event::Key(key_event) =
+                        event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
+                    && key_event.kind == KeyEventKind::Press
+                {
+                    match key_event.code {
+                        KeyCode::Enter => {
+                            // Clear the screen so the warning disappears
+                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+                            let _ = io::stdout().flush();
+                            break Ok(MnemomicDisplayResult::Completed);
+                        }
+                        KeyCode::Esc => {
+                            // Clear the screen so the warning disappears
+                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+                            let _ = io::stdout().flush();
+                            break Ok(MnemomicDisplayResult::EarlyExit);
+                        }
+                        _ => {}
+                    }
+                }
+            };
+            let _ = crossterm::terminal::disable_raw_mode();
+            result
+        }
     }
 
     /// Enter alternate screen mode with proper error handling
@@ -377,7 +465,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
             let total_words = words.len();
             let word = word.expose_secret();
 
-            println!();
+            // Clear screen before showing each word
+            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+            let _ = io::stdout().flush();
+
             println!(
                 "{}",
                 format!("━━━ Word {word_num} of {total_words} ━━━").bold()
@@ -390,16 +481,26 @@ impl<'a> SecureMnemonicDisplay<'a> {
             println!();
             println!("   Remember: Anyone with your complete mnemonic can access your funds!");
 
-            // Wait for user input or timeout for each word
-            if let Err(e) = self.fallback_word_timeout_wait() {
-                return Err(eyre!("Error during word display: {}", e));
+            // Use the same confirmation logic as alternate screen
+            let resp = self
+                .fallback_word_timeout_wait()
+                .map_err(|e| eyre!("Error during word display: {}", e))?;
+
+            // Clear the screen after each word
+            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+            let _ = io::stdout().flush();
+
+            if UserInput::Exit == resp {
+                println!("Mnemonic display cancelled by user.");
+                return Ok(());
             }
         }
 
-        println!();
+        // Final message: just a simple completion message, then clear only the visible screen (not scrollback)
+        let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+        let _ = io::stdout().flush();
         println!("{}", "  All words have been displayed!".bold());
         println!("Store your written mnemonic in a secure location.");
-        println!("The mnemonic will be cleared from memory after this display.");
         println!();
         println!("Press Enter to exit...");
 
@@ -407,71 +508,65 @@ impl<'a> SecureMnemonicDisplay<'a> {
         io::stdin()
             .read_line(&mut input)
             .map_err(|e| eyre!("Failed to read user input: {}", e))?;
-
+        // Do NOT clear scrollback here, just clear visible screen
+        let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
+        let _ = io::stdout().flush();
         Ok(())
     }
 
     /// Handle timeout for each word in fallback mode
-    fn fallback_word_timeout_wait(&self) -> Result<()> {
+    fn fallback_word_timeout_wait(&self) -> Result<UserInput> {
+        use crossterm::event::{Event, KeyCode, KeyEventKind, poll, read};
         let start_time = Instant::now();
 
+        // Enable raw mode for instant key detection
+        let _ = crossterm::terminal::enable_raw_mode();
+
         println!();
-        print!("Press Enter to continue... ");
         io::stdout()
             .flush()
             .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
 
-        // Use a separate thread to handle the timeout
-        let (tx, rx) = std::sync::mpsc::channel();
-
-        // Spawn thread for user input
-        let tx_input = tx.clone();
-        std::thread::spawn(move || {
-            let mut input = String::new();
-            if std::io::stdin().read_line(&mut input).is_ok() {
-                let _ = tx_input.send(true);
-            }
-        });
-
-        // Spawn thread for timeout
-        std::thread::spawn(move || {
-            std::thread::sleep(WORD_TIMEOUT_DURATION);
-            let _ = tx.send(false);
-        });
-
-        // Update countdown while waiting
         loop {
             let elapsed = start_time.elapsed();
             let remaining = WORD_TIMEOUT_DURATION.saturating_sub(elapsed);
 
             if remaining.is_zero() {
+                let _ = crossterm::terminal::disable_raw_mode();
                 println!();
                 println!("⏰ Auto-advancing to next word...");
-                break;
+                return Ok(UserInput::Continue);
             }
 
-            // Check if we received a signal
-            if let Ok(user_input) = rx.try_recv() {
-                if user_input {
-                    println!("Continuing to next word...");
-                } else {
-                    println!();
-                    println!("⏰ Auto-advancing to next word...");
+            // Poll for key events (ESC/Enter)
+            if poll(POLL_INTERVAL).unwrap_or(false)
+                && let Ok(Event::Key(key_event)) = read()
+                && key_event.kind == KeyEventKind::Press
+            {
+                match key_event.code {
+                    KeyCode::Enter => {
+                        let _ = crossterm::terminal::disable_raw_mode();
+                        println!("Continuing to next word...");
+                        return Ok(UserInput::Continue);
+                    }
+                    KeyCode::Esc => {
+                        let _ = crossterm::terminal::disable_raw_mode();
+                        println!("Mnemonic display cancelled by user.");
+                        return Ok(UserInput::Exit);
+                    }
+                    _ => {}
                 }
-                break;
             }
 
             // Update countdown every second
             let seconds_left = remaining.as_secs();
-            print!("\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... ");
+            print!(
+                "\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... (ESC to cancel) "
+            );
             io::stdout()
                 .flush()
                 .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
-
-            std::thread::sleep(Duration::from_millis(1000));
         }
-
-        Ok(())
     }
 }
 

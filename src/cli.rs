@@ -1,4 +1,6 @@
+use std::io::Write;
 use std::{
+    io,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -43,6 +45,15 @@ use crate::{
     withdraw::{self, get_withdrawal_index, start_withdrawal},
 };
 
+use crossterm::cursor::{MoveToColumn, SavePosition};
+use crossterm::terminal::{Clear, ClearType};
+use crossterm::{
+    cursor::MoveUp,
+    event::{Event, KeyEventKind, poll, read},
+    execute,
+};
+use std::time::Duration;
+
 pub fn cli_create_wallet(
     network: Network,
     label: String,
@@ -54,14 +65,41 @@ pub fn cli_create_wallet(
     let passphrase = prompt_passphrase(true)?;
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
 
-    println!(
-        "{} Wallet created with address: {}",
+    let _ = crossterm::terminal::enable_raw_mode();
+    let _ = crossterm::execute!(
+        io::stdout(),
+        crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
+    );
+    let _ = crossterm::execute!(io::stdout(), crossterm::cursor::MoveTo(0, 0));
+    print!(
+        "{} Wallet created with address: {}\r\n",
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
 
-    // Sleep for 2 seconds to allow user to see the success message before showing mnemonic
-    std::thread::sleep(std::time::Duration::from_secs(2));
+    print!("Press any key to continue...\r\n");
+    io::stdout().flush().ok();
+
+    // Save the cursor *after* the prompt (the natural place you want to end up)
+    execute!(io::stdout(), SavePosition)?;
+
+    loop {
+        if poll(Duration::from_secs(60)).unwrap_or(false)
+            && let Ok(Event::Key(key_event)) = read()
+            && key_event.kind == KeyEventKind::Press
+        {
+            // Remove the prompt line but keep the cursor where it naturally was
+            execute!(
+                io::stdout(),
+                MoveUp(1),
+                Clear(ClearType::CurrentLine),
+                MoveToColumn(0),
+            )?;
+            break;
+        }
+    }
+
+    let _ = crossterm::terminal::disable_raw_mode();
 
     display_mnemonic_securely(&mnemonic)?;
 
