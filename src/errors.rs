@@ -176,7 +176,7 @@ pub enum BridgeCliError {
     #[error("Can't find the UTXO {0} in withdrawals")]
     CantFindUTXO(OutPoint),
 
-    #[error("Transaction {0} is not found on chain")]
+    #[error("Transaction {0} is not found on chain, maybe wait for confirmation")]
     TransactionNotOnChain(bitcoin::Txid),
 
     // Module specific errors

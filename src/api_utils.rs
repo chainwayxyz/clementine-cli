@@ -405,7 +405,9 @@ async fn is_tx_on_chain_mempool_space(
         .join(&format!("tx/{}/status", txid))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
+    tracing::debug!("Is tx on chain from mempool.space response: {:?}", resp);
     let status: UtxoStatus = resp.json().await?;
+    tracing::debug!("Is tx on chain from mempool.space status: {:?}", status);
     Ok(status.confirmed)
 }
 
