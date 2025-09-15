@@ -319,7 +319,7 @@ pub async fn deposit_create_signed_recovery_tx(
     outpoint: &OutPoint,
     destination_addr: &BitcoinAddress,
     fee_rate: u64,
-    amount: f64,
+    amount: u64,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;

@@ -2,7 +2,7 @@
 
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
+use crate::bitcoin_utils::{calculate_deposit_address, convert_sats_to_amount};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
@@ -22,7 +22,7 @@ pub struct RecoveryTxParams {
     pub outpoint: OutPoint,
     pub destination_addr: BitcoinAddress,
     pub fee_rate: Option<u64>,
-    pub amount: Option<f64>,
+    pub amount: Option<u64>,
 }
 
 /// Parameters for verifying a recovery transaction
@@ -31,7 +31,7 @@ pub struct VerifyRecoveryTxParams {
     pub recovery_tx: Transaction,
     pub citrea_address: CitreaAddress,
     pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    pub amount: Option<f64>,
+    pub amount: Option<u64>,
 }
 
 pub(crate) enum DepositStatusEnum {
@@ -136,7 +136,7 @@ pub fn create_signed_recovery_tx(
     ensure_wallet_exists(&params.recovery_taproot_address)?;
 
     // Convert BTC amount to satoshis if provided
-    let deposit_amount = convert_btc_to_amount(params.amount)?;
+    let deposit_amount = convert_sats_to_amount(params.amount)?;
 
     let fee_rate = params
         .fee_rate
@@ -167,7 +167,7 @@ pub fn verify_recovery_tx(
         &params.recovery_tx,
         &params.citrea_address,
         &params.recovery_taproot_address.address,
-        convert_btc_to_amount(params.amount)?,
+        convert_sats_to_amount(params.amount)?,
         config,
     )?;
 

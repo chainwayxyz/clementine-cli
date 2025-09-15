@@ -22,9 +22,9 @@ pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
 /// Convert optional BTC amount to optional Amount (reduces duplication)
-pub fn convert_btc_to_amount(btc_amount: Option<f64>) -> Result<Option<Amount>, BridgeCliError> {
-    match btc_amount {
-        Some(btc) => Ok(Some(Amount::from_btc(btc)?)),
+pub fn convert_sats_to_amount(sats_amount: Option<u64>) -> Result<Option<Amount>, BridgeCliError> {
+    match sats_amount {
+        Some(sats) => Ok(Some(Amount::from_sat(sats))),
         None => Ok(None),
     }
 }
