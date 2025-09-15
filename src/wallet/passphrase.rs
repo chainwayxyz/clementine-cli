@@ -97,11 +97,6 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
         }
     }
 
-    println!(
-        "{} Private key will be encrypted with AES-256-GCM",
-        "SECURE".bold()
-    );
-
     let secure_passphrase = SecureString::init_with(|| passphrase);
 
     Ok(secure_passphrase)

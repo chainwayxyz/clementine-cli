@@ -66,11 +66,7 @@ pub fn cli_create_wallet(
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
 
     let _ = crossterm::terminal::enable_raw_mode();
-    let _ = crossterm::execute!(
-        io::stdout(),
-        crossterm::terminal::Clear(crossterm::terminal::ClearType::All)
-    );
-    let _ = crossterm::execute!(io::stdout(), crossterm::cursor::MoveTo(0, 0));
+    print!("\r\n");
     print!(
         "{} Wallet created with address: {}\r\n",
         "SUCCESS".bold(),
