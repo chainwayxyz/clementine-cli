@@ -106,13 +106,6 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
     /// Show timeout warning before displaying the mnemonic
     fn show_timeout_warning(&self) -> Result<MnemomicDisplayResult> {
-        use crossterm::{
-            cursor::MoveTo,
-            execute,
-            terminal::{Clear, ClearType},
-        };
-        use std::io::Write;
-
         let mut in_alt_screen = false;
         if self.is_alternate_screen_supported() {
             if terminal::enable_raw_mode().is_ok() {
@@ -144,13 +137,13 @@ impl<'a> SecureMnemonicDisplay<'a> {
         );
         print!("   - Press Enter to advance immediately to the next word\r\n");
         print!("   - Write down each word as it appears\r\n");
-        print!("   - This is a security feature to prevent prolonged exposure\r\n"); //\r\n
+        print!("   - This is a security feature to prevent prolonged exposure\r\n\r\n");
         print!("{}", "  PREPARATION CHECKLIST:\r\n".bold());
         print!("   - Have pen and paper ready\r\n");
         print!("   - Ensure you have good lighting\r\n");
         print!("   - Find a private, secure location\r\n");
         print!("   - Remove any recording devices or cameras\r\n");
-        print!("   - Be ready to write quickly and legibly\r\n"); //\r\n
+        print!("   - Be ready to write quickly and legibly\r\n\r\n");
         print!(
             "{}",
             "Press Enter when you are ready to view the mnemonic step-by-step...\r\n".bold()
