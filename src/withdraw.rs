@@ -19,7 +19,7 @@ use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
 use bitcoin::hashes::Hash;
 use bitcoin::taproot::Signature;
-use bitcoin::{Amount, Network, OutPoint, TxOut, Txid};
+use bitcoin::{Amount, OutPoint, TxOut, Txid};
 use eyre::Context;
 use serde_json::json;
 use urlencoding::encode;
@@ -108,7 +108,7 @@ pub fn generate_withdrawal_signatures(
     withdrawal_utxo: &OutPoint,
     optimistic_withdrawal_amount: &Amount,
     operator_withdrawal_amount: &Amount,
-    network: Network,
+    config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
     ensure_wallet_exists(signer_address)?;
 
@@ -124,7 +124,7 @@ pub fn generate_withdrawal_signatures(
         let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
             &destination_address.to_string(),
             Purpose::Withdrawal,
-            network,
+            config.network,
         )?;
 
         // Check if the claim address belongs to any of our wallets
@@ -139,6 +139,7 @@ pub fn generate_withdrawal_signatures(
         withdrawal_utxo,
         destination_address,
         *optimistic_withdrawal_amount,
+        config,
     )?;
 
     let operator_withdrawal_signature = sign_withdrawal_signature(
@@ -147,6 +148,7 @@ pub fn generate_withdrawal_signatures(
         withdrawal_utxo,
         destination_address,
         *operator_withdrawal_amount,
+        config,
     )?;
 
     Ok((
@@ -177,6 +179,7 @@ pub async fn safe_withdraw(
         withdrawal_outpoint,
         destination_address,
         *withdrawal_amount,
+        config,
     )?;
 
     let params =
@@ -230,6 +233,7 @@ pub async fn send_safe_withdrawal(
         &params.withdrawal_outpoint,
         &params.destination_address,
         params.withdrawal_amount,
+        config,
     )?;
 
     let withdrawal_params = prepare_withdrawal_params(
