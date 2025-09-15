@@ -18,7 +18,6 @@ use std::sync::LazyLock;
 pub static SECP: LazyLock<Secp256k1<bitcoin::secp256k1::All>> = LazyLock::new(Secp256k1::new);
 
 // Constants to reduce magic number duplication
-pub const WITHDRAWAL_UTXO_AMOUNT: Amount = Amount::from_sat(330);
 pub const SATS_TO_WEI_MULTIPLIER: u64 = 10_000_000_000;
 
 /// Convert optional BTC amount to optional Amount (reduces duplication)
@@ -317,9 +316,10 @@ pub(crate) fn sign_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     destination_address: &BitcoinAddress,
     amount: Amount,
+    config: &BridgeCliConfig,
 ) -> Result<bitcoin::taproot::Signature, BridgeCliError> {
     let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, destination_address, amount);
-    let prevout = create_withdrawal_prevout(signer_address);
+    let prevout = create_withdrawal_prevout(signer_address, config);
 
     let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
     let sig = sign_with_tweak(keypair, sighash, None);
@@ -361,9 +361,10 @@ pub(crate) fn verify_withdrawal_signature(
     withdrawal_utxo: &OutPoint,
     destination_address: &BitcoinAddress,
     amount: Amount,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
     let withdrawal_tx = create_withdrawal_transaction(withdrawal_utxo, destination_address, amount);
-    let prevout = create_withdrawal_prevout(signer_address);
+    let prevout = create_withdrawal_prevout(signer_address, config);
 
     let sighash = create_withdrawal_sighash(&withdrawal_tx, &prevout)?;
 
@@ -393,9 +394,9 @@ fn create_withdrawal_sighash(
 }
 
 /// Create prevout for withdrawal transactions (reduces duplication)
-fn create_withdrawal_prevout(signer_address: &BitcoinAddress) -> TxOut {
+fn create_withdrawal_prevout(signer_address: &BitcoinAddress, config: &BridgeCliConfig) -> TxOut {
     TxOut {
-        value: WITHDRAWAL_UTXO_AMOUNT,
+        value: config.dust_utxo_amount,
         script_pubkey: signer_address.script_pubkey(),
     }
 }
@@ -461,6 +462,7 @@ mod tests {
                 bridge_amount: Amount::from_sat(100000),
                 optimistic_withdrawal_amount: Amount::from_sat(50000),
                 operator_withdrawal_amount: Amount::from_sat(1000),
+                dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
                 bitcoin_config: None,
             },
