@@ -353,13 +353,13 @@ pub async fn prepare_withdrawal_params(
     ),
     BridgeCliError,
 > {
-    // Get the prepare tx details
     if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
         return Err(BridgeCliError::TransactionNotOnChain(
             withdrawal_outpoint.txid,
         ));
     }
 
+    // Get the prepare tx details
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
