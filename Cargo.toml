@@ -45,7 +45,7 @@ argon2 = "0.5"
 dirs = "5.0"
 crossterm = "0.28"
 tracing = "0.1.41"
-tracing-subscriber = { version = "0.3.19", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 alloy = { version = "1.0.30", features = [
   "contract",
   "sol-types",
