@@ -12,7 +12,7 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::{
-    BitcoinAddress, CitreaAddress, WITHDRAWAL_UTXO_AMOUNT,
+    BitcoinAddress, CitreaAddress,
     api_utils::{
         MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
     },
@@ -454,7 +454,7 @@ pub async fn cli_scan_withdrawals(
 
     let utxos_with_wrong_amount: Vec<_> = utxos
         .iter()
-        .filter(|(_, amount)| *amount != WITHDRAWAL_UTXO_AMOUNT)
+        .filter(|(_, amount)| *amount != config.dust_utxo_amount)
         .collect();
 
     if !utxos_with_wrong_amount.is_empty() {
@@ -475,11 +475,12 @@ pub async fn cli_scan_withdrawals(
         println!();
     }
 
-    utxos.retain(|(_, amount)| *amount == WITHDRAWAL_UTXO_AMOUNT);
+    utxos.retain(|(_, amount)| *amount == config.dust_utxo_amount);
 
     if utxos.is_empty() {
         eprintln!(
-            "No UTXOs found. Please send 0.00000330 btc first using 'withdrawal start' command"
+            "No UTXOs found. Please send {} btc first using 'withdrawal start' command",
+            config.dust_utxo_amount.to_btc()
         );
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
@@ -521,7 +522,7 @@ pub fn cli_generate_withdrawal_signatures(
     withdrawal_utxo: &OutPoint,
     optimistic_withdrawal_amount: &Amount,
     operator_withdrawal_amount: &Amount,
-    network: Network,
+    config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
@@ -535,6 +536,6 @@ pub fn cli_generate_withdrawal_signatures(
         withdrawal_utxo,
         optimistic_withdrawal_amount,
         operator_withdrawal_amount,
-        network,
+        config,
     )
 }

@@ -612,16 +612,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     cli_start_withdrawal(&signer_address, &destination_address, &config),
                     _result => {
-                        println!("Send exactly {} sats to {}", clementine_cli::WITHDRAWAL_UTXO_AMOUNT, signer_address.address_without_prefix());
+                        println!("Send exactly {} sats to {}", config.dust_utxo_amount.to_sat(), signer_address.address_without_prefix());
                         println!("You can use:");
                         println!("{} sendtoaddress {} 0.00000{}",
                             get_bitcoin_cli_command(&config),
-                            signer_address.address_without_prefix(), clementine_cli::WITHDRAWAL_UTXO_AMOUNT.to_sat());
+                            signer_address.address_without_prefix(), config.dust_utxo_amount.to_sat());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli withdraw scan --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), destination_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
+                        println!();
+                        println!("{} If your wallet cannot send exactly {} sats, you may send a higher supported amount. Be sure to update the config to match the amount you actually sent before proceeding.", "WARNING".bold(), config.dust_utxo_amount.to_sat());
                     }
                 );
             }
@@ -683,7 +685,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &withdrawal_outpoint,
                         &config.optimistic_withdrawal_amount,
                         &config.operator_withdrawal_amount,
-                        network,
+                        &config,
                     ),
                     (optimistic_signature, operator_signature) => {
                         println!();
