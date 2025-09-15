@@ -144,6 +144,7 @@ impl BridgeCliConfig {
         }
     }
 
+    #[cfg(test)]
     /// Creates a default configuration based on the network.
     pub fn from_network(network: Network) -> Self {
         let mut config = BridgeCliConfig {

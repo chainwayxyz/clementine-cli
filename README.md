@@ -14,7 +14,7 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 
 ### Prerequisites
 
-- **Online Device**: Bitcoin node or mempool.space API access
+- **Online Device**: Bitcoin node or [mempool.space API](https://mempool.space/docs/api/rest) access
 - **Both Devices**: Rust and Clementine CLI installation, secure data transfer method (USB, QR codes)
 
 ### Configuration
@@ -25,7 +25,7 @@ Bitcoin RPC connection. For each network you wish to use Clementine Bridge on,
 you need to provide correct Bitcoin RPC configuration.
 
 > [!IMPORTANT]
-> If a protocol wide change is introduced by Chainway Labs, you will need to
+> If a protocol-wide change is introduced by Chainway Labs, you will need to
 > update your configuration file with the new settings.
 
 ### Installing
