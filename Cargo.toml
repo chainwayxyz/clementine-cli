@@ -12,7 +12,7 @@ path = "src/lib.rs"
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
 reqwest = { version = "0.12.22", features = ["blocking", "json"] }
 clap = { version = "4.5.4", features = ["derive"] }
-serde = { version = "1.0", features = ["derive"] }
+serde = { version = "=1.0.210", features = ["derive"] }
 serde_json = "1.0"
 chrono = { version = "0.4", features = ["serde"] }
 hex = "0.4"
