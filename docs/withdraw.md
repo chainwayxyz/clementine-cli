@@ -99,6 +99,9 @@ bitcoin-cli -testnet4 sendtoaddress <SIGNER_ADDRESS> <AMOUNT>
 bitcoin-cli -testnet4 sendtoaddress wittb1pf... 0.00000330
 ```
 
+> [!IMPORTANT]
+> If your wallet cannot send exactly 330 sats, you may send a higher supported amount. Be sure to update the config to match the amount you actually sent before proceeding. 
+
 This creates the 0-value UTXO needed for the withdrawal operation.
 
 ## Step 4: Scan for Withdrawals

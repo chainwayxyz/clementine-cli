@@ -459,14 +459,16 @@ pub async fn cli_scan_withdrawals(
 
     if !utxos_with_wrong_amount.is_empty() {
         eprintln!(
-            "{} The following UTXOs have amounts different than 0.00000330 btc. They will be ignored for withdrawal operations.",
+            "{} The following UTXOs have amounts different than {} btc. They will be ignored for withdrawal operations.",
+            config.dust_utxo_amount.to_btc(),
             "WARNING".bold()
         );
         for (outpoint, amount) in utxos_with_wrong_amount {
             eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
         }
         eprintln!(
-            "Please ensure you send exactly 0.00000330 btc to the signer address for each withdrawal operation."
+            "Please ensure you send exactly {} btc to the signer address for each withdrawal operation.",
+            config.dust_utxo_amount.to_btc()
         );
 
         // sleep for 2 seconds to ensure user sees the warning
