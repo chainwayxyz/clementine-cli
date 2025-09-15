@@ -369,6 +369,61 @@ pub async fn get_mempool_txs(
     Ok(txs)
 }
 
+pub async fn is_tx_on_chain(txid: &Txid, config: &BridgeCliConfig) -> Result<bool, BridgeCliError> {
+    match is_tx_on_chain_mempool_space(txid, config).await {
+        Ok(is_confirmed) => Ok(is_confirmed),
+        Err(mempool_error) => {
+            tracing::warn!(
+                "Mempool API failed for is_tx_on_chain: {}, falling back to Bitcoin RPC",
+                mempool_error
+            );
+
+            if config.bitcoin_config.is_some() {
+                is_tx_on_chain_bitcoin_rpc(txid, config).await
+            } else {
+                Err(mempool_error)
+            }
+        }
+    }
+}
+
+async fn is_tx_on_chain_mempool_space(
+    txid: &Txid,
+    config: &BridgeCliConfig,
+) -> Result<bool, BridgeCliError> {
+    if config.network == bitcoin::Network::Regtest {
+        tracing::warn!(
+            "Transaction status fetching using txid from mempool.space is disabled in regtest mode."
+        );
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Transaction status fetching using txid is disabled in regtest mode."
+        )));
+    }
+
+    let url = config
+        .mempool_api_url
+        .join(&format!("tx/{}/status", txid))
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+    let resp = reqwest::get(url).await?.error_for_status()?;
+    tracing::debug!("Is tx on chain from mempool.space response: {:?}", resp);
+    let status: UtxoStatus = resp.json().await?;
+    tracing::debug!("Is tx on chain from mempool.space status: {:?}", status);
+    Ok(status.confirmed)
+}
+
+async fn is_tx_on_chain_bitcoin_rpc(
+    txid: &Txid,
+    config: &BridgeCliConfig,
+) -> Result<bool, BridgeCliError> {
+    let rpc = config.connect_to_bitcoin_rpc().await?;
+    Ok(rpc
+        .get_raw_transaction_info(txid, None)
+        .await
+        .ok()
+        .and_then(|s| s.blockhash)
+        .is_some())
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{
