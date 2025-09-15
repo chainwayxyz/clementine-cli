@@ -65,7 +65,11 @@ pub fn cli_create_wallet(
     let passphrase = prompt_passphrase(true)?;
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
 
-    let _ = crossterm::terminal::enable_raw_mode();
+    // Use shared RAII guard for safe terminal state management
+    use crate::secure_display::terminal_guards::RawModeGuard;
+    let _raw_guard = RawModeGuard::new()
+        .map_err(BridgeCliError::Eyre)?;
+
     print!("\r\n");
     print!(
         "{} Wallet created with address: {}\r\n",
@@ -74,17 +78,16 @@ pub fn cli_create_wallet(
     );
 
     print!("Press any key to continue...\r\n");
-    io::stdout().flush().ok();
+    io::stdout().flush()?;
 
-    // Save the cursor *after* the prompt (the natural place you want to end up)
     execute!(io::stdout(), SavePosition)?;
 
     loop {
-        if poll(Duration::from_secs(60)).unwrap_or(false)
+        if poll(Duration::from_secs(10))
+            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to poll input: {}", e)))?
             && let Ok(Event::Key(key_event)) = read()
             && key_event.kind == KeyEventKind::Press
         {
-            // Remove the prompt line but keep the cursor where it naturally was
             execute!(
                 io::stdout(),
                 MoveUp(1),
@@ -94,8 +97,6 @@ pub fn cli_create_wallet(
             break;
         }
     }
-
-    let _ = crossterm::terminal::disable_raw_mode();
 
     display_mnemonic_securely(&mnemonic)?;
 

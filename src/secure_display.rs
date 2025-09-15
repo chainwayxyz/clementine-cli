@@ -20,6 +20,71 @@ use crossterm::{
     terminal::{Clear, ClearType},
 };
 
+/// Terminal state management utilities
+pub(crate) mod terminal_guards {
+    use super::*;
+
+    /// RAII guard that ensures terminal raw mode is properly disabled when dropped.
+    /// Raw mode disables line buffering and echo, which can leave the terminal
+    /// in an unusable state if not properly cleaned up.
+    pub(crate) struct RawModeGuard;
+
+    impl RawModeGuard {
+        /// Enables raw mode and returns a guard that will disable it on drop.
+        pub(crate) fn new() -> Result<Self> {
+            terminal::enable_raw_mode().map_err(|e| eyre!("Failed to enable raw mode: {}", e))?;
+            Ok(RawModeGuard)
+        }
+    }
+
+    impl Drop for RawModeGuard {
+        fn drop(&mut self) {
+            // Always attempt cleanup, ignore errors as we're likely in an error path
+            let _ = terminal::disable_raw_mode();
+        }
+    }
+
+    /// RAII guard that ensures alternate screen is properly exited when dropped.
+    /// Alternate screen prevents sensitive information from appearing in terminal scrollback.
+    pub(crate) struct AlternateScreenGuard;
+
+    impl AlternateScreenGuard {
+        /// Enters alternate screen and returns a guard that will exit it on drop.
+        pub(crate) fn new() -> Result<Self> {
+            execute!(io::stdout(), EnterAlternateScreen)
+                .map_err(|e| eyre!("Failed to enter alternate screen: {}", e))?;
+            Ok(AlternateScreenGuard)
+        }
+    }
+
+    impl Drop for AlternateScreenGuard {
+        fn drop(&mut self) {
+            // Always attempt cleanup, ignore errors as we're likely in an error path
+            let _ = execute!(io::stdout(), LeaveAlternateScreen);
+            let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
+            let _ = io::stdout().flush();
+        }
+    }
+
+    /// Combined RAII guard for both raw mode and alternate screen.
+    /// This is more efficient than using separate guards when both are needed.
+    pub(crate) struct TerminalGuard {
+        _raw: RawModeGuard,
+        _alt: AlternateScreenGuard,
+    }
+
+    impl TerminalGuard {
+        /// Creates a combined guard for raw mode and alternate screen.
+        pub(crate) fn new() -> Result<Self> {
+            let raw = RawModeGuard::new()?;
+            let alt = AlternateScreenGuard::new()?;
+            Ok(TerminalGuard { _raw: raw, _alt: alt })
+        }
+    }
+}
+
+use terminal_guards::{RawModeGuard, TerminalGuard};
+
 /// Display timeout for individual words (30 seconds)
 const WORD_TIMEOUT_SECS: u64 = 30;
 const WORD_TIMEOUT_DURATION: Duration = Duration::from_secs(WORD_TIMEOUT_SECS);
@@ -106,25 +171,15 @@ impl<'a> SecureMnemonicDisplay<'a> {
 
     /// Show timeout warning before displaying the mnemonic
     fn show_timeout_warning(&self) -> Result<MnemomicDisplayResult> {
-        let mut in_alt_screen = false;
-        if self.is_alternate_screen_supported() {
-            if terminal::enable_raw_mode().is_ok() {
-                if execute!(
-                    io::stdout(),
-                    EnterAlternateScreen,
-                    Clear(ClearType::All),
-                    MoveTo(0, 0)
-                )
-                .is_ok()
-                {
-                    in_alt_screen = true;
-                } else {
-                    let _ = terminal::disable_raw_mode();
-                }
-            }
+        // Try to use full terminal mode, fall back to raw mode only
+        let _guard: Option<Box<dyn std::any::Any>> = if self.is_alternate_screen_supported() {
+            TerminalGuard::new().ok().map(|g| Box::new(g) as Box<dyn std::any::Any>)
         } else {
-            execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0))?;
-        }
+            RawModeGuard::new().ok().map(|g| Box::new(g) as Box<dyn std::any::Any>)
+        };
+
+        // Clear screen regardless of which mode we're in
+        execute!(io::stdout(), terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0, 0))?;
 
         print!("{}", " STEP-BY-STEP DISPLAY MODE:\r\n".bold());
         print!(
@@ -150,69 +205,32 @@ impl<'a> SecureMnemonicDisplay<'a> {
         );
         print!("(Press ESC to cancel and return to the main menu)\r\n");
 
-        // If in alternate screen, handle ESC/Enter with raw mode
-        if in_alt_screen {
-            loop {
-                if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
-                    && let Event::Key(key_event) =
-                        event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
-                    && key_event.kind == KeyEventKind::Press
-                {
-                    match key_event.code {
-                        KeyCode::Enter => {
-                            // Clear the screen so the warning disappears
-                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
-                            let _ = io::stdout().flush();
-                            // Clean up alternate screen before returning
-                            let _ = terminal::disable_raw_mode();
-                            let _ = execute!(io::stdout(), LeaveAlternateScreen);
-                            let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
-                            let _ = io::stdout().flush();
-                            return Ok(MnemomicDisplayResult::Completed);
-                        }
-                        KeyCode::Esc => {
-                            // Clear the screen so the warning disappears
-                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
-                            let _ = io::stdout().flush();
-                            // Clean up alternate screen before returning error
-                            let _ = terminal::disable_raw_mode();
-                            let _ = execute!(io::stdout(), LeaveAlternateScreen);
-                            let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
-                            let _ = io::stdout().flush();
-                            return Ok(MnemomicDisplayResult::EarlyExit);
-                        }
-                        _ => {}
+        // Wait for user input (Enter to continue, ESC to cancel)
+        self.wait_for_enter_or_esc()
+    }
+
+    /// Helper function to wait for Enter or ESC key press
+    fn wait_for_enter_or_esc(&self) -> Result<MnemomicDisplayResult> {
+        loop {
+            if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
+                && let Event::Key(key_event) =
+                    event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
+                && key_event.kind == KeyEventKind::Press
+            {
+                match key_event.code {
+                    KeyCode::Enter => {
+                        execute!(io::stdout(), terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0, 0))?;
+                        io::stdout().flush()?;
+                        return Ok(MnemomicDisplayResult::Completed);
                     }
+                    KeyCode::Esc => {
+                        execute!(io::stdout(), terminal::Clear(terminal::ClearType::All), cursor::MoveTo(0, 0))?;
+                        io::stdout().flush()?;
+                        return Ok(MnemomicDisplayResult::EarlyExit);
+                    }
+                    _ => {}
                 }
             }
-        } else {
-            // Fallback: use crossterm event polling for instant Enter/ESC, with raw mode
-            let _ = crossterm::terminal::enable_raw_mode();
-            let result = loop {
-                if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
-                    && let Event::Key(key_event) =
-                        event::read().map_err(|e| eyre!("Failed to read user input: {}", e))?
-                    && key_event.kind == KeyEventKind::Press
-                {
-                    match key_event.code {
-                        KeyCode::Enter => {
-                            // Clear the screen so the warning disappears
-                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
-                            let _ = io::stdout().flush();
-                            break Ok(MnemomicDisplayResult::Completed);
-                        }
-                        KeyCode::Esc => {
-                            // Clear the screen so the warning disappears
-                            let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
-                            let _ = io::stdout().flush();
-                            break Ok(MnemomicDisplayResult::EarlyExit);
-                        }
-                        _ => {}
-                    }
-                }
-            };
-            let _ = crossterm::terminal::disable_raw_mode();
-            result
         }
     }
 
@@ -512,38 +530,33 @@ impl<'a> SecureMnemonicDisplay<'a> {
         use crossterm::event::{Event, KeyCode, KeyEventKind, poll, read};
         let start_time = Instant::now();
 
-        // Enable raw mode for instant key detection
-        let _ = crossterm::terminal::enable_raw_mode();
+        // Use RAII guard for raw mode
+        let _raw_guard = RawModeGuard::new()?;
 
         println!();
-        io::stdout()
-            .flush()
-            .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
+        io::stdout().flush().map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
 
         loop {
             let elapsed = start_time.elapsed();
             let remaining = WORD_TIMEOUT_DURATION.saturating_sub(elapsed);
 
             if remaining.is_zero() {
-                let _ = crossterm::terminal::disable_raw_mode();
                 println!();
                 println!("⏰ Auto-advancing to next word...");
                 return Ok(UserInput::Continue);
             }
 
             // Poll for key events (ESC/Enter)
-            if poll(POLL_INTERVAL).unwrap_or(false)
+            if poll(POLL_INTERVAL).map_err(|e| eyre!("Failed to poll for input: {}", e))?
                 && let Ok(Event::Key(key_event)) = read()
                 && key_event.kind == KeyEventKind::Press
             {
                 match key_event.code {
                     KeyCode::Enter => {
-                        let _ = crossterm::terminal::disable_raw_mode();
                         println!("Continuing to next word...");
                         return Ok(UserInput::Continue);
                     }
                     KeyCode::Esc => {
-                        let _ = crossterm::terminal::disable_raw_mode();
                         println!("Mnemonic display cancelled by user.");
                         return Ok(UserInput::Exit);
                     }
@@ -556,9 +569,7 @@ impl<'a> SecureMnemonicDisplay<'a> {
             print!(
                 "\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... (ESC to cancel) "
             );
-            io::stdout()
-                .flush()
-                .map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
+            io::stdout().flush().map_err(|e| eyre!("Failed to flush stdout: {}", e))?;
         }
     }
 }
@@ -583,26 +594,13 @@ pub(crate) fn display_private_key_securely(private_key: &SecureSecretKey) -> Res
         return display_private_key_fallback(private_key);
     }
 
-    // Try to enter alternate screen
-    if terminal::enable_raw_mode().is_err() {
-        return display_private_key_fallback(private_key);
-    }
+    // Try to use full terminal guard, fall back to simple display if it fails
+    let _guard = match TerminalGuard::new() {
+        Ok(guard) => guard,
+        Err(_) => return display_private_key_fallback(private_key),
+    };
 
-    if execute!(io::stdout(), EnterAlternateScreen).is_err() {
-        let _ = terminal::disable_raw_mode();
-        return display_private_key_fallback(private_key);
-    }
-
-    // Display private key in alternate screen
-    let result = display_private_key_in_alternate_screen(private_key);
-
-    // Cleanup
-    let _ = terminal::disable_raw_mode();
-    let _ = execute!(io::stdout(), LeaveAlternateScreen);
-    let _ = execute!(io::stdout(), SetForegroundColor(Color::Reset));
-    let _ = io::stdout().flush();
-
-    result
+    display_private_key_in_alternate_screen(private_key)
 }
 
 /// Display private key in alternate screen
