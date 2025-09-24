@@ -88,7 +88,3 @@ deposit to and withdraw from Citrea.
 - [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
 - [Withdrawal Guide](docs/withdrawal.md) - Withdrawal from Citrea to Bitcoin
-
-## License
-
-MIT
