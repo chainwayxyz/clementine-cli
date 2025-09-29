@@ -253,6 +253,23 @@ mod tests {
     }
 
     #[test]
+    fn test_bridge_amount_conversion_to_btc() {
+        // Test default amount (10 BTC)
+        let config = BridgeCliConfig::default();
+        assert_eq!(config.bridge_amount.to_btc(), 10.0);
+
+        // Test custom amount (5 BTC)
+        let mut custom_config = BridgeCliConfig::default();
+        custom_config.bridge_amount = Amount::from_sat(500_000_000);
+        assert_eq!(custom_config.bridge_amount.to_btc(), 5.0);
+
+        // Test fractional amount (0.5 BTC)
+        let mut fractional_config = BridgeCliConfig::default();
+        fractional_config.bridge_amount = Amount::from_sat(50_000_000);
+        assert_eq!(fractional_config.bridge_amount.to_btc(), 0.5);
+    }
+
+    #[test]
     fn parse_from_file() {
         let file_name = "parse_from_file";
 
