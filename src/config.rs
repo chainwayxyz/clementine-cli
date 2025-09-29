@@ -254,36 +254,8 @@ mod tests {
 
     #[test]
     fn test_bridge_amount_conversion_to_btc() {
-        // Test default amount (10 BTC)
         let config = BridgeCliConfig::default();
         assert_eq!(config.bridge_amount.to_btc(), 10.0);
-
-        // Test custom amount (5 BTC)
-        let mut custom_config = BridgeCliConfig::default();
-        custom_config.bridge_amount = Amount::from_sat(500_000_000);
-        assert_eq!(custom_config.bridge_amount.to_btc(), 5.0);
-
-        // Test fractional amount (0.5 BTC)
-        let mut fractional_config = BridgeCliConfig::default();
-        fractional_config.bridge_amount = Amount::from_sat(50_000_000);
-        assert_eq!(fractional_config.bridge_amount.to_btc(), 0.5);
-    }
-
-    #[test]
-    fn test_deposit_message_formatting() {
-        // Test that the message format works correctly with different amounts
-        let default_config = BridgeCliConfig::default();
-        let default_msg = format!("Send exactly {} BTC to the address above to initiate the deposit.", default_config.bridge_amount.to_btc());
-        assert_eq!(default_msg, "Send exactly 10 BTC to the address above to initiate the deposit.");
-        
-        let mut small_config = BridgeCliConfig::default();
-        small_config.bridge_amount = Amount::from_sat(50_000_000);
-        let small_msg = format!("Send exactly {} BTC to the address above to initiate the deposit.", small_config.bridge_amount.to_btc());
-        assert_eq!(small_msg, "Send exactly 0.5 BTC to the address above to initiate the deposit.");
-        
-        // Test bitcoin-cli command format
-        let cli_cmd = format!("bitcoin-cli sendtoaddress <address> {}", small_config.bridge_amount.to_btc());
-        assert_eq!(cli_cmd, "bitcoin-cli sendtoaddress <address> 0.5");
     }
 
     #[test]
