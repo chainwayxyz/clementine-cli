@@ -21,6 +21,7 @@ mod secure_display;
 mod secure_types;
 pub mod structs;
 pub mod types;
+mod utils;
 pub mod wallet;
 pub mod withdraw;
 
