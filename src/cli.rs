@@ -489,7 +489,7 @@ pub async fn cli_scan_withdrawals(
 
     if !utxos_with_wrong_amount.is_empty() {
         eprintln!(
-            "{} The following UTXOs have amounts different than {} btc. They will be ignored for withdrawal operations.",
+            "{} The following UTXOs have amounts different than {} BTC. They will be ignored for withdrawal operations.",
             config.dust_utxo_amount.to_btc(),
             "WARNING".bold()
         );
@@ -497,7 +497,7 @@ pub async fn cli_scan_withdrawals(
             eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
         }
         eprintln!(
-            "Please ensure you send exactly {} btc to the signer address for each withdrawal operation.",
+            "Please ensure you send exactly {} BTC to the signer address for each withdrawal operation.",
             config.dust_utxo_amount.to_btc()
         );
 
@@ -509,9 +509,19 @@ pub async fn cli_scan_withdrawals(
 
     utxos.retain(|(_, amount)| *amount == config.dust_utxo_amount);
 
-    if utxos.is_empty() {
+    // Now for valid UTXOs, check if the backend already has a withdrawal for them
+    // Ask status of each UTXO
+    let mut available_utxos = Vec::new();
+    for (outpoint, amount) in utxos.iter() {
+        if backend_withdrawal_status(*outpoint, config).await.is_err() {
+            // If error, assume no withdrawal exists for this UTXO
+            available_utxos.push((outpoint, amount));
+        }
+    }
+
+    if available_utxos.is_empty() {
         eprintln!(
-            "No UTXOs found. Please send {} btc first using 'withdrawal start' command",
+            "No UTXOs found. Please send {} BTC first using 'withdrawal start' command",
             config.dust_utxo_amount.to_btc()
         );
     } else {
@@ -524,9 +534,9 @@ pub async fn cli_scan_withdrawals(
                 outpoint,
             );
         };
-        if utxos.len() == 1 {
+        if available_utxos.len() == 1 {
             println!("Run:");
-            let (outpoint, _) = &utxos[0];
+            let (outpoint, _) = &available_utxos[0];
             print_withdrawal_cmd(outpoint);
         } else {
             println!(
@@ -538,7 +548,7 @@ pub async fn cli_scan_withdrawals(
                 "IMPORTANT NOTICE!".bold()
             );
             println!("Run one of these:");
-            for (outpoint, _) in utxos.iter() {
+            for (outpoint, _) in available_utxos.iter() {
                 print_withdrawal_cmd(outpoint);
                 println!()
             }
