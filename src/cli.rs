@@ -373,6 +373,8 @@ pub async fn deposit_create_signed_recovery_tx(
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
+    println!();
+    println!("Now you can broadcast the transaction using your preferred method.");
 
     Ok(())
 }
@@ -513,7 +515,11 @@ pub async fn cli_scan_withdrawals(
     // Ask status of each UTXO
     let mut available_utxos = Vec::new();
     for (outpoint, amount) in utxos.iter() {
-        if backend_withdrawal_status(*outpoint, config).await.is_err() {
+        if backend_withdrawal_status(*outpoint, config)
+            .await?
+            .is_empty()
+        {
+            tracing::debug!("No withdrawal found for UTXO: {}", outpoint);
             // If error, assume no withdrawal exists for this UTXO
             available_utxos.push((outpoint, amount));
         }
@@ -521,8 +527,8 @@ pub async fn cli_scan_withdrawals(
 
     if available_utxos.is_empty() {
         eprintln!(
-            "No UTXOs found. Please send {} BTC first using 'withdrawal start' command",
-            config.dust_utxo_amount.to_btc()
+            "No UTXOs found. Please send 0.00000{} BTC first using 'withdrawal start' command",
+            config.dust_utxo_amount.to_sat()
         );
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
