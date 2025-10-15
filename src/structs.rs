@@ -150,6 +150,7 @@ fn format_deposit_status(
     f: &mut std::fmt::Formatter<'_>,
     id: u64,
     status: &str,
+    raw_status: &str,
     txid: &str,
     vout: Option<u32>,
     evm_addr: &str,
@@ -169,6 +170,33 @@ fn format_deposit_status(
     writeln!(f, "\nDeposit Info")?;
     writeln!(f, "  ID:                 {}", id)?;
     writeln!(f, "  Status:             {}", status)?;
+
+    // Add progress bar using the raw backend status
+    let status_enum = DepositStatusEnum::from_status(raw_status);
+    let (current, total) = status_enum.progress();
+
+    if current > 0 {
+        // Create a visual progress bar using ASCII characters
+        let bar_width = 40;
+        let filled = (current * bar_width) / total;
+        let empty = bar_width - filled;
+
+        let bar = format!(
+            "[{}{}] {}/{}",
+            "=".repeat(filled.saturating_sub(1)) + if filled > 0 { ">" } else { "" },
+            "-".repeat(empty),
+            current,
+            total
+        );
+
+        writeln!(f, "  Progress:           {}", bar)?;
+        writeln!(
+            f,
+            "  Current Step:       {}",
+            status_enum.step_description()
+        )?;
+    }
+
     writeln!(f, "  TXID:               {}", display_or(txid))?;
     match vout {
         Some(v) => {
@@ -193,6 +221,7 @@ fn format_deposit_status_default(
     f: &mut std::fmt::Formatter<'_>,
     id: u64,
     status: &str,
+    raw_status: &str,
     txid: &str,
     move_tx_raw: &str,
     evm_addr: &str,
@@ -203,6 +232,7 @@ fn format_deposit_status_default(
         f,
         id,
         status,
+        raw_status,
         txid,
         None,
         evm_addr,
@@ -223,6 +253,7 @@ impl Display for DepositStatus {
             f,
             self.id,
             &status,
+            &self.status, // Pass raw status for progress bar
             &self.txid,
             &self.move_tx_raw,
             &self.evm_addr,
@@ -243,6 +274,7 @@ impl Display for DepositStatusWithVout<'_> {
             f,
             self.deposit_status.id,
             &status,
+            &self.deposit_status.status, // Pass raw status for progress bar
             &self.deposit_status.txid,
             self.vout,
             &self.deposit_status.evm_addr,
