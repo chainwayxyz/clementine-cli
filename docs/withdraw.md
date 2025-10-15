@@ -96,11 +96,13 @@ bitcoin-cli -testnet4 sendtoaddress <SIGNER_ADDRESS> <AMOUNT>
 **Example:**
 
 ```sh
-bitcoin-cli -testnet4 sendtoaddress wittb1pf... 0.00000330
+bitcoin-cli -testnet4 sendtoaddress tb1pf... 0.00000330
 ```
 
+> [!NOTE]
+> You'll notice the address in the transaction prompt matches your signer address but lacks the `wit` prefix. This is intentional—the prefix is only needed for Clementine-specific operations, whereas regular transactions use the address in its standard form.
 > [!IMPORTANT]
-> If your wallet cannot send exactly 330 sats, you may want to send a higher amount. Be sure to update the config to match the amount you actually sent before proceeding. 
+> If your wallet cannot send exactly 330 sats, you may want to send a higher amount. Be sure to update the config to match the amount you actually sent before proceeding.
 
 This creates the 0-value UTXO needed for the withdrawal operation.
 
