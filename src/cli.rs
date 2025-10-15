@@ -386,7 +386,7 @@ pub async fn withdrawal_status(
     let withdrawal_statuses = backend_withdrawal_status(withdrawal_utxo, config).await?;
     if withdrawal_statuses.is_empty() {
         println!(
-            "{} No withdrawals found for index {}",
+            "{} No withdrawals found for OutPoint {}",
             "INFO".bold(),
             withdrawal_utxo.to_string().bold()
         );
