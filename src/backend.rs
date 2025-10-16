@@ -168,6 +168,7 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
     config: &BridgeCliConfig,
     amount: u64,
 ) -> Result<(), BridgeCliError> {
+    // Check if the transaction for withdrawal operation is on-chain
     if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
         return Err(BridgeCliError::TransactionNotOnChain(
             withdrawal_outpoint.txid,
