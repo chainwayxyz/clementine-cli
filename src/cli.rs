@@ -477,26 +477,58 @@ pub async fn cli_scan_withdrawals(
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
+    // Print contextual information about WHY we're scanning
+    println!("{} Scanning for Withdrawal UTXOs", "INFO".bold());
+    println!(
+        "Locating available UTXOs that can be used to withdraw funds from Citrea back to Bitcoin\n"
+    );
+
+    // Print WHERE information
+    println!("{} Withdrawal Parameters", "SCANNING".bold());
+    println!("  Network:             {}", config.network);
+    println!(
+        "  Signer Address:      {}",
+        signer_address.address_with_prefix()
+    );
+    println!("  Destination Address: {}", destination_address);
+    println!(
+        "  Expected UTXO Amount: {} BTC ({} sats)",
+        config.dust_utxo_amount.to_btc(),
+        config.dust_utxo_amount.to_sat()
+    );
+    println!();
+
     let utxos = withdraw::scan_withdrawal(signer_address, destination_address, config).await;
 
     let mut utxos =
         utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
 
-    utxos.sort_by_key(|(outpoint, _)| outpoint.txid);
+    utxos.sort_by_key(|utxo| utxo.txid);
 
     let utxos_with_wrong_amount: Vec<_> = utxos
         .iter()
-        .filter(|(_, amount)| *amount != config.dust_utxo_amount)
+        .filter(|utxo| utxo.value != config.dust_utxo_amount)
         .collect();
 
     if !utxos_with_wrong_amount.is_empty() {
         eprintln!(
             "{} The following UTXOs have amounts different than {} BTC. They will be ignored for withdrawal operations.",
-            config.dust_utxo_amount.to_btc(),
-            "WARNING".bold()
+            "WARNING".bold(),
+            config.dust_utxo_amount.to_btc()
         );
-        for (outpoint, amount) in utxos_with_wrong_amount {
-            eprintln!(" - OutPoint: {}, Amount: {}", outpoint, amount);
+        for utxo in &utxos_with_wrong_amount {
+            let outpoint = OutPoint {
+                txid: utxo.txid,
+                vout: utxo.vout,
+            };
+            let block_info = utxo
+                .block_height
+                .map(|h| format!("Block: {}", h))
+                .unwrap_or_else(|| "Block: Unconfirmed".to_string());
+            eprintln!(
+                "  - OutPoint: {}, Amount: {}, {}",
+                outpoint, utxo.value, block_info
+            );
         }
         eprintln!(
             "Please ensure you send exactly {} BTC to the signer address for each withdrawal operation.",
@@ -509,13 +541,18 @@ pub async fn cli_scan_withdrawals(
         println!();
     }
 
-    utxos.retain(|(_, amount)| *amount == config.dust_utxo_amount);
+    utxos.retain(|utxo| utxo.value == config.dust_utxo_amount);
 
     // Now for valid UTXOs, check if the backend already has a withdrawal for them
     // Ask status of each UTXO
     let mut available_utxos = Vec::new();
-    for (outpoint, amount) in utxos.iter() {
-        if backend_withdrawal_status(*outpoint, config)
+    for utxo_info in utxos.iter() {
+        let outpoint = OutPoint {
+            txid: utxo_info.txid,
+            vout: utxo_info.vout,
+        };
+        let amount = utxo_info.value.to_sat();
+        if backend_withdrawal_status(outpoint, config)
             .await?
             .is_empty()
         {
@@ -527,11 +564,43 @@ pub async fn cli_scan_withdrawals(
 
     if available_utxos.is_empty() {
         eprintln!(
-            "No UTXOs found. Please send 0.00000{} BTC first using 'withdrawal start' command",
-            config.dust_utxo_amount.to_sat()
+            "{} No valid withdrawal UTXOs found. Please send {} BTC first using 'withdraw start' command",
+            "ERROR".bold(),
+            config.dust_utxo_amount.to_btc()
         );
     } else {
-        let print_withdrawal_cmd = |outpoint: &_| {
+        // Print WHEN information - showing details about found UTXOs
+        println!(
+            "{} Found {} valid withdrawal UTXO(s)",
+            "SUCCESS".bold(),
+            utxos.len()
+        );
+        println!();
+
+        for (idx, utxo) in utxos.iter().enumerate() {
+            let outpoint = OutPoint {
+                txid: utxo.txid,
+                vout: utxo.vout,
+            };
+            println!("UTXO #{}", idx + 1);
+            println!("  OutPoint:     {}", outpoint);
+            println!(
+                "  Amount:       {} BTC ({} sats)",
+                utxo.value.to_btc(),
+                utxo.value.to_sat()
+            );
+
+            if let Some(block_height) = utxo.block_height {
+                println!("  Block Height: {} (confirmed)", block_height);
+                println!("  Status:       Ready for withdrawal");
+            } else {
+                println!("  Block Height: Unconfirmed (in mempool)");
+                println!("  Status:       Waiting for confirmation before withdrawal");
+            }
+            println!();
+        }
+
+        let print_withdrawal_cmd = |outpoint: &OutPoint| {
             println!(
                 "clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
@@ -540,22 +609,47 @@ pub async fn cli_scan_withdrawals(
                 outpoint,
             );
         };
-        if available_utxos.len() == 1 {
-            println!("Run:");
-            let (outpoint, _) = &available_utxos[0];
-            print_withdrawal_cmd(outpoint);
+
+        println!("{} Next Steps", "INSTRUCTIONS".bold());
+        if utxos.len() == 1 {
+            let utxo = &utxos[0];
+            let outpoint = OutPoint {
+                txid: utxo.txid,
+                vout: utxo.vout,
+            };
+
+            if utxo.block_height.is_some() {
+                println!("Your withdrawal UTXO is confirmed and ready to use.");
+                println!("\nRun the following command to generate withdrawal signatures:");
+                println!();
+                print_withdrawal_cmd(&outpoint);
+            } else {
+                println!(
+                    "Your withdrawal UTXO is unconfirmed. Please wait for it to be confirmed on the Bitcoin network."
+                );
+                println!(
+                    "\nOnce confirmed, run the following command to generate withdrawal signatures:"
+                );
+                println!();
+                print_withdrawal_cmd(&outpoint);
+            }
         } else {
             println!(
-                "{} Multiple UTXOs found, we advise to use one UTXO for one withdrawal operation",
+                "{} Multiple UTXOs found. We advise using one UTXO for one withdrawal operation.",
                 "WARNING".bold()
             );
             println!(
                 "{} For your security: Use a unique signer address for each withdrawal.",
-                "IMPORTANT NOTICE!".bold()
+                "IMPORTANT".bold()
             );
-            println!("Run one of these:");
-            for (outpoint, _) in available_utxos.iter() {
-                print_withdrawal_cmd(outpoint);
+            println!("\nChoose one of the following commands to generate withdrawal signatures:");
+            println!();
+            for utxo in utxos.iter() {
+                let outpoint = OutPoint {
+                    txid: utxo.txid,
+                    vout: utxo.vout,
+                };
+                print_withdrawal_cmd(&outpoint);
                 println!()
             }
         }

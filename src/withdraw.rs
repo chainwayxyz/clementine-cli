@@ -279,21 +279,12 @@ pub async fn scan_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     _destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<Vec<(OutPoint, Amount)>, BridgeCliError> {
+) -> Result<Vec<crate::api_utils::UtxoInfo>, BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let utxos = get_utxos(&signer_address.address, config).await?;
-    let mut results = Vec::new();
 
-    for utxo in utxos {
-        let withdrawal_outpoint = OutPoint {
-            txid: utxo.txid,
-            vout: utxo.vout,
-        };
-        results.push((withdrawal_outpoint, utxo.value));
-    }
-
-    Ok(results)
+    Ok(utxos)
 }
 
 /// Common withdrawal parameter preparation pattern (reduces major duplication)  

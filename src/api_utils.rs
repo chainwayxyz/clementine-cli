@@ -13,7 +13,7 @@ use serde_json::Value;
 use url::Url;
 
 #[derive(Debug)]
-pub(crate) struct UtxoInfo {
+pub struct UtxoInfo {
     pub txid: bitcoin::Txid,
     pub vout: u32,
     pub value: Amount,
