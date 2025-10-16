@@ -344,8 +344,6 @@ enum WithdrawCommands {
         withdrawal_utxo_outpoint: String,
         /// Withdrawal signature (hex-encoded)
         signature: String,
-        /// Withdrawal index
-        withdrawal_index: u32,
     },
 }
 
@@ -470,9 +468,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
-                        println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
+                        println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("{} sendtoaddress {} 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
+                        println!("{} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                     }
                 );
             }
@@ -709,10 +707,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!();
                         println!("clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);
                         println!();
-                        println!("This command will also give you the withdrawal index needed for the next step");
                         println!("If the optimistic withdrawal does not complete in 12 hours, run:");
                         println!();
-                        println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {} <WITHDRAWAL_INDEX>",
+                        println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(operator_signature));
                         println!();
                         println!("to submit the operator-paid withdrawal signature to Clementine Operators");
@@ -820,7 +817,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 withdrawal_utxo_outpoint,
                 signature,
-                withdrawal_index,
                 network,
             } => {
                 let config =
@@ -832,7 +828,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.operator_withdrawal_amount.to_sat(),
                     &signature,
                     &config,
-                    withdrawal_index,
                 )
                 .await?;
                 println!("Withdrawal signature sent successfully to Clementine Operators");

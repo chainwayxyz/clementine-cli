@@ -62,9 +62,12 @@ every time you invoke `clementine-cli`.
 # Get help
 clementine-cli --help
 
-# Create wallet for deposit (airgapped device only)
+# Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
 clementine-cli wallet create my-deposit-wallet deposit # Mainnet
 clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
+
+# Generate Deposit Address
+clementine-cli deposit get-deposit-address --network testnet4 <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
@@ -87,4 +90,4 @@ deposit to and withdraw from Citrea.
 
 - [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
-- [Withdrawal Guide](docs/withdrawal.md) - Withdrawal from Citrea to Bitcoin
+- [Withdrawal Guide](docs/withdraw.md) - Withdrawal from Citrea to Bitcoin
