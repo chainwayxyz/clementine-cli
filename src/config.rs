@@ -255,6 +255,12 @@ mod tests {
     }
 
     #[test]
+    fn test_bridge_amount_conversion_to_btc() {
+        let config = BridgeCliConfig::default();
+        assert_eq!(config.bridge_amount.to_btc(), 10.0);
+    }
+
+    #[test]
     fn parse_from_file() {
         let file_name = "parse_from_file";
 
