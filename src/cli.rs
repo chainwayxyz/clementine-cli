@@ -66,20 +66,20 @@ pub fn cli_create_wallet(
     let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
 
     let _ = crossterm::terminal::enable_raw_mode();
-    println!();
-    println!(
-        "{} Wallet created with address: {}",
+    print!("\r\n");
+    print!(
+        "{} Wallet created with address: {}\r\n",
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
     if purpose == Purpose::Deposit {
-        println!(
-            "{} Please do not send funds directly to this address!",
+        print!(
+            "{} Please do not send funds directly to this address!\r\n",
             "WARNING".bold(),
         );
     }
 
-    println!("Press any key to continue...");
+    print!("Press any key to continue...\r\n");
     io::stdout().flush().ok();
 
     // Save the cursor *after* the prompt (the natural place you want to end up)
