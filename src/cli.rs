@@ -42,7 +42,7 @@ use crate::{
             validate_wallet_availability,
         },
     },
-    withdraw::{self, get_withdrawal_index, start_withdrawal},
+    withdraw::{self, start_withdrawal},
 };
 
 use crossterm::cursor::{MoveToColumn, SavePosition};
@@ -387,9 +387,7 @@ pub async fn withdrawal_status(
     withdrawal_utxo: OutPoint,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let index = get_withdrawal_index(withdrawal_utxo, config).await?;
-
-    let withdrawal_statuses = backend_withdrawal_status(index, config).await?;
+    let withdrawal_statuses = backend_withdrawal_status(withdrawal_utxo, config).await?;
     if withdrawal_statuses.is_empty() {
         println!(
             "{} No withdrawals found for index {}",
@@ -420,14 +418,12 @@ pub async fn send_withdrawal_signature(
     amount: u64,
     signature: &str,
     config: &BridgeCliConfig,
-    withdrawal_index: u32,
 ) -> Result<(), BridgeCliError> {
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
     send_withdrawal_signature_to_operators(
         signer_address,
         destination_address,
         withdrawal_outpoint,
-        withdrawal_index,
         signature,
         config,
         amount,

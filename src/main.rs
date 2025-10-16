@@ -344,8 +344,6 @@ enum WithdrawCommands {
         withdrawal_utxo_outpoint: String,
         /// Withdrawal signature (hex-encoded)
         signature: String,
-        /// Withdrawal index
-        withdrawal_index: u32,
     },
 }
 
@@ -709,10 +707,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!();
                         println!("clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);
                         println!();
-                        println!("This command will also give you the withdrawal index needed for the next step");
                         println!("If the optimistic withdrawal does not complete in 12 hours, run:");
                         println!();
-                        println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {} <WITHDRAWAL_INDEX>",
+                        println!("clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(operator_signature));
                         println!();
                         println!("to submit the operator-paid withdrawal signature to Clementine Operators");
@@ -820,7 +817,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 withdrawal_utxo_outpoint,
                 signature,
-                withdrawal_index,
                 network,
             } => {
                 let config =
@@ -832,7 +828,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     config.operator_withdrawal_amount.to_sat(),
                     &signature,
                     &config,
-                    withdrawal_index,
                 )
                 .await?;
                 println!("Withdrawal signature sent successfully to Clementine Operators");

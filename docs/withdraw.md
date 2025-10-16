@@ -214,15 +214,15 @@ The status will show the response from the backend.
 **ONLINE DEVICE OPERATION:** If Step 5 fails (Clementine Signers fail to provide `optimistic` withdrawal in 12 hours), submit the generated `operator-paid` withdrawal signature to bridge operators for `operator-paid` withdrawal processing:
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPERATOR_PAID_SIGNATURE> <WITHDRAWAL_INDEX>
+clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPERATOR_PAID_SIGNATURE>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770... 1
+clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770...
 # For testnet4
-clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet4  wittb1pf... tb1qg... abc123def456:0 807c42770... 1
+clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet4  wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 > [!NOTE]
