@@ -102,7 +102,7 @@ clementine-cli --help
 |---------|---------|-------|
 | `wallet` | Wallet management | [→ Wallet Guide](wallet.md) |
 | `deposit` | Bitcoin to Citrea | [→ Deposit Guide](deposit.md) |
-| `withdrawal` | Citrea to Bitcoin | [→ Withdrawal Guide](withdrawal.md) |
+| `withdrawal` | Citrea to Bitcoin | [→ Withdrawal Guide](withdraw.md) |
 
 ## Security Framework
 

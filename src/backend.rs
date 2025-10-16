@@ -115,7 +115,7 @@ pub(crate) async fn backend_deposit_status(
 }
 
 pub(crate) async fn backend_withdrawal_status(
-    withdrawal_index: u32,
+    withdrawal_outpoint: OutPoint,
     config: &BridgeCliConfig,
 ) -> Result<Vec<WithdrawStatus>, BridgeCliError> {
     let url = config
@@ -132,7 +132,7 @@ pub(crate) async fn backend_withdrawal_status(
     let response = client
         .get(url.as_str())
         .header("Content-Type", "application/json")
-        .query(&[("idx", withdrawal_index.to_string())])
+        .query(&[("user_dust_outpoint", withdrawal_outpoint.to_string())])
         .send()
         .await?;
 
@@ -163,7 +163,6 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
     _signer_address: &str,
     destination_address: &str,
     withdrawal_outpoint: OutPoint,
-    withdrawal_index: u32,
     signature: &str,
     config: &BridgeCliConfig,
     amount: u64,
@@ -175,9 +174,8 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
 
     // Prepare request body
     let request_body = json!({
-        "withdrawal_idx": withdrawal_index,
         "signature": signature,
-        "input_outpoint": withdrawal_outpoint.to_string(),
+        "user_dust_outpoint": withdrawal_outpoint.to_string(),
         "output_script_pubkey": destination_address,
         "output_amount": amount
     });
