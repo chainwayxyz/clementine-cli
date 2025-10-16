@@ -7,6 +7,8 @@ use bitcoin::{
 
 use serde::{Deserialize, Serialize};
 
+const PROGRESS_BAR_WIDTH: usize = 40;
+
 use crate::{
     BitcoinAddress,
     deposit::DepositStatusEnum,
@@ -177,7 +179,7 @@ fn format_deposit_status(
 
     if current > 0 {
         // Create a visual progress bar using ASCII characters
-        let bar_width = 40;
+        let bar_width = PROGRESS_BAR_WIDTH;
         let filled = (current * bar_width) / total;
         let empty = bar_width - filled;
 
