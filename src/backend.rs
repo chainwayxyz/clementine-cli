@@ -1,3 +1,4 @@
+use crate::api_utils::is_tx_on_chain;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::structs::{DepositStatus, WithdrawStatus};
@@ -168,6 +169,11 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
     config: &BridgeCliConfig,
     amount: u64,
 ) -> Result<(), BridgeCliError> {
+    if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
+        return Err(BridgeCliError::TransactionNotOnChain(
+            withdrawal_outpoint.txid,
+        ));
+    }
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed
         .join("withdrawals/user-signatures")
