@@ -62,9 +62,12 @@ every time you invoke `clementine-cli`.
 # Get help
 clementine-cli --help
 
-# Create wallet for deposit (airgapped device only)
+# Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
 clementine-cli wallet create my-deposit-wallet deposit # Mainnet
 clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
+
+# Generate Deposit Address
+clementine-cli deposit get-deposit-address --network testnet4 <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
