@@ -523,7 +523,7 @@ pub async fn cli_scan_withdrawals(
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
             println!(
-                "clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
+                "$ clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
                 &signer_address.address_with_prefix(),
                 destination_address,
