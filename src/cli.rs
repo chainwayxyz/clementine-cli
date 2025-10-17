@@ -565,7 +565,10 @@ pub async fn cli_scan_withdrawals(
     }
 
     if !used_utxos.is_empty() {
-        println!("{} Found UTXO(s) already used in withdrawal operations:", "WARNING".bold());
+        println!(
+            "{} Found UTXO(s) already used in withdrawal operations:",
+            "WARNING".bold()
+        );
         println!();
         for (idx, utxo) in used_utxos.iter().enumerate() {
             let outpoint = OutPoint {
