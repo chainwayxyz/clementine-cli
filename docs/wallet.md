@@ -9,7 +9,7 @@ Clementine CLI provides comprehensive wallet management capabilities with strong
 
 ## About Clementine Wallets
 
-Clementine wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine wallet corresponds to a single Bitcoin address with its associated private key. Clementine wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds. 
+Clementine wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine wallet corresponds to a single Bitcoin address with its associated private key. Clementine wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds.
 
 ### Address Prefixes and Purpose Field
 
@@ -20,6 +20,7 @@ Clementine wallets are specialized Bitcoin key managers designed for secure brid
 - **Standard addresses**: Used for regular wallet operations (e.g., `bc1p...`)
 
 **Purpose Field:** When creating a wallet, the `<PURPOSE>` parameter determines the address prefix and cryptographic properties:
+
 - `deposit` → generates addresses with "dep" prefix for deposit operations
 - `withdrawal` → generates addresses with "wit" prefix for withdrawal operations
 
@@ -59,6 +60,9 @@ clementine-cli wallet create my-wallet deposit
 # For a different network:
 clementine-cli wallet --network testnet4 create my-wallet deposit
 ```
+
+> [!WARNING]
+Do not send any funds to your Clementine wallet addresses unless otherwise specified.
 
 ## Backup and Importing a Wallet
 
@@ -161,22 +165,26 @@ clementine-cli wallet verify-integrity
 ### Common Issues
 
 **Wallet not found:**
+
 - Check wallet name spelling
 - Verify wallet exists with `wallet list`
 - Ensure correct network parameter
 
 **Import failures:**
+
 - Verify mnemonic phrase accuracy (12 words, correct spelling)
 - Check private key format
 - Ensure backup file is not corrupted
 
 **Permission errors:**
+
 - Check file system permissions on wallet directory
 - Ensure sufficient disk space for wallet operations
 
 ### Recovery Procedures
 
 If wallet files are corrupted or lost:
+
 1. Use `import-mnemonic` with your backed-up mnemonic phrase
 2. Use `import-private-key` if you have the private key backup
 3. Use `import-file` with your wallet backup file
