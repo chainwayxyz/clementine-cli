@@ -73,6 +73,12 @@ pub fn cli_create_wallet(
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
+    if purpose == Purpose::Deposit {
+        print!(
+            "{} Please do not send funds directly to this address!\r\n",
+            "WARNING".bold(),
+        );
+    }
 
     print!("Press any key to continue...\r\n");
     io::stdout().flush().ok();
