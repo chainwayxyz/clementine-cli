@@ -72,6 +72,12 @@ pub fn cli_create_wallet(
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
+    if purpose == Purpose::Deposit {
+        print!(
+            "{} Please do not send funds directly to this address!\r\n",
+            "WARNING".bold(),
+        );
+    }
 
     print!("Press any key to continue...\r\n");
     io::stdout().flush().ok();
@@ -517,7 +523,7 @@ pub async fn cli_scan_withdrawals(
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
             println!(
-                "clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
+                "$ clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
                 &signer_address.address_with_prefix(),
                 destination_address,
@@ -556,6 +562,7 @@ pub fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
+    ensure_wallet_exists(signer_address)?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
         Purpose::Withdrawal,
