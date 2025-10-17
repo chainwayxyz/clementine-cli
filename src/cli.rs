@@ -503,7 +503,7 @@ pub async fn cli_scan_withdrawals(
     let mut utxos =
         utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
 
-    utxos.sort_by_key(|utxo| utxo.txid);
+    utxos.sort_by_key(|utxo| utxo.block_height.unwrap_or(u64::MAX));
 
     let utxos_with_wrong_amount: Vec<_> = utxos
         .iter()
@@ -545,20 +545,42 @@ pub async fn cli_scan_withdrawals(
 
     // Now for valid UTXOs, check if the backend already has a withdrawal for them
     // Ask status of each UTXO
-    let mut available_utxos = Vec::new();
-    for utxo_info in utxos.iter() {
+    let mut available_utxos: Vec<UtxoInfo> = Vec::new();
+    let mut used_utxos: Vec<UtxoInfo> = Vec::new();
+    for utxo_info in utxos.into_iter() {
         let outpoint = OutPoint {
             txid: utxo_info.txid,
             vout: utxo_info.vout,
         };
-        let amount = utxo_info.value.to_sat();
         if backend_withdrawal_status(outpoint, config)
             .await?
             .is_empty()
         {
             tracing::debug!("No withdrawal found for UTXO: {}", outpoint);
             // If error, assume no withdrawal exists for this UTXO
-            available_utxos.push((outpoint, amount));
+            available_utxos.push(utxo_info);
+        } else {
+            used_utxos.push(utxo_info);
+        }
+    }
+
+    if !used_utxos.is_empty() {
+        println!("{} Found UTXO(s) already used in withdrawal operations:", "WARNING".bold());
+        println!();
+        for (idx, utxo) in used_utxos.iter().enumerate() {
+            let outpoint = OutPoint {
+                txid: utxo.txid,
+                vout: utxo.vout,
+            };
+            println!("UTXO #{}", idx + 1);
+            println!("  OutPoint:     {}", outpoint);
+            println!(
+                "  Amount:       {} BTC ({} sats)",
+                utxo.value.to_btc(),
+                utxo.value.to_sat()
+            );
+
+            println!();
         }
     }
 
@@ -573,11 +595,11 @@ pub async fn cli_scan_withdrawals(
         println!(
             "{} Found {} valid withdrawal UTXO(s)",
             "SUCCESS".bold(),
-            utxos.len()
+            available_utxos.len()
         );
         println!();
 
-        for (idx, utxo) in utxos.iter().enumerate() {
+        for (idx, utxo) in available_utxos.iter().enumerate() {
             let outpoint = OutPoint {
                 txid: utxo.txid,
                 vout: utxo.vout,
@@ -611,8 +633,8 @@ pub async fn cli_scan_withdrawals(
         };
 
         println!("{} Next Steps", "INSTRUCTIONS".bold());
-        if utxos.len() == 1 {
-            let utxo = &utxos[0];
+        if available_utxos.len() == 1 {
+            let utxo = &available_utxos[0];
             let outpoint = OutPoint {
                 txid: utxo.txid,
                 vout: utxo.vout,
@@ -644,12 +666,12 @@ pub async fn cli_scan_withdrawals(
             );
             println!("\nChoose one of the following commands to generate withdrawal signatures:");
             println!();
-            for utxo in utxos.iter() {
-                let outpoint = OutPoint {
-                    txid: utxo.txid,
-                    vout: utxo.vout,
+            for utxo_info in available_utxos.iter() {
+                let utxo = OutPoint {
+                    txid: utxo_info.txid,
+                    vout: utxo_info.vout,
                 };
-                print_withdrawal_cmd(&outpoint);
+                print_withdrawal_cmd(&utxo);
                 println!()
             }
         }
