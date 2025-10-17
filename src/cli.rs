@@ -585,7 +585,10 @@ pub async fn cli_scan_withdrawals(
 
             println!();
         }
-        println!("{} This address has been used in a withdrawal operation. Please avoid reusing it.", "IMPORTANT:".bold());
+        println!(
+            "{} This address has been used in a withdrawal operation. Please avoid reusing it.",
+            "IMPORTANT:".bold()
+        );
         println!();
     }
 
