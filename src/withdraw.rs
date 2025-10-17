@@ -8,8 +8,9 @@ use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
+use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
-use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
+use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
@@ -118,17 +119,8 @@ pub fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if destination_address.address_type() == Some(bitcoin::AddressType::P2tr) {
-        let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-            &destination_address.to_string(),
-            Purpose::Withdrawal,
-            config.network,
-        )?;
-
-        // Check if the claim address belongs to any of our wallets
-        if address_exists(&claim_wallet_address)? {
-            return Err(BridgeCliError::DestinationAddressIsWalletAddress);
-        }
+    if is_wallet_address(destination_address, config)? {
+        return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
     let optimistic_withdrawal_signature = sign_withdrawal_signature(
@@ -268,9 +260,12 @@ pub async fn send_safe_withdrawal(
 
 pub(crate) fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    _destination_address: &BitcoinAddress,
-    _config: &BridgeCliConfig,
+    destination_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
+    if is_wallet_address(destination_address, config)? {
+        return Err(BridgeCliError::DestinationAddressIsWalletAddress);
+    }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
     Ok(())
 }

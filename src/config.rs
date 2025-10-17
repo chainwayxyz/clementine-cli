@@ -144,6 +144,7 @@ impl BridgeCliConfig {
         }
     }
 
+    #[cfg(test)]
     /// Creates a default configuration based on the network.
     pub fn from_network(network: Network) -> Self {
         let mut config = BridgeCliConfig {
@@ -249,6 +250,12 @@ mod tests {
 
         assert_eq!(config.bridge_amount, Amount::from_sat(1_000_000_000));
         assert_eq!(config.user_takes_after, 200);
+    }
+
+    #[test]
+    fn test_bridge_amount_conversion_to_btc() {
+        let config = BridgeCliConfig::default();
+        assert_eq!(config.bridge_amount.to_btc(), 10.0);
     }
 
     #[test]

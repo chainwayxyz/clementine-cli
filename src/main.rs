@@ -468,9 +468,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
-                        println!("{} Send exactly 10 BTC to the address above to initiate the deposit.", "INFO".bold());
+                        println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("{} sendtoaddress {} 10", get_bitcoin_cli_command(&config), deposit_address.to_string());
+                        println!("{} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                     }
                 );
             }
@@ -612,9 +612,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", config.dust_utxo_amount.to_sat(), signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("{} sendtoaddress {} 0.00000{}",
+                        println!("{} sendtoaddress {} {}",
                             get_bitcoin_cli_command(&config),
-                            signer_address.address_without_prefix(), config.dust_utxo_amount.to_sat());
+                            signer_address.address_without_prefix(), config.dust_utxo_amount.to_btc());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("clementine-cli withdraw scan --network {} {} {}",

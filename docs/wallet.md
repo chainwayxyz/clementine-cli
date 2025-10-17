@@ -97,7 +97,7 @@ using the import utility with your secret key. It will be marked as imported via
 private key when you list wallets using `clementine-cli wallet list`.
 
 > [!NOTE]
-> This is especially useful if you generated your recovery taproot address using the frontend; however, this is not recommended. We suggest using those keys only for testing purposes.
+> This is especially useful if you generated your recovery taproot address using the [website](https://citrea.xyz/bridge); however, this is not recommended. We suggest using those keys only for testing purposes.
 
 ```sh
 clementine-cli wallet import-private-key [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPOSE>
