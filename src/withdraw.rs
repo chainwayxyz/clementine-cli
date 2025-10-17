@@ -8,18 +8,17 @@ use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
+use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
-use crate::wallet::wallet_utils::{address_exists, ensure_wallet_exists, validate_address_purpose};
-use alloy::eips::{BlockId, BlockNumberOrTag};
+use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
 use alloy::providers::ProviderBuilder;
 use alloy::rpc::types::TransactionReceipt;
 use alloy::signers::Signer;
 use alloy::signers::local::PrivateKeySigner;
-use bitcoin::hashes::Hash;
 use bitcoin::taproot::Signature;
-use bitcoin::{Amount, OutPoint, TxOut, Txid};
+use bitcoin::{Amount, OutPoint, TxOut};
 use eyre::Context;
 use serde_json::json;
 use urlencoding::encode;
@@ -120,17 +119,8 @@ pub fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if destination_address.address_type() == Some(bitcoin::AddressType::P2tr) {
-        let claim_wallet_address = TaprootAddressWithPrefix::from_string_without_prefix(
-            &destination_address.to_string(),
-            Purpose::Withdrawal,
-            config.network,
-        )?;
-
-        // Check if the claim address belongs to any of our wallets
-        if address_exists(&claim_wallet_address)? {
-            return Err(BridgeCliError::DestinationAddressIsWalletAddress);
-        }
+    if is_wallet_address(destination_address, config)? {
+        return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
     let optimistic_withdrawal_signature = sign_withdrawal_signature(
@@ -268,54 +258,14 @@ pub async fn send_safe_withdrawal(
     Ok(receipt)
 }
 
-/// Checks every UTXO in the contract and finds the index for it.
-pub async fn get_withdrawal_index(
-    withdrawal_utxo: OutPoint,
-    config: &BridgeCliConfig,
-) -> Result<u32, BridgeCliError> {
-    let signer = get_secret_key_from_env().unwrap_or(PrivateKeySigner::random());
-    let chain_id: u64 = config.citrea_chain_id;
-    let key = signer.with_chain_id(Some(chain_id));
-    let contract = create_bridge_contract(key, config)?;
-
-    let withdrawal_count = contract
-        .getWithdrawalCount()
-        .block(BlockId::Number(BlockNumberOrTag::Latest))
-        .call()
-        .await
-        .wrap_err("Can't get withdrawal count")?;
-    let withdrawal_count: u32 = withdrawal_count
-        .try_into()
-        .wrap_err("Can't convert withdrawal count")?;
-    tracing::debug!("Current withdrawal count: {}", withdrawal_count);
-
-    for i in (0..withdrawal_count).rev() {
-        let contract_withdrawal_utxo = contract
-            .withdrawalUTXOs(U256::from(i))
-            .call()
-            .await
-            .wrap_err("Can't get withdrawal UTXO")?;
-        tracing::debug!("Received withdrawal UTXO {:?}", contract_withdrawal_utxo);
-
-        let txid = contract_withdrawal_utxo._0;
-        let txid = Txid::from_slice(txid.as_ref()).wrap_err("Failed to convert txid to Txid")?;
-        let vout = contract_withdrawal_utxo._1;
-        let vout = u32::from_le_bytes(*vout);
-        let utxo = OutPoint { txid, vout };
-
-        if utxo == withdrawal_utxo {
-            return Ok(i);
-        }
-    }
-
-    Err(BridgeCliError::CantFindUTXO(withdrawal_utxo))
-}
-
 pub(crate) fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    _destination_address: &BitcoinAddress,
-    _config: &BridgeCliConfig,
+    destination_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
+    if is_wallet_address(destination_address, config)? {
+        return Err(BridgeCliError::DestinationAddressIsWalletAddress);
+    }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
     Ok(())
 }

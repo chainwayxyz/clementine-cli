@@ -96,11 +96,13 @@ bitcoin-cli -testnet4 sendtoaddress <SIGNER_ADDRESS> <AMOUNT>
 **Example:**
 
 ```sh
-bitcoin-cli -testnet4 sendtoaddress wittb1pf... 0.00000330
+bitcoin-cli -testnet4 sendtoaddress tb1pf... 0.00000330
 ```
 
+> [!NOTE]
+> You'll notice the address used in the command above matches your signer address but lacks the `wit` prefix. This is intentional—the prefix is only needed for Clementine-specific operations, whereas regular transactions use the address in its standard form.
 > [!IMPORTANT]
-> If your wallet cannot send exactly 330 sats, you may want to send a higher amount. Be sure to update the config to match the amount you actually sent before proceeding. 
+> If your wallet cannot send exactly 330 sats, you may want to send a higher amount. Be sure to update the config to match the amount you actually sent before proceeding.
 
 This creates the 0-value UTXO needed for the withdrawal operation.
 
@@ -212,15 +214,15 @@ The status will show the response from the backend.
 **ONLINE DEVICE OPERATION:** If Step 5 fails (Clementine Signers fail to provide `optimistic` withdrawal in 12 hours), submit the generated `operator-paid` withdrawal signature to bridge operators for `operator-paid` withdrawal processing:
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPERATOR_PAID_SIGNATURE> <WITHDRAWAL_INDEX>
+clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPERATOR_PAID_SIGNATURE>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770... 1
+clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770...
 # For testnet4
-clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet4  wittb1pf... tb1qg... abc123def456:0 807c42770... 1
+clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet4  wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 > [!NOTE]
