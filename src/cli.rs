@@ -527,8 +527,8 @@ pub async fn cli_scan_withdrawals(
 
     if available_utxos.is_empty() {
         eprintln!(
-            "No UTXOs found. Please send 0.00000{} BTC first using 'withdrawal start' command",
-            config.dust_utxo_amount.to_sat()
+            "No UTXOs found. Please send {} BTC first using 'withdrawal start' command",
+            config.dust_utxo_amount.to_btc()
         );
     } else {
         let print_withdrawal_cmd = |outpoint: &_| {
