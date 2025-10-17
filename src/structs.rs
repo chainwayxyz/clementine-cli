@@ -183,13 +183,17 @@ fn format_deposit_status(
         let filled = (current * bar_width) / total;
         let empty = bar_width - filled;
 
-        let bar = format!(
-            "[{}{}] {}/{}",
-            "=".repeat(filled.saturating_sub(1)) + if filled > 0 { ">" } else { "" },
-            "-".repeat(empty),
-            current,
-            total
-        );
+        let bar = if current == total {
+            format!("[{}] {}/{}", "=".repeat(bar_width), current, total)
+        } else {
+            format!(
+                "[{}{}] {}/{}",
+                "=".repeat(filled.saturating_sub(1)) + if filled > 0 { ">" } else { "" },
+                "-".repeat(empty),
+                current,
+                total
+            )
+        };
 
         writeln!(f, "  Progress:           {}", bar)?;
         writeln!(
