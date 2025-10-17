@@ -137,7 +137,8 @@ The command will:
    - Block height (if confirmed) or mempool status (if unconfirmed)
    - Current status (ready for withdrawal or waiting for confirmation)
 3. Filter and identify UTXOs that match the expected dust amount
-4. Provide the exact command to generate withdrawal signatures for each valid UTXO
+4. Filter UTXOs that are already used in a withdrawal operation, and warn user not to reuse their signer address
+5. Provide the exact command to generate withdrawal signatures for each valid UTXO
 
 > [!TIP]
 > If a UTXO is unconfirmed, you'll need to wait for Bitcoin network confirmation before proceeding with signature generation.

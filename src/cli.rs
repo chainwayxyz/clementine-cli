@@ -557,7 +557,7 @@ pub async fn cli_scan_withdrawals(
             .is_empty()
         {
             tracing::debug!("No withdrawal found for UTXO: {}", outpoint);
-            // If error, assume no withdrawal exists for this UTXO
+            // If no status is returned, it's available
             available_utxos.push(utxo_info);
         } else {
             used_utxos.push(utxo_info);
