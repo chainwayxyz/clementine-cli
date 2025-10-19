@@ -51,6 +51,83 @@ pub struct MempoolTx {
     pub vout: Vec<Value>,
 }
 
+async fn get_block_height_for_tx_from_rpc(
+    rpc: &Client,
+    txid: &Txid,
+) -> Result<u64, BridgeCliError> {
+    let tx_info = rpc.get_raw_transaction_info(txid, None).await?;
+    if tx_info.blockhash.is_none() {
+        return Err(eyre!("Block hash not found, maybe not confirmed yet").into());
+    }
+    let block_height = rpc
+        .get_block_header_info(&tx_info.blockhash.unwrap())
+        .await?
+        .height;
+    Ok(block_height as u64)
+}
+
+async fn get_block_info_for_tx_from_mempool_space(
+    txid: &Txid,
+    config: &BridgeCliConfig,
+) -> Result<(u64, String), BridgeCliError> {
+    let url = config
+        .mempool_api_url
+        .join(&format!("tx/{txid}"))
+        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
+    let response = reqwest::get(url)
+        .await
+        .wrap_err("Failed to fetch transaction data: {}")?;
+    let tx_data: Value = response
+        .json()
+        .await
+        .wrap_err("Failed to parse transaction data: {}")?;
+    tracing::debug!("tx_data: {:?}", tx_data);
+    let block_hash = tx_data["status"]["block_hash"]
+        .as_str()
+        .ok_or(eyre!("Block hash not found"))?;
+    let block_height = tx_data["status"]["block_height"]
+        .as_u64()
+        .ok_or(eyre!("Block height not found"))?;
+
+    Ok((block_height, block_hash.to_string()))
+}
+
+pub async fn get_block_height_for_tx(
+    txid: &Txid,
+    config: &BridgeCliConfig,
+) -> Result<u64, BridgeCliError> {
+    if config.network == bitcoin::Network::Regtest {
+        tracing::warn!(
+            "Transaction block height fetching using txid from mempool.space is disabled in regtest mode."
+        );
+        if config.bitcoin_config.is_some() {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            return get_block_height_for_tx_from_rpc(&rpc, txid).await;
+        } else {
+            return Err(BridgeCliError::Eyre(eyre::eyre!(
+                "Transaction block height fetching using txid is disabled in regtest mode."
+            )));
+        }
+    }
+
+    match get_block_info_for_tx_from_mempool_space(txid, config).await {
+        Ok((block_height, _)) => Ok(block_height),
+        Err(mempool_error) => {
+            tracing::warn!(
+                "Mempool API failed for get_block_height_for_tx: {}, falling back to Bitcoin RPC",
+                mempool_error
+            );
+
+            if config.bitcoin_config.is_some() {
+                let rpc = config.connect_to_bitcoin_rpc().await?;
+                get_block_height_for_tx_from_rpc(&rpc, txid).await
+            } else {
+                Err(mempool_error)
+            }
+        }
+    }
+}
+
 /// Get transaction details using mempool API
 pub async fn get_tx_details_from_mempool(
     txid: &Txid,
@@ -70,24 +147,7 @@ pub async fn get_tx_details_from_mempool(
     let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
     tracing::debug!("tx: {:?}", tx);
 
-    let url = config
-        .mempool_api_url
-        .join(&format!("tx/{txid}"))
-        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
-    let response = reqwest::get(url)
-        .await
-        .wrap_err("Failed to fetch transaction data: {}")?;
-    let tx_data: Value = response
-        .json()
-        .await
-        .wrap_err("Failed to parse transaction data: {}")?;
-    tracing::debug!("tx_data: {:?}", tx_data);
-    let block_hash = tx_data["status"]["block_hash"]
-        .as_str()
-        .ok_or(eyre!("Block hash not found"))?;
-    let block_height = tx_data["status"]["block_height"]
-        .as_u64()
-        .ok_or(eyre!("Block height not found"))?;
+    let (block_height, block_hash) = get_block_info_for_tx_from_mempool_space(txid, config).await?;
     tracing::debug!("block_hash: {:?}", block_hash);
     tracing::debug!("block_height: {:?}", block_height);
 

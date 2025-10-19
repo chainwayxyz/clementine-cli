@@ -145,6 +145,7 @@ pub struct DepositStatus {
 pub struct DepositStatusWithVout<'a> {
     pub deposit_status: &'a DepositStatus,
     pub vout: Option<u32>,
+    pub remaining_finalization_blocks: Option<u64>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -157,6 +158,7 @@ fn format_deposit_status(
     vout: Option<u32>,
     evm_addr: &str,
     move_txid: &str,
+    move_tx_finalization_blocks: Option<u64>,
     move_tx_raw: &str,
     mint_txid: &str,
     print_na_for_vout: bool,
@@ -216,8 +218,23 @@ fn format_deposit_status(
             }
         }
     }
+
+    let mut remaining_blocks_msg = String::from("");
+    match move_tx_finalization_blocks {
+        Some(0) => remaining_blocks_msg.push_str("Finalized"),
+        Some(blocks) => {
+            remaining_blocks_msg.push_str(&format!("Approx. {} blocks remaining", blocks))
+        }
+        None => remaining_blocks_msg.push_str("N/A"),
+    }
+
     writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
     writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;
+    writeln!(
+        f,
+        "  Move Tx Status:     {}",
+        display_or(&remaining_blocks_msg)
+    )?;
     writeln!(f, "  Mint TXID:          {}", display_or(mint_txid))?;
     writeln!(f, "  Raw MoveToVault TX: {}", display_or(move_tx_raw))
 }
@@ -243,6 +260,7 @@ fn format_deposit_status_default(
         None,
         evm_addr,
         move_txid,
+        None,
         move_tx_raw,
         mint_txid,
         false,
@@ -285,6 +303,7 @@ impl Display for DepositStatusWithVout<'_> {
             self.vout,
             &self.deposit_status.evm_addr,
             &self.deposit_status.move_txid,
+            self.remaining_finalization_blocks,
             &self.deposit_status.move_tx_raw,
             &self.deposit_status.mint_txid,
             true,
