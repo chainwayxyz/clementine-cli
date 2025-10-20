@@ -1,2 +1,7 @@
 /target
 ./bridge_cli_config.toml
+
+# Nix build artifacts
+result
+result-*
+.direnv
