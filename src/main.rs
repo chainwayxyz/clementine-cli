@@ -45,21 +45,21 @@ impl From<CliNetwork> for Network {
     }
 }
 
-/// Initializes tracing to `Debug` level if verbose flag is given. If not,
-/// defaults to `RUST_LOG` env variable.
+/// Initializes tracing to `Debug` level if verbose flag is given.
 pub(crate) fn initialize_logger(is_verbose: bool) {
-    let level = if is_verbose {
-        Some(LevelFilter::DEBUG)
+    let filter = if is_verbose {
+        EnvFilter::builder()
+            .with_default_directive(LevelFilter::DEBUG.into())
+            .from_env_lossy()
     } else {
-        None
+        if std::env::var("RUST_LOG").is_ok() {
+            EnvFilter::from_default_env()
+        } else {
+            EnvFilter::new("off")
+        }
     };
 
-    let filter = match level {
-        Some(lvl) => EnvFilter::builder()
-            .with_default_directive(lvl.into())
-            .from_env_lossy(),
-        None => EnvFilter::from_default_env(),
-    };
+    println!("Logger initialized with level: {:?}", filter.to_string());
 
     let standard_layer = fmt::layer()
         .with_test_writer()
@@ -352,6 +352,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     color_eyre::install().expect("Failed to install color-eyre");
 
     let cli = Cli::parse();
+
+    println!("Initializing logger...");
 
     initialize_logger(cli.verbose);
 
