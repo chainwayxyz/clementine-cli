@@ -45,6 +45,11 @@
         else
           pkgs.rust-bin.stable.${rustVersion}.default;
 
+        rustPlatform = pkgs.makeRustPlatform {
+          cargo = rust;
+          rustc = rust;
+        };
+
         # Build inputs based on target platform
         nativeBuildInputs = with pkgs; [
           pkg-config
@@ -65,35 +70,28 @@
 
       in
       {
-        packages.default = pkgs.rustPlatform.buildRustPackage rec {
+        packages.default = rustPlatform.buildRustPackage rec {
           pname = "clementine-cli";
           version = "0.1.0";
 
-          src = ./.;
+          # TODO: Remove this
+          src = ./.;auditable = false;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
-            # Note: These hashes need to be updated on first build
-            # Run: contrib/reproducible/update-hashes.sh
-            # Or manually update after seeing the error with correct hashes
             outputHashes = {
-              # Placeholder hashes - will be updated during first build
-              "bitcoincore-rpc-0.18.0" = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
-              "secp256k1-0.31.0" = "sha256-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=";
+              "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
+              "secp256k1-0.31.0" = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
             };
           };
 
           inherit nativeBuildInputs buildInputs;
 
-          # Set target for Windows cross-compilation
           CARGO_BUILD_TARGET = if system == "x86_64-windows"
             then "x86_64-pc-windows-gnu"
             else null;
 
-          # Ensure reproducible builds
           RUSTFLAGS = "-C debuginfo=0 -C opt-level=3";
-
-          # Set SOURCE_DATE_EPOCH for reproducibility
           SOURCE_DATE_EPOCH = "1";
 
           meta = with pkgs.lib; {
@@ -104,7 +102,6 @@
           };
         };
 
-        # Development shell
         devShells.default = pkgs.mkShell {
           inherit nativeBuildInputs;
           buildInputs = buildInputs ++ [ rust ];

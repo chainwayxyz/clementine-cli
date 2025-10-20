@@ -10,12 +10,6 @@ Reproducible builds ensure that compiling the same source code produces bit-for-
 
 You will need to install [Nix](https://nixos.org/download/#download-nix), a package manager.
 
-#### Linux and macOS
-
-```bash
-sh <(curl -L https://nixos.org/nix/install) --daemon
-```
-
 #### Enable Flakes
 
 We rely on Nix flakes, so you need to enable this experimental feature by adding to your `~/.config/nix/nix.conf`:
@@ -38,7 +32,8 @@ Restart the Nix daemon after making this change:
 sudo systemctl restart nix-daemon
 
 # On macOS
-sudo launchctl kickstart -k system/org.nixos.nix-daemon
+sudo launchctl unload /Library/LaunchDaemons/org.nixos.nix-daemon.plist
+sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
 ```
 
 ## Building for Different Platforms
