@@ -219,14 +219,11 @@ fn format_deposit_status(
         }
     }
 
-    let mut remaining_blocks_msg = String::from("");
-    match move_tx_finalization_blocks {
-        Some(0) => remaining_blocks_msg.push_str("Finalized"),
-        Some(blocks) => {
-            remaining_blocks_msg.push_str(&format!("Approx. {} blocks remaining", blocks))
-        }
-        None => remaining_blocks_msg.push_str("N/A"),
-    }
+    let remaining_blocks_msg = match move_tx_finalization_blocks {
+        Some(0) => "Finalized".to_string(),
+        Some(blocks) => format!("Approx. {} blocks remaining", blocks),
+        None => "N/A".to_string(),
+    };
 
     writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
     writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;

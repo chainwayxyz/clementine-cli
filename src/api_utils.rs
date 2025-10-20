@@ -56,13 +56,10 @@ async fn get_block_height_for_tx_from_rpc(
     txid: &Txid,
 ) -> Result<u64, BridgeCliError> {
     let tx_info = rpc.get_raw_transaction_info(txid, None).await?;
-    if tx_info.blockhash.is_none() {
-        return Err(eyre!("Block hash not found, maybe not confirmed yet").into());
-    }
-    let block_height = rpc
-        .get_block_header_info(&tx_info.blockhash.unwrap())
-        .await?
-        .height;
+    let blockhash = tx_info
+        .blockhash
+        .ok_or(eyre!("Block hash not found, maybe not confirmed yet"))?;
+    let block_height = rpc.get_block_header_info(&blockhash).await?.height;
     Ok(block_height as u64)
 }
 

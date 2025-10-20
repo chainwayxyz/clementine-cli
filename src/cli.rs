@@ -316,7 +316,7 @@ pub async fn deposit_status(
             Err(_) => (0, false),
         };
 
-        let move_block_height = if status.move_txid.is_empty() {
+        let move_block_height = if !status.move_txid.is_empty() {
             get_block_height_for_tx(&bitcoin::Txid::from_str(&status.move_txid)?, config)
                 .await
                 .ok()
@@ -325,7 +325,7 @@ pub async fn deposit_status(
         };
 
         let move_block_finalization_height =
-            move_block_height.map(|h| h + config.move_tx_finalization_blocks);
+            move_block_height.map(|h| h + config.move_tx_finalization_blocks - 1);
 
         let remaining_finalization_blocks = move_block_finalization_height
             .map(|finalization_height| finalization_height.saturating_sub(current_block_height));
