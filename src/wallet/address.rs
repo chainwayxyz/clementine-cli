@@ -106,7 +106,13 @@ pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, 
         .parse()
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e)))?;
 
-    let address = unchecked_address.require_network(network)?;
+    let address = unchecked_address.require_network(network).map_err(|_| {
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Address network mismatch: {}, address: {}",
+            network,
+            address
+        ))
+    })?;
     Ok(address)
 }
 

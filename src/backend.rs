@@ -1,4 +1,3 @@
-use crate::api_utils::is_tx_on_chain;
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::structs::{DepositStatus, WithdrawStatus};
@@ -168,12 +167,6 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
     config: &BridgeCliConfig,
     amount: u64,
 ) -> Result<(), BridgeCliError> {
-    // Check if the transaction for withdrawal operation is on-chain
-    if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
-        return Err(BridgeCliError::TransactionNotOnChain(
-            withdrawal_outpoint.txid,
-        ));
-    }
     let url = config
         .citrea_backend_endpoint // As long as URL is only base, no trailing / (slash) is needed
         .join("withdrawals/user-signatures")
@@ -221,11 +214,20 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
         tracing::error!("Send withdrawal signatures request failed: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        if error_text.contains("Withdrawal not found") {
+            Err(eyre::eyre!(
+                "Withdrawal not found for outpoint: {}, maybe wait for confirmation.",
+                withdrawal_outpoint
+            )
+            .into())
+        } else if error_text.contains("Withdrawal user signature already exists") {
+            Err(eyre::eyre!(
+                "Signature already submitted for withdrawal outpoint: {}",
+                withdrawal_outpoint
+            )
+            .into())
+        } else {
+            Err(eyre::eyre!("Internal Error while sending withdrawal signature").into())
+        }
     }
 }

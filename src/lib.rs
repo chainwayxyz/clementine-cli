@@ -1,7 +1,6 @@
 #![allow(clippy::result_large_err)]
 
 use crate::errors::BridgeCliError;
-use eyre::Context;
 use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -35,6 +34,7 @@ pub use wallet::{
     import_wallet_from_private_key, print_all_wallets_with_addresses, scan_wallet_files,
 };
 
+
 // Deposit operations
 pub use deposit::{
     RecoveryTxParams, create_signed_recovery_tx, get_deposit_params, verify_recovery_tx,
@@ -49,11 +49,14 @@ pub use api_utils::broadcast_recovery_tx;
 // Constants
 pub use bitcoin_utils::SATS_TO_WEI_MULTIPLIER;
 
+pub use cli_macros::handle_err;
+
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
-    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
+    CitreaAddress::from_str(citrea_address)
+        .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format")))
 }
 
 pub(crate) fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {

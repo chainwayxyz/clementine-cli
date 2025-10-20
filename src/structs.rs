@@ -46,7 +46,7 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
 
         let purpose = Purpose::purpose_from_str(&address[0..3]).map_err(|e| {
             BridgeCliError::Eyre(eyre::eyre!(
-                "Failed to parse purpose from address: {} Error: {}",
+                "Failed to parse purpose from address: {}, Error: {}",
                 address,
                 e
             ))
@@ -78,7 +78,14 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
             return Err(BridgeCliError::InvalidAddressFormat);
         }
 
-        let purpose = Purpose::purpose_from_str(&address[0..3])?;
+        let purpose = Purpose::purpose_from_str(&address[0..3]).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to parse purpose from address: {}, Error: {}",
+                address,
+                e
+            ))
+        })?;
+
         let addr_str = &address[3..];
 
         let unchecked_address: BitcoinAddress<NetworkUnchecked> =
@@ -104,6 +111,7 @@ impl AddrDisplay for Address<NetworkChecked> {
         self.to_string()
     }
 }
+
 impl AddrDisplay for Address<NetworkUnchecked> {
     fn as_display_str(&self) -> String {
         self.clone().assume_checked().to_string()

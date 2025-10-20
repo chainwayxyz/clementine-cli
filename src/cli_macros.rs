@@ -1,3 +1,7 @@
+use crate::{config::ConfigErrors, errors::BridgeCliError};
+use colored::Colorize;
+use std::{any::Any, error::Error};
+
 /// Universal CLI command handler - handles all cases: sync/async, with/without result processing
 #[macro_export]
 macro_rules! handle_cli_command {
@@ -6,8 +10,7 @@ macro_rules! handle_cli_command {
         match $expr.await {
             Ok($pattern) => { $($body)* }
             Err(e) => {
-                eprintln!("{} {}", colored::Colorize::red(colored::Colorize::bold("Error:")), e);
-                std::process::exit(1);
+                $crate::handle_err(e);
             }
         }
     };
@@ -17,17 +20,9 @@ macro_rules! handle_cli_command {
         match $expr {
             Ok($pattern) => { $($body)* }
             Err(e) => {
-                eprintln!("{} {}", colored::Colorize::red(colored::Colorize::bold("Error:")), e);
-                std::process::exit(1);
+                $crate::handle_err(e);
             }
         }
-    };
-
-    // Async with simple success message (convenience)
-    (async $expr:expr, $success_msg:expr) => {
-        handle_cli_command!(async $expr, _result => {
-            println!("{}", $success_msg);
-        });
     };
 
     // Sync with simple success message (convenience)
@@ -45,6 +40,58 @@ macro_rules! handle_cli_command {
     // Sync without success message (convenience)
     ($expr:expr) => {
         handle_cli_command!($expr, _result => {});
+    };
+}
+
+pub fn report_config_error(e: &ConfigErrors) {
+    tracing::error!(error = ?e);
+    eprintln!("{} {}", "Error:".bold().red(), e);
+}
+
+pub fn report_bridge(e: &BridgeCliError) {
+    tracing::error!(error = ?e);
+    eprintln!("{} {}", "Error:".bold().red(), e);
+}
+
+pub fn report_eyre(e: &eyre::Report) {
+    tracing::error!(error = ?e);
+    eprintln!("{} {:#}", "Error:".bold().red(), e);
+}
+
+pub fn report_any(err: &(dyn Error + 'static)) {
+    tracing::error!(error = ?err);
+    eprintln!("{} {}", "Error:".bold().red(), err);
+}
+
+pub fn handle_err<E>(e: E) -> !
+where
+    E: Error + 'static,
+{
+    let err_obj: &dyn Error = &e;
+    let any_view: &dyn Any = &e;
+
+    if let Some(b) = any_view.downcast_ref::<BridgeCliError>() {
+        report_bridge(b);
+    } else if let Some(r) = any_view.downcast_ref::<eyre::Report>() {
+        report_eyre(r);
+    } else if let Some(c) = any_view.downcast_ref::<ConfigErrors>() {
+        report_config_error(c);
+    } else {
+        report_any(err_obj);
+    }
+
+    std::process::exit(1);
+}
+
+#[macro_export]
+macro_rules! handle_simple_call {
+    ($expr:expr) => {
+        match $expr {
+            Ok(val) => val,
+            Err(e) => {
+                $crate::handle_err(e);
+            }
+        }
     };
 }
 
