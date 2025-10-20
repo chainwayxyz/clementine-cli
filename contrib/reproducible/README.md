@@ -43,7 +43,14 @@ All builds are performed from the repository root.
 ### Linux (x86_64)
 
 ```bash
+# Using the full path
 nix build .#packages.x86_64-linux.default
+
+# Or using the convenient shorthand
+nix build .#packages.x86_64-linux.clementine-cli
+
+# Or simply (uses default package)
+nix build
 ```
 
 The binary will be in `./result/bin/clementine-cli`.
@@ -60,7 +67,9 @@ nix build .#packages.aarch64-linux.default
 
 If you want to build macOS binaries from Linux, you first need to obtain the macOS SDK. The Xcode 12.2 version is required (`Xcode_12.2.xip`).
 
-**Important**: You need to download this from Apple's website. An Apple ID is required (you can create one for free). Note that it is illegal to distribute this archive.
+**Important**: You need to download this from Apple's website. An Apple ID is required (you can create one for free).
+
+**Legal Note**: The Xcode SDK archive itself cannot be redistributed (it's covered by Apple's license agreement). However, binaries built using the SDK can be freely distributed. Each developer performing macOS cross-compilation must download their own copy of the SDK from Apple.
 
 1. **Download Xcode 12.2**:
    - Use the [direct link](https://download.developer.apple.com/Developer_Tools/Xcode_12.2/Xcode_12.2.xip)
@@ -245,8 +254,89 @@ If you encounter caching issues, you can clear the Nix store cache:
 nix store gc
 ```
 
+## CI/CD Integration
+
+### Future Enhancement: Automated Reproducible Builds
+
+While not yet implemented, integrating Nix builds into CI/CD would provide:
+
+1. **Automated verification** of reproducibility on every PR
+2. **Multi-platform builds** in a single workflow
+3. **Guaranteed consistency** between development and release builds
+
+### Example GitHub Actions Workflow
+
+Here's a template for future CI/CD integration:
+
+```yaml
+name: Reproducible Builds
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build for Linux x86_64
+        run: nix build .#packages.x86_64-linux.default
+
+      - name: Verify reproducibility
+        run: |
+          HASH1=$(nix hash path ./result)
+          rm -rf result
+          nix build .#packages.x86_64-linux.default
+          HASH2=$(nix hash path ./result)
+          if [ "$HASH1" != "$HASH2" ]; then
+            echo "Build is not reproducible!"
+            exit 1
+          fi
+          echo "Build is reproducible: $HASH1"
+
+  build-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        arch: [aarch64-darwin, x86_64-darwin]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build for macOS
+        run: nix build .#packages.${{ matrix.arch }}.default
+```
+
+### Benefits of CI Integration
+
+- **Early detection** of reproducibility issues
+- **Platform coverage** testing on every commit
+- **Release automation** with verified builds
+- **Hash verification** before publishing releases
+
+### Implementation Steps
+
+1. Add the workflow file to `.github/workflows/reproducible-builds.yml`
+2. Configure Cachix or another binary cache for faster builds
+3. Set up automated attestation/signing for releases
+4. Document the CI process in the main README
+
+This ensures that all releases are built using the same deterministic process, providing users with verifiable binaries.
+
 ## Learn More
 
 - [Reproducible Builds](https://reproducible-builds.org/) - About reproducible builds
 - [Nix Manual](https://nixos.org/manual/nix/stable/) - Complete Nix documentation
 - [Nix Flakes](https://nixos.wiki/wiki/Flakes) - About Nix flakes
+- [GitHub Actions + Nix](https://github.com/cachix/install-nix-action) - CI integration guide

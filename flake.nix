@@ -35,7 +35,8 @@
             inherit system overlays;
           };
 
-        # Pin Rust version to match rust-toolchain.toml
+        # Pin Rust version to match rust-toolchain.toml for reproducibility
+        # This exact version must be kept in sync with rust-toolchain.toml
         rustVersion = "1.89.0";
 
         rust = if system == "x86_64-windows" then
@@ -68,9 +69,8 @@
             openssl
           ];
 
-      in
-      {
-        packages.default = rustPlatform.buildRustPackage rec {
+        # Helper to create the package definition
+        buildClementineCli = rustPlatform.buildRustPackage rec {
           pname = "clementine-cli";
           version = "0.1.0";
 
@@ -81,6 +81,16 @@
 
           cargoLock = {
             lockFile = ./Cargo.lock;
+            # Hashes for git dependencies (from Cargo.toml [patch.crates-io])
+            # These correspond to specific git commits:
+            # - bitcoincore-rpc: chainwayxyz/rust-bitcoincore-rpc@5da45109a2de352472a6056ef90a517b66bc106f
+            # - secp256k1: rust-bitcoin/rust-secp256k1@4d36fefdddb118425bb9bcf611bb6e4dff306cfc
+            #
+            # To update these hashes when dependencies change:
+            # 1. Update the git rev in Cargo.toml
+            # 2. Run: ./contrib/reproducible/update-hashes.sh
+            # 3. Copy the new hashes from the error output to here
+            # 4. Verify the git commits match what you expect before building
             outputHashes = {
               "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
               "secp256k1-0.31.0" = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
@@ -93,14 +103,22 @@
             then "x86_64-pc-windows-gnu"
             else null;
 
-          # Reproducibility flags
+          # Reproducibility flags for deterministic builds
+          # - debuginfo=0: Remove debug info (which can contain non-deterministic paths)
+          # - opt-level=3: Maximum optimization
+          # - codegen-units=1: Single codegen unit for deterministic code generation
           RUSTFLAGS = "-C debuginfo=0 -C opt-level=3 -C codegen-units=1";
+
+          # Set fixed timestamp for reproducible builds (epoch = 1970-01-01)
           SOURCE_DATE_EPOCH = "1";
 
           # Disable stripping to ensure deterministic builds
+          # Even though we have debuginfo=0, we disable stripping because the strip
+          # tool itself can introduce non-determinism in some edge cases
           dontStrip = true;
 
           # Use single-threaded build for determinism
+          # Parallel builds can introduce non-deterministic ordering in the final binary
           enableParallelBuilding = false;
 
           meta = with pkgs.lib; {
@@ -110,6 +128,14 @@
             maintainers = [ ];
           };
         };
+
+      in
+      {
+        # Default package (accessible via `nix build`)
+        packages.default = buildClementineCli;
+
+        # Convenient shorthand (accessible via `nix build .#clementine-cli`)
+        packages.clementine-cli = buildClementineCli;
 
         devShells.default = pkgs.mkShell {
           inherit nativeBuildInputs;
