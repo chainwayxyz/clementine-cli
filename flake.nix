@@ -74,8 +74,10 @@
           pname = "clementine-cli";
           version = "0.1.0";
 
-          # TODO: Remove this
-          src = ./.;auditable = false;
+          src = ./.;
+
+          # Disable cargo-auditable for reproducibility (it embeds timestamps)
+          auditable = false;
 
           cargoLock = {
             lockFile = ./Cargo.lock;
@@ -91,8 +93,15 @@
             then "x86_64-pc-windows-gnu"
             else null;
 
-          RUSTFLAGS = "-C debuginfo=0 -C opt-level=3";
+          # Reproducibility flags
+          RUSTFLAGS = "-C debuginfo=0 -C opt-level=3 -C codegen-units=1";
           SOURCE_DATE_EPOCH = "1";
+
+          # Disable stripping to ensure deterministic builds
+          dontStrip = true;
+
+          # Use single-threaded build for determinism
+          enableParallelBuilding = false;
 
           meta = with pkgs.lib; {
             description = "Clementine CLI tool";
