@@ -53,6 +53,7 @@ pub struct BridgeCliConfig {
     pub operator_withdrawal_amount: Amount,
     pub dust_utxo_amount: Amount,
     pub bridge_contract_address: String,
+    pub move_tx_finalization_blocks: u64,
     pub bitcoin_config: Option<BitcoinConfig>,
 }
 
@@ -235,6 +236,7 @@ impl Default for BridgeCliConfig {
             dust_utxo_amount: Amount::from_sat(330),
             bridge_contract_address: "0x3100000000000000000000000000000000000002".to_string(),
             bitcoin_config: None,
+            move_tx_finalization_blocks: 5,
         }
     }
 }
