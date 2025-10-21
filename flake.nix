@@ -12,192 +12,142 @@
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     let
-      # Define the build system - this is the machine you're building on
       buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-
-      # Define all target platforms we want to build for
-      targetSystems = {
-        x86_64-linux = { config = "x86_64-unknown-linux-gnu"; rustTarget = "x86_64-unknown-linux-gnu"; };
-        aarch64-linux = { config = "aarch64-unknown-linux-gnu"; rustTarget = "aarch64-unknown-linux-gnu"; };
-        x86_64-darwin = { config = "x86_64-apple-darwin"; rustTarget = "x86_64-apple-darwin"; };
-        aarch64-darwin = { config = "aarch64-apple-darwin"; rustTarget = "aarch64-apple-darwin"; };
-        x86_64-windows = { config = "x86_64-w64-mingw32"; rustTarget = "x86_64-pc-windows-gnu"; };
-      };
+      targetSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" "x86_64-windows" ];
     in
     flake-utils.lib.eachSystem buildSystems (buildSystem:
       let
         overlays = [ (import rust-overlay) ];
+        pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
 
-        # Function to create a cross-compilation package set
-        mkCrossPkgs = targetSystem: targetConfig:
-          if buildSystem == targetSystem then
-            # Native build - no cross-compilation needed
-            import nixpkgs {
-              system = buildSystem;
-              inherit overlays;
-            }
-          else
-            # Cross-compilation
-            import nixpkgs {
-              system = buildSystem;
-              crossSystem = {
-                config = targetConfig.config;
-              };
-              inherit overlays;
-            };
+        rustVersion = "1.89.0";
+        rustPinned = pkgs.rust-bin.stable.${rustVersion}.default.override {
+          targets = [ "x86_64-pc-windows-gnu" ];
+        };
+        rustPlatformPinned = pkgs.makeRustPlatform { cargo = rustPinned; rustc = rustPinned; };
 
-        # Create packages for all target systems
-        mkPackagesForTargets = builtins.mapAttrs (targetName: targetConfig:
+        isDarwin = pkgs.stdenv.isDarwin;
+
+        mkPackageFor = targetName:
           let
-            pkgs = mkCrossPkgs targetName targetConfig;
-
-            # Pin Rust version to match rust-toolchain.toml for reproducibility
-            # This exact version must be kept in sync with rust-toolchain.toml
-            rustVersion = "1.89.0";
-
-            # Determine if this is a cross-compilation
-            isCross = buildSystem != targetName;
             isWindows = targetName == "x86_64-windows";
-            isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
-            isLinux = pkgs.stdenv.hostPlatform.isLinux;
 
-            # Get the appropriate Rust toolchain with cross-compilation target
-            rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
-              targets = [ targetConfig.rustTarget ];
-            };
+            # For Windows, use pkgsCross for proper cross-compilation
+            targetPkgs = if isWindows 
+              then pkgs.pkgsCross.mingwW64
+              else pkgs;
 
-            rustPlatform = pkgs.makeRustPlatform {
-              cargo = rust;
-              rustc = rust;
-            };
+            nativeBuildInputs = [ pkgs.pkg-config ];
 
-            # Build inputs based on target platform
-            nativeBuildInputs = with pkgs; [
-              pkg-config
-            ] ++ pkgs.lib.optionals isWindows [
-              pkgs.stdenv.cc
-            ];
+            # buildInputs should only contain libraries for the TARGET platform
+            # For Windows cross-compilation, we don't add Windows libraries here
+            # because they cause build scripts (which run on the host) to try linking against them
+            buildInputs =
+              if isWindows then
+                [ ]
+              else if isDarwin then
+                [ pkgs.darwin.apple_sdk.frameworks.Security
+                  pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+                  pkgs.libiconv ]
+              else
+                [ pkgs.openssl ];
 
-            buildInputs = with pkgs;
-              if isWindows then [
-                windows.pthreads
-              ] else if isDarwin then [
-                darwin.apple_sdk.frameworks.Security
-                darwin.apple_sdk.frameworks.SystemConfiguration
-                libiconv
-              ] else [
-                openssl
-              ];
+            cargoBuildFlags = pkgs.lib.optionals isWindows [ "--target" "x86_64-pc-windows-gnu" ];
 
+            # For Windows, we need to customize the install phase since the binary is in a different location
+            installPhase = if isWindows then ''
+              runHook preInstall
+              mkdir -p $out/bin
+              cp target/x86_64-pc-windows-gnu/release/clementine-cli.exe $out/bin/
+              runHook postInstall
+            '' else null;
           in
-          # Helper to create the package definition
-          rustPlatform.buildRustPackage rec {
-          pname = "clementine-cli";
-          version = "0.1.0";
+          rustPlatformPinned.buildRustPackage rec {
+            pname = "clementine-cli${pkgs.lib.optionalString isWindows "-x86_64-w64-mingw32"}";
+            version = "0.1.0";
 
-          src = ./.;
+            src = ./.;
 
-          # Disable cargo-auditable for reproducibility (it embeds timestamps)
-          auditable = false;
+            inherit nativeBuildInputs buildInputs cargoBuildFlags installPhase;
 
-          cargoLock = {
-            lockFile = ./Cargo.lock;
-            # Hashes for git dependencies (from Cargo.toml [patch.crates-io])
-            # These correspond to specific git commits:
-            # - bitcoincore-rpc: chainwayxyz/rust-bitcoincore-rpc@5da45109a2de352472a6056ef90a517b66bc106f
-            # - secp256k1: rust-bitcoin/rust-secp256k1@4d36fefdddb118425bb9bcf611bb6e4dff306cfc
-            #
-            # To update these hashes when dependencies change:
-            # 1. Update the git rev in Cargo.toml
-            # 2. Run: ./contrib/reproducible/update-hashes.sh
-            # 3. Copy the new hashes from the error output to here
-            # 4. Verify the git commits match what you expect before building
-            outputHashes = {
-              "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
-              "secp256k1-0.31.0" = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
-            };
-          };
-
-            inherit nativeBuildInputs buildInputs;
-
-            # Set the target for cross-compilation
-            CARGO_BUILD_TARGET = if isCross then targetConfig.rustTarget else null;
-
-            # Reproducibility flags for deterministic builds
-            # - debuginfo=0: Remove debug info (which can contain non-deterministic paths)
-            # - opt-level=3: Maximum optimization
-            # - codegen-units=1: Single codegen unit for deterministic code generation
-            RUSTFLAGS = "-C debuginfo=0 -C opt-level=3 -C codegen-units=1";
-
-            # Set fixed timestamp for reproducible builds (epoch = 1970-01-01)
+            # Reproducibility knobs
+            auditable = false;
             SOURCE_DATE_EPOCH = "1";
-
-            # Disable stripping to ensure deterministic builds
-            # Even though we have debuginfo=0, we disable stripping because the strip
-            # tool itself can introduce non-determinism in some edge cases
             dontStrip = true;
-
-            # Use single-threaded build for determinism
-            # Parallel builds can introduce non-deterministic ordering in the final binary
             enableParallelBuilding = false;
+
+            depsBuildBuild = pkgs.lib.optionals isWindows [ targetPkgs.stdenv.cc ];
+
+            # Critical: Set these environment variables to configure cross-compilation properly
+            env = if isWindows then {
+              # Tell Cargo where the Windows linker is
+              CARGO_TARGET_X86_64_PC_WINDOWS_GNU_LINKER =
+                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+
+              # Set rustflags for the Windows target only (not for build scripts)
+              # The key is to put library paths in link-args so they only apply to the target
+              CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS =
+                "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib";
+
+              # Ensure build scripts use the host compiler and standard libraries
+              CC_x86_64_unknown_linux_gnu = "${pkgs.stdenv.cc}/bin/cc";
+              HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
+
+              # Configure for secp256k1-sys and other C dependencies cross-compilation
+              TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              CC_x86_64_pc_windows_gnu = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              AR_x86_64_pc_windows_gnu = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+            } else {};
+
+            cargoLock = {
+              lockFile = ./Cargo.lock;
+              outputHashes = {
+                "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
+                "secp256k1-0.31.0"      = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
+              };
+            };
+
+            doCheck = !isWindows;
 
             meta = with pkgs.lib; {
               description = "Clementine CLI tool for ${targetName}";
               homepage = "https://github.com/chainwayxyz/clementine-cli";
               license = licenses.gpl3;
-              maintainers = [ ];
-              platforms = [ targetName ];
+              platforms = [ pkgs.stdenv.hostPlatform.system ];
             };
-          }
-        ) targetSystems;
+          };
 
-        # Native package for the current build system
-        nativePkgs = import nixpkgs {
-          system = buildSystem;
-          inherit overlays;
-        };
-
-        # Pin Rust version to match rust-toolchain.toml for reproducibility
-        rustVersion = "1.89.0";
-
-        nativeRust = nativePkgs.rust-bin.stable.${rustVersion}.default;
+        packagesForAll = pkgs.lib.genAttrs targetSystems mkPackageFor;
 
       in
       {
-        # Expose all cross-compilation packages
-        packages = mkPackagesForTargets // {
-          # Default package - native build for the current system
-          default = mkPackagesForTargets.${buildSystem};
-          # Alias for convenience
-          clementine-cli = mkPackagesForTargets.${buildSystem};
+        packages = packagesForAll // {
+          default = packagesForAll.${buildSystem};
+          clementine-cli = packagesForAll.${buildSystem};
         };
 
-        # Development shell with native build tools
-        devShells.default = nativePkgs.mkShell {
-          nativeBuildInputs = with nativePkgs; [
-            pkg-config
-          ];
-
-          buildInputs = with nativePkgs;
-            (if nativePkgs.stdenv.isDarwin then [
-              darwin.apple_sdk.frameworks.Security
-              darwin.apple_sdk.frameworks.SystemConfiguration
-              libiconv
+        devShells.default = pkgs.mkShell {
+          nativeBuildInputs = [ pkgs.pkg-config ];
+          buildInputs =
+            (if isDarwin then [
+              pkgs.darwin.apple_sdk.frameworks.Security
+              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+              pkgs.libiconv
             ] else [
-              openssl
-            ]) ++ [ nativeRust ];
+              pkgs.openssl
+            ]) ++ [ rustPinned ];
 
           shellHook = ''
             echo "Clementine CLI development environment"
             echo "Rust version: ${rustVersion}"
             echo "Build system: ${buildSystem}"
-            echo ""
-            echo "Available cross-compilation targets:"
-            echo "  - x86_64-linux (nix build .#x86_64-linux)"
-            echo "  - aarch64-linux (nix build .#aarch64-linux)"
-            echo "  - x86_64-darwin (nix build .#x86_64-darwin)"
-            echo "  - aarch64-darwin (nix build .#aarch64-darwin)"
-            echo "  - x86_64-windows (nix build .#x86_64-windows)"
+            echo
+            echo "Build targets:"
+            echo "  nix build .#x86_64-linux"
+            echo "  nix build .#aarch64-linux"
+            echo "  nix build .#x86_64-darwin"
+            echo "  nix build .#aarch64-darwin"
+            echo "  nix build .#x86_64-windows"
           '';
         };
       }

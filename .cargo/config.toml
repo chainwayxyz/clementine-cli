@@ -1,0 +1,13 @@
+[target.x86_64-pc-windows-gnu]
+linker = "x86_64-w64-mingw32-gcc"
+runner = "wine64"
+rustflags = [
+    "-C", "debuginfo=0",
+    "-C", "opt-level=3",
+    "-C", "codegen-units=1",
+    # 🔑 force dynamic CRT/winpthreads (do NOT use +crt-static)
+    "-C", "target-feature=-crt-static",
+    # make sure the linker flips back to dynamic for system libs
+    "-C", "link-arg=-Wl,-Bdynamic",
+    "-C", "link-arg=-Wl,--defsym,__ImageBase=0"
+]
