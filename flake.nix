@@ -11,66 +11,87 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    flake-utils.lib.eachSystem [
-      "x86_64-linux"
-      "aarch64-linux"
-      "x86_64-darwin"
-      "aarch64-darwin"
-      "x86_64-windows"
-    ] (system:
+    let
+      # Define the build system - this is the machine you're building on
+      buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+
+      # Define all target platforms we want to build for
+      targetSystems = {
+        x86_64-linux = { config = "x86_64-unknown-linux-gnu"; rustTarget = "x86_64-unknown-linux-gnu"; };
+        aarch64-linux = { config = "aarch64-unknown-linux-gnu"; rustTarget = "aarch64-unknown-linux-gnu"; };
+        x86_64-darwin = { config = "x86_64-apple-darwin"; rustTarget = "x86_64-apple-darwin"; };
+        aarch64-darwin = { config = "aarch64-apple-darwin"; rustTarget = "aarch64-apple-darwin"; };
+        x86_64-windows = { config = "x86_64-w64-mingw32"; rustTarget = "x86_64-pc-windows-gnu"; };
+      };
+    in
+    flake-utils.lib.eachSystem buildSystems (buildSystem:
       let
         overlays = [ (import rust-overlay) ];
 
-        # For cross-compilation to Windows from Linux
-        pkgs = if system == "x86_64-windows" then
-          import nixpkgs {
-            system = "x86_64-linux";
-            crossSystem = {
-              config = "x86_64-w64-mingw32";
+        # Function to create a cross-compilation package set
+        mkCrossPkgs = targetSystem: targetConfig:
+          if buildSystem == targetSystem then
+            # Native build - no cross-compilation needed
+            import nixpkgs {
+              system = buildSystem;
+              inherit overlays;
+            }
+          else
+            # Cross-compilation
+            import nixpkgs {
+              system = buildSystem;
+              crossSystem = {
+                config = targetConfig.config;
+              };
+              inherit overlays;
             };
-            inherit overlays;
-          }
-        else
-          import nixpkgs {
-            inherit system overlays;
-          };
 
-        # Pin Rust version to match rust-toolchain.toml for reproducibility
-        # This exact version must be kept in sync with rust-toolchain.toml
-        rustVersion = "1.89.0";
+        # Create packages for all target systems
+        mkPackagesForTargets = builtins.mapAttrs (targetName: targetConfig:
+          let
+            pkgs = mkCrossPkgs targetName targetConfig;
 
-        rust = if system == "x86_64-windows" then
-          pkgs.pkgsCross.mingwW64.rust-bin.stable.${rustVersion}.default.override {
-            targets = [ "x86_64-pc-windows-gnu" ];
-          }
-        else
-          pkgs.rust-bin.stable.${rustVersion}.default;
+            # Pin Rust version to match rust-toolchain.toml for reproducibility
+            # This exact version must be kept in sync with rust-toolchain.toml
+            rustVersion = "1.89.0";
 
-        rustPlatform = pkgs.makeRustPlatform {
-          cargo = rust;
-          rustc = rust;
-        };
+            # Determine if this is a cross-compilation
+            isCross = buildSystem != targetName;
+            isWindows = targetName == "x86_64-windows";
+            isDarwin = pkgs.stdenv.hostPlatform.isDarwin;
+            isLinux = pkgs.stdenv.hostPlatform.isLinux;
 
-        # Build inputs based on target platform
-        nativeBuildInputs = with pkgs; [
-          pkg-config
-        ] ++ pkgs.lib.optionals (system == "x86_64-windows") [
-          pkgs.pkgsCross.mingwW64.stdenv.cc
-        ];
+            # Get the appropriate Rust toolchain with cross-compilation target
+            rust = pkgs.rust-bin.stable.${rustVersion}.default.override {
+              targets = [ targetConfig.rustTarget ];
+            };
 
-        buildInputs = with pkgs;
-          if system == "x86_64-windows" then [
-            pkgs.pkgsCross.mingwW64.windows.pthreads
-          ] else if pkgs.stdenv.isDarwin then [
-            darwin.apple_sdk.frameworks.Security
-            darwin.apple_sdk.frameworks.SystemConfiguration
-            libiconv
-          ] else [
-            openssl
-          ];
+            rustPlatform = pkgs.makeRustPlatform {
+              cargo = rust;
+              rustc = rust;
+            };
 
-        # Helper to create the package definition
-        buildClementineCli = rustPlatform.buildRustPackage rec {
+            # Build inputs based on target platform
+            nativeBuildInputs = with pkgs; [
+              pkg-config
+            ] ++ pkgs.lib.optionals isWindows [
+              pkgs.stdenv.cc
+            ];
+
+            buildInputs = with pkgs;
+              if isWindows then [
+                windows.pthreads
+              ] else if isDarwin then [
+                darwin.apple_sdk.frameworks.Security
+                darwin.apple_sdk.frameworks.SystemConfiguration
+                libiconv
+              ] else [
+                openssl
+              ];
+
+          in
+          # Helper to create the package definition
+          rustPlatform.buildRustPackage rec {
           pname = "clementine-cli";
           version = "0.1.0";
 
@@ -97,53 +118,86 @@
             };
           };
 
-          inherit nativeBuildInputs buildInputs;
+            inherit nativeBuildInputs buildInputs;
 
-          CARGO_BUILD_TARGET = if system == "x86_64-windows"
-            then "x86_64-pc-windows-gnu"
-            else null;
+            # Set the target for cross-compilation
+            CARGO_BUILD_TARGET = if isCross then targetConfig.rustTarget else null;
 
-          # Reproducibility flags for deterministic builds
-          # - debuginfo=0: Remove debug info (which can contain non-deterministic paths)
-          # - opt-level=3: Maximum optimization
-          # - codegen-units=1: Single codegen unit for deterministic code generation
-          RUSTFLAGS = "-C debuginfo=0 -C opt-level=3 -C codegen-units=1";
+            # Reproducibility flags for deterministic builds
+            # - debuginfo=0: Remove debug info (which can contain non-deterministic paths)
+            # - opt-level=3: Maximum optimization
+            # - codegen-units=1: Single codegen unit for deterministic code generation
+            RUSTFLAGS = "-C debuginfo=0 -C opt-level=3 -C codegen-units=1";
 
-          # Set fixed timestamp for reproducible builds (epoch = 1970-01-01)
-          SOURCE_DATE_EPOCH = "1";
+            # Set fixed timestamp for reproducible builds (epoch = 1970-01-01)
+            SOURCE_DATE_EPOCH = "1";
 
-          # Disable stripping to ensure deterministic builds
-          # Even though we have debuginfo=0, we disable stripping because the strip
-          # tool itself can introduce non-determinism in some edge cases
-          dontStrip = true;
+            # Disable stripping to ensure deterministic builds
+            # Even though we have debuginfo=0, we disable stripping because the strip
+            # tool itself can introduce non-determinism in some edge cases
+            dontStrip = true;
 
-          # Use single-threaded build for determinism
-          # Parallel builds can introduce non-deterministic ordering in the final binary
-          enableParallelBuilding = false;
+            # Use single-threaded build for determinism
+            # Parallel builds can introduce non-deterministic ordering in the final binary
+            enableParallelBuilding = false;
 
-          meta = with pkgs.lib; {
-            description = "Clementine CLI tool";
-            homepage = "https://github.com/chainwayxyz/clementine-cli";
-            license = licenses.gpl3;
-            maintainers = [ ];
-          };
+            meta = with pkgs.lib; {
+              description = "Clementine CLI tool for ${targetName}";
+              homepage = "https://github.com/chainwayxyz/clementine-cli";
+              license = licenses.gpl3;
+              maintainers = [ ];
+              platforms = [ targetName ];
+            };
+          }
+        ) targetSystems;
+
+        # Native package for the current build system
+        nativePkgs = import nixpkgs {
+          system = buildSystem;
+          inherit overlays;
         };
+
+        # Pin Rust version to match rust-toolchain.toml for reproducibility
+        rustVersion = "1.89.0";
+
+        nativeRust = nativePkgs.rust-bin.stable.${rustVersion}.default;
 
       in
       {
-        # Default package (accessible via `nix build`)
-        packages.default = buildClementineCli;
+        # Expose all cross-compilation packages
+        packages = mkPackagesForTargets // {
+          # Default package - native build for the current system
+          default = mkPackagesForTargets.${buildSystem};
+          # Alias for convenience
+          clementine-cli = mkPackagesForTargets.${buildSystem};
+        };
 
-        # Convenient shorthand (accessible via `nix build .#clementine-cli`)
-        packages.clementine-cli = buildClementineCli;
+        # Development shell with native build tools
+        devShells.default = nativePkgs.mkShell {
+          nativeBuildInputs = with nativePkgs; [
+            pkg-config
+          ];
 
-        devShells.default = pkgs.mkShell {
-          inherit nativeBuildInputs;
-          buildInputs = buildInputs ++ [ rust ];
+          buildInputs = with nativePkgs;
+            (if nativePkgs.stdenv.isDarwin then [
+              darwin.apple_sdk.frameworks.Security
+              darwin.apple_sdk.frameworks.SystemConfiguration
+              libiconv
+            ] else [
+              openssl
+            ]) ++ [ nativeRust ];
 
           shellHook = ''
             echo "Clementine CLI development environment"
             echo "Rust version: ${rustVersion}"
+            echo "Build system: ${buildSystem}"
+            echo ""
+            echo "Available cross-compilation targets:"
+            echo "  - x86_64-linux (nix build .#x86_64-linux)"
+            echo "  - aarch64-linux (nix build .#aarch64-linux)"
+            echo "  - x86_64-darwin (nix build .#x86_64-darwin)"
+            echo "  - aarch64-darwin (nix build .#aarch64-darwin)"
+            echo "  - x86_64-windows (nix build .#x86_64-windows)"
           '';
         };
       }

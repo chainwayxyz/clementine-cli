@@ -38,38 +38,169 @@ sudo launchctl load /Library/LaunchDaemons/org.nixos.nix-daemon.plist
 
 ## Building for Different Platforms
 
-All builds are performed from the repository root.
+All builds are performed from the repository root. The Nix flake configuration supports cross-compilation from macOS or Linux to multiple target platforms.
 
-### Linux (x86_64)
+### Quick Reference
+
+**All Supported Build Commands:**
 
 ```bash
-# Using the full path
-nix build .#packages.x86_64-linux.default
-
-# Or using the convenient shorthand
-nix build .#packages.x86_64-linux.clementine-cli
-
-# Or simply (uses default package)
+# Native build (your current system)
 nix build
+
+# Linux targets
+nix build .#x86_64-linux        # Linux Intel/AMD 64-bit
+nix build .#aarch64-linux       # Linux ARM 64-bit
+
+# macOS targets
+nix build .#x86_64-darwin       # macOS Intel
+nix build .#aarch64-darwin      # macOS Apple Silicon (M1/M2/M3)
+
+# Windows target
+nix build .#x86_64-windows      # Windows 64-bit (see platform notes below)
+```
+
+The built binary will be in `./result/bin/clementine-cli` (or `.exe` for Windows).
+
+### Cross-Compilation Overview
+
+The flake supports building binaries for:
+- **Linux**: x86_64, ARM64 (aarch64)
+- **macOS**: Intel (x86_64), Apple Silicon (aarch64)
+- **Windows**: x86_64
+
+### Cross-Compilation Matrix
+
+This table shows which targets can be built from which build systems:
+
+| Build System → Target | Linux x86_64 | Linux ARM64 | macOS Intel (x86_64) | macOS Apple Silicon (M1/M2/M3) | Windows x86_64 |
+|----------------------|--------------|-------------|----------------------|-------------------------------|----------------|
+| **macOS Intel**      | ✅ Works     | ✅ Works    | ✅ Works (native)    | ✅ Works                      | ⚠️ Experimental¹ |
+| **macOS Apple Silicon** | ✅ Works  | ✅ Works    | ✅ Works             | ✅ Works (native)             | ⚠️ Experimental¹ |
+| **Linux x86_64**     | ✅ Works (native) | ✅ Works | ✅ Works²           | ✅ Works²                     | ✅ Works       |
+| **Linux ARM64**      | ✅ Works     | ✅ Works (native) | ✅ Works²      | ✅ Works²                     | ✅ Works       |
+
+> [!WARNING]
+> Windows from macOS: Cross-compilation to Windows from macOS (both Intel and Apple Silicon) is experimental and may encounter issues with MinGW toolchain availability. For reliable Windows builds, use a Linux build system or CI/CD.
+
+> [!NOTE]
+> macOS from Linux: Requires the macOS SDK (Xcode 12.2) to be manually installed. See [Prerequisites for macOS Cross-Compilation](#prerequisites-for-macos-cross-compilation-from-linux) below.
+
+### Testing Your Build Environment
+
+To verify which targets your current system can build, you can test with a simple command:
+
+```bash
+# Check your current system
+nix eval --raw .#currentSystem
+echo ""
+
+# Try building for your native platform (should always work)
+nix build
+
+# Test cross-compilation (choose based on your build system)
+# These examples test without actually completing the full build
+nix flake show
+```
+
+The `nix flake show` command will display all available build targets without actually building them.
+
+### Building from macOS
+
+> [!NOTE]
+> These instructions work for both Intel Macs (x86_64) and Apple Silicon Macs (M1/M2/M3/M4 - aarch64). Your Mac can cross-compile to any target regardless of which chip it has.
+
+To check which architecture your Mac is:
+```bash
+uname -m
+# x86_64 = Intel Mac
+# arm64 = Apple Silicon Mac (M1/M2/M3/M4)
+```
+
+#### For Linux (x86_64)
+
+```bash
+# Cross-compile from macOS to Linux x86_64
+nix build .#x86_64-linux
 ```
 
 The binary will be in `./result/bin/clementine-cli`.
 
-### Linux (ARM64)
+#### For Linux (ARM64)
 
 ```bash
-nix build .#packages.aarch64-linux.default
+# Cross-compile from macOS to Linux ARM64
+nix build .#aarch64-linux
 ```
 
-### macOS
+#### For macOS (other architecture)
 
-#### Prerequisites for macOS Cross-Compilation (from Linux)
+You can cross-compile between macOS architectures:
 
-If you want to build macOS binaries from Linux, you first need to obtain the macOS SDK. The Xcode 12.2 version is required (`Xcode_12.2.xip`).
+```bash
+# Build for Intel Macs (x86_64)
+nix build .#x86_64-darwin
 
-**Important**: You need to download this from Apple's website. An Apple ID is required (you can create one for free).
+# Build for Apple Silicon Macs (M1/M2/M3/M4 - aarch64)
+nix build .#aarch64-darwin
 
-**Legal Note**: The Xcode SDK archive itself cannot be redistributed (it's covered by Apple's license agreement). However, binaries built using the SDK can be freely distributed. Each developer performing macOS cross-compilation must download their own copy of the SDK from Apple.
+# Build for your current Mac architecture (native)
+# This automatically detects whether you have Intel or Apple Silicon
+nix build
+```
+
+> [!TIP]
+> - If you have an M1/M2/M3 Mac and run `nix build`, it builds for `aarch64-darwin`
+> - If you have an Intel Mac and run `nix build`, it builds for `x86_64-darwin`
+> - Either type of Mac can build for the other using the explicit commands above
+
+#### For Windows (x86_64)
+
+> [!WARNING]
+> Windows cross-compilation from macOS is experimental and may fail due to MinGW toolchain limitations. For production Windows builds, use Linux (see below) or CI/CD.
+
+```bash
+# Cross-compile from macOS to Windows x86_64 (experimental)
+nix build .#x86_64-windows
+```
+
+If successful, the binary will be `./result/bin/clementine-cli.exe`.
+
+> [!TIP]
+> If the Windows build fails from macOS, you can:
+> - Build from a Linux system instead (see [Building from Linux](#building-from-linux))
+> - Use CI/CD to build Windows binaries automatically
+> - Build all other platforms from macOS and only build Windows separately
+
+### Building from Linux
+
+#### For Linux (different architecture)
+
+```bash
+# On x86_64 Linux, build for ARM64
+nix build .#aarch64-linux
+
+# On ARM64 Linux, build for x86_64
+nix build .#x86_64-linux
+
+# Build for your current architecture (native)
+nix build
+```
+
+#### For macOS
+
+> [!NOTE]
+> Cross-compiling from Linux to macOS requires the macOS SDK.
+
+##### Prerequisites for macOS Cross-Compilation (from Linux)
+
+To build macOS binaries from Linux, you need to obtain the macOS SDK. The Xcode 12.2 version is required (`Xcode_12.2.xip`).
+
+> [!IMPORTANT]
+> You need to download this from Apple's website. An Apple ID is required (you can create one for free).
+
+> [!CAUTION]
+> The Xcode SDK archive itself cannot be redistributed (it's covered by Apple's license agreement). However, binaries built using the SDK can be freely distributed. Each developer performing macOS cross-compilation must download their own copy of the SDK from Apple.
 
 1. **Download Xcode 12.2**:
    - Use the [direct link](https://download.developer.apple.com/Developer_Tools/Xcode_12.2/Xcode_12.2.xip)
@@ -88,40 +219,25 @@ If you want to build macOS binaries from Linux, you first need to obtain the mac
    ```
    Note: This may take a long time.
 
-#### Building for macOS (from macOS)
-
-If you're already on macOS, you can build natively without the SDK setup:
-
-**Apple Silicon (M1/M2/M3)**:
-```bash
-nix build .#packages.aarch64-darwin.default
-```
-
-**Intel**:
-```bash
-nix build .#packages.x86_64-darwin.default
-```
-
-#### Cross-compiling for macOS (from Linux)
+##### Building for macOS (from Linux)
 
 After setting up the macOS SDK:
 
 **Apple Silicon**:
 ```bash
-nix build .#packages.aarch64-darwin.default
+nix build .#aarch64-darwin
 ```
 
 **Intel**:
 ```bash
-nix build .#packages.x86_64-darwin.default
+nix build .#x86_64-darwin
 ```
 
-### Windows (x86_64)
-
-**Note**: This requires building from a Linux system with cross-compilation support.
+#### For Windows (x86_64)
 
 ```bash
-nix build .#packages.x86_64-windows.default
+# Cross-compile from Linux to Windows x86_64
+nix build .#x86_64-windows
 ```
 
 The binary will be `./result/bin/clementine-cli.exe`.
@@ -166,25 +282,40 @@ For release managers preparing official builds:
    ```
 
 2. **Build for all platforms**:
+
+   > [!TIP]
+   > Recommended approach: Build 4 platforms from macOS (or Linux), and build Windows from Linux or CI/CD.
+
+   From macOS:
    ```bash
    # Linux x86_64
-   nix build .#packages.x86_64-linux.default
+   nix build .#x86_64-linux
    cp result/bin/clementine-cli clementine-cli-v0.1.0-linux-x86_64
 
    # Linux ARM64
-   nix build .#packages.aarch64-linux.default
+   nix build .#aarch64-linux
    cp result/bin/clementine-cli clementine-cli-v0.1.0-linux-aarch64
 
    # macOS Apple Silicon
-   nix build .#packages.aarch64-darwin.default
+   nix build .#aarch64-darwin
    cp result/bin/clementine-cli clementine-cli-v0.1.0-macos-aarch64
 
    # macOS Intel
-   nix build .#packages.x86_64-darwin.default
+   nix build .#x86_64-darwin
    cp result/bin/clementine-cli clementine-cli-v0.1.0-macos-x86_64
+   ```
 
-   # Windows (from Linux)
-   nix build .#packages.x86_64-windows.default
+   From Linux (for Windows):
+   ```bash
+   # Windows (more reliable from Linux)
+   nix build .#x86_64-windows
+   cp result/bin/clementine-cli.exe clementine-cli-v0.1.0-windows-x86_64.exe
+   ```
+
+   Or from macOS (experimental):
+   ```bash
+   # Windows (may require troubleshooting)
+   nix build .#x86_64-windows
    cp result/bin/clementine-cli.exe clementine-cli-v0.1.0-windows-x86_64.exe
    ```
 
@@ -244,7 +375,27 @@ outputHashes = {
 
 ### Cross-Compilation Issues
 
-If Windows cross-compilation fails, ensure you're building from a Linux system with MinGW support available through Nix.
+#### Windows from macOS fails
+
+> [!WARNING]
+> This is a known limitation due to MinGW toolchain availability on macOS.
+
+Solutions:
+- Build Windows binaries from a Linux system (native or VM)
+- Use GitHub Actions or other CI/CD to build Windows binaries
+- Try updating your Nix packages: `nix flake update`
+
+#### Windows from Linux fails
+
+Check the following:
+- Ensure you're using a recent version of nixpkgs with MinGW support
+- Check that the build logs show the correct target triple: `x86_64-pc-windows-gnu`
+
+#### macOS from Linux fails
+
+Verify your SDK setup:
+- Verify you have installed the macOS SDK (Xcode 12.2) correctly
+- Check that the SDK is in the Nix store: `nix-store --query --references $(nix-store -q --deriver $(which nix))`
 
 ### Cache Issues
 
@@ -252,6 +403,56 @@ If you encounter caching issues, you can clear the Nix store cache:
 
 ```bash
 nix store gc
+```
+
+## Platform-Specific Best Practices
+
+### Building All Platforms for a Release
+
+> [!NOTE]
+> If you're on macOS:
+> 1. Build all macOS and Linux targets directly (4 platforms total)
+> 2. Either:
+>    - Try building Windows and keep if successful, OR
+>    - Use a Linux machine/VM for the Windows build, OR
+>    - Use CI/CD to build Windows automatically
+
+> [!NOTE]
+> If you're on Linux:
+> 1. Build all targets directly (all 5 platforms)
+> 2. For macOS targets, first install the macOS SDK (one-time setup)
+
+Recommended Multi-Platform Workflow:
+```bash
+# 1. Test native build first
+nix build && ./result/bin/clementine-cli --version
+
+# 2. Build all reliable cross-compilation targets
+nix build .#x86_64-linux
+nix build .#aarch64-linux
+nix build .#x86_64-darwin
+nix build .#aarch64-darwin
+
+# 3. Build Windows (adjust based on your build system)
+nix build .#x86_64-windows  # May need Linux for reliable builds
+```
+
+### Verifying Cross-Compiled Binaries
+
+After cross-compiling, verify the binary is for the correct architecture:
+
+```bash
+# For Linux binaries
+file ./result/bin/clementine-cli
+# Should show: ELF 64-bit LSB executable, x86-64 or ARM aarch64
+
+# For macOS binaries
+file ./result/bin/clementine-cli
+# Should show: Mach-O 64-bit executable x86_64 or arm64
+
+# For Windows binaries
+file ./result/bin/clementine-cli.exe
+# Should show: PE32+ executable (console) x86-64
 ```
 
 ## CI/CD Integration
