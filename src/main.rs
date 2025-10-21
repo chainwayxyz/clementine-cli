@@ -1,5 +1,5 @@
 use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature};
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
@@ -26,12 +26,45 @@ use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
 /// Local copy of [`bitcoin::Network`], just to implement [`ValueEnum`].
-#[derive(Copy, Clone, Debug, ValueEnum)]
+#[derive(Copy, Clone, Debug)]
 enum CliNetwork {
     Bitcoin,
     Testnet4,
     Signet,
     Regtest,
+}
+
+impl FromStr for CliNetwork {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "bitcoin" | "mainnet" => Ok(CliNetwork::Bitcoin),
+            "testnet" | "testnet4" => Ok(CliNetwork::Testnet4),
+            "signet" | "devnet" => Ok(CliNetwork::Signet),
+            "regtest" => Ok(CliNetwork::Regtest),
+            _ => Err(format!(
+                "\n{}\n  {}\n  {}\n  {}\n  {}",
+                "Allowed values:".bold().yellow(),
+                "- bitcoin | mainnet   → Bitcoin".green(),
+                "- testnet | testnet4  → Testnet4".green(),
+                "- signet  | devnet    → Signet".green(),
+                "- regtest             → Regtest".green(),
+            )),
+        }
+    }
+}
+
+impl std::fmt::Display for CliNetwork {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let s = match self {
+            CliNetwork::Bitcoin => "bitcoin",
+            CliNetwork::Testnet4 => "testnet4",
+            CliNetwork::Signet => "signet",
+            CliNetwork::Regtest => "regtest",
+        };
+        write!(f, "{s}")
+    }
 }
 
 impl From<CliNetwork> for Network {
@@ -133,7 +166,7 @@ enum WalletCommands {
     /// Create a new wallet with mnemonic display.
     Create {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Label for the wallet file
         label: String,
@@ -160,7 +193,7 @@ enum WalletCommands {
     /// Import wallet using secure mnemonic input.
     ImportMnemonic {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Label for the imported wallet
         label: String,
@@ -170,7 +203,7 @@ enum WalletCommands {
     /// Import wallet using secure private key input.
     ImportPrivateKey {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Label for the imported wallet
         label: String,
@@ -195,7 +228,7 @@ enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
     GetDepositAddress {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
         recovery_taproot_address: String,
@@ -217,7 +250,7 @@ enum DepositCommands {
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
     },
     /// Verify a recovery transaction before broadcasting.
@@ -232,7 +265,7 @@ enum DepositCommands {
         #[arg(long)]
         amount: Option<f64>,
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
     },
     /// Check the status of a deposit.
@@ -240,7 +273,7 @@ enum DepositCommands {
         /// Deposit address (taproot address funds were sent to)
         deposit_address: String,
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
     },
     /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC.
@@ -248,7 +281,7 @@ enum DepositCommands {
         /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
     },
     /// Get deposit parameters for a move-to-vault transaction.
@@ -256,7 +289,7 @@ enum DepositCommands {
         /// Move-to-vault transaction ID (txid)
         move_to_vault_txid: String,
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
     },
 }
@@ -266,7 +299,7 @@ enum WithdrawCommands {
     /// Start a withdrawal process and get instructions for sending funds.
     Start {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
@@ -276,7 +309,7 @@ enum WithdrawCommands {
     /// Scan for UTXOs to use in withdrawal.
     Scan {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
@@ -286,7 +319,7 @@ enum WithdrawCommands {
     /// Generate a withdrawal signature (for air-gapped use).
     GenerateWithdrawalSignatures {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
@@ -298,7 +331,7 @@ enum WithdrawCommands {
     /// Initiate a safe withdrawal by opening browser interface.
     SafeWithdraw {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
@@ -312,7 +345,7 @@ enum WithdrawCommands {
     /// Send a safe withdrawal transaction directly to the bridge contract.
     SendSafeWithdrawal {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
@@ -326,7 +359,7 @@ enum WithdrawCommands {
     /// Check the status of a withdrawal.
     Status {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo: String,
@@ -334,7 +367,7 @@ enum WithdrawCommands {
     /// Send withdrawal signatures to operators.
     SendWithdrawalSignatureToOperators {
         /// Bitcoin network to use
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
