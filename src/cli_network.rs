@@ -1,5 +1,3 @@
-// network.rs
-
 use std::str::FromStr;
 
 use bitcoin::Network;
