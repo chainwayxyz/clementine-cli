@@ -12,6 +12,7 @@ mod bitcoin_merkle;
 mod bitcoin_utils;
 pub mod cli;
 pub mod cli_macros;
+pub mod cli_network;
 pub mod config;
 pub mod deposit;
 pub mod errors;
@@ -24,7 +25,6 @@ pub mod types;
 mod utils;
 pub mod wallet;
 pub mod withdraw;
-
 // Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 
