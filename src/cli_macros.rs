@@ -60,17 +60,12 @@ pub fn report_bridge(e: &BridgeCliError) {
     eprintln!("{} {}", "Error:".bold().red(), e);
 }
 
-pub fn report_eyre(e: &eyre::Report) {
-    tracing::error!(error = ?e);
-    eprintln!("{} {:#}", "Error:".bold().red(), e);
-}
-
 pub fn report_any(err: &(dyn Error + 'static)) {
     tracing::error!(error = ?err);
     eprintln!("{} {}", "Error:".bold().red(), err);
 }
 
-pub fn handle_err<E>(e: E) -> !
+fn report_error_by_type<E>(e: E)
 where
     E: Error + 'static,
 {
@@ -79,14 +74,17 @@ where
 
     if let Some(b) = any_view.downcast_ref::<BridgeCliError>() {
         report_bridge(b);
-    } else if let Some(r) = any_view.downcast_ref::<eyre::Report>() {
-        report_eyre(r);
     } else if let Some(c) = any_view.downcast_ref::<ConfigErrors>() {
         report_config_error(c);
     } else {
         report_any(err_obj);
     }
-
+}
+pub fn handle_err<E>(e: E) -> !
+where
+    E: Error + 'static,
+{
+    report_error_by_type(e);
     std::process::exit(1);
 }
 

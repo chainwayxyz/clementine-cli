@@ -24,7 +24,7 @@ pub enum ConfigErrors {
     #[error("Can't parse TOML file: {0}")]
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
-    UnsportedNetwork(Network),
+    UnsupportedNetwork(Network),
 
     #[error(transparent)]
     Other(#[from] eyre::Report),
@@ -106,7 +106,7 @@ impl BridgeCliConfig {
             Network::Testnet4 => network_configs.testnet4,
             Network::Signet => network_configs.signet,
             Network::Regtest => network_configs.regtest,
-            rest => return Err(ConfigErrors::UnsportedNetwork(rest)),
+            rest => return Err(ConfigErrors::UnsupportedNetwork(rest)),
         };
 
         // All of the URLs needs a trailing slash. If not present, add it.
