@@ -76,7 +76,7 @@ pub(crate) fn derive_key_from_passphrase(
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
         .map_err(|e| {
             tracing::error!("Error deriving key from passphrase: {}", e);
-            BridgeCliError::KeyDerivationError
+            BridgeCliError::EncryptionKeyDerivationError
         })?;
 
     tracing::debug!("Encryption (also decryption) key derived successfully.");

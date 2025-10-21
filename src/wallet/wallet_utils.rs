@@ -100,7 +100,7 @@ pub(crate) fn validate_mnemonic_import(
         }
         Err(e) => {
             tracing::error!("Error generating address from mnemonic: {}", e);
-            return Err(BridgeCliError::MnemonicParseError);
+            return Err(BridgeCliError::AddressGenerationFromMnemonicFailed);
         }
     }
 

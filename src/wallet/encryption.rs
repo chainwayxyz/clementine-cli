@@ -117,7 +117,7 @@ pub(crate) fn aes_encrypt_secure(
     )
     .map_err(|e| {
         tracing::error!("Error deriving key from passphrase: {}", e);
-        BridgeCliError::KeyDerivationError
+        BridgeCliError::EncryptionKeyDerivationError
     })?;
 
     // Encrypt with AES-256-GCM
@@ -155,7 +155,7 @@ pub(crate) fn aes_decrypt_secure(
     )
     .map_err(|e| {
         tracing::error!("Error deriving key from passphrase: {}", e);
-        BridgeCliError::KeyDerivationError
+        BridgeCliError::EncryptionKeyDerivationError
     })?;
 
     // Decrypt with AES-256-GCM (verifies authentication)

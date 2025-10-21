@@ -55,7 +55,7 @@ pub enum BridgeCliError {
     #[error("Failed to generate random nonce.")]
     RandomNonceGenerationError,
     #[error("Key derivation failed.")]
-    KeyDerivationError,
+    EncryptionKeyDerivationError,
     #[error("Encryption failed.")]
     EncryptionError,
     #[error("Decryption failed.")]
