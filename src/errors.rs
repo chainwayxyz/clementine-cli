@@ -150,7 +150,9 @@ pub enum BridgeCliError {
         "Destination address cannot be a wallet address. The destination address belongs to one of your wallets."
     )]
     DestinationAddressIsWalletAddress,
-    #[error("Address '{0}' should not have a prefix.")]
+    #[error(
+        "Address '{0}' should not have a prefix, do not use a Clementine wallet for this operation."
+    )]
     AddressShouldNotHavePrefix(String),
 
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]

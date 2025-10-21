@@ -15,6 +15,18 @@ macro_rules! handle_cli_command {
         }
     };
 
+    // Async without success message (convenience)
+    (async $expr:expr) => {
+        handle_cli_command!(async $expr, _result => {});
+    };
+
+    // Async with simple success message (convenience)
+    (async $expr:expr, $success_msg:expr) => {
+        handle_cli_command!(async $expr, _result => {
+            println!("{}", $success_msg);
+        });
+    };
+
     // Sync with result processing (most flexible)
     ($expr:expr, $pattern:pat => { $($body:tt)* }) => {
         match $expr {
@@ -30,11 +42,6 @@ macro_rules! handle_cli_command {
         handle_cli_command!($expr, _result => {
             println!("{}", $success_msg);
         });
-    };
-
-    // Async without success message (convenience)
-    (async $expr:expr) => {
-        handle_cli_command!(async $expr, _result => {});
     };
 
     // Sync without success message (convenience)

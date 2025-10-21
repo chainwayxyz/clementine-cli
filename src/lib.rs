@@ -34,7 +34,6 @@ pub use wallet::{
     import_wallet_from_private_key, print_all_wallets_with_addresses, scan_wallet_files,
 };
 
-
 // Deposit operations
 pub use deposit::{
     RecoveryTxParams, create_signed_recovery_tx, get_deposit_params, verify_recovery_tx,

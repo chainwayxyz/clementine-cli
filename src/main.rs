@@ -735,17 +735,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     cli.config_file,
                     network.into()
                 ));
+
                 let signer_address =
                     handle_simple_call!(TaprootAddressWithPrefix::from_string_with_prefix(
                         &signer_address,
                         config.network,
                     ));
 
-                handle_simple_call!(should_not_have_purpose(&destination_address).inspect_err(
-                    |_| {
-                        eprintln!("Invalid withdrawal address: {}", destination_address.bold());
-                    }
-                ));
+                handle_simple_call!(should_not_have_purpose(&destination_address));
 
                 let destination_address =
                     handle_simple_call!(parse_address(&destination_address, config.network));
@@ -833,7 +830,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     network.into()
                 ));
 
-                handle_cli_command!(async { withdrawal_status(withdrawal_outpoint, &config) });
+                handle_cli_command!(async withdrawal_status(withdrawal_outpoint, &config));
             }
             WithdrawCommands::SendWithdrawalSignatureToOperators {
                 signer_address,
