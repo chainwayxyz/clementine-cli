@@ -13,6 +13,7 @@ mod bitcoin_utils;
 pub mod cli;
 pub mod cli_macros;
 pub mod cli_network;
+pub mod cli_network_minimal;
 pub mod config;
 pub mod deposit;
 pub mod errors;
