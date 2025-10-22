@@ -451,9 +451,10 @@ pub async fn send_withdrawal_signature(
 }
 
 fn print_incorrect_deposit(utxo: &UtxoInfo, refund_message: &str, block_display: &str) {
+    let outpoint = format!("{}:{}", utxo.txid, utxo.vout);
     println!(
-        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}{}",
-        utxo.txid, utxo.value, block_display, refund_message
+        "\nIncorrect Deposit\n  TxID:        {}\n  VOut:        {}\n  OutPoint:    {}\n  Value:       {}\n  Block:       {}{}",
+        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, refund_message
     );
 }
 
