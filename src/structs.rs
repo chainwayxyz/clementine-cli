@@ -7,6 +7,8 @@ use bitcoin::{
 
 use serde::{Deserialize, Serialize};
 
+const PROGRESS_BAR_WIDTH: usize = 40;
+
 use crate::{
     BitcoinAddress,
     deposit::DepositStatusEnum,
@@ -143,6 +145,7 @@ pub struct DepositStatus {
 pub struct DepositStatusWithVout<'a> {
     pub deposit_status: &'a DepositStatus,
     pub vout: Option<u32>,
+    pub remaining_finalization_blocks: Option<u64>,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -150,10 +153,12 @@ fn format_deposit_status(
     f: &mut std::fmt::Formatter<'_>,
     id: u64,
     status: &str,
+    raw_status: &str,
     txid: &str,
     vout: Option<u32>,
     evm_addr: &str,
     move_txid: &str,
+    move_tx_finalization_blocks: Option<u64>,
     move_tx_raw: &str,
     mint_txid: &str,
     print_na_for_vout: bool,
@@ -169,6 +174,37 @@ fn format_deposit_status(
     writeln!(f, "\nDeposit Info")?;
     writeln!(f, "  ID:                 {}", id)?;
     writeln!(f, "  Status:             {}", status)?;
+
+    // Add progress bar using the raw backend status
+    let status_enum = DepositStatusEnum::from_status(raw_status);
+    let (current, total) = status_enum.progress();
+
+    if current > 0 {
+        // Create a visual progress bar using ASCII characters
+        let bar_width = PROGRESS_BAR_WIDTH;
+        let filled = (current * bar_width) / total;
+        let empty = bar_width - filled;
+
+        let bar = if current == total {
+            format!("[{}] {}/{}", "=".repeat(bar_width), current, total)
+        } else {
+            format!(
+                "[{}{}] {}/{}",
+                "=".repeat(filled.saturating_sub(1)) + if filled > 0 { ">" } else { "" },
+                "-".repeat(empty),
+                current,
+                total
+            )
+        };
+
+        writeln!(f, "  Progress:           {}", bar)?;
+        writeln!(
+            f,
+            "  Current Step:       {}",
+            status_enum.step_description()
+        )?;
+    }
+
     writeln!(f, "  TXID:               {}", display_or(txid))?;
     match vout {
         Some(v) => {
@@ -182,8 +218,20 @@ fn format_deposit_status(
             }
         }
     }
+
+    let remaining_blocks_msg = match move_tx_finalization_blocks {
+        Some(0) => "Finalized".to_string(),
+        Some(blocks) => format!("Approx. {} blocks remaining", blocks),
+        None => "N/A".to_string(),
+    };
+
     writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
     writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;
+    writeln!(
+        f,
+        "  Move Tx Status:     {}",
+        display_or(&remaining_blocks_msg)
+    )?;
     writeln!(f, "  Mint TXID:          {}", display_or(mint_txid))?;
     writeln!(f, "  Raw MoveToVault TX: {}", display_or(move_tx_raw))
 }
@@ -193,6 +241,7 @@ fn format_deposit_status_default(
     f: &mut std::fmt::Formatter<'_>,
     id: u64,
     status: &str,
+    raw_status: &str,
     txid: &str,
     move_tx_raw: &str,
     evm_addr: &str,
@@ -203,10 +252,12 @@ fn format_deposit_status_default(
         f,
         id,
         status,
+        raw_status,
         txid,
         None,
         evm_addr,
         move_txid,
+        None,
         move_tx_raw,
         mint_txid,
         false,
@@ -223,6 +274,7 @@ impl Display for DepositStatus {
             f,
             self.id,
             &status,
+            &self.status, // Pass raw status for progress bar
             &self.txid,
             &self.move_tx_raw,
             &self.evm_addr,
@@ -243,10 +295,12 @@ impl Display for DepositStatusWithVout<'_> {
             f,
             self.deposit_status.id,
             &status,
+            &self.deposit_status.status, // Pass raw status for progress bar
             &self.deposit_status.txid,
             self.vout,
             &self.deposit_status.evm_addr,
             &self.deposit_status.move_txid,
+            self.remaining_finalization_blocks,
             &self.deposit_status.move_tx_raw,
             &self.deposit_status.mint_txid,
             true,

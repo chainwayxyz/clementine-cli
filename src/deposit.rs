@@ -64,6 +64,30 @@ impl DepositStatusEnum {
             DepositStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
+
+    /// Returns the progress position (current step, total steps)
+    pub fn progress(&self) -> (usize, usize) {
+        match self {
+            DepositStatusEnum::New => (1, 4),
+            DepositStatusEnum::InProgress => (2, 4),
+            DepositStatusEnum::MoveTxSent => (3, 4),
+            DepositStatusEnum::Completed => (4, 4),
+            DepositStatusEnum::Unknown => (0, 4),
+        }
+    }
+
+    /// Returns a description of the current step
+    pub fn step_description(&self) -> &str {
+        match self {
+            DepositStatusEnum::New => "Deposit detected on Bitcoin network",
+            DepositStatusEnum::InProgress => "The deposit is being processed",
+            DepositStatusEnum::MoveTxSent => {
+                "Move transaction broadcasted, waiting for confirmation and minting"
+            }
+            DepositStatusEnum::Completed => "Funds minted on Citrea network",
+            DepositStatusEnum::Unknown => "Status unknown",
+        }
+    }
 }
 
 /// Get deposit address from backend
