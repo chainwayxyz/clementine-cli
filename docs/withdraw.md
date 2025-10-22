@@ -122,7 +122,28 @@ clementine-cli withdraw scan wittb1pf... tb1qg...
 clementine-cli withdraw scan --network testnet4 wittb1pf... tb1qg...
 ```
 
-This command will scan Bitcoin network and return possible withdrawal scenarios for appropriate UTXOs, with corresponding prompt to generate the necessary signature.
+**What this command does:**
+
+The scan command provides detailed information about your withdrawal:
+
+- **Why**: Explains that it's locating UTXOs to withdraw funds from Citrea back to Bitcoin
+- **Where**: Displays the Bitcoin network, signer address, destination address, and expected UTXO amount
+- **When**: Shows block height and confirmation status of each found UTXO, indicating whether they're ready for withdrawal or still pending confirmation
+
+The command will:
+
+1. Scan the Bitcoin network for UTXOs at your signer address
+2. Display detailed information about each UTXO including:
+   - OutPoint (transaction ID and output index)
+   - Amount in BTC and satoshis
+   - Block height (if confirmed) or mempool status (if unconfirmed)
+   - Current status (ready for withdrawal or waiting for confirmation)
+3. Filter and identify UTXOs that match the expected dust amount
+4. Filter UTXOs that are already used in a withdrawal operation, and warn user not to reuse their signer address
+5. Provide the exact command to generate withdrawal signatures for each valid UTXO
+
+> [!TIP]
+> If a UTXO is unconfirmed, you'll need to wait for Bitcoin network confirmation before proceeding with signature generation.
 
 ## Step 5: Generate Withdrawal Signatures
 

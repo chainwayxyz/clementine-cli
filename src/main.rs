@@ -471,6 +471,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
+                        println!();
+                        println!("After sending the funds, you can monitor the deposit status using:");
+                        println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
                     }
                 );
             }
@@ -614,7 +617,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("You can use:");
                         println!("$ {} sendtoaddress {} 0.00000{}",
                             get_bitcoin_cli_command(&config),
-                            signer_address.address_without_prefix(), config.dust_utxo_amount.to_sat());
+                            signer_address.address_without_prefix(), config.dust_utxo_amount.to_btc());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
                         println!("$ clementine-cli withdraw scan --network {} {} {}",
