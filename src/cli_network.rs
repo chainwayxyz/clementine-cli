@@ -53,6 +53,10 @@ fn network_error(invalid: &str) -> String {
     )
 }
 
+/// Help message that documents the aliases
+pub const NETWORK_HELP: &str =
+    "Bitcoin network to use [aliases: mainnet=bitcoin, testnet=testnet4, devnet=signet]";
+
 /// Custom parser that shows aliases in error messages
 #[derive(Clone)]
 pub struct NetworkParser;
