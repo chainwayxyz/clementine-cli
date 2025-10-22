@@ -615,7 +615,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", config.dust_utxo_amount.to_sat(), signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("$ {} sendtoaddress {} 0.00000{}",
+                        println!("$ {} sendtoaddress {} {}",
                             get_bitcoin_cli_command(&config),
                             signer_address.address_without_prefix(), config.dust_utxo_amount.to_btc());
                         println!("or a similar command from a wallet you are using");
