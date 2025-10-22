@@ -801,7 +801,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ),
                     result => {
                         println!("Safe withdrawal transaction sent!");
-                        println!("Transaction Receipt: {:#?}", result);
+                        println!("Transaction Hash: {:#?}", result.transaction_hash);
                     }
                 );
             }
