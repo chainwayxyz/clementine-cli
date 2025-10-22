@@ -1,135 +1,59 @@
-use std::str::FromStr;
-
 use bitcoin::Network;
-use clap::builder::{PossibleValue, TypedValueParser};
-use clap::error::{Error, ErrorKind};
-use colored::Colorize;
+use clap::builder::TypedValueParser;
+use clap::ValueEnum;
 
-/// Local copy of [`bitcoin::Network`]
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+/// Local copy of [`bitcoin::Network`] with user-friendly aliases
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum CliNetwork {
+    #[value(alias = "mainnet")]
     Bitcoin,
+    #[value(alias = "testnet")]
     Testnet4,
+    #[value(alias = "devnet")]
     Signet,
     Regtest,
 }
 
-/// If the CliNetwork enum or aliases are changed, update `NETS` below and this help message.
-pub const NETWORK_HELP_MESSAGE: &str =
-    "Bitcoin network to use. [aliases: bitcoin=mainnet, testnet4=testnet, signet=devnet]";
-
-/// One source of truth for canonical names, aliases and pretty labels.
-struct NetRow {
-    canon: &'static str,
-    aliases: &'static [&'static str],
-    variant: CliNetwork,
-    pretty: &'static str, // right-hand label for the error list, e.g. "→ Bitcoin"
-}
-
-const NETS: &[NetRow] = &[
-    NetRow {
-        canon: "bitcoin",
-        aliases: &["mainnet"],
-        variant: CliNetwork::Bitcoin,
-        pretty: "Bitcoin",
-    },
-    NetRow {
-        canon: "testnet4",
-        aliases: &["testnet"],
-        variant: CliNetwork::Testnet4,
-        pretty: "Testnet4",
-    },
-    NetRow {
-        canon: "signet",
-        aliases: &["devnet"],
-        variant: CliNetwork::Signet,
-        pretty: "Signet",
-    },
-    NetRow {
-        canon: "regtest",
-        aliases: &[],
-        variant: CliNetwork::Regtest,
-        pretty: "Regtest",
-    },
-];
-
-fn find_network(s: &str) -> Option<CliNetwork> {
-    let s = s.to_lowercase();
-    for row in NETS {
-        if row.canon == s || row.aliases.iter().any(|a| *a == s) {
-            return Some(row.variant);
-        }
-    }
-    None
-}
-
-fn canon_of(n: CliNetwork) -> &'static str {
-    NETS.iter().find(|r| r.variant == n).unwrap().canon
-}
-
-fn build_network_error(bad: &str) -> String {
-    // compute column widths
-    let mut max_canon = 0usize;
-    let mut max_alias = 0usize;
-    for row in NETS {
-        max_canon = max_canon.max(row.canon.len());
-        max_alias = max_alias.max(row.aliases.join(" | ").len());
-    }
-
-    let mut out = String::new();
-    out.push_str(&format!(
-        "invalid value '{}' for '{}':\n{}\n",
-        bad.bold().yellow(),
-        "--network <NETWORK>".bold(),
-        "Allowed values:".bold().yellow(),
-    ));
-
-    for row in NETS {
-        let alias_str = row.aliases.join(" | ");
-        // Reserve alias column even if empty so the arrow aligns.
-        let lhs = if alias_str.is_empty() {
-            // 3 spaces to occupy where " | " would be, plus alias padding
-            format!(
-                "- {:<wc$}   {:<wa$}",
-                row.canon,
-                "",
-                wc = max_canon,
-                wa = max_alias
-            )
-        } else {
-            format!(
-                "- {:<wc$} | {:<wa$}",
-                row.canon,
-                alias_str,
-                wc = max_canon,
-                wa = max_alias
-            )
-        };
-
-        out.push_str(&format!("  {}  → {}\n", lhs.green(), row.pretty.green()));
-    }
-
-    out.push_str(&format!(
-        "\n For more information, try '{}'.\n",
-        "--help".bold()
-    ));
-    out
-}
-
-impl FromStr for CliNetwork {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        find_network(s).ok_or_else(|| build_network_error(s))
-    }
-}
-
 impl std::fmt::Display for CliNetwork {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", canon_of(*self))
+        let s = match self {
+            CliNetwork::Bitcoin => "bitcoin",
+            CliNetwork::Testnet4 => "testnet4",
+            CliNetwork::Signet => "signet",
+            CliNetwork::Regtest => "regtest",
+        };
+        write!(f, "{}", s)
     }
 }
 
+impl From<CliNetwork> for Network {
+    fn from(value: CliNetwork) -> Self {
+        match value {
+            CliNetwork::Bitcoin => Network::Bitcoin,
+            CliNetwork::Testnet4 => Network::Testnet4,
+            CliNetwork::Signet => Network::Signet,
+            CliNetwork::Regtest => Network::Regtest,
+        }
+    }
+}
+
+/// Custom error message that shows aliases
+fn network_error(invalid: &str) -> String {
+    format!(
+        "invalid value '{}' for '--network <NETWORK>'\n\
+         \n\
+         Possible values:\n\
+         - bitcoin (alias: mainnet)\n\
+         - testnet4 (alias: testnet)\n\
+         - signet (alias: devnet)\n\
+         - regtest\n\
+         \n\
+         For more information, try '--help'.",
+        invalid
+    )
+}
+
+/// Custom parser that shows aliases in error messages
 #[derive(Clone)]
 pub struct NetworkParser;
 
@@ -142,31 +66,103 @@ impl TypedValueParser for NetworkParser {
         _arg: Option<&clap::Arg>,
         value: &std::ffi::OsStr,
     ) -> Result<Self::Value, clap::Error> {
-        let val = value.to_string_lossy();
-        CliNetwork::from_str(&val)
-            // attach the current Command so clap applies its color policy
-            .map_err(|msg| Error::raw(ErrorKind::InvalidValue, msg).with_cmd(cmd))
+        let s = value.to_string_lossy();
+        // Try to parse using ValueEnum (handles aliases automatically)
+        CliNetwork::from_str(&s, true).map_err(|_| {
+            clap::Error::raw(clap::error::ErrorKind::InvalidValue, network_error(&s)).with_cmd(cmd)
+        })
     }
 
-    // Powers `[possible values: ...]` in `--help`, with aliases discoverable.
-    fn possible_values(&self) -> Option<Box<dyn Iterator<Item = PossibleValue> + '_>> {
-        Some(Box::new(NETS.iter().map(|row| {
-            let mut pv = PossibleValue::new(row.canon);
-            for &a in row.aliases {
-                pv = pv.alias(a);
-            }
-            pv
-        })))
+    fn possible_values(
+        &self,
+    ) -> Option<Box<dyn Iterator<Item = clap::builder::PossibleValue> + '_>> {
+        CliNetwork::value_variants()
+            .iter()
+            .map(|v| v.to_possible_value())
+            .collect::<Option<Vec<_>>>()
+            .map(|v| Box::new(v.into_iter()) as _)
     }
 }
 
-impl From<CliNetwork> for Network {
-    fn from(value: CliNetwork) -> Self {
-        match value {
-            CliNetwork::Bitcoin => Network::Bitcoin,
-            CliNetwork::Testnet4 => Network::Testnet4,
-            CliNetwork::Signet => Network::Signet,
-            CliNetwork::Regtest => Network::Regtest,
-        }
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_canonical_names() {
+        use clap::ValueEnum;
+        assert_eq!(
+            CliNetwork::from_str("bitcoin", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("testnet4", true).unwrap(),
+            CliNetwork::Testnet4
+        );
+        assert_eq!(
+            CliNetwork::from_str("signet", true).unwrap(),
+            CliNetwork::Signet
+        );
+        assert_eq!(
+            CliNetwork::from_str("regtest", true).unwrap(),
+            CliNetwork::Regtest
+        );
+    }
+
+    #[test]
+    fn test_aliases() {
+        use clap::ValueEnum;
+        assert_eq!(
+            CliNetwork::from_str("mainnet", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("testnet", true).unwrap(),
+            CliNetwork::Testnet4
+        );
+        assert_eq!(
+            CliNetwork::from_str("devnet", true).unwrap(),
+            CliNetwork::Signet
+        );
+    }
+
+    #[test]
+    fn test_case_insensitive() {
+        use clap::ValueEnum;
+        assert_eq!(
+            CliNetwork::from_str("BITCOIN", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("Bitcoin", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("MainNet", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("MAINNET", true).unwrap(),
+            CliNetwork::Bitcoin
+        );
+        assert_eq!(
+            CliNetwork::from_str("DevNet", true).unwrap(),
+            CliNetwork::Signet
+        );
+    }
+
+    #[test]
+    fn test_invalid_network() {
+        use clap::ValueEnum;
+        assert!(CliNetwork::from_str("invalid", true).is_err());
+        assert!(CliNetwork::from_str("ethereum", true).is_err());
+    }
+
+    #[test]
+    fn test_conversion_to_bitcoin_network() {
+        assert_eq!(Network::from(CliNetwork::Bitcoin), Network::Bitcoin);
+        assert_eq!(Network::from(CliNetwork::Testnet4), Network::Testnet4);
+        assert_eq!(Network::from(CliNetwork::Signet), Network::Signet);
+        assert_eq!(Network::from(CliNetwork::Regtest), Network::Regtest);
     }
 }
