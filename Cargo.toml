@@ -7,7 +7,7 @@ authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
 repository = "https://github.com/chainwayxyz/clementine-cli"
 publish = false
-description = "Clementine CLI tool for interacting with Chainway / Citrea systems."
+description = "Clementine CLI tool for interacting with Clementine bridge"
 
 [lib]
 name = "clementine_cli"
