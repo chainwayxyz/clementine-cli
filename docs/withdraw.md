@@ -46,7 +46,7 @@ clementine-cli wallet create --network <BITCOIN_NETWORK> <WALLET_NAME> withdrawa
 **Example:**
 
 ```sh
-clementine-cli wallet create --network testnet4 my_withdrawal_wallet withdrawal
+clementine-cli wallet create --network testnet my_withdrawal_wallet withdrawal
 ```
 
 For more detailed wallet usage, please check the [wallet documentation](wallet.md).
@@ -75,7 +75,7 @@ clementine-cli withdraw start [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DE
 ```sh
 clementine-cli withdraw start wittb1pf... tb1qg...
 # For testnet4
-clementine-cli withdraw start --network testnet4 wittb1pf... tb1qg...
+clementine-cli withdraw start --network testnet wittb1pf... tb1qg...
 ```
 
 This command will prompt the user to send a Bitcoin transaction that will create the 0-value UTXO needed for the withdrawal operation.
@@ -119,7 +119,7 @@ clementine-cli withdraw scan [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DES
 ```sh
 clementine-cli withdraw scan wittb1pf... tb1qg...
 # For testnet4
-clementine-cli withdraw scan --network testnet4 wittb1pf... tb1qg...
+clementine-cli withdraw scan --network testnet wittb1pf... tb1qg...
 ```
 
 **What this command does:**
@@ -171,7 +171,7 @@ clementine-cli withdraw generate-withdrawal-signatures [--network <BITCOIN_NETWO
 ```sh
 clementine-cli withdraw generate-withdrawal-signatures wittb1pf... tb1qg... abc123def456...:0
 # For testnet4
-clementine-cli withdraw generate-withdrawal-signatures --network testnet4 wittb1pf... tb1qg... abc123def456...:0
+clementine-cli withdraw generate-withdrawal-signatures --network testnet wittb1pf... tb1qg... abc123def456...:0
 ```
 
 > [!CAUTION]
@@ -190,7 +190,7 @@ clementine-cli withdraw safe-withdraw [--network <BITCOIN_NETWORK>] <SIGNER_ADDR
 ```sh
 clementine-cli withdraw safe-withdraw wittb1pf... tb1qg... abc123def456:0 807c42770...
 # For testnet4
-clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... abc123def456:0 807c42770...
+clementine-cli withdraw safe-withdraw --network testnet wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 **What this does:**
@@ -225,7 +225,7 @@ clementine-cli withdraw status [--network <BITCOIN_NETWORK>] <WITHDRAWAL_UTXO>
 ```sh
 clementine-cli withdraw status 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
 # For testnet4
-clementine-cli withdraw status --network testnet4 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
+clementine-cli withdraw status --network testnet 4f38192dba8b52fd4327d5c67a3fc2c61fc407a556ee19258026f83dde84798a:0
 ```
 
 The status will show the response from the backend.
@@ -243,7 +243,7 @@ clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCO
 ```sh
 clementine-cli withdraw send-withdrawal-signature-to-operators  wittb1pf... tb1qg... abc123def456:0 807c42770...
 # For testnet4
-clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet4  wittb1pf... tb1qg... abc123def456:0 807c42770...
+clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 > [!NOTE]
