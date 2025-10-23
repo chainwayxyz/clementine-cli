@@ -199,10 +199,10 @@ clementine-cli withdraw safe-withdraw --network testnet4 wittb1pf... tb1qg... ab
 - Provides final transaction confirmation
 - Prompts to Ethereum wallet to submit the withdrawal transaction to Citrea
 
-In case `safe-withdraw` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdrawal`:
+In case `safe-withdraw` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdraw`:
 
 ```sh
-clementine-cli withdraw send-safe-withdrawal [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
+clementine-cli withdraw send-safe-withdraw [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
 ```
 
 > [!IMPORTANT]
