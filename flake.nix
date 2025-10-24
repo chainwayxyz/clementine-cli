@@ -79,12 +79,12 @@
           };
           "x86_64-apple-darwin" = {
             rustTarget = "x86_64-apple-darwin";
-            pkgsCross = null;
+            pkgsCross = if buildSystem == "x86_64-darwin" then null else pkgs.pkgsCross.x86_64-darwin;
             isNative = buildSystem == "x86_64-darwin";
           };
           "arm64-apple-darwin" = {
             rustTarget = "aarch64-apple-darwin";
-            pkgsCross = null;
+            pkgsCross = if buildSystem == "aarch64-darwin" then null else pkgs.pkgsCross.aarch64-darwin;
             isNative = buildSystem == "aarch64-darwin";
           };
           "win64" = {
@@ -95,13 +95,13 @@
         };
 
         # Filter platforms based on what can be built on current build system
-        # Linux can build: x86_64, ARM64, ARMv7, RISC-V + Windows (macOS cross-compile not supported yet)
+        # Linux can build: x86_64, ARM64, ARMv7, RISC-V + Windows + macOS (experimental)
         # macOS can build: all macOS targets (+ Linux targets experimental, not enabled yet)
         # Note: PowerPC64 is excluded due to known Nix cross-compilation limitations
         availableTargets =
           if pkgs.stdenv.isLinux then
             [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf"
-              "riscv64-linux-gnu" "win64" ]
+              "riscv64-linux-gnu" "win64" "x86_64-apple-darwin" "arm64-apple-darwin" ]
           else if pkgs.stdenv.isDarwin then
             [ "x86_64-apple-darwin" "arm64-apple-darwin" ]
           else
@@ -164,7 +164,11 @@
             crossEnv = if isCross then {
               # Tell Cargo where the cross-compilation linker is
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                if isDarwinTarget then
+                  # For Darwin, use system linker via xcrun-like approach or skip
+                  "cc"
+                else
+                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
 
               # Rust flags for the target
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
@@ -176,11 +180,12 @@
               # Ensure build scripts use the host compiler
               HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
 
-              # Configure for C dependencies cross-compilation
+              # Configure for C dependencies cross-compilation (skip for Darwin)
+            } // (if isDarwinTarget then {} else {
               TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
               "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
               "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-            } else {};
+            }) else {};
           in
           rustPlatformPinned.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";

@@ -92,6 +92,7 @@ nix build
 | **macOS (Apple Silicon)** | macOS (Intel, Apple Silicon) |
 
 > [!NOTE]
+>
 > - **macOS from Linux**: Not supported due to SDK licensing restrictions
 > - **Linux/Windows from macOS**: Not currently enabled
 > - **Best practice**: Build macOS binaries on macOS, all other targets on Linux
@@ -173,7 +174,7 @@ nix build .#x86_64-linux-gnu  # Takes 10-20 minutes
 HASH2=$(nix hash path ./result)
 
 # Verify reproducibility
-[ "$HASH1" = "$HASH2" ] && echo "✅ Reproducible!" || echo "❌ Not reproducible"
+[ "$HASH1" = "$HASH2" ] && echo " Reproducible!" || echo "Not reproducible"
 ```
 
 ### Expected Hashes (Verified Reproducible)
@@ -204,6 +205,7 @@ nix hash path ./result
 ```
 
 If hashes don't match, ensure:
+
 - Same git commit/tag
 - Same Nix version (check with `nix --version`)
 - Clean build (`nix store gc --max 0` first)
@@ -276,12 +278,14 @@ gpg --clearsign SHA256SUMS.txt
 > PowerPC64 builds are currently **not working** due to fundamental limitations in Nix's Rust cross-compilation infrastructure.
 
 **Symptoms:**
+
 - Build completes with exit code 0
 - No `result` symlink is created
 - No binary is produced
 
 **Root Cause:**
 PowerPC64 cross-compilation in Nix for Rust projects has unresolved issues. We tested multiple configurations:
+
 - `pkgsCross.ppc64` (big-endian, ELF v2)
 - `pkgsCross.ppc64-elfv1` (big-endian, ELF v1)
 - `pkgsCross.ppc64-elfv2` (big-endian, ELF v2)
@@ -291,6 +295,7 @@ All configurations fail silently during the build process.
 
 **Workaround:**
 None currently available. PowerPC64 is a niche architecture with limited toolchain support. This would require upstream fixes in either:
+
 - Nix's PowerPC64 cross-compilation infrastructure
 - Rust's PowerPC64 target support within Nix
 
@@ -346,10 +351,10 @@ Use full cleanup when:
 
 ### Reproducibility Guarantee
 
-- ✅ **100% reproducible** for Linux and Windows
-- ✅ Clean builds produce identical hashes
-- ✅ Cached builds produce identical hashes
-- ✅ Cross-machine builds produce identical hashes
+- **100% reproducible** for Linux and Windows
+- Clean builds produce identical hashes
+- Cached builds produce identical hashes
+- Cross-machine builds produce identical hashes
 
 This confirms the build system is truly deterministic.
 
@@ -394,7 +399,7 @@ jobs:
           rm -rf result
           nix build .#x86_64-linux-gnu
           HASH2=$(nix hash path ./result)
-          [ "$HASH1" = "$HASH2" ] && echo "✅ Reproducible!" || exit 1
+          [ "$HASH1" = "$HASH2" ] && echo " Reproducible!" || exit 1
 
       - name: Build Windows
         run: nix build .#win64
