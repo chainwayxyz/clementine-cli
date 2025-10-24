@@ -10,3 +10,4 @@ rustflags = [
     # make sure the linker flips back to dynamic for system libs
     "-C", "link-arg=-Wl,-Bdynamic",
     "-C", "link-arg=-Wl,--defsym,__ImageBase=0"
+]
