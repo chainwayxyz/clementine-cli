@@ -13,11 +13,11 @@
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     let
       buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+      # Working target systems (PowerPC64 excluded due to Nix cross-compilation limitations)
       targetSystems = [
         "x86_64-linux-gnu"
         "aarch64-linux-gnu"
         "arm-linux-gnueabihf"
-        "powerpc64-linux-gnu"
         "riscv64-linux-gnu"
         "x86_64-apple-darwin"
         "arm64-apple-darwin"
@@ -95,12 +95,13 @@
         };
 
         # Filter platforms based on what can be built on current build system
-        # Linux can build: all Linux targets + Windows (macOS cross-compile not supported yet)
+        # Linux can build: x86_64, ARM64, ARMv7, RISC-V + Windows (macOS cross-compile not supported yet)
         # macOS can build: all macOS targets (+ Linux targets experimental, not enabled yet)
+        # Note: PowerPC64 is excluded due to known Nix cross-compilation limitations
         availableTargets =
           if pkgs.stdenv.isLinux then
             [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf"
-              "powerpc64-linux-gnu" "riscv64-linux-gnu" "win64" ]
+              "riscv64-linux-gnu" "win64" ]
           else if pkgs.stdenv.isDarwin then
             [ "x86_64-apple-darwin" "arm64-apple-darwin" ]
           else
@@ -254,7 +255,6 @@
             echo "  nix build .#x86_64-linux-gnu"
             echo "  nix build .#aarch64-linux-gnu"
             echo "  nix build .#arm-linux-gnueabihf"
-            echo "  nix build .#powerpc64-linux-gnu"
             echo "  nix build .#riscv64-linux-gnu"
             echo "  nix build .#x86_64-apple-darwin"
             echo "  nix build .#arm64-apple-darwin"

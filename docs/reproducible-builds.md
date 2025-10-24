@@ -7,12 +7,11 @@ This document explains how to build Clementine CLI reproducibly using [Nix](http
 ## Platform Support Status
 
 > [!NOTE]
-> **7 out of 8 platforms** are fully working and reproducible. PowerPC64 has a known Nix limitation.
+> **7 working platforms** are fully supported and reproducible.
 
 | Status | Platforms | Notes |
 |--------|-----------|-------|
 | **Working** | x86_64, ARM64, ARMv7, RISC-V (Linux), Windows 64-bit, macOS (Intel & Apple Silicon) | All builds verified reproducible |
-| **Not Working** | PowerPC64 (Linux) | Nix cross-compilation limitation - see [Troubleshooting](#powerpc64-known-issue) |
 
 ## Quick Start
 
@@ -81,9 +80,6 @@ nix build .#win64                   # 64-bit
 nix build
 ```
 
-> [!WARNING]
-> **PowerPC64 Not Working**: `nix build .#powerpc64-linux-gnu` fails due to Nix cross-compilation limitations. See [PowerPC64 Known Issue](#powerpc64-known-issue) for details.
-
 **Binary location:** `./result/bin/clementine-cli` (or `.exe` for Windows)
 
 ### Cross-Compilation Matrix
@@ -99,7 +95,6 @@ nix build
 > - **macOS from Linux**: Not supported due to SDK licensing restrictions
 > - **Linux/Windows from macOS**: Not currently enabled
 > - **Best practice**: Build macOS binaries on macOS, all other targets on Linux
-> - **PowerPC64**: Not working on any platform due to Nix limitations
 
 ## Platform-Specific Build Instructions
 
@@ -112,7 +107,6 @@ Linux can build for all Linux platforms and Windows:
 nix build .#x86_64-linux-gnu        # Intel/AMD 64-bit
 nix build .#aarch64-linux-gnu       # ARM 64-bit
 nix build .#arm-linux-gnueabihf     # ARMv7 32-bit
-nix build .#powerpc64-linux-gnu     # PowerPC 64-bit
 nix build .#riscv64-linux-gnu       # RISC-V 64-bit
 
 # Cross-compile to Windows
@@ -196,10 +190,6 @@ These hashes are **verified reproducible** - building twice produces identical b
 | **x86_64-apple-darwin** | *To be built on macOS* |
 | **arm64-apple-darwin** | *To be built on macOS* |
 
-**Not Working:**
-
-- **powerpc64-linux-gnu**: Nix cross-compilation fails silently (see [Troubleshooting](#powerpc64-known-issue))
-
 > **Note**: Hashes change when source code, dependencies (Cargo.lock), or build configuration (flake.nix) are modified.
 
 ### Cross-Machine Verification
@@ -241,9 +231,6 @@ cp result/bin/clementine-cli clementine-cli-v0.1.0-aarch64-linux-gnu
 
 nix build .#arm-linux-gnueabihf
 cp result/bin/clementine-cli clementine-cli-v0.1.0-arm-linux-gnueabihf
-
-nix build .#powerpc64-linux-gnu
-cp result/bin/clementine-cli clementine-cli-v0.1.0-powerpc64-linux-gnu
 
 nix build .#riscv64-linux-gnu
 cp result/bin/clementine-cli clementine-cli-v0.1.0-riscv64-linux-gnu
@@ -376,7 +363,6 @@ file ./result/bin/clementine-cli
 # x86_64-linux-gnu:        ELF 64-bit LSB executable, x86-64
 # aarch64-linux-gnu:       ELF 64-bit LSB executable, ARM aarch64
 # arm-linux-gnueabihf:     ELF 32-bit LSB executable, ARM
-# powerpc64-linux-gnu:     ELF 64-bit MSB executable, 64-bit PowerPC
 # riscv64-linux-gnu:       ELF 64-bit LSB executable, UCB RISC-V
 # x86_64-apple-darwin:     Mach-O 64-bit executable x86_64
 # arm64-apple-darwin:      Mach-O 64-bit executable arm64
