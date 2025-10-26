@@ -69,17 +69,8 @@ impl BridgeCliConfig {
         BridgeCliConfig::default()
     }
 
-    /// Tries to parse config file with order:
-    ///
-    /// 1. If given, custom config path
-    /// 2. `~/.clementine/bridge_cli_config.toml`
-    /// 3. `$PWD/bridge_cli_config.toml`
-    pub fn try_parse_config(path: Option<PathBuf>, network: Network) -> Result<Self, ConfigErrors> {
-        if let Some(path) = path {
-            tracing::debug!("Using given configuration file: {path:?}");
-            return Self::try_parse_file(path, network);
-        }
-
+    /// Tries to parse config file from home directory.
+    pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
         let home_dir = get_clementine_home_dir().wrap_err("Can't get Clementine home directory")?;
         let config_dir = home_dir.join("bridge_cli_config.toml");
         if let Ok(config) = Self::try_parse_file(config_dir.clone(), network) {
@@ -87,10 +78,10 @@ impl BridgeCliConfig {
             return Ok(config);
         }
 
-        let mut current_dir = std::env::current_dir().unwrap();
-        current_dir.push("bridge_cli_config.toml");
-        tracing::debug!("Using configuration file at the current directory: {current_dir:?}");
-        Self::try_parse_file(current_dir, network)
+        Err(ConfigErrors::FileReadFailure(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Configuration file not found at: {config_dir:?}"),
+        )))
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].

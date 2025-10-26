@@ -20,7 +20,6 @@ use clementine_cli::{
     withdraw,
 };
 use colored::Colorize;
-use std::path::PathBuf;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
@@ -97,10 +96,6 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
 #[command(name = "clementine")]
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
-    /// Path to config file. If not given, ~/.clementine/bridge_cli_config.toml or $PWD/bridge_cli_config.toml files will be used in that order.
-    #[arg(long)]
-    config_file: Option<PathBuf>,
-
     /// Turns verbose logging on
     #[arg(long, action = clap::ArgAction::SetTrue)]
     verbose: bool,
@@ -111,6 +106,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    // Init
+    Init {},
     /// Wallet related operations.
     Wallet {
         #[command(subcommand)]
@@ -356,6 +353,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     initialize_logger(cli.verbose);
 
     match cli.command {
+        Commands::Init {} => {
+            handle_cli_command!(clementine_cli::cli::cli_init(), _ => {
+                println!("Clementine CLI initialized successfully.");
+            });
+        }
         Commands::Wallet { command } => match command {
             WalletCommands::Create {
                 label,
@@ -456,8 +458,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 citrea_address,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let citrea_address = parse_citrea_address(&citrea_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
@@ -486,8 +487,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 amount,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &recovery_taproot_address,
                     config.network,
@@ -519,8 +519,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 amount,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let recovery_tx: Transaction = deserialize(&hex::decode(recovery_tx)?)?;
                 let citrea_address = parse_citrea_address(&evm_address)?;
                 let recovery_taproot_address = TaprootAddressWithPrefix::from_string_with_prefix(
@@ -550,14 +549,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 deposit_address,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let deposit_address = parse_taproot_address(&deposit_address, config.network)?;
                 deposit_status(deposit_address, &config).await?;
             }
             DepositCommands::BroadcastRecoveryTx { raw_tx, network } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
 
                 handle_cli_command!(async broadcast_recovery_tx(&config, raw_tx), txid => {
                     println!("{}", txid);
@@ -567,8 +564,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 move_to_vault_txid,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let move_to_vault_txid = Txid::from_str(&move_to_vault_txid)?;
                 handle_cli_command!(async
                     get_deposit_params(&move_to_vault_txid, &config),
@@ -584,8 +580,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
 
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
@@ -633,8 +628,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -660,8 +654,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_utxo_outpoint,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     network.into(),
@@ -726,8 +719,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signature,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -773,8 +765,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signature,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 let signer_address = TaprootAddressWithPrefix::from_string_with_prefix(
                     &signer_address,
                     config.network,
@@ -811,8 +802,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } => {
                 let withdrawal_outpoint = OutPoint::from_str(&withdrawal_utxo)?;
 
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 withdrawal_status(withdrawal_outpoint, &config).await?;
             }
             WithdrawCommands::SendWithdrawalSignatureToOperators {
@@ -822,8 +812,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 signature,
                 network,
             } => {
-                let config =
-                    BridgeCliConfig::try_parse_config(cli.config_file, network.into()).unwrap();
+                let config = BridgeCliConfig::try_parse_config(network.into()).unwrap();
                 send_withdrawal_signature(
                     &signer_address,
                     &destination_address,
