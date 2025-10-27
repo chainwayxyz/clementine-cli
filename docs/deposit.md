@@ -49,7 +49,7 @@ clementine-cli deposit get-deposit-address [--network <BITCOIN_NETWORK>] <RECOVE
 ```sh
 clementine-cli deposit get-deposit-address depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 # For testnet4
-clementine-cli deposit get-deposit-address --network testnet4 depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
+clementine-cli deposit get-deposit-address --network testnet depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 ```
 
 > [!IMPORTANT]
@@ -87,7 +87,7 @@ clementine-cli deposit status [--network <BITCOIN_NETWORK>] <DEPOSIT_ADDRESS>
 ```sh
 clementine-cli deposit status tb1pd...
 # For testnet4
-clementine-cli deposit status --network testnet4 tb1pd...
+clementine-cli deposit status --network testnet tb1pd...
 ```
 
 The status will show the response from the backend.
@@ -125,7 +125,7 @@ clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <
 ```sh
 clementine-cli deposit create-signed-recovery-tx deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
 # For testnet4
-clementine-cli deposit create-signed-recovery-tx --network testnet4 deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
+clementine-cli deposit create-signed-recovery-tx --network testnet deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
 ```
 
 > [!IMPORTANT]
