@@ -6,14 +6,14 @@
 //!
 //! 1. Modules define their own error types when they need shared error messages.
 //!    Module-level errors can wrap eyre::Report to capture arbitrary errors.
-//! 2. The crate-level error wrapper (ClementineCliError) is used to wrap errors
+//! 2. The crate-level error wrapper (BridgeCliError) is used to wrap errors
 //!    from modules and attach extra context (ie. which module caused the error).
-//! 3. External crate errors are always wrapped by the ClementineCliError and
+//! 3. External crate errors are always wrapped by the BridgeCliError and
 //!    never by module-level errors.
 //! 4. When using external crates inside modules, extension traits are used to
-//!    convert external-crate errors into ClementineCliError. This is further
+//!    convert external-crate errors into BridgeCliError. This is further
 //!    wrapped in an eyre::Report to avoid a circular dependency.
-//! 5. ClementineCliError can be used to share error messages across modules.
+//! 5. BridgeCliError can be used to share error messages across modules.
 //! 6. When the error cause is not sufficiently explained by the error messages,
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
@@ -236,16 +236,16 @@ pub enum BridgeCliError {
 }
 
 /// Extension traits for errors to easily convert them to [`eyre::Report`]  
-/// through [`ClementineCliError`].
+/// through [`BridgeCliError`].
 pub trait ErrorExt: Sized {
     /// Converts the error into an [`eyre::Report`], first wrapping in
-    /// [`ClementineCliError`] if necessary. It does not rewrap in
+    /// [`BridgeCliError`] if necessary. It does not rewrap in
     /// [`eyre::Report`] if the given error is already an [`eyre::Report`].
     fn into_eyre(self) -> eyre::Report;
 }
 
 /// Extension traits for results to easily convert them to [`eyre::Report`] and
-/// through [`ClementineCliError`].
+/// through [`BridgeCliError`].
 pub trait ResultExt: Sized {
     type Output;
 
