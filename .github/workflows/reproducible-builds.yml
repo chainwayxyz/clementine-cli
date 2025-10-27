@@ -6,21 +6,20 @@ name: Reproducible Builds Verification
 # - macOS: Intel (x86_64), Apple Silicon (arm64) (via Nix)
 
 on:
-  push:
+  pull_request:
     branches:
       - main
-      - "releases/*"
-  pull_request:
     types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
+  cancel-in-progress: true
 
 jobs:
   verify-reproducibility-linux:
     name: Verify Reproducible Builds (Linux/Windows)
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     strategy:
       matrix:
         platform:
@@ -106,6 +105,7 @@ jobs:
   verify-reproducibility-windows:
     name: Verify Reproducible Windows Build
     runs-on: windows-latest
+    if: github.event.pull_request.draft == false
 
     steps:
       - name: Collect Workflow Telemetry
@@ -190,6 +190,7 @@ jobs:
   verify-reproducibility-macos:
     name: Verify Reproducible Builds (macOS)
     runs-on: macos-latest
+    if: github.event.pull_request.draft == false
     strategy:
       matrix:
         platform:
@@ -274,6 +275,7 @@ jobs:
   verify-hash-documentation-linux:
     name: Verify Documented Hashes (Linux/Windows)
     runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false
     needs: [verify-reproducibility-linux, verify-reproducibility-windows]
     strategy:
       fail-fast: false
@@ -340,6 +342,7 @@ jobs:
   verify-hash-documentation-macos:
     name: Verify Documented Hashes (macOS)
     runs-on: macos-latest
+    if: github.event.pull_request.draft == false
     needs: [verify-reproducibility-macos]
     strategy:
       fail-fast: false
