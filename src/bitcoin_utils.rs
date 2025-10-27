@@ -61,7 +61,7 @@ fn sign_with_tweak(
     merkle_root: Option<TapNodeHash>,
 ) -> schnorr::Signature {
     use bitcoin::hashes::Hash;
-    SECP.sign_schnorr(
+    SECP.sign_schnorr_no_aux_rand(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &keypair
             .as_ref()
