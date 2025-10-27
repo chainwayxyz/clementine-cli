@@ -13,6 +13,7 @@ use bitcoin::{
 use colored::Colorize;
 use eyre::eyre;
 
+use crate::api_utils::get_block_height_for_tx;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
@@ -321,9 +322,24 @@ pub async fn deposit_status(
             Err(_) => (0, false),
         };
 
+        let move_block_height = if !status.move_txid.is_empty() {
+            get_block_height_for_tx(&bitcoin::Txid::from_str(&status.move_txid)?, config)
+                .await
+                .ok()
+        } else {
+            None
+        };
+
+        let move_block_finalization_height =
+            move_block_height.map(|h| h + config.move_tx_finalization_blocks - 1);
+
+        let remaining_finalization_blocks = move_block_finalization_height
+            .map(|finalization_height| finalization_height.saturating_sub(current_block_height));
+
         let deposit_status_with_vout = DepositStatusWithVout {
             deposit_status: status,
             vout: if found { Some(vout) } else { None },
+            remaining_finalization_blocks,
         };
 
         let refund_msg = refund_info(block_height, status.move_txid.is_empty());
@@ -421,7 +437,12 @@ pub async fn send_withdrawal_signature(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|_| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse withdrawal UTXO outpoint '{}'",
+            withdrawal_utxo_outpoint,
+        ))
+    })?;
     send_withdrawal_signature_to_operators(
         signer_address,
         destination_address,
@@ -435,9 +456,10 @@ pub async fn send_withdrawal_signature(
 }
 
 fn print_incorrect_deposit(utxo: &UtxoInfo, refund_message: &str, block_display: &str) {
+    let outpoint = format!("{}:{}", utxo.txid, utxo.vout);
     println!(
-        "\nIncorrect Deposit\n  TxID:        {}\n  Value:       {}\n  Block:       {}{}",
-        utxo.txid, utxo.value, block_display, refund_message
+        "\nIncorrect Deposit\n  TxID:        {}\n  VOut:        {}\n  OutPoint:    {}\n  Value:       {}\n  Block:       {}{}",
+        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, refund_message
     );
 }
 

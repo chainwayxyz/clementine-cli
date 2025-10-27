@@ -61,7 +61,7 @@ fn sign_with_tweak(
     merkle_root: Option<TapNodeHash>,
 ) -> schnorr::Signature {
     use bitcoin::hashes::Hash;
-    SECP.sign_schnorr(
+    SECP.sign_schnorr_no_aux_rand(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &keypair
             .as_ref()
@@ -465,6 +465,7 @@ mod tests {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
                 bitcoin_config: None,
+                move_tx_finalization_blocks: 5,
             },
         };
 

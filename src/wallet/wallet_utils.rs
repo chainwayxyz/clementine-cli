@@ -86,8 +86,10 @@ pub(crate) fn validate_mnemonic_import(
         network,
     )?;
 
-    let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
+    let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret()).map_err(|e| {
+        tracing::error!("Error parsing mnemonic: {}", e);
+        BridgeCliError::MnemonicValidationFailed
+    })?;
 
     // Generate address from mnemonic to verify it matches
     match generate_address_from_mnemonic(&mnemonic, network, wallet_address.purpose) {
@@ -96,7 +98,10 @@ pub(crate) fn validate_mnemonic_import(
                 return Err(BridgeCliError::AddressMismatch);
             }
         }
-        Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
+        Err(e) => {
+            tracing::error!("Error generating address from mnemonic: {}", e);
+            return Err(BridgeCliError::AddressGenerationFromMnemonicFailed);
+        }
     }
 
     Ok(())

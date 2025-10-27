@@ -74,11 +74,14 @@ pub(crate) fn generate_address_from_mnemonic(
     network: Network,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    let master_seed = get_master_seed_from_mnemonic(mnemonic)
-        .map_err(|e| BridgeCliError::MnemonicToSeedError(e.to_string()))?;
+    let master_seed = get_master_seed_from_mnemonic(mnemonic);
 
-    let master_private_key =
-        SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
+    let master_private_key = SecureSecretKey::new(
+        SecretKey::from_slice(master_seed.expose_secret()).map_err(|e| {
+            tracing::error!("Error creating master private key from seed: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to create master private key from seed"))
+        })?,
+    );
     let keypair = SecureKeypair::new(Keypair::from_secret_key(
         &SECP,
         master_private_key.as_ref_inner(),
@@ -106,7 +109,13 @@ pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, 
         .parse()
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e)))?;
 
-    let address = unchecked_address.require_network(network)?;
+    let address = unchecked_address.require_network(network).map_err(|_| {
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Address network mismatch: {}, address: {}",
+            network,
+            address
+        ))
+    })?;
     Ok(address)
 }
 
