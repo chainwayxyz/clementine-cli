@@ -97,10 +97,15 @@ pub(crate) fn aes_encrypt_secure(
     // Generate fresh random salt and nonce
     let mut salt = [0u8; 32];
     let mut nonce_bytes = [0u8; 12];
-    getrandom::fill(&mut salt)
-        .map_err(|e| BridgeCliError::RandomSaltGenerationError(e.to_string()))?;
-    getrandom::fill(&mut nonce_bytes)
-        .map_err(|e| BridgeCliError::RandomNonceGenerationError(e.to_string()))?;
+    getrandom::fill(&mut salt).map_err(|e| {
+        tracing::error!("Error generating random salt: {}", e);
+        BridgeCliError::RandomSaltGenerationError
+    })?;
+
+    getrandom::fill(&mut nonce_bytes).map_err(|e| {
+        tracing::error!("Error generating random nonce: {}", e);
+        BridgeCliError::RandomNonceGenerationError
+    })?;
 
     // Derive AES key from passphrase + salt
     let secure_key = derive_key_from_passphrase(
@@ -110,7 +115,10 @@ pub(crate) fn aes_encrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!("Error deriving key from passphrase: {}", e);
+        BridgeCliError::EncryptionKeyDerivationError
+    })?;
 
     // Encrypt with AES-256-GCM
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -118,7 +126,10 @@ pub(crate) fn aes_encrypt_secure(
 
     let ciphertext = cipher
         .encrypt(nonce, secure_plaintext.expose_secret().as_bytes())
-        .map_err(|e| BridgeCliError::EncryptionError(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error encrypting data: {}", e);
+            BridgeCliError::EncryptionError
+        })?;
 
     Ok(EncryptedData {
         ciphertext,
@@ -142,7 +153,10 @@ pub(crate) fn aes_decrypt_secure(
         ARGON2_MEMORY_COST,
         ARGON2_PARALLELISM,
     )
-    .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!("Error deriving key from passphrase: {}", e);
+        BridgeCliError::EncryptionKeyDerivationError
+    })?;
 
     // Decrypt with AES-256-GCM (verifies authentication)
     let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
@@ -150,12 +164,18 @@ pub(crate) fn aes_decrypt_secure(
 
     let plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
-        .map_err(|e| BridgeCliError::DecryptionError(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error decrypting data: {}", e);
+            BridgeCliError::DecryptionError
+        })?;
 
     let secure_plaintext_bytes = SecureByteVec::new(Box::new(plaintext));
 
     let plaintext_string = String::from_utf8(secure_plaintext_bytes.expose_secret().clone())
-        .map_err(|e| BridgeCliError::InvalidUtf8Error(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error converting plaintext to UTF-8: {}", e);
+            BridgeCliError::InvalidUtf8Error
+        })?;
 
     let secure_string = SecureString::init_with(|| plaintext_string);
 

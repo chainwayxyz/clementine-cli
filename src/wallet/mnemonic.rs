@@ -40,27 +40,22 @@ use colored::Colorize;
 pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
-    let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT)
-        .map_err(|e| BridgeCliError::MnemonicGenerationError(e.to_string()))?;
+    let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT).map_err(|e| {
+        tracing::error!("Error generating mnemonic: {}", e);
+        BridgeCliError::MnemonicGenerationError
+    })?;
 
     Ok(mnemonic)
 }
 
 /// Generate master seed from mnemonic phrase
-pub(crate) fn get_master_seed_from_mnemonic(
-    mnemonic: &Mnemonic,
-) -> Result<SecureByteSlice, BridgeCliError> {
-    // let mnemonic = Mnemonic::parse(mnemonic_phrase.expose_secret())
-    //     .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
-
+pub(crate) fn get_master_seed_from_mnemonic(mnemonic: &Mnemonic) -> SecureByteSlice {
     let seed = SecureSeed::new(Box::new(mnemonic.to_seed("")));
 
     let mut master_seed = [0u8; 32];
     master_seed.copy_from_slice(&seed.expose_secret()[0..32]);
 
-    let secure_master_seed = SecureByteSlice::new(Box::new(master_seed));
-
-    Ok(secure_master_seed)
+    SecureByteSlice::new(Box::new(master_seed))
 }
 
 pub(crate) fn load_mnemonic<T>(
@@ -86,8 +81,10 @@ where
         return Err(BridgeCliError::NoMnemonicAvailable);
     }
 
-    let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicParseError(e.to_string()))?;
+    let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret()).map_err(|e| {
+        tracing::error!("Error parsing mnemonic: {}", e);
+        BridgeCliError::MnemonicParseError
+    })?;
 
     Ok(mnemonic)
 }
@@ -96,7 +93,7 @@ pub(crate) fn derive_private_key_from_mnemonic(
     mnemonic: &Mnemonic,
 ) -> Result<SecureString, BridgeCliError> {
     // Generate master seed from mnemonic using BIP-39
-    let master_seed = get_master_seed_from_mnemonic(mnemonic)?;
+    let master_seed = get_master_seed_from_mnemonic(mnemonic);
 
     let master_private_key =
         SecureSecretKey::new(SecretKey::from_slice(master_seed.expose_secret())?);
@@ -174,8 +171,10 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     );
     println!("Mnemonic will be handled securely and zeroized from memory");
 
-    let mnemonic = Mnemonic::parse(secure_mnemonic_phrase.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
+    let mnemonic = Mnemonic::parse(secure_mnemonic_phrase.expose_secret()).map_err(|e| {
+        tracing::error!("Error validating mnemonic: {}", e);
+        BridgeCliError::MnemonicValidationFailed
+    })?;
 
     Ok(mnemonic)
 }

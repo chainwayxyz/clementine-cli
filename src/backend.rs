@@ -214,11 +214,20 @@ pub(crate) async fn send_withdrawal_signature_to_operators(
         tracing::error!("Send withdrawal signatures request failed: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        if error_text.contains("Withdrawal not found") {
+            Err(eyre::eyre!(
+                "Withdrawal not found for outpoint: {}, maybe wait for confirmation.",
+                withdrawal_outpoint
+            )
+            .into())
+        } else if error_text.contains("Withdrawal user signature already exists") {
+            Err(eyre::eyre!(
+                "Signature already submitted for withdrawal outpoint: {}",
+                withdrawal_outpoint
+            )
+            .into())
+        } else {
+            Err(eyre::eyre!("Internal Error while sending withdrawal signature").into())
+        }
     }
 }

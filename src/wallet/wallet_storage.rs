@@ -186,18 +186,26 @@ where
     }
 
     let json_data = fs::read_to_string(&wallet_file).map_err(|e| {
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to read wallet file '{}': {}",
+        tracing::error!(
+            "Error reading wallet file '{}': {}",
             wallet_file.display(),
             e
+        );
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to read wallet file '{}'",
+            wallet_file.display()
         ))
     })?;
 
     let wallet_data: GenericWalletData = serde_json::from_str(&json_data).map_err(|e| {
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to parse wallet file '{}': {}",
+        tracing::error!(
+            "Error parsing wallet file '{}': {}",
             wallet_file.display(),
             e
+        );
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to parse wallet file '{}'",
+            wallet_file.display()
         ))
     })?;
 
