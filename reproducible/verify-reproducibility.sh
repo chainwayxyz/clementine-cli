@@ -107,7 +107,7 @@ fi
 
 nix build .#$PLATFORM
 HASH1=$(nix --extra-experimental-features 'nix-command flakes' hash path ./result)
-echo -e "${GREEN}✓${NC} First build complete"
+echo -e "${GREEN}OK${NC} First build complete"
 echo -e "  Hash: ${HASH1}"
 echo ""
 
@@ -123,7 +123,7 @@ fi
 
 nix build .#$PLATFORM
 HASH2=$(nix --extra-experimental-features 'nix-command flakes' hash path ./result)
-echo -e "${GREEN}✓${NC} Second build complete"
+echo -e "${GREEN}OK${NC} Second build complete"
 echo -e "  Hash: ${HASH2}"
 echo ""
 
@@ -138,18 +138,18 @@ echo -e "Second build: $HASH2"
 echo ""
 
 if [ "$HASH1" = "$HASH2" ]; then
-    echo -e "${GREEN}✓ BUILD IS REPRODUCIBLE!${NC}"
+    echo -e "${GREEN}OK: BUILD IS REPRODUCIBLE!${NC}"
     echo -e "${GREEN}  Hashes match - builds are bit-for-bit identical${NC}"
     echo ""
 
     # Check against documented hash
-    DOCUMENTED_HASH=$(grep -A 10 "Expected Hashes" docs/reproducible-builds.md 2>/dev/null | grep "$PLATFORM" | awk '{print $3}' | tr -d '`|' || true)
+    DOCUMENTED_HASH=$(grep "\*\*$PLATFORM\*\*" docs/reproducible-builds.md 2>/dev/null | sed 's/.*`\(sha256-[^`]*\)`.*/\1/' || true)
     if [ -n "$DOCUMENTED_HASH" ]; then
         echo -e "Documented hash: $DOCUMENTED_HASH"
         if [ "$DOCUMENTED_HASH" = "$HASH1" ]; then
-            echo -e "${GREEN}✓ Matches documented hash in reproducible-builds.md${NC}"
+            echo -e "${GREEN}OK: Matches documented hash in reproducible-builds.md${NC}"
         else
-            echo -e "${YELLOW}    Differs from documented hash (expected after code/dependency changes)${NC}"
+            echo -e "${YELLOW}WARNING: Differs from documented hash (expected after code/dependency changes)${NC}"
             echo -e "${YELLOW}   Update docs/reproducible-builds.md with: $HASH1${NC}"
         fi
     fi
@@ -157,7 +157,7 @@ if [ "$HASH1" = "$HASH2" ]; then
     echo ""
     exit 0
 else
-    echo -e "${RED}✗ BUILD IS NOT REPRODUCIBLE!${NC}"
+    echo -e "${RED}ERROR: BUILD IS NOT REPRODUCIBLE!${NC}"
     echo -e "${RED}  Hashes differ - builds are not identical${NC}"
     echo ""
     echo -e "${YELLOW}This indicates a non-deterministic build. Possible causes:${NC}"

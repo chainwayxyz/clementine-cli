@@ -51,10 +51,10 @@ for platform in "${PLATFORMS[@]}"; do
     if nix build .#${platform}; then
         HASH=$(nix --extra-experimental-features 'nix-command flakes' hash path ./result)
         HASHES[$platform]=$HASH
-        echo -e "${GREEN}✓${NC} ${platform}: ${HASH}"
+        echo -e "${GREEN}OK${NC} ${platform}: ${HASH}"
         rm -rf result
     else
-        echo -e "${RED}✗ Failed to build ${platform}${NC}"
+        echo -e "${RED}ERROR: Failed to build ${platform}${NC}"
         exit 1
     fi
     echo ""
@@ -94,7 +94,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
 
     # Create a backup
     cp docs/reproducible-builds.md docs/reproducible-builds.md.backup
-    echo -e "${GREEN}Created backup: docs/reproducible-builds.md.backup${NC}"
+    echo -e "${GREEN}OK: Created backup: docs/reproducible-builds.md.backup${NC}"
 
     # Use awk to replace the hash table
     awk -v new_table="$(cat $TEMP_FILE)" '
@@ -114,7 +114,7 @@ if [[ $REPLY =~ ^[Yy]$ ]]; then
         }
     ' docs/reproducible-builds.md.backup > docs/reproducible-builds.md
 
-    echo -e "${GREEN}✓ Updated docs/reproducible-builds.md${NC}"
+    echo -e "${GREEN}OK: Updated docs/reproducible-builds.md${NC}"
     echo ""
     echo -e "${YELLOW}Please review the changes with:${NC}"
     echo -e "  git diff docs/reproducible-builds.md"

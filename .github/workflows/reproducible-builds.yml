@@ -88,10 +88,10 @@ jobs:
           echo "  Second build: $HASH2"
 
           if [ "$HASH1" = "$HASH2" ]; then
-            echo "✓ Build is reproducible! Hashes match."
+            echo "OK: Build is reproducible! Hashes match."
             exit 0
           else
-            echo "✗ Build is NOT reproducible! Hashes differ."
+            echo "ERROR: Build is NOT reproducible! Hashes differ."
             exit 1
           fi
 
@@ -171,10 +171,10 @@ jobs:
           echo "  Second build: $HASH2"
 
           if [ "$HASH1" = "$HASH2" ]; then
-            echo "✓ Native Windows build is reproducible! Hashes match."
+            echo "OK: Native Windows build is reproducible! Hashes match."
             exit 0
           else
-            echo "✗ Native Windows build is NOT reproducible! Hashes differ."
+            echo "ERROR: Native Windows build is NOT reproducible! Hashes differ."
             echo "This should not happen with our reproducibility settings."
             exit 1
           fi
@@ -256,10 +256,10 @@ jobs:
           echo "  Second build: $HASH2"
 
           if [ "$HASH1" = "$HASH2" ]; then
-            echo "✓ Build is reproducible! Hashes match."
+            echo "OK: Build is reproducible! Hashes match."
             exit 0
           else
-            echo "✗ Build is NOT reproducible! Hashes differ."
+            echo "ERROR: Build is NOT reproducible! Hashes differ."
             exit 1
           fi
 
@@ -312,7 +312,9 @@ jobs:
           ACTUAL_HASH=$(nix hash path ./result)
 
           # Extract documented hash from reproducible-builds.md
-          DOCUMENTED_HASH=$(grep -A 10 "Expected Hashes" docs/reproducible-builds.md | grep "${{ matrix.platform }}" | awk '{print $3}' | tr -d '`|')
+          # Platform names are in bold (**platform**) in the markdown table
+          # Table format: | **platform** | `hash` |
+          DOCUMENTED_HASH=$(grep "\*\*${{ matrix.platform }}\*\*" docs/reproducible-builds.md | sed 's/.*`\(sha256-[^`]*\)`.*/\1/')
 
           echo "Platform: ${{ matrix.platform }}"
           echo "Documented hash: $DOCUMENTED_HASH"
@@ -320,12 +322,12 @@ jobs:
           echo ""
 
           if [ -z "$DOCUMENTED_HASH" ]; then
-            echo "✗ ERROR: No documented hash found for ${{ matrix.platform }}"
+            echo "ERROR: No documented hash found for ${{ matrix.platform }}"
             echo "Please add the hash to docs/reproducible-builds.md Expected Hashes table:"
             echo "  $ACTUAL_HASH"
             exit 1
           elif [ "$DOCUMENTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "✗ ERROR: Documented hash does not match actual build hash!"
+            echo "ERROR: Documented hash does not match actual build hash!"
             echo "The hash in docs/reproducible-builds.md is outdated."
             echo ""
             echo "Please update docs/reproducible-builds.md with the new hash:"
@@ -334,7 +336,7 @@ jobs:
             echo "  New hash: $ACTUAL_HASH"
             exit 1
           else
-            echo "✓ Documented hash matches actual build for ${{ matrix.platform }}"
+            echo "OK: Documented hash matches actual build for ${{ matrix.platform }}"
           fi
 
   build-summary:
@@ -361,7 +363,7 @@ jobs:
 
           # All jobs must succeed
           if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_RESULT" = "success" ]; then
-            echo "✓ All verifications passed!"
+            echo "OK: All verifications passed!"
             echo ""
             echo "Reproducible builds verified (twice each):"
             echo "  - Linux (x86_64, ARM64, ARMv7, RISC-V) via Nix"
@@ -375,7 +377,7 @@ jobs:
             echo "  - All platform hashes match docs/reproducible-builds.md"
             exit 0
           else
-            echo "✗ Verification failed on one or more checks"
+            echo "ERROR: Verification failed on one or more checks"
             echo ""
             if [ "$DOCS_RESULT" != "success" ]; then
               echo "    Documentation hash mismatch detected!"
