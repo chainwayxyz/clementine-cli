@@ -271,10 +271,10 @@ jobs:
           path: result/bin/*
           retention-days: 7
 
-  verify-hash-documentation:
-    name: Verify Documented Hashes
+  verify-hash-documentation-linux:
+    name: Verify Documented Hashes (Linux/Windows)
     runs-on: ubuntu-latest
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows, verify-reproducibility-macos]
+    needs: [verify-reproducibility-linux, verify-reproducibility-windows]
     strategy:
       fail-fast: false
       matrix:
@@ -284,6 +284,67 @@ jobs:
           - arm-linux-gnueabihf
           - riscv64-linux-gnu
           - win64
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v31
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build ${{ matrix.platform }}
+        run: |
+          echo "Building ${{ matrix.platform }} to verify documented hash..."
+          nix build .#${{ matrix.platform }}
+          echo "Build complete"
+
+      - name: Verify documented hash for ${{ matrix.platform }}
+        run: |
+          ACTUAL_HASH=$(nix hash path ./result)
+
+          # Extract documented hash from reproducible-builds.md
+          # Platform names are in bold (**platform**) in the markdown table
+          # Table format: | **platform** | `hash` |
+          DOCUMENTED_HASH=$(grep "\*\*${{ matrix.platform }}\*\*" docs/reproducible-builds.md | sed 's/.*`\(sha256-[^`]*\)`.*/\1/')
+
+          echo "Platform: ${{ matrix.platform }}"
+          echo "Documented hash: $DOCUMENTED_HASH"
+          echo "Actual hash:     $ACTUAL_HASH"
+          echo ""
+
+          if [ -z "$DOCUMENTED_HASH" ]; then
+            echo "ERROR: No documented hash found for ${{ matrix.platform }}"
+            echo "Please add the hash to docs/reproducible-builds.md Expected Hashes table:"
+            echo "  $ACTUAL_HASH"
+            exit 1
+          elif [ "$DOCUMENTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "ERROR: Documented hash does not match actual build hash!"
+            echo "The hash in docs/reproducible-builds.md is outdated."
+            echo ""
+            echo "Please update docs/reproducible-builds.md with the new hash:"
+            echo "  Platform: ${{ matrix.platform }}"
+            echo "  Old hash: $DOCUMENTED_HASH"
+            echo "  New hash: $ACTUAL_HASH"
+            exit 1
+          else
+            echo "OK: Documented hash matches actual build for ${{ matrix.platform }}"
+          fi
+
+  verify-hash-documentation-macos:
+    name: Verify Documented Hashes (macOS)
+    runs-on: macos-latest
+    needs: [verify-reproducibility-macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
           - x86_64-apple-darwin
           - arm64-apple-darwin
 
@@ -342,7 +403,7 @@ jobs:
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows, verify-reproducibility-macos, verify-hash-documentation]
+    needs: [verify-reproducibility-linux, verify-reproducibility-windows, verify-reproducibility-macos, verify-hash-documentation-linux, verify-hash-documentation-macos]
     if: always()
 
     steps:
@@ -351,18 +412,20 @@ jobs:
           LINUX_RESULT="${{ needs.verify-reproducibility-linux.result }}"
           WINDOWS_RESULT="${{ needs.verify-reproducibility-windows.result }}"
           MACOS_RESULT="${{ needs.verify-reproducibility-macos.result }}"
-          DOCS_RESULT="${{ needs.verify-hash-documentation.result }}"
+          DOCS_LINUX_RESULT="${{ needs.verify-hash-documentation-linux.result }}"
+          DOCS_MACOS_RESULT="${{ needs.verify-hash-documentation-macos.result }}"
 
           echo "Build Results Summary:"
-          echo "  Linux (Nix):              $LINUX_RESULT"
-          echo "  Windows (Nix cross):      $LINUX_RESULT (included in Linux job)"
-          echo "  Windows (native):         $WINDOWS_RESULT"
-          echo "  macOS (Nix):              $MACOS_RESULT"
-          echo "  Documentation hashes:     $DOCS_RESULT"
+          echo "  Linux (Nix):                    $LINUX_RESULT"
+          echo "  Windows (Nix cross):            $LINUX_RESULT (included in Linux job)"
+          echo "  Windows (native):               $WINDOWS_RESULT"
+          echo "  macOS (Nix):                    $MACOS_RESULT"
+          echo "  Documentation hashes (Linux):   $DOCS_LINUX_RESULT"
+          echo "  Documentation hashes (macOS):   $DOCS_MACOS_RESULT"
           echo ""
 
           # All jobs must succeed
-          if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_RESULT" = "success" ]; then
+          if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_LINUX_RESULT" = "success" ] && [ "$DOCS_MACOS_RESULT" = "success" ]; then
             echo "OK: All verifications passed!"
             echo ""
             echo "Reproducible builds verified (twice each):"
@@ -379,7 +442,7 @@ jobs:
           else
             echo "ERROR: Verification failed on one or more checks"
             echo ""
-            if [ "$DOCS_RESULT" != "success" ]; then
+            if [ "$DOCS_LINUX_RESULT" != "success" ] || [ "$DOCS_MACOS_RESULT" != "success" ]; then
               echo "    Documentation hash mismatch detected!"
               echo "    This means the code/dependencies changed and docs need updating."
               echo "    Please update docs/reproducible-builds.md with new hashes."
