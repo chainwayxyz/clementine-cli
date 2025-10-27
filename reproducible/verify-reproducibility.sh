@@ -84,7 +84,7 @@ echo -e "Mode:         $([ "$FULL_CLEAN" = true ] && echo -e "${YELLOW}Full Clea
 echo ""
 
 if [ "$FULL_CLEAN" = true ]; then
-    echo -e "${YELLOW}⚠️  Full clean build will:${NC}"
+    echo -e "${YELLOW}    Full clean build will:${NC}"
     echo -e "   - Remove all Nix cache (~36GB)"
     echo -e "   - Take 10-20 minutes for each build"
     echo -e "   - Provide strongest verification"
@@ -149,7 +149,7 @@ if [ "$HASH1" = "$HASH2" ]; then
         if [ "$DOCUMENTED_HASH" = "$HASH1" ]; then
             echo -e "${GREEN}✓ Matches documented hash in reproducible-builds.md${NC}"
         else
-            echo -e "${YELLOW}⚠️  Differs from documented hash (expected after code/dependency changes)${NC}"
+            echo -e "${YELLOW}    Differs from documented hash (expected after code/dependency changes)${NC}"
             echo -e "${YELLOW}   Update docs/reproducible-builds.md with: $HASH1${NC}"
         fi
     fi
