@@ -13,7 +13,9 @@
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     let
       buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-      # Working target systems (PowerPC64 excluded due to Nix cross-compilation limitations)
+
+      # Working target systems
+      # 7 platforms verified reproducible - see docs/reproducible-builds.md for details
       targetSystems = [
         "x86_64-linux-gnu"
         "aarch64-linux-gnu"
@@ -23,6 +25,9 @@
         "arm64-apple-darwin"
         "win64"
       ];
+
+      # Note: PowerPC64 is excluded due to known Nix cross-compilation limitations
+      # See docs/reproducible-builds.md "PowerPC64 Known Issue" section for details
     in
     flake-utils.lib.eachSystem buildSystems (buildSystem:
       let
@@ -36,7 +41,6 @@
             "x86_64-unknown-linux-gnu"
             "aarch64-unknown-linux-gnu"
             "arm-unknown-linux-gnueabihf"
-            "powerpc64-unknown-linux-gnu"
             "riscv64gc-unknown-linux-gnu"
             "x86_64-apple-darwin"
             "aarch64-apple-darwin"
@@ -61,15 +65,6 @@
           "arm-linux-gnueabihf" = {
             rustTarget = "arm-unknown-linux-gnueabihf";
             pkgsCross = pkgs.pkgsCross.armv7l-hf-multiplatform;
-            isNative = false;
-          };
-          # NOTE: PowerPC64 is currently not working due to Nix cross-compilation limitations
-          # Tested multiple configurations (ppc64, ppc64-elfv2, powernv) - all fail silently
-          # Build completes but produces no binary. This is a known Nix/Rust cross-compilation issue.
-          # Keeping configuration for future compatibility when upstream fixes are available.
-          "powerpc64-linux-gnu" = {
-            rustTarget = "powerpc64le-unknown-linux-gnu";
-            pkgsCross = pkgs.pkgsCross.powernv;
             isNative = false;
           };
           "riscv64-linux-gnu" = {
@@ -103,9 +98,9 @@
         };
 
         # Filter platforms based on what can be built on current build system
-        # Linux can build: x86_64, ARM64, ARMv7, RISC-V + Windows + macOS (experimental)
-        # macOS can build: both macOS architectures using the universal Apple SDK
-        # Note: PowerPC64 is excluded due to known Nix cross-compilation limitations
+        # Linux can build: All Linux architectures (x86_64, ARM64, ARMv7, RISC-V) + Windows + macOS (experimental)
+        # macOS can build: Both macOS architectures (Intel & Apple Silicon) using the universal Apple SDK
+        # See docs/reproducible-builds.md for detailed cross-compilation matrix
         availableTargets =
           if pkgs.stdenv.isLinux then
             [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf"
@@ -131,7 +126,7 @@
             isCross = !isNative;
             isWindows = targetName == "win64";
             isDarwinTarget = builtins.elem targetName [ "x86_64-apple-darwin" "arm64-apple-darwin" ];
-            isLinuxTarget = builtins.elem targetName [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf" "powerpc64-linux-gnu" "riscv64-linux-gnu" ];
+            isLinuxTarget = builtins.elem targetName [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf" "riscv64-linux-gnu" ];
 
             # Use pkgsCross for cross-compilation, otherwise use native pkgs
             targetPkgs = if config.pkgsCross != null then config.pkgsCross else pkgs;
@@ -140,6 +135,7 @@
             # This enables cross-compilation between Intel and Apple Silicon on the same Mac
             # We use system clang directly because Nix's cc-wrapper injects build-host specific
             # flags (like -mcpu=armv8.3-a) that conflict with the target architecture
+            # See docs/reproducible-builds.md "macOS Cross-Architecture Compilation" for details
             darwinLinkerWrapper = if isDarwinCross then
               let
                 arch = if targetName == "x86_64-apple-darwin" then "x86_64" else "arm64";
@@ -246,6 +242,8 @@
             inherit nativeBuildInputs buildInputs cargoBuildFlags installPhase;
 
             # Reproducibility knobs
+            # These settings ensure bit-for-bit identical builds across different machines
+            # See docs/reproducible-builds.md "Verifying Reproducibility" for testing
             auditable = false;
             SOURCE_DATE_EPOCH = "1";
             dontStrip = true;
@@ -257,6 +255,9 @@
 
             cargoLock = {
               lockFile = ./Cargo.lock;
+              # Git dependency hashes for reproducibility
+              # Update these when git dependencies change using: ./reproducible/update-hashes.sh
+              # See docs/reproducible-builds.md "Dependency Hash Updates" for details
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
                 "secp256k1-0.31.0"      = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";

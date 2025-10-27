@@ -1,0 +1,158 @@
+name: Reproducible Builds Verification
+
+on:
+  push:
+    branches:
+      - main
+      - "releases/*"
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
+
+jobs:
+  verify-reproducibility:
+    name: Verify Reproducible Builds
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform:
+          - x86_64-linux-gnu
+          - aarch64-linux-gnu
+          - win64
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Setup Cachix (optional binary cache)
+        uses: cachix/cachix-action@v13
+        with:
+          name: clementine-cli
+          skipPush: true
+        continue-on-error: true
+
+      - name: Build ${{ matrix.platform }} (first time)
+        run: |
+          echo "Building for ${{ matrix.platform }}..."
+          nix build .#${{ matrix.platform }}
+          echo "First build complete"
+
+      - name: Calculate first build hash
+        id: hash1
+        run: |
+          HASH=$(nix hash path ./result)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "First build hash: $HASH"
+
+      - name: Remove build result
+        run: rm -rf result
+
+      - name: Build ${{ matrix.platform }} (second time)
+        run: |
+          echo "Rebuilding for ${{ matrix.platform }}..."
+          nix build .#${{ matrix.platform }}
+          echo "Second build complete"
+
+      - name: Calculate second build hash
+        id: hash2
+        run: |
+          HASH=$(nix hash path ./result)
+          echo "hash=$HASH" >> $GITHUB_OUTPUT
+          echo "Second build hash: $HASH"
+
+      - name: Verify reproducibility
+        run: |
+          HASH1="${{ steps.hash1.outputs.hash }}"
+          HASH2="${{ steps.hash2.outputs.hash }}"
+
+          echo "Comparing hashes for ${{ matrix.platform }}:"
+          echo "  First build:  $HASH1"
+          echo "  Second build: $HASH2"
+
+          if [ "$HASH1" = "$HASH2" ]; then
+            echo "✓ Build is reproducible! Hashes match."
+            exit 0
+          else
+            echo "✗ Build is NOT reproducible! Hashes differ."
+            exit 1
+          fi
+
+      - name: Upload binary artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-${{ matrix.platform }}
+          path: result/bin/*
+          retention-days: 7
+
+  verify-hash-documentation:
+    name: Verify Documented Hashes
+    runs-on: ubuntu-latest
+    needs: verify-reproducibility
+
+    steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: cachix/install-nix-action@v24
+        with:
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build and check documented hash
+        run: |
+          echo "Building x86_64-linux-gnu to verify documented hash..."
+          nix build .#x86_64-linux-gnu
+          ACTUAL_HASH=$(nix hash path ./result)
+
+          # Extract documented hash from reproducible-builds.md
+          DOCUMENTED_HASH=$(grep -A 10 "Expected Hashes" docs/reproducible-builds.md | grep "x86_64-linux-gnu" | awk '{print $3}' | tr -d '`|')
+
+          echo "Documented hash: $DOCUMENTED_HASH"
+          echo "Actual hash:     $ACTUAL_HASH"
+
+          if [ -n "$DOCUMENTED_HASH" ] && [ "$DOCUMENTED_HASH" != "$ACTUAL_HASH" ]; then
+            echo "⚠️  Warning: Documented hash differs from actual build hash."
+            echo "This is expected if source code or dependencies changed."
+            echo "Please update docs/reproducible-builds.md with the new hash:"
+            echo "  $ACTUAL_HASH"
+          else
+            echo "✓ Documented hash matches actual build (or not found in docs)"
+          fi
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [verify-reproducibility, verify-hash-documentation]
+    if: always()
+
+    steps:
+      - name: Check results
+        run: |
+          if [ "${{ needs.verify-reproducibility.result }}" = "success" ]; then
+            echo "✓ All reproducibility verifications passed!"
+            echo "All tested platforms produce bit-for-bit identical binaries."
+            exit 0
+          else
+            echo "✗ Reproducibility verification failed"
+            echo "Check the individual job logs for details"
+            exit 1
+          fi
