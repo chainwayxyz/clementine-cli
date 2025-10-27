@@ -16,7 +16,7 @@ pub enum CliNetwork {
 
 /// If the CliNetwork enum or aliases are changed, update `NETS` below and this help message.
 pub const NETWORK_HELP_MESSAGE: &str =
-    "Bitcoin network to use. [aliases: bitcoin=mainnet, testnet4=testnet, signet=devnet]";
+    "Bitcoin network to use. [aliases: mainnet=bitcoin, testnet=testnet4, devnet=signet]";
 
 /// One source of truth for canonical names, aliases and pretty labels.
 struct NetRow {
