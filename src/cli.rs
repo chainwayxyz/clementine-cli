@@ -55,6 +55,8 @@ use crossterm::{
     execute,
 };
 use std::time::Duration;
+use tempfile::NamedTempFile;
+use toml_edit::{DocumentMut, Item, Value, value};
 
 pub fn cli_init() -> Result<(), BridgeCliError> {
     println!("{}", "Initializing Clementine CLI...".bold());
@@ -159,6 +161,229 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
             config_file.display()
         );
     }
+    Ok(())
+}
+
+pub fn update_config_with_confirm(
+    network: Network,
+    values: Vec<(String, String)>,
+    assume_yes: bool,
+) -> Result<(), BridgeCliError> {
+    let clementine_home_dir = get_clementine_home_dir()?;
+    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
+
+    let contents = std::fs::read_to_string(&config_file).map_err(|e| {
+        tracing::error!(
+            "Failed to read config file {}: {}",
+            config_file.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to read config file {}: {}",
+            config_file.display(),
+            e
+        ))
+    })?;
+
+    let mut doc = contents.parse::<DocumentMut>().map_err(|e| {
+        tracing::error!(
+            "Failed to parse TOML config {}: {}",
+            config_file.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse TOML config {}: {}",
+            config_file.display(),
+            e
+        ))
+    })?;
+
+    let table_name = match network {
+        Network::Bitcoin => "bitcoin",
+        Network::Testnet => "testnet4",
+        Network::Signet => "signet",
+        Network::Regtest => "regtest",
+        _ => {
+            return Err(BridgeCliError::Eyre(eyre!(
+                "Unsupported network for config update: {}",
+                network
+            )));
+        }
+    };
+
+    if !doc.as_table().contains_key(table_name) {
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Config table '{}' not found in {}",
+            table_name,
+            config_file.display()
+        )));
+    }
+
+    let mut applied_updates: Vec<(String, String, String)> = Vec::new();
+
+    for (key, new_val_str) in values.into_iter() {
+        let item_path = format!("{}.{}", table_name, key);
+
+        let parts: Vec<&str> = key.split('.').collect();
+
+        let mut table = doc[table_name].as_table_mut().ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config table '{}' is not a table in {}",
+                table_name,
+                config_file.display()
+            ))
+        })?;
+
+        for part in parts.iter().take(parts.len().saturating_sub(1)) {
+            if !table.contains_key(part) {
+                return Err(BridgeCliError::Eyre(eyre!(
+                    "Config path '{}' does not exist (missing table '{}')",
+                    item_path,
+                    part
+                )));
+            }
+            if !table[part].is_table() {
+                return Err(BridgeCliError::Eyre(eyre!(
+                    "Config path '{}' expected '{}' to be a table",
+                    item_path,
+                    part
+                )));
+            }
+            table = table[part].as_table_mut().ok_or_else(|| {
+                BridgeCliError::Eyre(eyre!("Failed to access table '{}' in {}", part, item_path))
+            })?;
+        }
+
+        let last = parts.last().unwrap();
+
+        let existing_item = table.get(last).ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config key '{}' does not exist; refusing to create new keys",
+                item_path
+            ))
+        })?;
+
+        let existing_val = existing_item.as_value().ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config key '{}' is not a scalar value; refusing to overwrite",
+                item_path
+            ))
+        })?;
+
+        let new_item: Item = match existing_val {
+            Value::Boolean(_) => {
+                let parsed = new_val_str.parse::<bool>().map_err(|_| {
+                    BridgeCliError::Eyre(eyre!(
+                        "Failed to parse '{}' as boolean for {}",
+                        new_val_str,
+                        item_path
+                    ))
+                })?;
+                value(parsed)
+            }
+            Value::Integer(_) => {
+                let parsed = new_val_str.parse::<i64>().map_err(|_| {
+                    BridgeCliError::Eyre(eyre!(
+                        "Failed to parse '{}' as integer for {}",
+                        new_val_str,
+                        item_path
+                    ))
+                })?;
+                value(parsed)
+            }
+            Value::Float(_) => {
+                let parsed = new_val_str.parse::<f64>().map_err(|_| {
+                    BridgeCliError::Eyre(eyre!(
+                        "Failed to parse '{}' as float for {}",
+                        new_val_str,
+                        item_path
+                    ))
+                })?;
+                value(parsed)
+            }
+            Value::String(_) => value(new_val_str.to_string()),
+            other => {
+                tracing::warn!(
+                    "Updating {} with unsupported existing type ({:?}), writing as string",
+                    item_path,
+                    other
+                );
+                value(new_val_str.to_string())
+            }
+        };
+
+        let old_display = existing_val.to_string();
+        let new_display = if let Some(v) = new_item.as_value() {
+            v.to_string()
+        } else {
+            new_item.to_string()
+        };
+
+        let proceed = if assume_yes {
+            true
+        } else {
+            print!(
+                "Update '{}' from '{}' to '{}'? [y/N]: ",
+                item_path, old_display, new_display
+            );
+            io::stdout().flush().ok();
+            let mut answer = String::new();
+            io::stdin()
+                .read_line(&mut answer)
+                .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+            matches!(answer.trim().to_lowercase().as_str(), "y" | "yes")
+        };
+
+        if proceed {
+            table[last] = new_item;
+            applied_updates.push((item_path.clone(), old_display, new_display));
+        } else {
+            println!("Skipped {}", item_path);
+        }
+    }
+
+    if !applied_updates.is_empty() {
+        let dir = clementine_home_dir;
+        let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to create temp file in {}: {}",
+                dir.display(),
+                e
+            ))
+        })?;
+
+        tmp.write_all(doc.to_string().as_bytes()).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to write to temp config file: {}", e))
+        })?;
+        tmp.as_file()
+            .sync_all()
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
+
+        tmp.persist(&config_file).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to persist temp config file to {}: {}",
+                config_file.display(),
+                e.error
+            ))
+        })?;
+
+        println!(
+            "{} Configuration updated for '{}' table in {}",
+            "SUCCESS".bold(),
+            table_name,
+            config_file.display()
+        );
+    } else {
+        println!("No changes applied.");
+    }
+
+    if !applied_updates.is_empty() {
+        println!("\nApplied updates:");
+        for (path, old, new) in applied_updates.iter() {
+            println!("  - {}: '{}' -> '{}'", path, old, new);
+        }
+    }
+
     Ok(())
 }
 

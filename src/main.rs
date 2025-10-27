@@ -108,6 +108,18 @@ struct Cli {
 enum Commands {
     // Init
     Init {},
+    // Update config
+    UpdateConfig {
+        /// Bitcoin network to use
+        #[arg(long, value_enum)]
+        network: CliNetwork,
+        /// Assume yes to all prompts
+        #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
+        yes: bool,
+        /// Key=value pairs to update, e.g. bridge_amount=123456 mempool_api_url=https://...
+        #[arg(required = true)]
+        kv: Vec<String>,
+    },
     /// Wallet related operations.
     Wallet {
         #[command(subcommand)]
@@ -357,6 +369,22 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             handle_cli_command!(clementine_cli::cli::cli_init(), _ => {
                 println!("Clementine CLI initialized successfully.");
             });
+        }
+        Commands::UpdateConfig { network, yes, kv } => {
+            let kv: Vec<(String, String)> = kv
+                .into_iter()
+                .map(|s| {
+                    let mut split = s.splitn(2, '=');
+                    let key = split.next().unwrap();
+                    let value = split.next().unwrap_or("");
+                    (key.to_string(), value.to_string())
+                })
+                .collect();
+            handle_cli_command!(clementine_cli::cli::update_config_with_confirm(
+                network.into(),
+                kv,
+                yes
+            ));
         }
         Commands::Wallet { command } => match command {
             WalletCommands::Create {
