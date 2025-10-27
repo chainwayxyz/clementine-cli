@@ -381,7 +381,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .map(|s| {
                     let mut split = s.splitn(2, '=');
-                    let key = split.next().unwrap();
+                    let key = split.next().expect("Key always exists");
                     let value = split.next().unwrap_or("");
                     (key.to_string(), value.to_string())
                 })

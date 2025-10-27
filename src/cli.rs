@@ -60,7 +60,6 @@ use toml_edit::{DocumentMut, Item, Value, value};
 
 pub fn cli_init() -> Result<(), BridgeCliError> {
     println!("{}", "Initializing Clementine CLI...".bold());
-    // Create ~/.clementine-cli if it doesn't exist
     let storage_dir = get_clementine_home_dir()?;
     std::fs::create_dir_all(&storage_dir).map_err(|e| {
         tracing::error!(
@@ -134,7 +133,6 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         keys_dir.display()
     );
 
-    // copy bridge_cli_config.toml it's under clementine-cli/bridge_cli_config.toml
     let config_file = storage_dir.join("bridge_cli_config.toml");
     if !config_file.exists() {
         let default_config_path = Path::new("bridge_cli_config.toml");
