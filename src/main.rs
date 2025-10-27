@@ -120,6 +120,12 @@ enum Commands {
         #[arg(required = true)]
         kv: Vec<String>,
     },
+    /// Show configuration for a given network
+    ShowConfig {
+        /// Bitcoin network to use
+        #[arg(long, value_enum)]
+        network: CliNetwork,
+    },
     /// Wallet related operations.
     Wallet {
         #[command(subcommand)]
@@ -385,6 +391,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 kv,
                 yes
             ));
+        }
+        Commands::ShowConfig { network } => {
+            handle_cli_command!(clementine_cli::cli::cli_show_config(network.into()));
         }
         Commands::Wallet { command } => match command {
             WalletCommands::Create {

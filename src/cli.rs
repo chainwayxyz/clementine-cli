@@ -164,6 +164,19 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
+fn network_table_name(network: Network) -> Result<&'static str, BridgeCliError> {
+    match network {
+        Network::Bitcoin => Ok("bitcoin"),
+        Network::Testnet4 => Ok("testnet4"),
+        Network::Signet => Ok("signet"),
+        Network::Regtest => Ok("regtest"),
+        _ => Err(BridgeCliError::Eyre(eyre!(
+            "Unsupported network for config operation: {}",
+            network
+        ))),
+    }
+}
+
 pub fn update_config_with_confirm(
     network: Network,
     values: Vec<(String, String)>,
@@ -198,18 +211,7 @@ pub fn update_config_with_confirm(
         ))
     })?;
 
-    let table_name = match network {
-        Network::Bitcoin => "bitcoin",
-        Network::Testnet => "testnet4",
-        Network::Signet => "signet",
-        Network::Regtest => "regtest",
-        _ => {
-            return Err(BridgeCliError::Eyre(eyre!(
-                "Unsupported network for config update: {}",
-                network
-            )));
-        }
-    };
+    let table_name = network_table_name(network)?;
 
     if !doc.as_table().contains_key(table_name) {
         return Err(BridgeCliError::Eyre(eyre!(
@@ -387,6 +389,57 @@ pub fn update_config_with_confirm(
     Ok(())
 }
 
+
+pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
+    let clementine_home_dir = get_clementine_home_dir()?;
+    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
+
+    let contents = std::fs::read_to_string(&config_file).map_err(|e| {
+        tracing::error!("Failed to read config file {}: {}", config_file.display(), e);
+        BridgeCliError::Eyre(eyre!("Failed to read config file {}: {}", config_file.display(), e))
+    })?;
+
+    let doc = contents.parse::<DocumentMut>().map_err(|e| {
+        tracing::error!("Failed to parse TOML config {}: {}", config_file.display(), e);
+        BridgeCliError::Eyre(eyre!("Failed to parse TOML config {}: {}", config_file.display(), e))
+    })?;
+
+    let table_name = network_table_name(network)?;
+
+    let root_table = doc.as_table();
+    if !root_table.contains_key(table_name) {
+        return Err(BridgeCliError::Eyre(eyre!("Config table '{}' not found in {}", table_name, config_file.display())));
+    }
+
+    let table = doc[table_name].as_table().ok_or_else(|| {
+        BridgeCliError::Eyre(eyre!("Config '{}' is not a table in {}", table_name, config_file.display()))
+    })?;
+
+    println!("{} Configuration ({}):", "INFO".bold(), table_name);
+
+    fn print_item(prefix: &str, key: &str, item: &toml_edit::Item, depth: usize) {
+        let indent = "  ".repeat(depth);
+        if let Some(val) = item.as_value() {
+            let val = val.clone().decorated("", "");
+            println!("{}{}{} = {}", indent, prefix, key, val);
+        } else if item.is_table() {
+            println!("{}[{}{}]", indent, prefix, key);
+            if let Some(tbl) = item.as_table() {
+                for (k, v) in tbl.iter() {
+                    print_item(&format!("{}{}.", prefix, key), k, v, depth + 1);
+                }
+            }
+        } else {
+            println!("Invalid item at {}{}{}", indent, prefix, key);
+        }
+    }
+
+    for (k, v) in table.iter() {
+        print_item("", k, v, 0);
+    }
+
+    Ok(())
+}
 pub fn cli_create_wallet(
     network: Network,
     label: String,
