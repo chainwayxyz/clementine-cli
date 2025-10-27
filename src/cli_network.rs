@@ -110,7 +110,7 @@ fn build_network_error(bad: &str) -> String {
     }
 
     out.push_str(&format!(
-        "\n For more information, try '{}'.\n",
+        "\nFor more information, try '{}'.\n",
         "--help".bold()
     ));
     out
