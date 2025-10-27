@@ -196,8 +196,8 @@ These hashes are **verified reproducible** - building twice produces identical b
 | **arm-linux-gnueabihf** | `sha256-LZw03xTtNGbREMnomn57MYVqVbd/bkNdZUfxuiSPKKE=` |
 | **riscv64-linux-gnu** | `sha256-fLpJHlaMFKK2AwX555dbLazTpHKAIXQmq90aUWXnwAg=` |
 | **win64** | `sha256-1WhKKBTmyTQr3ukqkohxWFX8HZna20ZAYDVmCFY1R5E=` |
-| **x86_64-apple-darwin** | `sha256-P3A+2Z8GDm0ivPfck27GfKpwl0RFSxwUty+vQyGiXkQ=` |
-| **arm64-apple-darwin** | `sha256-d39cfapCrrC4Q+YP4SEgLpv42DHdRcn27XXzhIIJtKs=` |
+| **x86_64-apple-darwin** | `sha256-p+PlOQNjlKM36kHcIDnopuHBaJHPYkj/mxzgNH86v7U=` |
+| **arm64-apple-darwin** | `sha256-fd9F1IcPu1ez8IMQZ3KJu+n7GTgtR/tayQSeAnPtwd8=` |
 
 > **Note**: Hashes change when source code, dependencies (Cargo.lock), or build configuration (flake.nix) are modified.
 
@@ -209,7 +209,7 @@ To verify your build matches another developer's:
 # On any machine with the same commit (example for x86_64 macOS)
 nix build .#x86_64-apple-darwin
 nix hash path ./result
-# Should output: sha256-P3A+2Z8GDm0ivPfck27GfKpwl0RFSxwUty+vQyGiXkQ=
+# Should output: sha256-p+PlOQNjlKM36kHcIDnopuHBaJHPYkj/mxzgNH86v7U=
 ```
 
 If hashes don't match, ensure:
