@@ -310,7 +310,7 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
-    SendSafeWithdrawal {
+    SendSafeWithdraw {
         /// Bitcoin network to use
         #[arg(long, default_value_t = CliNetwork::Bitcoin, value_enum)]
         network: CliNetwork,
@@ -615,7 +615,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _result => {
                         println!("Send exactly {} sats to {}", config.dust_utxo_amount.to_sat(), signer_address.address_without_prefix());
                         println!("You can use:");
-                        println!("$ {} sendtoaddress {} 0.00000{}",
+                        println!("$ {} sendtoaddress {} {}",
                             get_bitcoin_cli_command(&config),
                             signer_address.address_without_prefix(), config.dust_utxo_amount.to_btc());
                         println!("or a similar command from a wallet you are using");
@@ -766,7 +766,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawCommands::SendSafeWithdrawal {
+            WithdrawCommands::SendSafeWithdraw {
                 signer_address,
                 destination_address,
                 withdrawal_utxo_outpoint,
@@ -801,7 +801,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ),
                     result => {
                         println!("Safe withdrawal transaction sent!");
-                        println!("Transaction Receipt: {:#?}", result);
+                        println!("Transaction Hash: {:#?}", result.transaction_hash);
                     }
                 );
             }
