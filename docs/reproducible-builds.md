@@ -192,10 +192,10 @@ These hashes are **verified reproducible** - building twice produces identical b
 | Platform | Hash |
 |----------|------|
 | **x86_64-linux-gnu** | `sha256-NCmTVgAjznXctvxE012CjB3C2/by0dBJg5iDsKsHwgE=` |
-| **aarch64-linux-gnu** | `sha256-egGIYlIYpKSBG3p0ZT9UPW6ucbVCr8HTqqrZJGwK37A=` |
-| **arm-linux-gnueabihf** | `sha256-1/CmV1ond4ePEzlCeOPu1It2WfDxrqdyuoV1pIeteRc=` |
-| **riscv64-linux-gnu** | `sha256-zeZDIrAN7GIskHi62PwsJrWCmzTGjlPy17zddqMB5qc=` |
-| **win64** | `sha256-ZQ2BUYA13doSj86JJvaOz8ygjV9RRO8tsteocfXdRtg=` |
+| **aarch64-linux-gnu** | `sha256-ZlH4xzRwZth8clam1P0FV6YXt9qzf4hwSfkDR7g0lgc=` |
+| **arm-linux-gnueabihf** | `sha256-LZw03xTtNGbREMnomn57MYVqVbd/bkNdZUfxuiSPKKE=` |
+| **riscv64-linux-gnu** | `sha256-fLpJHlaMFKK2AwX555dbLazTpHKAIXQmq90aUWXnwAg=` |
+| **win64** | `sha256-1WhKKBTmyTQr3ukqkohxWFX8HZna20ZAYDVmCFY1R5E=` |
 | **x86_64-apple-darwin** | `sha256-P3A+2Z8GDm0ivPfck27GfKpwl0RFSxwUty+vQyGiXkQ=` |
 | **arm64-apple-darwin** | `sha256-d39cfapCrrC4Q+YP4SEgLpv42DHdRcn27XXzhIIJtKs=` |
 
