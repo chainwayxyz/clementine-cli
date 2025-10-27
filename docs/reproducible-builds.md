@@ -191,7 +191,7 @@ These hashes are **verified reproducible** - building twice produces identical b
 
 | Platform | Hash |
 |----------|------|
-| **x86_64-linux-gnu** | `sha256-nHLuugEVf0/nJnCG3XhEPP/4+w4d8+ZylcwbxUQVXhI=` |
+| **x86_64-linux-gnu** | `sha256-NCmTVgAjznXctvxE012CjB3C2/by0dBJg5iDsKsHwgE=` |
 | **aarch64-linux-gnu** | `sha256-egGIYlIYpKSBG3p0ZT9UPW6ucbVCr8HTqqrZJGwK37A=` |
 | **arm-linux-gnueabihf** | `sha256-1/CmV1ond4ePEzlCeOPu1It2WfDxrqdyuoV1pIeteRc=` |
 | **riscv64-linux-gnu** | `sha256-zeZDIrAN7GIskHi62PwsJrWCmzTGjlPy17zddqMB5qc=` |

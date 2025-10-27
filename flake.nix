@@ -237,7 +237,25 @@
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
 
-            src = ./.;
+            # Only include files that affect the build
+            # Exclude docs, CI, and scripts so documentation changes don't affect build hash
+            src = pkgs.lib.cleanSourceWith {
+              src = ./.;
+              filter = path: type:
+                let
+                  baseName = baseNameOf path;
+                  relativePath = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
+                in
+                # Exclude non-build-affecting directories
+                !(pkgs.lib.hasPrefix "docs/" relativePath) &&
+                !(pkgs.lib.hasPrefix ".github/" relativePath) &&
+                !(pkgs.lib.hasPrefix "reproducible/" relativePath) &&
+                !(baseName == "README.md") &&
+                !(baseName == "SETUP.md") &&
+                # Exclude git files
+                !(baseName == ".git") &&
+                !(baseName == ".gitignore");
+            };
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags installPhase;
 
