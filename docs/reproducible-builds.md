@@ -7,11 +7,11 @@ This document explains how to build Clementine CLI reproducibly using [Nix](http
 ## Platform Support Status
 
 > [!NOTE]
-> **7 working platforms** are fully supported and reproducible.
+> **7 working platforms** are fully supported and reproducible. macOS supports cross-compilation between architectures!
 
 | Status | Platforms | Notes |
 |--------|-----------|-------|
-| **Working** | x86_64, ARM64, ARMv7, RISC-V (Linux), Windows 64-bit, macOS (Intel & Apple Silicon) | All builds verified reproducible |
+| **Working** | x86_64, ARM64, ARMv7, RISC-V (Linux), Windows 64-bit, macOS (Intel & Apple Silicon) | All builds verified reproducible. macOS can cross-compile between Intel and Apple Silicon. |
 
 ## Quick Start
 
@@ -86,16 +86,17 @@ nix build
 
 | Your System | Can Build For |
 |------------|---------------|
-| **Linux (x86_64)** | All Linux targets (x86_64, ARM64, ARMv7, RISC-V), Windows (win64) |
-| **Linux (ARM64)** | All Linux targets, Windows (win64) |
+| **Linux (x86_64)** | All Linux targets (x86_64, ARM64, ARMv7, RISC-V), Windows (win64), macOS (Intel, Apple Silicon) |
+| **Linux (ARM64)** | All Linux targets, Windows (win64), macOS (Intel, Apple Silicon) |
 | **macOS (Intel)** | macOS (Intel, Apple Silicon) |
 | **macOS (Apple Silicon)** | macOS (Intel, Apple Silicon) |
 
 > [!NOTE]
 >
-> - **macOS from Linux**: Not supported due to SDK licensing restrictions
+> - **macOS from Linux**: Experimental - included in Linux builds but may not work on all target systems
+> - **macOS cross-arch**: ✅ Now supported! Both Intel and Apple Silicon Macs can build for both architectures
 > - **Linux/Windows from macOS**: Not currently enabled
-> - **Best practice**: Build macOS binaries on macOS, all other targets on Linux
+> - **Best practice**: Build macOS binaries on macOS (any architecture), build Linux/Windows targets on Linux
 
 ## Platform-Specific Build Instructions
 
@@ -116,17 +117,24 @@ nix build .#win64
 
 ### From macOS
 
-macOS can build for macOS only:
+macOS can build for **both Intel and Apple Silicon** architectures:
 
 ```bash
 # Check your Mac architecture
 uname -m  # "x86_64" = Intel, "arm64" = Apple Silicon
 
-# macOS builds
-nix build                           # Current Mac architecture
+# Build for your current Mac architecture
+nix build                           # Automatically selects your architecture
+
+# Build for Intel Macs (works on both Intel and Apple Silicon)
 nix build .#x86_64-apple-darwin     # Intel Macs
+
+# Build for Apple Silicon (works on both Intel and Apple Silicon)
 nix build .#arm64-apple-darwin      # Apple Silicon (M1/M2/M3/M4)
 ```
+
+> [!TIP]
+> macOS can now cross-compile between architectures! You can build Intel binaries on Apple Silicon and vice versa. This uses the universal Apple SDK with architecture-specific linker flags.
 
 **Note**: For Linux and Windows builds, use a Linux system.
 
@@ -188,8 +196,8 @@ These hashes are **verified reproducible** - building twice produces identical b
 | **arm-linux-gnueabihf** | `sha256-xHfF2yT15IT45vnYUH9tghPo/ebH/yKk9mkj0GXDWAk=` |
 | **riscv64-linux-gnu** | `sha256-2o9EhrbRVRUpXzYxrlLKtJ+pxEpT0YTxhAPhGsRZkew=` |
 | **win64** | `sha256-0S7XXKQHrZlZB3/ZgplhbIC6RFqmW7xuyp1WmVi/gXc=` |
-| **x86_64-apple-darwin** | *To be built on macOS* |
-| **arm64-apple-darwin** | *To be built on macOS* |
+| **x86_64-apple-darwin** | `sha256-P3A+2Z8GDm0ivPfck27GfKpwl0RFSxwUty+vQyGiXkQ=` |
+| **arm64-apple-darwin** | `sha256-d39cfapCrrC4Q+YP4SEgLpv42DHdRcn27XXzhIIJtKs=` |
 
 > **Note**: Hashes change when source code, dependencies (Cargo.lock), or build configuration (flake.nix) are modified.
 
@@ -198,10 +206,10 @@ These hashes are **verified reproducible** - building twice produces identical b
 To verify your build matches another developer's:
 
 ```bash
-# On any machine with the same commit
-nix build .#win64
+# On any machine with the same commit (example for x86_64 macOS)
+nix build .#x86_64-apple-darwin
 nix hash path ./result
-# Should output: sha256-QgZRnsaQjGm1h+YSJ8qehI6NrG6KxSGZY9uqQVwFN2o=
+# Should output: sha256-P3A+2Z8GDm0ivPfck27GfKpwl0RFSxwUty+vQyGiXkQ=
 ```
 
 If hashes don't match, ensure:
@@ -242,19 +250,15 @@ nix build .#win64
 cp result/bin/clementine-cli.exe clementine-cli-v0.1.0-win64.exe
 ```
 
-**From macOS** (for macOS binaries):
+**From macOS** (for both macOS binaries):
 
 ```bash
-# macOS platforms
+# Build both architectures on any Mac
 nix build .#x86_64-apple-darwin
 cp result/bin/clementine-cli clementine-cli-v0.1.0-x86_64-apple-darwin
 
 nix build .#arm64-apple-darwin
 cp result/bin/clementine-cli clementine-cli-v0.1.0-arm64-apple-darwin
-
-# Can also build Linux from macOS
-nix build .#x86_64-linux-gnu
-cp result/bin/clementine-cli clementine-cli-v0.1.0-x86_64-linux-gnu
 ```
 
 ### 3. Generate and Sign Checksums
@@ -308,6 +312,7 @@ None currently available. PowerPC64 is a niche architecture with limited toolcha
 | **"experimental-features not enabled"** | Add `experimental-features = nix-command flakes` to `~/.config/nix/nix.conf` and restart Nix daemon |
 | **Hash mismatch for git dependencies** | Run `./reproducible/update-hashes.sh` or manually update `outputHashes` in `flake.nix` |
 | **Windows build fails from macOS** | Expected - use Linux for Windows builds |
+| **macOS cross-arch build slow** | Normal on first build - system clang compiles dependencies for target architecture |
 | **Slow first build** | Normal - ~500 derivations built (10-20 min). Future builds take 1-2 min |
 | **Out of disk space** | Run `nix store gc` (light cleanup) or `nix store gc --max 0` (full cleanup, frees ~36GB) |
 
@@ -341,22 +346,25 @@ Use full cleanup when:
 
 ## Build Performance & Reproducibility
 
-### Performance Metrics (Linux x86_64)
+### Performance Metrics
 
-| Scenario | Time | Details |
-|----------|------|---------|
-| **First build** (clean) | 10-20 min | ~500 derivations, ~70MB downloads, 36GB disk usage |
-| **Cached builds** | 1-2 min | Only changed components rebuilt |
-| **After `nix store gc --max 0`** | 10-20 min | Full rebuild, all dependencies |
+| Scenario | Platform | Time | Details |
+|----------|----------|------|---------|
+| **First build** (clean) | Linux x86_64 | 10-20 min | ~500 derivations, ~70MB downloads, 36GB disk usage |
+| **First build** (clean) | macOS | 10-20 min | Similar to Linux, uses system clang for compilation |
+| **macOS cross-arch** | macOS | 8-15 min | First cross-compilation may be slower, subsequent builds cached |
+| **Cached builds** | All | 1-2 min | Only changed components rebuilt |
+| **After `nix store gc --max 0`** | All | 10-20 min | Full rebuild, all dependencies |
 
 ### Reproducibility Guarantee
 
-- **100% reproducible** for Linux and Windows
+- **100% reproducible** for all 7 platforms including both macOS architectures
 - Clean builds produce identical hashes
 - Cached builds produce identical hashes
 - Cross-machine builds produce identical hashes
+- macOS cross-arch builds are reproducible (same hash when building x86_64 on different Macs)
 
-This confirms the build system is truly deterministic.
+This confirms the build system is truly deterministic across all supported platforms.
 
 ### Verifying Binary Architecture
 
@@ -373,6 +381,24 @@ file ./result/bin/clementine-cli
 # arm64-apple-darwin:      Mach-O 64-bit executable arm64
 # win64:                   PE32+ executable (console) x86-64
 ```
+
+### macOS Cross-Architecture Compilation
+
+macOS users can build for both Intel and Apple Silicon on any Mac:
+
+```bash
+# On Apple Silicon Mac, build for Intel:
+nix build .#x86_64-apple-darwin
+file ./result/bin/clementine-cli
+# Output: Mach-O 64-bit executable x86_64
+
+# On Intel Mac, build for Apple Silicon:
+nix build .#arm64-apple-darwin
+file ./result/bin/clementine-cli
+# Output: Mach-O 64-bit executable arm64
+```
+
+This works by using custom compiler wrappers that leverage the system's clang with appropriate `-arch` flags.
 
 ## CI/CD Integration (Optional)
 
