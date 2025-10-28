@@ -80,7 +80,7 @@ impl BridgeCliConfig {
 
         Err(ConfigErrors::FileReadFailure(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            format!("Configuration file not found at: {config_dir:?}"),
+            format!("Configuration file not found at: {config_dir:?}. Please run 'clementine-cli init' to create one."),
         )))
     }
 

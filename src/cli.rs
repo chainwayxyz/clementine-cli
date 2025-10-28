@@ -60,32 +60,32 @@ use toml_edit::{DocumentMut, Item, Value, value};
 
 pub fn cli_init() -> Result<(), BridgeCliError> {
     println!("{}", "Initializing Clementine CLI...".bold());
-    let storage_dir = get_clementine_home_dir()?;
-    std::fs::create_dir_all(&storage_dir).map_err(|e| {
+    let clementine_home_dir = get_clementine_home_dir()?;
+    std::fs::create_dir_all(&clementine_home_dir).map_err(|e| {
         tracing::error!(
-            "Failed to create storage directory {}: {}",
-            storage_dir.display(),
+            "Failed to create Clementine home directory {}: {}",
+            clementine_home_dir.display(),
             e
         );
         BridgeCliError::Eyre(eyre!(
-            "Failed to create storage directory {}",
-            storage_dir.display()
+            "Failed to create Clementine home directory {}",
+            clementine_home_dir.display()
         ))
     })?;
 
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&storage_dir, std::fs::Permissions::from_mode(0o700)).map_err(
+        std::fs::set_permissions(&clementine_home_dir, std::fs::Permissions::from_mode(0o700)).map_err(
             |e| {
                 tracing::error!(
                     "Failed to set permissions for storage directory {}: {}",
-                    storage_dir.display(),
+                    clementine_home_dir.display(),
                     e
                 );
                 BridgeCliError::Eyre(eyre!(
                     "Failed to set permissions for storage directory {}",
-                    storage_dir.display()
+                    clementine_home_dir.display()
                 ))
             },
         )?;
@@ -94,9 +94,9 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     println!(
         "{} Storage directory initialized at: {}",
         "SUCCESS".bold(),
-        storage_dir.display()
+        clementine_home_dir.display()
     );
-    let keys_dir = storage_dir.join("keys");
+    let keys_dir = clementine_home_dir.join("keys");
     std::fs::create_dir_all(&keys_dir).map_err(|e| {
         tracing::error!(
             "Failed to create keys directory {}: {}",
@@ -133,7 +133,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         keys_dir.display()
     );
 
-    let config_file = storage_dir.join("bridge_cli_config.toml");
+    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
     if !config_file.exists() {
         let default_config_path = Path::new("bridge_cli_config.toml");
         std::fs::copy(default_config_path, &config_file).map_err(|e| {
