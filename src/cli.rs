@@ -14,7 +14,7 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::api_utils::get_block_height_for_tx;
-use crate::wallet::wallet_storage::get_storage_dir_with_existance_check;
+use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
@@ -47,8 +47,8 @@ use crate::{
     withdraw::{self, start_withdrawal},
 };
 use crate::{
-    get_clementine_config_path_with_existance_check, get_clementine_home_dir,
-    get_clementine_home_dir_with_existance_check,
+    get_clementine_config_path_with_existence_check, get_clementine_home_dir,
+    get_clementine_home_dir_with_existence_check,
 };
 
 use crossterm::cursor::{MoveToColumn, SavePosition};
@@ -286,7 +286,7 @@ fn prompt_confirm(
 
 // Helper: write the modified DocumentMut to a temp file and persist atomically
 fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), BridgeCliError> {
-    let clementine_home_dir = get_clementine_home_dir_with_existance_check()?;
+    let clementine_home_dir = get_clementine_home_dir_with_existence_check()?;
     let dir = clementine_home_dir;
     let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
         BridgeCliError::Eyre(eyre!(
@@ -335,7 +335,7 @@ pub fn update_config_with_confirm(
     values: Vec<(String, String)>,
     assume_yes: bool,
 ) -> Result<(), BridgeCliError> {
-    let config_path = get_clementine_config_path_with_existance_check()?;
+    let config_path = get_clementine_config_path_with_existence_check()?;
     let mut doc = parse_config_to_doc(&config_path)?;
 
     let table_name = network_table_name(network)?;
@@ -442,7 +442,7 @@ pub fn update_config_with_confirm(
 }
 
 pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
-    let config_path = get_clementine_config_path_with_existance_check()?;
+    let config_path = get_clementine_config_path_with_existence_check()?;
 
     let contents = std::fs::read_to_string(&config_path).map_err(|e| {
         tracing::error!(
@@ -598,7 +598,7 @@ pub fn cli_import_wallet_from_mnemonic(
 }
 
 pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existance_check()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
 
     println!("{}", "Verifying Wallet Integrity".bold());
     println!("Storage directory: {}", storage_dir.display());

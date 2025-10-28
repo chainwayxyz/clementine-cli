@@ -27,7 +27,7 @@ use crate::secure_types::{SecureKeypair, SecureSecretKey};
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use crate::wallet::wallet_storage::{
-    get_storage_dir_with_existance_check, get_wallets_from_registry,
+    get_storage_dir_with_existence_check, get_wallets_from_registry,
 };
 use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
@@ -138,7 +138,7 @@ pub fn parse_taproot_address(
 
 /// Get all wallets with their names and addresses from storage and print them
 pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existance_check()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
 
     if !storage_dir.exists() {
         println!(

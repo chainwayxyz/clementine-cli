@@ -2,7 +2,7 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use crate::{errors::BridgeCliError, get_clementine_config_path_with_existance_check};
+use crate::{errors::BridgeCliError, get_clementine_config_path_with_existence_check};
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
@@ -71,7 +71,7 @@ impl BridgeCliConfig {
 
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
-        let config_path = get_clementine_config_path_with_existance_check().map_err(|_| {
+        let config_path = get_clementine_config_path_with_existence_check().map_err(|_| {
             ConfigErrors::FileReadFailure(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Config file not found in home directory. Please run 'clementine-cli init' to create one.",

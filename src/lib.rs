@@ -58,7 +58,7 @@ pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, Bridg
         .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format")))
 }
 
-pub(crate) fn get_clementine_home_dir_with_existance_check() -> Result<PathBuf, BridgeCliError> {
+pub(crate) fn get_clementine_home_dir_with_existence_check() -> Result<PathBuf, BridgeCliError> {
     let home_dir = get_clementine_home_dir()?;
     if !home_dir.exists() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
@@ -74,7 +74,7 @@ pub(crate) fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {
     Ok(home_dir.join(".clementine"))
 }
 
-pub(crate) fn get_clementine_config_path_with_existance_check() -> Result<PathBuf, BridgeCliError> {
+pub(crate) fn get_clementine_config_path_with_existence_check() -> Result<PathBuf, BridgeCliError> {
     let home_dir = get_clementine_home_dir()?;
     let config_path = home_dir.join("bridge_cli_config.toml");
     if !config_path.exists() {
