@@ -91,7 +91,7 @@ enum Commands {
     UpdateConfig {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Assume yes to all prompts
+        /// Assume yes to all prompts, changes will be applied without confirmation
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
         yes: bool,
         /// Key=value pairs to update, e.g. bridge_amount=123456 mempool_api_url=https://...
