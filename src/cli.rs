@@ -46,7 +46,10 @@ use crate::{
     },
     withdraw::{self, start_withdrawal},
 };
-use crate::{get_clementine_config_path_with_existance_check, get_clementine_home_dir};
+use crate::{
+    get_clementine_config_path_with_existance_check, get_clementine_home_dir,
+    get_clementine_home_dir_with_existance_check,
+};
 
 use crossterm::cursor::{MoveToColumn, SavePosition};
 use crossterm::terminal::{Clear, ClearType};
@@ -176,38 +179,164 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
     Ok(())
 }
 
+// Helper: read and parse TOML config into a mutable document
+fn parse_config_to_doc(config_path: &Path) -> Result<DocumentMut, BridgeCliError> {
+    let contents = std::fs::read_to_string(config_path).map_err(|e| {
+        tracing::error!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    let doc = contents.parse::<DocumentMut>().map_err(|e| {
+        tracing::error!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    Ok(doc)
+}
+
+// Helper: create a toml_edit::Item from an existing Value type and a new string
+fn create_item_from_existing(
+    existing_val: &Value,
+    new_val_str: &str,
+    item_path: &str,
+) -> Result<Item, BridgeCliError> {
+    let new_item: Item = match existing_val {
+        Value::Boolean(_) => {
+            let parsed = new_val_str.parse::<bool>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as boolean for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::Integer(_) => {
+            let parsed = new_val_str.parse::<i64>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as integer for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::Float(_) => {
+            let parsed = new_val_str.parse::<f64>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as float for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::String(_) => value(new_val_str.to_string()),
+        other => {
+            tracing::warn!(
+                "Updating {} with unsupported existing type ({:?}), writing as string",
+                item_path,
+                other
+            );
+            value(new_val_str.to_string())
+        }
+    };
+
+    Ok(new_item)
+}
+
+// Helper: prompt the user for confirmation (or respect assume_yes)
+fn prompt_confirm(
+    assume_yes: bool,
+    item_path: &str,
+    old_display: &str,
+    new_display: &str,
+) -> Result<bool, BridgeCliError> {
+    if assume_yes {
+        return Ok(true);
+    }
+
+    print!(
+        "Update '{}' from '{}' to '{}'? [y/N]: ",
+        item_path, old_display, new_display
+    );
+    io::stdout().flush().ok();
+    let mut answer = String::new();
+    io::stdin()
+        .read_line(&mut answer)
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+    Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
+}
+
+// Helper: write the modified DocumentMut to a temp file and persist atomically
+fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), BridgeCliError> {
+    let clementine_home_dir = get_clementine_home_dir_with_existance_check()?;
+    let dir = clementine_home_dir;
+    let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to create temp file in {}: {}",
+            dir.display(),
+            e
+        ))
+    })?;
+
+    tmp.write_all(doc.to_string().as_bytes())
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to write to temp config file: {}", e)))?;
+    tmp.as_file()
+        .sync_all()
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
+
+    tmp.persist(config_path).map_err(|e| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to persist temp config file to {}: {}",
+            config_path.display(),
+            e.error
+        ))
+    })?;
+
+    Ok(())
+}
+
+/// Update configuration values in the bundled TOML config for a network table.
+///
+/// This function loads the config file, looks up keys inside the selected
+/// network table (dot-separated keys target nested tables), and updates only
+/// existing scalar values. For each change it asks the user to confirm unless
+/// `assume_yes` is true. If any updates are applied the config file is written
+/// atomically and a short summary is printed.
+///
+/// Parameters:
+/// - `network`: Which network table to update (e.g. `bitcoin`, `testnet4`).
+/// - `values`: Vec of `(key, new_value)` pairs. Keys may be dot-separated to
+///   address nested tables (e.g. `rpc.username`).
+/// - `assume_yes`: If true, skip interactive confirmation and apply changes.
+///
+/// Returns `Ok(())` on success. Errors are returned if the config cannot be
+/// read/parsed, a key path does not exist, the existing value is non-scalar,
+/// type parsing of the new value fails, or writing the updated config fails.
 pub fn update_config_with_confirm(
     network: Network,
     values: Vec<(String, String)>,
     assume_yes: bool,
 ) -> Result<(), BridgeCliError> {
     let config_path = get_clementine_config_path_with_existance_check()?;
-
-    let contents = std::fs::read_to_string(&config_path).map_err(|e| {
-        tracing::error!(
-            "Failed to read config file {}: {}",
-            config_path.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre!(
-            "Failed to read config file {}: {}",
-            config_path.display(),
-            e
-        ))
-    })?;
-
-    let mut doc = contents.parse::<DocumentMut>().map_err(|e| {
-        tracing::error!(
-            "Failed to parse TOML config {}: {}",
-            config_path.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre!(
-            "Failed to parse TOML config {}: {}",
-            config_path.display(),
-            e
-        ))
-    })?;
+    let mut doc = parse_config_to_doc(&config_path)?;
 
     let table_name = network_table_name(network)?;
 
@@ -258,7 +387,7 @@ pub fn update_config_with_confirm(
 
         let existing_item = table.get(last).ok_or_else(|| {
             BridgeCliError::Eyre(eyre!(
-                "Config key '{}' does not exist; refusing to create new keys",
+                "Config key '{}' does not exist; refusing to create new keys. Please run 'clementine-cli show-config' to see existing keys.",
                 item_path
             ))
         })?;
@@ -270,69 +399,16 @@ pub fn update_config_with_confirm(
             ))
         })?;
 
-        let new_item: Item = match existing_val {
-            Value::Boolean(_) => {
-                let parsed = new_val_str.parse::<bool>().map_err(|_| {
-                    BridgeCliError::Eyre(eyre!(
-                        "Failed to parse '{}' as boolean for {}",
-                        new_val_str,
-                        item_path
-                    ))
-                })?;
-                value(parsed)
-            }
-            Value::Integer(_) => {
-                let parsed = new_val_str.parse::<i64>().map_err(|_| {
-                    BridgeCliError::Eyre(eyre!(
-                        "Failed to parse '{}' as integer for {}",
-                        new_val_str,
-                        item_path
-                    ))
-                })?;
-                value(parsed)
-            }
-            Value::Float(_) => {
-                let parsed = new_val_str.parse::<f64>().map_err(|_| {
-                    BridgeCliError::Eyre(eyre!(
-                        "Failed to parse '{}' as float for {}",
-                        new_val_str,
-                        item_path
-                    ))
-                })?;
-                value(parsed)
-            }
-            Value::String(_) => value(new_val_str.to_string()),
-            other => {
-                tracing::warn!(
-                    "Updating {} with unsupported existing type ({:?}), writing as string",
-                    item_path,
-                    other
-                );
-                value(new_val_str.to_string())
-            }
-        };
+        let new_item: Item = create_item_from_existing(existing_val, &new_val_str, &item_path)?;
 
-        let old_display = existing_val.to_string();
+        let old_display = existing_val.clone().decorated("", "").to_string();
         let new_display = if let Some(v) = new_item.as_value() {
             v.to_string()
         } else {
             new_item.to_string()
         };
 
-        let proceed = if assume_yes {
-            true
-        } else {
-            print!(
-                "Update '{}' from '{}' to '{}'? [y/N]: ",
-                item_path, old_display, new_display
-            );
-            io::stdout().flush().ok();
-            let mut answer = String::new();
-            io::stdin()
-                .read_line(&mut answer)
-                .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
-            matches!(answer.trim().to_lowercase().as_str(), "y" | "yes")
-        };
+        let proceed = prompt_confirm(assume_yes, &item_path, &old_display, &new_display)?;
 
         if proceed {
             table[last] = new_item;
@@ -343,30 +419,7 @@ pub fn update_config_with_confirm(
     }
 
     if !applied_updates.is_empty() {
-        let clementine_home_dir = get_clementine_home_dir()?;
-        let dir = clementine_home_dir;
-        let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
-            BridgeCliError::Eyre(eyre!(
-                "Failed to create temp file in {}: {}",
-                dir.display(),
-                e
-            ))
-        })?;
-
-        tmp.write_all(doc.to_string().as_bytes()).map_err(|e| {
-            BridgeCliError::Eyre(eyre!("Failed to write to temp config file: {}", e))
-        })?;
-        tmp.as_file()
-            .sync_all()
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
-
-        tmp.persist(&config_path).map_err(|e| {
-            BridgeCliError::Eyre(eyre!(
-                "Failed to persist temp config file to {}: {}",
-                config_path.display(),
-                e.error
-            ))
-        })?;
+        persist_doc_atomic(&doc, &config_path)?;
 
         println!(
             "{} Configuration updated for '{}' table in {}",
