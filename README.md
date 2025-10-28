@@ -42,11 +42,23 @@ you need to provide correct Bitcoin RPC configuration.
    cargo install --path .
    ```
 
-3. Install configuration file by copying your config file to `~/.clementine/`:
+
+3. Install the default configuration by running the CLI init command which
+   creates the `~/.clementine/bridge_cli_config.toml` file for you:
 
    ```sh
-   mkdir -p ~/.clementine/  
-   cp ./bridge_cli_config.toml ~/.clementine/  
+   clementine-cli init
+   ```
+
+4. Show and update configuration
+
+   ```sh
+   # Show current config for a network
+   clementine-cli show-config --network testnet
+
+   # Update one or more keys (interactive confirmation). Use -y to skip confirmation prompts.
+   clementine-cli update-config --network testnet bitcoin_config.user=admin bitcoin_config.password=admin
+   clementine-cli update-config --network testnet -y bitcoin_config.user=admin bitcoin_config.password=admin
    ```
 
 > [!CAUTION]
@@ -72,7 +84,6 @@ clementine-cli deposit get-deposit-address --network testnet <RECOVERY_TAPROOT_A
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
 clementine-cli deposit status --network testnet <DEPOSIT_ADDRESS>
-```
 
 ## Two-Device Security
 
