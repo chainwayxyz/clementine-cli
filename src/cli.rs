@@ -434,7 +434,7 @@ pub fn update_config_with_confirm(
     if !applied_updates.is_empty() {
         println!("\nApplied updates:");
         for (path, old, new) in applied_updates.iter() {
-            println!("  - {}: '{}' -> '{}'", path, old, new);
+            println!("  - {}: {} -> {}", path, old, new);
         }
     }
 
