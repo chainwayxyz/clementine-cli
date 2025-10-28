@@ -2,7 +2,7 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use crate::{errors::BridgeCliError, get_clementine_home_dir};
+use crate::{errors::BridgeCliError, get_clementine_config_path_with_existance_check};
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
@@ -71,16 +71,29 @@ impl BridgeCliConfig {
 
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
-        let home_dir = get_clementine_home_dir().wrap_err("Can't get Clementine home directory")?;
-        let config_dir = home_dir.join("bridge_cli_config.toml");
-        if let Ok(config) = Self::try_parse_file(config_dir.clone(), network) {
-            tracing::debug!("Using home configuration file: {config_dir:?}");
+        let config_path = get_clementine_config_path_with_existance_check().map_err(|_| {
+            ConfigErrors::FileReadFailure(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Config file not found in home directory. Please run 'clementine-cli init' to create one.",
+            ))
+        })?;
+        let config = Self::try_parse_file(config_path.clone(), network);
+        if let Ok(config) = config {
+            tracing::debug!("Using home configuration file: {config_path:?}");
             return Ok(config);
         }
 
+        tracing::error!(
+            "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
+            config.err()
+        );
+
         Err(ConfigErrors::FileReadFailure(std::io::Error::new(
             std::io::ErrorKind::NotFound,
-            format!("Configuration file not found at: {config_dir:?}. Please run 'clementine-cli init' to create one."),
+            format!(
+                "Configuration file is not parsable at path: {:?}",
+                config_path
+            ),
         )))
     }
 

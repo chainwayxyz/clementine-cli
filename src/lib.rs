@@ -62,3 +62,15 @@ pub(crate) fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {
     let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine"))
 }
+
+pub(crate) fn get_clementine_config_path_with_existance_check() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = get_clementine_home_dir()?;
+    let config_path = home_dir.join("bridge_cli_config.toml");
+    if !config_path.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Configuration file not found at {:?}. Please run 'clementine-cli init' to create one.",
+            config_path
+        )));
+    }
+    Ok(config_path)
+}

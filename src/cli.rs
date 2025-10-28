@@ -14,7 +14,7 @@ use colored::Colorize;
 use eyre::eyre;
 
 use crate::api_utils::get_block_height_for_tx;
-use crate::get_clementine_home_dir;
+use crate::wallet::wallet_storage::get_storage_dir_with_existance_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
@@ -46,6 +46,7 @@ use crate::{
     },
     withdraw::{self, start_withdrawal},
 };
+use crate::{get_clementine_config_path_with_existance_check, get_clementine_home_dir};
 
 use crossterm::cursor::{MoveToColumn, SavePosition};
 use crossterm::terminal::{Clear, ClearType};
@@ -83,7 +84,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         "SUCCESS".bold(),
         clementine_home_dir.display()
     );
-    let keys_dir = clementine_home_dir.join("keys");
+    let keys_dir = get_storage_dir()?;
     std::fs::create_dir_all(&keys_dir).map_err(|e| {
         tracing::error!(
             "Failed to create keys directory {}: {}",
@@ -158,7 +159,10 @@ fn network_table_name(network: Network) -> Result<&'static str, BridgeCliError> 
 #[cfg(unix)]
 fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
     if mode > 0o777 {
-        return Err(BridgeCliError::Eyre(eyre!("Invalid permission mode: {:o}. Must be <= 0o777", mode)));
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Invalid permission mode: {:o}. Must be <= 0o777",
+            mode
+        )));
     }
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
@@ -177,18 +181,17 @@ pub fn update_config_with_confirm(
     values: Vec<(String, String)>,
     assume_yes: bool,
 ) -> Result<(), BridgeCliError> {
-    let clementine_home_dir = get_clementine_home_dir()?;
-    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
+    let config_path = get_clementine_config_path_with_existance_check()?;
 
-    let contents = std::fs::read_to_string(&config_file).map_err(|e| {
+    let contents = std::fs::read_to_string(&config_path).map_err(|e| {
         tracing::error!(
             "Failed to read config file {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         );
         BridgeCliError::Eyre(eyre!(
             "Failed to read config file {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         ))
     })?;
@@ -196,12 +199,12 @@ pub fn update_config_with_confirm(
     let mut doc = contents.parse::<DocumentMut>().map_err(|e| {
         tracing::error!(
             "Failed to parse TOML config {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         );
         BridgeCliError::Eyre(eyre!(
             "Failed to parse TOML config {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         ))
     })?;
@@ -212,7 +215,7 @@ pub fn update_config_with_confirm(
         return Err(BridgeCliError::Eyre(eyre!(
             "Config table '{}' not found in {}",
             table_name,
-            config_file.display()
+            config_path.display()
         )));
     }
 
@@ -227,7 +230,7 @@ pub fn update_config_with_confirm(
             BridgeCliError::Eyre(eyre!(
                 "Config table '{}' is not a table in {}",
                 table_name,
-                config_file.display()
+                config_path.display()
             ))
         })?;
 
@@ -340,6 +343,7 @@ pub fn update_config_with_confirm(
     }
 
     if !applied_updates.is_empty() {
+        let clementine_home_dir = get_clementine_home_dir()?;
         let dir = clementine_home_dir;
         let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
             BridgeCliError::Eyre(eyre!(
@@ -356,10 +360,10 @@ pub fn update_config_with_confirm(
             .sync_all()
             .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
 
-        tmp.persist(&config_file).map_err(|e| {
+        tmp.persist(&config_path).map_err(|e| {
             BridgeCliError::Eyre(eyre!(
                 "Failed to persist temp config file to {}: {}",
-                config_file.display(),
+                config_path.display(),
                 e.error
             ))
         })?;
@@ -368,7 +372,7 @@ pub fn update_config_with_confirm(
             "{} Configuration updated for '{}' table in {}",
             "SUCCESS".bold(),
             table_name,
-            config_file.display()
+            config_path.display()
         );
     } else {
         println!("No changes applied.");
@@ -385,18 +389,17 @@ pub fn update_config_with_confirm(
 }
 
 pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
-    let clementine_home_dir = get_clementine_home_dir()?;
-    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
+    let config_path = get_clementine_config_path_with_existance_check()?;
 
-    let contents = std::fs::read_to_string(&config_file).map_err(|e| {
+    let contents = std::fs::read_to_string(&config_path).map_err(|e| {
         tracing::error!(
             "Failed to read config file {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         );
         BridgeCliError::Eyre(eyre!(
             "Failed to read config file {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         ))
     })?;
@@ -404,12 +407,12 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
     let doc = contents.parse::<DocumentMut>().map_err(|e| {
         tracing::error!(
             "Failed to parse TOML config {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         );
         BridgeCliError::Eyre(eyre!(
             "Failed to parse TOML config {}: {}",
-            config_file.display(),
+            config_path.display(),
             e
         ))
     })?;
@@ -421,7 +424,7 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
         return Err(BridgeCliError::Eyre(eyre!(
             "Config table '{}' not found in {}",
             table_name,
-            config_file.display()
+            config_path.display()
         )));
     }
 
@@ -429,7 +432,7 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
         BridgeCliError::Eyre(eyre!(
             "Config '{}' is not a table in {}",
             table_name,
-            config_file.display()
+            config_path.display()
         ))
     })?;
 
@@ -542,7 +545,7 @@ pub fn cli_import_wallet_from_mnemonic(
 }
 
 pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existance_check()?;
 
     println!("{}", "Verifying Wallet Integrity".bold());
     println!("Storage directory: {}", storage_dir.display());

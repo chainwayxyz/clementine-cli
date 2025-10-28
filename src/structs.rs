@@ -28,11 +28,11 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         let address_type = if let Some(t) = address.address_type() {
             t
         } else {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         };
 
         if address_type != bitcoin::AddressType::P2tr {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
         Ok(Self { address, purpose })
@@ -43,7 +43,7 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         network: bitcoin::Network,
     ) -> Result<Self, BridgeCliError> {
         if address.len() < 3 {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
         let purpose = Purpose::purpose_from_str(&address[0..3])?;
@@ -71,7 +71,7 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
 impl TaprootAddressWithPrefix<NetworkUnchecked> {
     pub fn from_string_with_prefix_unchecked(address: &str) -> Result<Self, BridgeCliError> {
         if address.len() < 4 {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
         let purpose = Purpose::purpose_from_str(&address[0..3])?;

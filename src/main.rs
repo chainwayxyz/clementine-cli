@@ -89,8 +89,7 @@ enum Commands {
     Init {},
     // Update config
     UpdateConfig {
-        /// Bitcoin network to use
-        #[arg(long, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Assume yes to all prompts
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
@@ -101,8 +100,7 @@ enum Commands {
     },
     /// Show configuration for a given network
     ShowConfig {
-        /// Bitcoin network to use
-        #[arg(long, value_enum)]
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
     /// Wallet related operations.
