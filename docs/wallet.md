@@ -58,7 +58,7 @@ clementine-cli wallet create [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPO
 # For mainnet:
 clementine-cli wallet create my-wallet deposit
 # For a different network:
-clementine-cli wallet --network testnet4 create my-wallet deposit
+clementine-cli wallet --network testnet create my-wallet deposit
 ```
 
 > [!WARNING]

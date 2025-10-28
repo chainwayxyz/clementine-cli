@@ -64,14 +64,14 @@ clementine-cli --help
 
 # Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
 clementine-cli wallet create my-deposit-wallet deposit # Mainnet
-clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
+clementine-cli wallet create --network testnet my-deposit-wallet deposit
 
 # Generate Deposit Address
-clementine-cli deposit get-deposit-address --network testnet4 <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit get-deposit-address --network testnet <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
-clementine-cli deposit status --network testnet4 <DEPOSIT_ADDRESS>
+clementine-cli deposit status --network testnet <DEPOSIT_ADDRESS>
 ```
 
 ## Two-Device Security

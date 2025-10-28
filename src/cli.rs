@@ -820,7 +820,12 @@ pub async fn send_withdrawal_signature(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|_| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse withdrawal UTXO outpoint '{}'",
+            withdrawal_utxo_outpoint,
+        ))
+    })?;
     send_withdrawal_signature_to_operators(
         signer_address,
         destination_address,
