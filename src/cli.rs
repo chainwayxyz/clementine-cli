@@ -387,30 +387,53 @@ pub fn update_config_with_confirm(
     Ok(())
 }
 
-
 pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
     let clementine_home_dir = get_clementine_home_dir()?;
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
 
     let contents = std::fs::read_to_string(&config_file).map_err(|e| {
-        tracing::error!("Failed to read config file {}: {}", config_file.display(), e);
-        BridgeCliError::Eyre(eyre!("Failed to read config file {}: {}", config_file.display(), e))
+        tracing::error!(
+            "Failed to read config file {}: {}",
+            config_file.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to read config file {}: {}",
+            config_file.display(),
+            e
+        ))
     })?;
 
     let doc = contents.parse::<DocumentMut>().map_err(|e| {
-        tracing::error!("Failed to parse TOML config {}: {}", config_file.display(), e);
-        BridgeCliError::Eyre(eyre!("Failed to parse TOML config {}: {}", config_file.display(), e))
+        tracing::error!(
+            "Failed to parse TOML config {}: {}",
+            config_file.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse TOML config {}: {}",
+            config_file.display(),
+            e
+        ))
     })?;
 
     let table_name = network_table_name(network)?;
 
     let root_table = doc.as_table();
     if !root_table.contains_key(table_name) {
-        return Err(BridgeCliError::Eyre(eyre!("Config table '{}' not found in {}", table_name, config_file.display())));
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Config table '{}' not found in {}",
+            table_name,
+            config_file.display()
+        )));
     }
 
     let table = doc[table_name].as_table().ok_or_else(|| {
-        BridgeCliError::Eyre(eyre!("Config '{}' is not a table in {}", table_name, config_file.display()))
+        BridgeCliError::Eyre(eyre!(
+            "Config '{}' is not a table in {}",
+            table_name,
+            config_file.display()
+        ))
     })?;
 
     println!("{} Configuration ({}):", "INFO".bold(), table_name);
