@@ -75,20 +75,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&clementine_home_dir, std::fs::Permissions::from_mode(0o700)).map_err(
-            |e| {
-                tracing::error!(
-                    "Failed to set permissions for storage directory {}: {}",
-                    clementine_home_dir.display(),
-                    e
-                );
-                BridgeCliError::Eyre(eyre!(
-                    "Failed to set permissions for storage directory {}",
-                    clementine_home_dir.display()
-                ))
-            },
-        )?;
+        set_permissions(&clementine_home_dir, 0o700)?;
     }
 
     println!(
@@ -111,20 +98,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
     #[cfg(unix)]
     {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&keys_dir, std::fs::Permissions::from_mode(0o700)).map_err(
-            |e| {
-                tracing::error!(
-                    "Failed to set permissions for keys directory {}: {}",
-                    keys_dir.display(),
-                    e
-                );
-                BridgeCliError::Eyre(eyre!(
-                    "Failed to set permissions for keys directory {}",
-                    keys_dir.display()
-                ))
-            },
-        )?;
+        set_permissions(&keys_dir, 0o700)?;
     }
 
     println!(
@@ -173,6 +147,29 @@ fn network_table_name(network: Network) -> Result<&'static str, BridgeCliError> 
             network
         ))),
     }
+}
+
+// Set directory permissions on Unix. Mode is a raw permission bits value
+// (e.g. 0o700). The function validates the mode is in the canonical range
+// (0..=0o777) and returns a `BridgeCliError` on failure.
+//
+// Note: This function does NOT support special bits like sticky (0o1000),
+// setgid (0o2000), or setuid (0o4000). It only allows basic rwx permissions.
+#[cfg(unix)]
+fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
+    if mode > 0o777 {
+        return Err(BridgeCliError::Eyre(eyre!("Invalid permission mode: {:o}. Must be <= 0o777", mode)));
+    }
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
+        tracing::error!("Failed to set permissions for {}: {}", path.display(), e);
+        BridgeCliError::Eyre(eyre!(
+            "Failed to set permissions for {}: {}",
+            path.display(),
+            e
+        ))
+    })?;
+    Ok(())
 }
 
 pub fn update_config_with_confirm(
