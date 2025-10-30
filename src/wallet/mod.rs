@@ -376,10 +376,6 @@ pub fn scan_wallet_files()
     let storage_dir = get_storage_dir_with_existence_check()?;
     let mut file_wallets: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
 
-    if !storage_dir.exists() {
-        return Ok(file_wallets);
-    }
-
     for entry in fs::read_dir(storage_dir)? {
         let entry = entry?;
         let file_name = entry.file_name();
