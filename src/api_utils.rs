@@ -67,8 +67,16 @@ async fn get_block_info_for_tx_from_mempool_space(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(u64, String), BridgeCliError> {
+    if config.mempool_api_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
+    }
+
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("tx/{txid}"))
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url)
@@ -93,20 +101,6 @@ pub async fn get_block_height_for_tx(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        tracing::warn!(
-            "Transaction block height fetching using txid from mempool.space is disabled in regtest mode."
-        );
-        if config.bitcoin_config.is_some() {
-            let rpc = config.connect_to_bitcoin_rpc().await?;
-            return get_block_height_for_tx_from_rpc(&rpc, txid).await;
-        } else {
-            return Err(BridgeCliError::Eyre(eyre::eyre!(
-                "Transaction block height fetching using txid is disabled in regtest mode."
-            )));
-        }
-    }
-
     match get_block_info_for_tx_from_mempool_space(txid, config).await {
         Ok((block_height, _)) => Ok(block_height),
         Err(mempool_error) => {
@@ -130,8 +124,16 @@ pub async fn get_tx_details_from_mempool(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
+    if config.mempool_api_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
+    }
+
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("tx/{txid}/hex"))
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url)
@@ -150,6 +152,8 @@ pub async fn get_tx_details_from_mempool(
 
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("block/{block_hash}/raw"))
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
     let response = reqwest::get(url)
@@ -253,12 +257,19 @@ pub async fn broadcast_recovery_tx(
 }
 
 async fn broadcast_recovery_tx_with_mempool(
-    mempool_url: Url,
+    mempool_url: Option<Url>,
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
+    if mempool_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
+    }
+
     let client = reqwest::Client::new();
 
     let url = mempool_url
+        .expect("Checked above")
         .join("tx")
         .wrap_err("Can't join url in get_tx_details_from_mempool")?;
 
@@ -314,12 +325,6 @@ pub(crate) async fn get_utxos(
             .collect::<Vec<_>>()
     };
 
-    if config.network == bitcoin::Network::Regtest {
-        tracing::info!("UTXO fetching from mempool.space is disabled in regtest mode.");
-        let utxos = get_utxos_from_rpc(address, config).await?;
-        return Ok(utxos_to_info(utxos));
-    }
-
     let utxos = match get_utxos_from_mempool_space_api(address, config).await {
         Ok(utxos) => utxos,
         Err(e) => {
@@ -360,8 +365,16 @@ pub(crate) async fn get_utxos_from_mempool_space_api(
     taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolSpaceUtxo>, BridgeCliError> {
+    if config.mempool_api_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
+    }
+
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("address/{taproot_address}/utxo"))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
@@ -390,8 +403,16 @@ pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, B
 async fn get_current_block_height_from_mempool_space_api(
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
+    if config.mempool_api_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
+    }
+
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join("blocks/tip/height")
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
@@ -412,13 +433,16 @@ pub async fn get_mempool_txs(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        tracing::warn!("Mempool TX fetching from mempool.space is disabled in regtest mode.");
-        return Ok(vec![]); // Disabled in regtest mode
+    if config.mempool_api_url.is_none() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Mempool API URL is not configured."
+        )));
     }
 
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("address/{address}/txs/mempool"))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
@@ -448,17 +472,16 @@ async fn is_tx_on_chain_mempool_space(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
-    if config.network == bitcoin::Network::Regtest {
-        tracing::warn!(
-            "Transaction status fetching using txid from mempool.space is disabled in regtest mode."
-        );
+    if config.mempool_api_url.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Transaction status fetching using txid is disabled in regtest mode."
+            "Mempool API URL is not configured."
         )));
     }
 
     let url = config
         .mempool_api_url
+        .clone()
+        .expect("Checked above")
         .join(&format!("tx/{}/status", txid))
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
@@ -485,13 +508,12 @@ async fn is_tx_on_chain_bitcoin_rpc(
 mod tests {
     use crate::{
         broadcast_recovery_tx,
-        config::{BitcoinConfig, BridgeCliConfig},
+        config::{BitcoinConfig, BridgeCliConfig, ToSecretBox},
     };
     use bitcoin::{
         Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
     };
     use bitcoincore_rpc::{Client, RpcApi};
-    use secrecy::SecretString;
     use std::str::FromStr;
     use url::Url;
 
@@ -538,11 +560,11 @@ mod tests {
         // WARNING: Change this to your own env.
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:18982/").unwrap(),
-            password: SecretString::from("admin".to_string()),
-            user: SecretString::from("admin".to_string()),
+            password: "admin".to_secret_box(),
+            user: "admin".to_secret_box(),
         });
         // Needs to be invalid.
-        config.mempool_api_url = Url::from_str("http://127.0.0.1").unwrap();
+        config.mempool_api_url = Some(Url::from_str("http://127.0.0.1").unwrap());
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
         let address = rpc
@@ -588,8 +610,8 @@ mod tests {
         let mut config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:22443/").unwrap(),
-            password: SecretString::from("admin".to_string()),
-            user: SecretString::from("admin".to_string()),
+            password: "admin".to_secret_box(),
+            user: "admin".to_secret_box(),
         });
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();

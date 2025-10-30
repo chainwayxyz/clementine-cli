@@ -13,7 +13,12 @@ use bitcoin::{
 use colored::Colorize;
 use eyre::eyre;
 
+use dialoguer::{Input, Password, Select, theme::ColorfulTheme};
+use eyre::Result;
+use url::Url;
+
 use crate::api_utils::get_block_height_for_tx;
+use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
@@ -47,7 +52,7 @@ use crate::{
     withdraw::{self, start_withdrawal},
 };
 use crate::{
-    get_clementine_config_path_with_existence_check, get_clementine_home_dir,
+    config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
     get_clementine_home_dir_with_existence_check,
 };
 
@@ -113,18 +118,9 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
     if !config_file.exists() {
-        let default_config_path = Path::new("bridge_cli_config.toml");
-        std::fs::copy(default_config_path, &config_file).map_err(|e| {
-            tracing::error!(
-                "Failed to copy default config file to {}: {}",
-                config_file.display(),
-                e
-            );
-            BridgeCliError::Eyre(eyre!(
-                "Failed to copy default config file to {}",
-                config_file.display()
-            ))
-        })?;
+        let mut default_cfgs = config::default_networks();
+        setup_networks(&mut default_cfgs)?;
+        config::write_config_to(&config_file, &default_cfgs)?;
         println!(
             "{} Default configuration file created at: {}",
             "SUCCESS".bold(),
@@ -137,6 +133,148 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
             config_file.display()
         );
     }
+    Ok(())
+}
+
+fn collect_rpc_inputs(
+    theme: &ColorfulTheme,
+    net_name: &str,
+    existing: Option<&BitcoinConfig>,
+) -> Result<(String, String, String)> {
+    let url_s: String = Input::with_theme(theme)
+        .with_prompt(format!("[{}] RPC URL (Add `/wallet/name` if necessary)", net_name))
+        .default(
+            existing
+                .map(|c| c.url.as_str())
+                .unwrap_or("http://127.0.0.1:18443/")
+                .to_string(),
+        )
+        .interact_text()?;
+
+    let user_s: String = Input::with_theme(theme)
+        .with_prompt(format!("[{}] RPC user", net_name))
+        .interact_text()?;
+
+    // allow empty password (user can hit Enter)
+    let pass_s: String = Password::with_theme(theme)
+        .with_prompt(format!("[{}] RPC password (may be empty)", net_name))
+        .allow_empty_password(true)
+        .interact()?;
+
+    Ok((url_s, user_s, pass_s))
+}
+
+fn review_rpc_inputs(
+    theme: &ColorfulTheme,
+    mut url_s: String,
+    mut user_s: String,
+    mut pass_s: String,
+) -> Result<BitcoinConfig> {
+    loop {
+        println!(
+            "\n✔ RPC URL · {}\n✔ RPC user · {}\n✔ RPC password · ********",
+            url_s, user_s
+        );
+
+        let choice = Select::with_theme(theme)
+            .with_prompt("Confirm details")
+            .items(&[
+                "Continue",
+                "Change URL",
+                "Change user",
+                "Show password",
+                "Re-enter password",
+                "Cancel",
+            ])
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                let url = Url::parse(&url_s)
+                    .map_err(|e| eyre!("Invalid RPC URL '{}': {}", url_s, e))?;
+                if user_s.trim().is_empty() {
+                    return Err(eyre!("RPC user cannot be empty"));
+                }
+                return Ok(BitcoinConfig {
+                    url,
+                    user: user_s.to_secret_box(),
+                    password: pass_s.to_secret_box(),
+                });
+            }
+            1 => {
+                url_s = Input::with_theme(theme)
+                    .with_prompt("New RPC URL")
+                    .default(url_s.clone())
+                    .interact_text()?;
+            }
+            2 => {
+                user_s = Input::with_theme(theme)
+                    .with_prompt("New RPC user")
+                    .default(user_s.clone())
+                    .interact_text()?;
+            }
+            3 => {
+                println!("Password is: {}", if pass_s.is_empty() { "(empty)" } else { &pass_s });
+            }
+            4 => {
+                pass_s = Password::with_theme(theme)
+                    .with_prompt("Change RPC password (may be empty)")
+                    .allow_empty_password(true)
+                    .interact()?;
+            }
+            5 => return Err(eyre!("Cancelled by user")),
+            _ => unreachable!(),
+        }
+    }
+}
+
+fn prompt_rpc_fields(
+    theme: &ColorfulTheme,
+    net_name: &str,
+    existing: Option<&BitcoinConfig>,
+) -> Result<BitcoinConfig> {
+    let (url_s, user_s, pass_s) = collect_rpc_inputs(theme, net_name, existing)?;
+    review_rpc_inputs(theme, url_s, user_s, pass_s)
+}
+
+pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
+    let theme = ColorfulTheme::default();
+
+    for (name, net) in [
+        ("mainnet", &mut cfgs.bitcoin),
+        ("testnet", &mut cfgs.testnet4),
+        ("signet", &mut cfgs.signet),
+        ("regtest", &mut cfgs.regtest),
+    ] {
+        println!("\n== Configure '{name}' network ==");
+
+        let choice = Select::with_theme(&theme)
+            .with_prompt("Choose backend option")
+            .items(["Both (mempool + rpc)", "Mempool only", "RPC only"])
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                // both
+                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
+                net.bitcoin_config = Some(btc);
+            }
+            1 => {
+                // mempool only
+                net.bitcoin_config = None;
+            }
+            2 => {
+                // rpc only
+                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
+                net.bitcoin_config = Some(btc);
+                net.mempool_api_url = None;
+            }
+            _ => unreachable!(),
+        }
+    }
+
     Ok(())
 }
 

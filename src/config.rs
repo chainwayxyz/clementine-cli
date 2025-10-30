@@ -7,10 +7,17 @@ use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
 use reqwest::Url;
-use secrecy::{ExposeSecret, SecretString};
-use serde::Deserialize;
-use std::{fs::File, io::Read, path::PathBuf, str::FromStr, sync::LazyLock};
+use secrecy::{CloneableSecret, ExposeSecret, SecretBox};
+use serde::{Deserialize, Serialize};
+use std::{
+    fs::{self, File},
+    io::Read,
+    path::{Path, PathBuf},
+    str::FromStr,
+    sync::LazyLock,
+};
 use thiserror::Error;
+use zeroize::Zeroize;
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
@@ -30,8 +37,37 @@ pub enum ConfigErrors {
     Other(#[from] eyre::Report),
 }
 
+#[derive(Serialize, Deserialize, Zeroize, Clone)]
+#[zeroize(drop)]
+pub struct ApiSecret(pub String);
+
+impl secrecy::SerializableSecret for ApiSecret {}
+
+impl CloneableSecret for ApiSecret {}
+
+impl From<String> for ApiSecret {
+    fn from(value: String) -> Self {
+        ApiSecret(value)
+    }
+}
+
+pub trait ToSecretBox {
+    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret>;
+}
+
+impl ToSecretBox for &str {
+    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
+        secrecy::SecretBox::from(Box::new(ApiSecret(self.to_owned())))
+    }
+}
+impl ToSecretBox for String {
+    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
+        secrecy::SecretBox::from(Box::new(ApiSecret(self)))
+    }
+}
+
 /// [`BridgeCliConfig`]s for each network.
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NetworkConfigs {
     pub bitcoin: BridgeCliConfig,
     pub testnet4: BridgeCliConfig,
@@ -39,11 +75,11 @@ pub struct NetworkConfigs {
     pub regtest: BridgeCliConfig,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BridgeCliConfig {
     pub network: Network,
     pub aggregated_public_key: XOnlyPublicKey,
-    pub mempool_api_url: Url,
+    pub mempool_api_url: Option<Url>,
     pub citrea_chain_id: u64,
     pub citrea_rpc_url: Url,
     pub citrea_backend_endpoint: Url,
@@ -57,11 +93,148 @@ pub struct BridgeCliConfig {
     pub bitcoin_config: Option<BitcoinConfig>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+impl BridgeCliConfig {
+    pub fn defaults_for(network: Network) -> Self {
+        match network {
+            Network::Bitcoin => Self {
+                network,
+                aggregated_public_key: XOnlyPublicKey::from_str(
+                    "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+                )
+                .unwrap(),
+                mempool_api_url: Some(Url::parse("https://mempool.space/api/").unwrap()),
+                citrea_chain_id: 0,
+                citrea_rpc_url: Url::parse("https://rpc.citrea.xyz/").unwrap(),
+                citrea_backend_endpoint: Url::parse("https://api.citrea.xyz/").unwrap(),
+                user_takes_after: 200,
+                bridge_amount: Amount::from_sat(1_000_000_000),
+                optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
+                operator_withdrawal_amount: Amount::from_sat(997_000_000),
+                dust_utxo_amount: Amount::from_sat(330),
+                bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
+                move_tx_finalization_blocks: 6,
+                bitcoin_config: Some(BitcoinConfig {
+                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
+                    user: "admin".to_secret_box(),
+                    password: "admin".to_secret_box(),
+                }),
+            },
+
+            Network::Testnet4 => Self {
+                network,
+                aggregated_public_key: XOnlyPublicKey::from_str(
+                    "29c888b9be9ab7934d2f9bbfdf2645c5afd076c7f5ca913c99617ffff985f1ab",
+                )
+                .unwrap(),
+                mempool_api_url: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
+                citrea_chain_id: 5115,
+                citrea_rpc_url: Url::parse("https://rpc.testnet.citrea.xyz/").unwrap(),
+                citrea_backend_endpoint: Url::parse("https://api.testnet.citrea.xyz/").unwrap(),
+                user_takes_after: 200,
+                bridge_amount: Amount::from_sat(1_000_000_000),
+                optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
+                operator_withdrawal_amount: Amount::from_sat(997_000_000),
+                dust_utxo_amount: Amount::from_sat(330),
+                bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
+                move_tx_finalization_blocks: 100,
+                bitcoin_config: Some(BitcoinConfig {
+                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
+                    user: "admin".to_secret_box(),
+                    password: "admin".to_secret_box(),
+                }),
+            },
+
+            Network::Signet => Self {
+                network,
+                aggregated_public_key: XOnlyPublicKey::from_str(
+                    "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093139e819dc",
+                )
+                .unwrap(),
+                mempool_api_url: Some(
+                    Url::parse("https://mempool.devnet.citrea.xyz/api/").unwrap(),
+                ),
+                citrea_chain_id: 62298,
+                citrea_rpc_url: Url::parse("https://rpc.devnet.citrea.xyz/").unwrap(),
+                citrea_backend_endpoint: Url::parse("https://api.devnet.citrea.xyz/").unwrap(),
+                user_takes_after: 200,
+                bridge_amount: Amount::from_sat(1_000_000_000),
+                optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
+                operator_withdrawal_amount: Amount::from_sat(997_000_000),
+                dust_utxo_amount: Amount::from_sat(330),
+                bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
+                move_tx_finalization_blocks: 5,
+                bitcoin_config: Some(BitcoinConfig {
+                    url: Url::parse("http://127.0.0.1:38332/").unwrap(),
+                    user: "admin".to_secret_box(),
+                    password: "admin".to_secret_box(),
+                }),
+            },
+
+            Network::Regtest => Self {
+                network,
+                aggregated_public_key: XOnlyPublicKey::from_str(
+                    "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577",
+                )
+                .unwrap(),
+                mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
+                citrea_chain_id: 5655,
+                citrea_rpc_url: Url::parse("https://127.0.0.1:12345/").unwrap(),
+                citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
+                user_takes_after: 200,
+                bridge_amount: Amount::from_sat(1_000_000_000),
+                optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
+                operator_withdrawal_amount: Amount::from_sat(997_000_000),
+                dust_utxo_amount: Amount::from_sat(330),
+                bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
+                move_tx_finalization_blocks: 5,
+                bitcoin_config: Some(BitcoinConfig {
+                    url: Url::parse("http://127.0.0.1:20443/wallet/admin").unwrap(),
+                    user: "admin".to_secret_box(),
+                    password: "admin".to_secret_box(),
+                }),
+            },
+
+            _ => panic!("Unsupported network in defaults: {network:?}"),
+        }
+    }
+}
+
+pub fn default_networks() -> NetworkConfigs {
+    NetworkConfigs {
+        bitcoin: BridgeCliConfig::defaults_for(Network::Bitcoin),
+        testnet4: BridgeCliConfig::defaults_for(Network::Testnet4),
+        signet: BridgeCliConfig::defaults_for(Network::Signet),
+        regtest: BridgeCliConfig::defaults_for(Network::Regtest),
+    }
+}
+
+pub fn write_config_to(path: &Path, cfgs: &NetworkConfigs) -> Result<(), BridgeCliError> {
+    let toml_txt = toml::to_string_pretty(cfgs).map_err(|e| {
+        tracing::error!("Failed to serialize config to TOML: {:?}", e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to serialize config to TOML"))
+    })?;
+
+    if let Some(dir) = path.parent() {
+        fs::create_dir_all(dir)?;
+    }
+
+    fs::write(path, toml_txt)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(path)?.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(path, perms)?;
+    }
+    Ok(())
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BitcoinConfig {
     pub url: Url,
-    pub password: SecretString,
-    pub user: SecretString,
+    pub password: SecretBox<ApiSecret>,
+    pub user: SecretBox<ApiSecret>,
 }
 
 impl BridgeCliConfig {
@@ -115,10 +288,17 @@ impl BridgeCliConfig {
         };
 
         // All of the URLs needs a trailing slash. If not present, add it.
-        if !config.mempool_api_url.to_string().ends_with("/") {
-            let str_url = config.mempool_api_url.to_string() + "/";
+        if config.mempool_api_url.is_some()
+            && !config
+                .mempool_api_url
+                .as_ref()
+                .expect("Checked in the first condition")
+                .to_string()
+                .ends_with("/")
+        {
+            let str_url = config.mempool_api_url.expect("Checked above").to_string() + "/";
             config.mempool_api_url =
-                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+                Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
         if !config.citrea_backend_endpoint.to_string().ends_with("/") {
             let str_url = config.citrea_backend_endpoint.to_string() + "/";
@@ -138,8 +318,8 @@ impl BridgeCliConfig {
         match self.bitcoin_config {
             Some(ref config) => {
                 let auth = Auth::UserPass(
-                    config.user.expose_secret().into(),
-                    config.password.expose_secret().into(),
+                    config.user.expose_secret().0.clone(),
+                    config.password.expose_secret().0.clone(),
                 );
                 let rpc = Client::new(config.url.as_str(), auth).await?;
                 rpc.ping().await?;
@@ -161,8 +341,8 @@ impl BridgeCliConfig {
             Network::Regtest => {
                 config.bitcoin_config = Some(BitcoinConfig {
                     url: Url::parse("http://localhost:18443/").expect("Valid url"),
-                    password: SecretString::from("admin".to_string()),
-                    user: SecretString::from("admin".to_string()),
+                    password: "admin".to_secret_box(),
+                    user: "admin".to_secret_box(),
                 });
             }
             Network::Bitcoin => {
@@ -171,7 +351,7 @@ impl BridgeCliConfig {
                     Url::parse("https://api.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
-                    Url::parse("https://mempool.space/api/").expect("Valid url");
+                    Some(Url::parse("https://mempool.space/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
@@ -184,7 +364,7 @@ impl BridgeCliConfig {
                 config.citrea_rpc_url =
                     Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
-                    Url::parse("https://mempool.space/testnet4/api/").expect("Valid url");
+                    Some(Url::parse("https://mempool.space/testnet4/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
@@ -197,7 +377,7 @@ impl BridgeCliConfig {
                 config.citrea_rpc_url =
                     Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url");
                 config.mempool_api_url =
-                    Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url");
+                    Some(Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
@@ -229,7 +409,7 @@ impl Default for BridgeCliConfig {
                 "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
             )
             .unwrap(),
-            mempool_api_url: Url::parse("https://127.0.0.1/").unwrap(),
+            mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
             citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
