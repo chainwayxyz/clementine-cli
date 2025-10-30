@@ -144,7 +144,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 /// Prompt the user for RPC connection inputs.
 ///
 /// Returns a tuple of (url, user, password) as plain strings. The caller
-/// may re-use these values for validation or confirmation flows.
+/// may reuse these values for validation or confirmation flows.
 fn collect_rpc_inputs(
     theme: &ColorfulTheme,
     net_name: &str,
