@@ -67,6 +67,11 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
 
+/// Initialize the Clementine CLI environment.
+///
+/// Creates the Clementine home and keys directories (with secure
+/// permissions on Unix), and writes a default `bridge_cli_config.toml` if
+/// one does not already exist.
 pub fn cli_init() -> Result<(), BridgeCliError> {
     println!("{}", "Initializing Clementine CLI...".bold());
     let clementine_home_dir = get_clementine_home_dir()?;
@@ -136,13 +141,20 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
+/// Prompt the user for RPC connection inputs.
+///
+/// Returns a tuple of (url, user, password) as plain strings. The caller
+/// may re-use these values for validation or confirmation flows.
 fn collect_rpc_inputs(
     theme: &ColorfulTheme,
     net_name: &str,
     existing: Option<&BitcoinConfig>,
 ) -> Result<(String, String, String)> {
     let url_s: String = Input::with_theme(theme)
-        .with_prompt(format!("[{}] RPC URL (Add `/wallet/name` if necessary)", net_name))
+        .with_prompt(format!(
+            "[{}] RPC URL (Add `/wallet/name` if necessary)",
+            net_name
+        ))
         .default(
             existing
                 .map(|c| c.url.as_str())
@@ -164,6 +176,10 @@ fn collect_rpc_inputs(
     Ok((url_s, user_s, pass_s))
 }
 
+/// Interactively review and (optionally) edit RPC inputs.
+///
+/// Presents a confirmation menu and returns a validated `BitcoinConfig`
+/// on success or an error if the user cancels or validation fails.
 fn review_rpc_inputs(
     theme: &ColorfulTheme,
     mut url_s: String,
@@ -178,12 +194,12 @@ fn review_rpc_inputs(
 
         let choice = Select::with_theme(theme)
             .with_prompt("Confirm details")
-            .items(&[
+            .items([
                 "Continue",
                 "Change URL",
                 "Change user",
                 "Show password",
-                "Re-enter password",
+                "Change password",
                 "Cancel",
             ])
             .default(0)
@@ -191,8 +207,8 @@ fn review_rpc_inputs(
 
         match choice {
             0 => {
-                let url = Url::parse(&url_s)
-                    .map_err(|e| eyre!("Invalid RPC URL '{}': {}", url_s, e))?;
+                let url =
+                    Url::parse(&url_s).map_err(|e| eyre!("Invalid RPC URL '{}': {}", url_s, e))?;
                 if user_s.trim().is_empty() {
                     return Err(eyre!("RPC user cannot be empty"));
                 }
@@ -215,11 +231,18 @@ fn review_rpc_inputs(
                     .interact_text()?;
             }
             3 => {
-                println!("Password is: {}", if pass_s.is_empty() { "(empty)" } else { &pass_s });
+                println!(
+                    "Password is: {}",
+                    if pass_s.is_empty() {
+                        "(empty)"
+                    } else {
+                        &pass_s
+                    }
+                );
             }
             4 => {
                 pass_s = Password::with_theme(theme)
-                    .with_prompt("Change RPC password (may be empty)")
+                    .with_prompt("New RPC password (may be empty)")
                     .allow_empty_password(true)
                     .interact()?;
             }
@@ -229,6 +252,9 @@ fn review_rpc_inputs(
     }
 }
 
+/// Collect and confirm RPC fields, returning a ready-to-use `BitcoinConfig`.
+///
+/// This is a thin helper that runs `collect_rpc_inputs` then `review_rpc_inputs`.
 fn prompt_rpc_fields(
     theme: &ColorfulTheme,
     net_name: &str,
@@ -238,6 +264,11 @@ fn prompt_rpc_fields(
     review_rpc_inputs(theme, url_s, user_s, pass_s)
 }
 
+/// Interactive setup for the known Bitcoin networks.
+///
+/// Walks through `mainnet`, `testnet4`, `signet`, and `regtest`, prompting
+/// the user to choose a backend (mempool, RPC or both) and filling the
+/// provided `NetworkConfigs` structure accordingly.
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     let theme = ColorfulTheme::default();
 
