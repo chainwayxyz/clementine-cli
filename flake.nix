@@ -104,7 +104,7 @@
         availableTargets =
           if pkgs.stdenv.isLinux then
             [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf"
-              "riscv64-linux-gnu" "win64" "x86_64-apple-darwin" "arm64-apple-darwin" ]
+              "riscv64-linux-gnu" "win64" ]
           else if pkgs.stdenv.isDarwin then
             # macOS can build both architectures using the same SDK
             [ "x86_64-apple-darwin" "arm64-apple-darwin" ]
