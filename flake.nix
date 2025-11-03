@@ -138,9 +138,9 @@
             hermeticStdenv = pkgs.stdenvAdapters.useSdk appleSdk targetPkgs.stdenv;
             # Select the stdenv for this build: hermetic for Darwin, standard for others
             stdenvForBuild = if isDarwinTarget then hermeticStdenv else targetPkgs.stdenv;
-            # Define paths to hermetic tools
-            hermeticClang = "${appleSdk.Toolchain}/bin/clang";
-            hermeticAr = "${appleSdk.Toolchain}/bin/ar";
+            # Define paths to hermetic tools - use the clang from the hermetic stdenv
+            hermeticClang = "${hermeticStdenv.cc}/bin/clang";
+            hermeticAr = "${hermeticStdenv.cc}/bin/ar";
             # --- END HERMETIC SETUP ---
 
             # Create a linker wrapper for Darwin cross-arch builds
@@ -159,10 +159,8 @@
             # Rust target with underscores for environment variables
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            # Add hermetic toolchain for Darwin builds
-            nativeBuildInputs = [ pkgs.pkg-config ] ++ pkgs.lib.optionals isDarwinTarget [
-              appleSdk.Toolchain
-            ];
+            # nativeBuildInputs - the hermetic toolchain is already provided by stdenvForBuild
+            nativeBuildInputs = [ pkgs.pkg-config ];
 
             # buildInputs should only contain libraries for the TARGET platform
             buildInputs =
