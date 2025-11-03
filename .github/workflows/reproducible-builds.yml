@@ -16,61 +16,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  verify-reproducibility-linux:
-    name: Verify Reproducible Builds (Linux/Windows)
-    runs-on: ubuntu-latest
-    if: github.event.pull_request.draft == false
-    strategy:
-      matrix:
-        platform:
-          - x86_64-linux-gnu
-          - aarch64-linux-gnu
-          - win64
-
-    steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
-      - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Setup Cachix (optional binary cache)
-        uses: cachix/cachix-action@v13
-        with:
-          name: clementine-cli
-          skipPush: true
-        continue-on-error: true
-
-      - name: Build ${{ matrix.platform }}
-        run: |
-          echo "Building for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Build complete"
-
-      - name: Calculate build hash
-        id: hash
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Build hash: $HASH"
-
-      - name: Upload binary artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-${{ matrix.platform }}
-          path: result/bin/*
-          retention-days: 7
-
   verify-reproducibility-windows:
-    name: Verify Reproducible Windows Build
+    name: Verify Reproducible Windows Build (Native)
     runs-on: windows-latest
     if: github.event.pull_request.draft == false
 
@@ -114,63 +61,10 @@ jobs:
           path: target/release/clementine-cli.exe
           retention-days: 7
 
-  verify-reproducibility-macos:
-    name: Verify Reproducible Builds (macOS)
-    runs-on: macos-latest
-    if: github.event.pull_request.draft == false
-    strategy:
-      matrix:
-        platform:
-          - x86_64-apple-darwin
-          - arm64-apple-darwin
-
-    steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
-      - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Setup Cachix (optional binary cache)
-        uses: cachix/cachix-action@v13
-        with:
-          name: clementine-cli
-          skipPush: true
-        continue-on-error: true
-
-      - name: Build ${{ matrix.platform }}
-        run: |
-          echo "Building for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Build complete"
-
-      - name: Calculate build hash
-        id: hash
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Build hash: $HASH"
-
-      - name: Upload binary artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-${{ matrix.platform }}
-          path: result/bin/*
-          retention-days: 7
-
   verify-hash-documentation-linux:
-    name: Verify Documented Hashes (Linux/Windows)
+    name: Build & Verify Documented Hashes (Linux/Windows-Nix)
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows]
     strategy:
       fail-fast: false
       matrix:
@@ -194,12 +88,27 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            
+      - name: Setup Cachix (optional binary cache)
+        uses: cachix/cachix-action@v13
+        with:
+          name: clementine-cli
+          skipPush: true
+        continue-on-error: true
 
       - name: Build ${{ matrix.platform }}
         run: |
           echo "Building ${{ matrix.platform }} to verify documented hash..."
           nix build .#${{ matrix.platform }}
           echo "Build complete"
+
+      - name: Upload binary artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-${{ matrix.platform }}
+          path: result/bin/*
+          retention-days: 7
 
       - name: Verify documented hash for ${{ matrix.platform }}
         run: |
@@ -234,10 +143,9 @@ jobs:
           fi
 
   verify-hash-documentation-macos:
-    name: Verify Documented Hashes (macOS)
+    name: Build & Verify Documented Hashes (macOS)
     runs-on: macos-latest
     if: github.event.pull_request.draft == false
-    needs: [verify-reproducibility-macos]
     strategy:
       fail-fast: false
       matrix:
@@ -258,12 +166,27 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            
+      - name: Setup Cachix (optional binary cache)
+        uses: cachix/cachix-action@v13
+        with:
+          name: clementine-cli
+          skipPush: true
+        continue-on-error: true
 
       - name: Build ${{ matrix.platform }}
         run: |
           echo "Building ${{ matrix.platform }} to verify documented hash..."
           nix build .#${{ matrix.platform }}
           echo "Build complete"
+
+      - name: Upload binary artifact
+        if: success()
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-${{ matrix.platform }}
+          path: result/bin/*
+          retention-days: 7
 
       - name: Verify documented hash for ${{ matrix.platform }}
         run: |
@@ -300,36 +223,29 @@ jobs:
   build-summary:
     name: Build Summary
     runs-on: ubuntu-latest
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows, verify-reproducibility-macos, verify-hash-documentation-linux, verify-hash-documentation-macos]
+    needs: [verify-reproducibility-windows, verify-hash-documentation-linux, verify-hash-documentation-macos]
     if: always()
 
     steps:
       - name: Check results
         run: |
-          LINUX_RESULT="${{ needs.verify-reproducibility-linux.result }}"
           WINDOWS_RESULT="${{ needs.verify-reproducibility-windows.result }}"
-          MACOS_RESULT="${{ needs.verify-reproducibility-macos.result }}"
           DOCS_LINUX_RESULT="${{ needs.verify-hash-documentation-linux.result }}"
           DOCS_MACOS_RESULT="${{ needs.verify-hash-documentation-macos.result }}"
 
           echo "Build Results Summary:"
-          echo "  Linux (Nix):                    $LINUX_RESULT"
-          echo "  Windows (Nix cross):            $LINUX_RESULT (included in Linux job)"
-          echo "  Windows (native):               $WINDOWS_RESULT"
-          echo "  macOS (Nix):                    $MACOS_RESULT"
-          echo "  Documentation hashes (Linux):   $DOCS_LINUX_RESULT"
-          echo "  Documentation hashes (macOS):   $DOCS_MACOS_RESULT"
+          echo "  Windows (native):                 $WINDOWS_RESULT"
+          echo "  Nix Builds & Docs (Linux/Win):  $DOCS_LINUX_RESULT"
+          echo "  Nix Builds & Docs (macOS):      $DOCS_MACOS_RESULT"
           echo ""
 
           # All jobs must succeed
-          if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_LINUX_RESULT" = "success" ] && [ "$DOCS_MACOS_RESULT" = "success" ]; then
+          if [ "$WINDOWS_RESULT" = "success" ] && [ "$DOCS_LINUX_RESULT" = "success" ] && [ "$DOCS_MACOS_RESULT" = "success" ]; then
             echo "OK: All verifications passed!"
             echo ""
-            echo "Reproducible builds completed:"
-            echo "  - Linux (x86_64, ARM64) via Nix"
-            echo "  - Windows (x86_64 cross-compiled) via Nix"
+            echo "Reproducible builds completed and verified:"
             echo "  - Windows (x86_64-pc-windows-msvc) native via cargo"
-            echo "  - macOS (Intel, Apple Silicon) via Nix"
+            echo "  - All Nix platforms (Linux, Windows-cross, macOS)"
             echo ""
             echo "Documentation verified:"
             echo "  - All platform hashes match docs/reproducible-builds.md"
