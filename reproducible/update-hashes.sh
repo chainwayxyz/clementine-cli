@@ -5,6 +5,14 @@
 # This script attempts to build the project, captures hash mismatch errors,
 # and helps you update the flake.nix with the correct hashes.
 #
+# Usage:
+#   ./reproducible/update-hashes.sh [PLATFORM]
+#
+# Examples:
+#   ./reproducible/update-hashes.sh                    # Auto-detect current platform
+#   ./reproducible/update-hashes.sh x86_64-linux-gnu   # Specific platform
+#   ./reproducible/update-hashes.sh win64              # Windows cross-compile
+#
 
 set -e
 
@@ -13,11 +21,43 @@ REPO_ROOT="$(git rev-parse --show-toplevel)"
 
 cd "$REPO_ROOT"
 
+# Detect current platform if not specified
+detect_platform() {
+    local os=$(uname -s)
+    local arch=$(uname -m)
+
+    case "$os" in
+        Linux)
+            case "$arch" in
+                x86_64) echo "x86_64-linux-gnu" ;;
+                aarch64) echo "aarch64-linux-gnu" ;;
+                armv7l) echo "arm-linux-gnueabihf" ;;
+                riscv64) echo "riscv64-linux-gnu" ;;
+                *) echo "x86_64-linux-gnu" ;;
+            esac
+            ;;
+        Darwin)
+            case "$arch" in
+                x86_64) echo "x86_64-apple-darwin" ;;
+                arm64) echo "arm64-apple-darwin" ;;
+                *) echo "x86_64-apple-darwin" ;;
+            esac
+            ;;
+        *)
+            echo "x86_64-linux-gnu"
+            ;;
+    esac
+}
+
+# Get platform from argument or auto-detect
+PLATFORM="${1:-$(detect_platform)}"
+
+echo "==> Using platform: $PLATFORM"
 echo "==> Attempting to build to discover required hashes..."
 echo ""
 
 # Try to build and capture the output
-if ! nix build .#packages.x86_64-linux.default 2>&1 | tee /tmp/nix-build-output.txt; then
+if ! nix build .#$PLATFORM 2>&1 | tee /tmp/nix-build-output.txt; then
     echo ""
     echo "==> Build failed as expected (if this is the first build)"
     echo ""
