@@ -250,8 +250,13 @@
                 !(pkgs.lib.hasPrefix "docs/" relativePath) &&
                 !(pkgs.lib.hasPrefix ".github/" relativePath) &&
                 !(pkgs.lib.hasPrefix "reproducible/" relativePath) &&
+                !(pkgs.lib.hasPrefix "result/" relativePath) &&
+                !(pkgs.lib.hasPrefix "target/" relativePath) &&
+
+                # Exclude specific non-build-affecting files
                 !(baseName == "README.md") &&
-                !(baseName == "SETUP.md") &&
+                !(baseName == "codespell_ignore.txt") &&
+                !(baseName == "COPYING") &&
                 # Exclude git files
                 !(baseName == ".git") &&
                 !(baseName == ".gitignore");
