@@ -98,7 +98,7 @@
         };
 
         # Filter platforms based on what can be built on current build system
-        # Linux can build: All Linux architectures (x86_64, ARM64, ARMv7, RISC-V) + Windows + macOS (experimental)
+        # Linux can build: All Linux architectures (x86_64, ARM64, ARMv7, RISC-V) + Windows
         # macOS can build: Both macOS architectures (Intel & Apple Silicon) using the universal Apple SDK
         # See docs/reproducible-builds.md for detailed cross-compilation matrix
         availableTargets =

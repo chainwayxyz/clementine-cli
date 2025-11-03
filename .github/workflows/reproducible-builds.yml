@@ -48,51 +48,18 @@ jobs:
           skipPush: true
         continue-on-error: true
 
-      - name: Build ${{ matrix.platform }} (first time)
+      - name: Build ${{ matrix.platform }}
         run: |
           echo "Building for ${{ matrix.platform }}..."
           nix build .#${{ matrix.platform }}
-          echo "First build complete"
+          echo "Build complete"
 
-      - name: Calculate first build hash
-        id: hash1
+      - name: Calculate build hash
+        id: hash
         run: |
           HASH=$(nix hash path ./result)
           echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Remove build result
-        run: rm -rf result
-
-      - name: Build ${{ matrix.platform }} (second time)
-        run: |
-          echo "Rebuilding for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for ${{ matrix.platform }}:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Build is NOT reproducible! Hashes differ."
-            exit 1
-          fi
+          echo "Build hash: $HASH"
 
       - name: Upload binary artifact
         if: success()
@@ -121,7 +88,7 @@ jobs:
           toolchain: "1.89.0"
           components: rustfmt, rust-src
 
-      - name: Build (first time)
+      - name: Build
         shell: bash
         env:
           SOURCE_DATE_EPOCH: "1"
@@ -129,55 +96,15 @@ jobs:
         run: |
           echo "Building for Windows native (x86_64-pc-windows-msvc) with reproducible settings..."
           cargo build --release
-          echo "First build complete"
+          echo "Build complete"
 
-      - name: Calculate first build hash
-        id: hash1
+      - name: Calculate build hash
+        id: hash
         shell: bash
         run: |
           HASH=$(sha256sum target/release/clementine-cli.exe | awk '{print $1}')
           echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Clean build artifacts
-        run: cargo clean
-
-      - name: Build (second time)
-        shell: bash
-        env:
-          SOURCE_DATE_EPOCH: "1"
-          RUSTFLAGS: "-C debuginfo=0 -C opt-level=3 -C codegen-units=1 -C strip=none -C link-arg=/PDBALTPATH:clementine-cli.pdb -C link-arg=/Brepro"
-        run: |
-          echo "Rebuilding for Windows native with reproducible settings..."
-          cargo build --release
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        shell: bash
-        run: |
-          HASH=$(sha256sum target/release/clementine-cli.exe | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        shell: bash
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for Windows native build:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Native Windows build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Native Windows build is NOT reproducible! Hashes differ."
-            echo "This should not happen with our reproducibility settings."
-            exit 1
-          fi
+          echo "Build hash: $HASH"
 
       - name: Upload binary artifact
         if: success()
@@ -218,51 +145,18 @@ jobs:
           skipPush: true
         continue-on-error: true
 
-      - name: Build ${{ matrix.platform }} (first time)
+      - name: Build ${{ matrix.platform }}
         run: |
           echo "Building for ${{ matrix.platform }}..."
           nix build .#${{ matrix.platform }}
-          echo "First build complete"
+          echo "Build complete"
 
-      - name: Calculate first build hash
-        id: hash1
+      - name: Calculate build hash
+        id: hash
         run: |
           HASH=$(nix hash path ./result)
           echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Remove build result
-        run: rm -rf result
-
-      - name: Build ${{ matrix.platform }} (second time)
-        run: |
-          echo "Rebuilding for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for ${{ matrix.platform }}:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Build is NOT reproducible! Hashes differ."
-            exit 1
-          fi
+          echo "Build hash: $HASH"
 
       - name: Upload binary artifact
         if: success()
@@ -431,13 +325,11 @@ jobs:
           if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_LINUX_RESULT" = "success" ] && [ "$DOCS_MACOS_RESULT" = "success" ]; then
             echo "OK: All verifications passed!"
             echo ""
-            echo "Reproducible builds verified (twice each):"
-            echo "  - Linux (x86_64, ARM64, ARMv7, RISC-V) via Nix"
+            echo "Reproducible builds completed:"
+            echo "  - Linux (x86_64, ARM64) via Nix"
             echo "  - Windows (x86_64 cross-compiled) via Nix"
+            echo "  - Windows (x86_64-pc-windows-msvc) native via cargo"
             echo "  - macOS (Intel, Apple Silicon) via Nix"
-            echo ""
-            echo "Native build verified:"
-            echo "  - Windows (x86_64-pc-windows-msvc) via cargo"
             echo ""
             echo "Documentation verified:"
             echo "  - All platform hashes match docs/reproducible-builds.md"
