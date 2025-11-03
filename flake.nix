@@ -54,7 +54,7 @@
         allPlatformConfigs = {
           "x86_64-linux-gnu" = {
             rustTarget = "x86_64-unknown-linux-gnu";
-            pkgsCross = null;  # Native on x86_64-linux
+            pkgsCross = null; # Native on x86_64-linux
             isNative = buildSystem == "x86_64-linux";
           };
           "aarch64-linux-gnu" = {
@@ -131,27 +131,38 @@
             # Use pkgsCross for cross-compilation, otherwise use native pkgs
             targetPkgs = if config.pkgsCross != null then config.pkgsCross else pkgs;
 
+            # --- HERMETIC DARWIN BUILD SETUP ---
+            # Use a hermetic SDK from Nixpkgs instead of the host's
+            appleSdk = pkgs.darwin.apple_sdk_11_0;
+            # Create a hermetic stdenv by applying the SDK
+            hermeticStdenv = pkgs.stdenvAdapters.useSdk appleSdk targetPkgs.stdenv;
+            # Select the stdenv for this build: hermetic for Darwin, standard for others
+            stdenvForBuild = if isDarwinTarget then hermeticStdenv else targetPkgs.stdenv;
+            # Define paths to hermetic tools
+            hermeticClang = "${appleSdk.toolchain}/bin/clang";
+            hermeticAr = "${appleSdk.toolchain}/bin/ar";
+            # --- END HERMETIC SETUP ---
+
             # Create a linker wrapper for Darwin cross-arch builds
             # This enables cross-compilation between Intel and Apple Silicon on the same Mac
-            # We use system clang directly because Nix's cc-wrapper injects build-host specific
-            # flags (like -mcpu=armv8.3-a) that conflict with the target architecture
-            # See docs/reproducible-builds.md "macOS Cross-Architecture Compilation" for details
             darwinLinkerWrapper = if isDarwinCross then
               let
                 arch = if targetName == "x86_64-apple-darwin" then "x86_64" else "arm64";
               in
               pkgs.writeShellScript "darwin-cross-linker" ''
                 #!/bin/bash
-                # Use system clang directly with -arch to specify target architecture
-                # This works because macOS SDK is universal and supports both architectures
-                exec /usr/bin/clang -arch ${arch} "$@"
+                # Use HERMETIC clang from nixpkgs SDK with explicit arch
+                exec ${hermeticClang} -arch ${arch} "$@"
               ''
             else null;
 
             # Rust target with underscores for environment variables
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            # Add hermetic toolchain for Darwin builds
+            nativeBuildInputs = [ pkgs.pkg-config ] ++ pkgs.lib.optionals isDarwinTarget [
+              appleSdk.toolchain
+            ];
 
             # buildInputs should only contain libraries for the TARGET platform
             buildInputs =
@@ -159,15 +170,10 @@
                 [ ]
               else if isDarwinTarget then
                 # For Darwin targets (both native and cross-arch)
-                # Use native pkgs frameworks - they work for both architectures
-                (if isDarwinCross || isNative then
-                  # Native or Darwin cross-arch build - use native frameworks
-                  [ pkgs.darwin.apple_sdk.frameworks.Security
-                    pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                    pkgs.libiconv ]
-                else
-                  # Cross-compiling to macOS from Linux is experimental
-                  [ ])
+                # Use hermetic SDK frameworks
+                [ appleSdk.frameworks.Security
+                  appleSdk.frameworks.SystemConfiguration
+                  pkgs.libiconv ]
               else if isLinuxTarget then
                 [ pkgs.openssl ]
               else
@@ -217,13 +223,13 @@
                   # This ensures C code compiled during build.rs is also for the correct architecture
                   ccWrapper = pkgs.writeShellScript "cc-wrapper-${arch}" ''
                     #!/bin/bash
-                    # Use system clang to compile C code for the target architecture
-                    exec /usr/bin/clang -arch ${arch} "$@"
+                    # Use HERMETIC clang from nixpkgs SDK
+                    exec ${hermeticClang} -arch ${arch} "$@"
                   '';
                 in {
                   TARGET_CC = "${ccWrapper}";
                   "CC_${rustTargetEnv}" = "${ccWrapper}";
-                  "AR_${rustTargetEnv}" = "${pkgs.stdenv.cc}/bin/ar";
+                  "AR_${rustTargetEnv}" = "${hermeticAr}";
                   "CFLAGS_${rustTargetEnv}" = "-arch ${arch}";
                 }
               else {})
@@ -236,6 +242,9 @@
           rustPlatformPinned.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
+
+            # Pass the correct stdenv (hermetic for Darwin) to the builder
+            stdenv = stdenvForBuild;
 
             # Only include files that affect the build
             # Exclude docs, CI, and scripts so documentation changes don't affect build hash
@@ -318,6 +327,7 @@
           nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs =
             (if isDarwin then [
+              # devShell can keep using impure host SDK for convenience
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
@@ -337,7 +347,7 @@
             echo "Note: macOS can build both Intel and Apple Silicon architectures."
             echo "      For Linux/Windows builds, use a Linux system."
             '' else ''
-            echo "Note: Linux can build all targets including macOS."
+            echo "Note: Linux can build all Linux/Windows targets."
             ''}
           '';
         };

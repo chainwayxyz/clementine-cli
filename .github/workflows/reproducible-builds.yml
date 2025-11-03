@@ -166,6 +166,9 @@ jobs:
         with:
           extra_nix_config: |
             experimental-features = nix-command flakes
+            # Add nix-community cache to pull the hermetic Apple SDK
+            substituters = https://cache.nixos.org/ https://nix-community.cachix.org
+            trusted-public-keys = cache.nixos.org-1:6NCHdD59X431o0gWypbMrAURkbJ16ZPMQFGspcDShjY= nix-community.cachix.org-1:mB9FSh9rzoXEAFIuZOjU/sAMulcfhref3HjEDflGYW8=
             
       - name: Setup Cachix (optional binary cache)
         uses: cachix/cachix-action@v13
