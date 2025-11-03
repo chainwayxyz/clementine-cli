@@ -78,13 +78,13 @@ Compare the output with the table below:
 
 | Platform | Expected Hash |
 |----------|---------------|
-| **x86_64-linux-gnu** | `sha256-NCmTVgAjznXctvxE012CjB3C2/by0dBJg5iDsKsHwgE=` |
-| **aarch64-linux-gnu** | `sha256-ZlH4xzRwZth8clam1P0FV6YXt9qzf4hwSfkDR7g0lgc=` |
-| **arm-linux-gnueabihf** | `sha256-LZw03xTtNGbREMnomn57MYVqVbd/bkNdZUfxuiSPKKE=` |
-| **riscv64-linux-gnu** | `sha256-fLpJHlaMFKK2AwX555dbLazTpHKAIXQmq90aUWXnwAg=` |
-| **win64** | `sha256-1WhKKBTmyTQr3ukqkohxWFX8HZna20ZAYDVmCFY1R5E=` |
-| **x86_64-apple-darwin** | `sha256-p+PlOQNjlKM36kHcIDnopuHBaJHPYkj/mxzgNH86v7U=` |
-| **arm64-apple-darwin** | `sha256-fd9F1IcPu1ez8IMQZ3KJu+n7GTgtR/tayQSeAnPtwd8=` |
+| **x86_64-linux-gnu** | `sha256-gDsBq6uy7n+sxJ2S88Rvkwr9A+VHHVzEFTJxwbE1CwI=` |
+| **aarch64-linux-gnu** | `sha256-oBqXMcKfI8vbCSwd91oGLX/um5xUDfQlO//KLvPhKrQ=` |
+| **arm-linux-gnueabihf** | `sha256-5kk9JcdADNB9MXAPqbTCiGwd5Fae2/8A5szisxLIR2I=` |
+| **riscv64-linux-gnu** | `sha256-awnROl2xMvLP+Z5sK/M/gcSoMiOaQceBEX+cFkGLkvo=` |
+| **win64** | `sha256-8DIqJIf9hIdEjhpBAZcmdCFVwczY80J3puh2mSIydW4=` |
+| **x86_64-apple-darwin** | `sha256-QgIz/J9h3G+nBES/lRTSIOfAW25aMAq/3veQj9jKw0U=` |
+| **arm64-apple-darwin** | `sha256-4KV87Dnk2rG01Q4Hnt1tb8VjGVWf45nHE+gB1zWbhZ0=` |
 
 **Matching hash = verified build.** Hashes change only when source code, dependencies, or build configuration changes.
 
