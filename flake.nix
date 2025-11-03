@@ -32,7 +32,13 @@
     flake-utils.lib.eachSystem buildSystems (buildSystem:
       let
         overlays = [ (import rust-overlay) ];
-        pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
+        pkgs = import nixpkgs {
+          system = buildSystem;
+          inherit overlays;
+          config = {
+            allowUnfree = true; # Required for Xcode
+          };
+        };
 
         rustVersion = "1.89.0";
         rustPinned = pkgs.rust-bin.stable.${rustVersion}.default.override {
@@ -204,8 +210,10 @@
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 if isWindows then
                   "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
+                else if isDarwinTarget then
+                  # For Darwin: disable UUID generation for reproducible builds
+                  "-C link-arg=-Wl,-no_uuid"
                 else
-                  # No additional flags needed - the linker wrapper handles Darwin cross-arch
                   "";
 
               # Ensure build scripts use the host compiler
@@ -279,9 +287,30 @@
             dontStrip = true;
             enableParallelBuilding = false;
 
+            # Remap build paths for reproducibility
+            # This ensures debug info doesn't contain unique build directory paths
+            preBuild = ''
+              # Use $NIX_BUILD_TOP which points to the specific build directory
+              # Remap it to a fixed path to remove unique build IDs
+              export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+
+              # Also remap paths for C/C++ code (e.g., ring crate's C components)
+              # Use -fdebug-prefix-map for C compiler and disable debug info as fallback
+              export CFLAGS="$CFLAGS -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
+              export CXXFLAGS="$CXXFLAGS -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
+
+              # Ensure build scripts also see these flags
+              export CC_aarch64_apple_darwin="$CC -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
+              export CXX_aarch64_apple_darwin="$CXX -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
+            '';
+
             depsBuildBuild = pkgs.lib.optionals isCross [ targetPkgs.stdenv.cc ];
 
-            env = crossEnv;
+            # Environment for all builds (both native and cross)
+            env = crossEnv // (if isDarwinTarget && !isCross then {
+              # For native Darwin builds: disable UUID for reproducibility
+              RUSTFLAGS = "-C link-arg=-Wl,-no_uuid";
+            } else {});
 
             cargoLock = {
               lockFile = ./Cargo.lock;
