@@ -140,13 +140,11 @@
             # --- HERMETIC DARWIN BUILD SETUP ---
             # Use a hermetic SDK from Nixpkgs instead of the host's
             appleSdk = pkgs.darwin.apple_sdk_11_0;
-            # Create a hermetic stdenv by applying the SDK
-            hermeticStdenv = pkgs.stdenvAdapters.useSdk appleSdk targetPkgs.stdenv;
-            # Select the stdenv for this build: hermetic for Darwin, standard for others
-            stdenvForBuild = if isDarwinTarget then hermeticStdenv else targetPkgs.stdenv;
-            # Define paths to hermetic tools - use the clang from the hermetic stdenv
-            hermeticClang = "${hermeticStdenv.cc}/bin/clang";
-            hermeticAr = "${hermeticStdenv.cc}/bin/ar";
+            # Select the stdenv for this build
+            stdenvForBuild = targetPkgs.stdenv;
+            # Define paths to hermetic tools
+            hermeticClang = "${stdenvForBuild.cc}/bin/clang";
+            hermeticAr = "${stdenvForBuild.cc}/bin/ar";
             # --- END HERMETIC SETUP ---
 
             # Create a linker wrapper for Darwin cross-arch builds
