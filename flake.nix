@@ -139,8 +139,8 @@
             # Select the stdenv for this build: hermetic for Darwin, standard for others
             stdenvForBuild = if isDarwinTarget then hermeticStdenv else targetPkgs.stdenv;
             # Define paths to hermetic tools
-            hermeticClang = "${appleSdk.toolchain}/bin/clang";
-            hermeticAr = "${appleSdk.toolchain}/bin/ar";
+            hermeticClang = "${appleSdk.Toolchain}/bin/clang";
+            hermeticAr = "${appleSdk.Toolchain}/bin/ar";
             # --- END HERMETIC SETUP ---
 
             # Create a linker wrapper for Darwin cross-arch builds
@@ -161,7 +161,7 @@
 
             # Add hermetic toolchain for Darwin builds
             nativeBuildInputs = [ pkgs.pkg-config ] ++ pkgs.lib.optionals isDarwinTarget [
-              appleSdk.toolchain
+              appleSdk.Toolchain
             ];
 
             # buildInputs should only contain libraries for the TARGET platform
