@@ -164,6 +164,8 @@ jobs:
       - name: Install Nix
         uses: cachix/install-nix-action@v31
         with:
+          nix_path: nixpkgs=channel:nixos-24.05
+          install_url: https://releases.nixos.org/nix/nix-2.24.10/install
           extra_nix_config: |
             experimental-features = nix-command flakes
             # Add nix-community cache to pull the hermetic Apple SDK
@@ -176,6 +178,11 @@ jobs:
           name: clementine-cli
           skipPush: true
         continue-on-error: true
+
+      - name: Check Nix version
+        run: |
+          nix --version
+          nix-env --version
 
       - name: Build ${{ matrix.platform }}
         run: |
