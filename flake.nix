@@ -303,8 +303,8 @@
               # For native Darwin builds: disable UUID for reproducibility
               RUSTFLAGS = "-C link-arg=-Wl,-no_uuid";
               # Add CFLAGS for build.rs scripts
-              CFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
-              CXXFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
+              CFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
+              CXXFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
             } else {});
 
             cargoLock = {
