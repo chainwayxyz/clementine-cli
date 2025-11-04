@@ -234,13 +234,14 @@
                   TARGET_CC = "${ccWrapper}";
                   "CC_${rustTargetEnv}" = "${ccWrapper}";
                   "AR_${rustTargetEnv}" = "${hermeticAr}";
-                  "CFLAGS_${rustTargetEnv}" = "-arch ${arch}";
+                  "CFLAGS_${rustTargetEnv}" = "-arch ${arch} -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
                 }
               else {})
             else {
               TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
               "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
               "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+              "CFLAGS_${rustTargetEnv}" = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
             }) else {};
           in
           rustPlatformPinned.buildRustPackage rec {
@@ -288,14 +289,7 @@
             # Remap build paths for reproducibility
             # This ensures debug info doesn't contain unique build directory paths
             preBuild = ''
-              # Use $NIX_BUILD_TOP which points to the specific build directory
-              # Remap it to a fixed path to remove unique build IDs
               export RUSTFLAGS="$RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
-
-              # Also remap paths for C/C++ code (e.g., ring crate's C components)
-              # Use -fdebug-prefix-map for C compiler and disable debug info as fallback
-              export CFLAGS="$CFLAGS -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
-              export CXXFLAGS="$CXXFLAGS -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
 
               # Ensure build scripts also see these flags
               export CC_aarch64_apple_darwin="$CC -g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build"
@@ -308,6 +302,9 @@
             env = crossEnv // (if isDarwinTarget && !isCross then {
               # For native Darwin builds: disable UUID for reproducibility
               RUSTFLAGS = "-C link-arg=-Wl,-no_uuid";
+              # Add CFLAGS for build.rs scripts
+              CFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
+              CXXFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
             } else {});
 
             cargoLock = {
