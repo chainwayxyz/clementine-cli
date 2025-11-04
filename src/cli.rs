@@ -64,7 +64,8 @@ pub fn cli_create_wallet(
     validate_wallet_availability(Some(&label), None, WalletValidationMode::Label)?;
 
     let passphrase = prompt_passphrase(true)?;
-    let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
+    let (address, mnemonic, wallet_file_path) =
+        create_encrypted_wallet(network, label, purpose, passphrase)?;
 
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
@@ -73,6 +74,13 @@ pub fn cli_create_wallet(
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
+
+    print!(
+        "{} Wallet file saved to: {}\r\n",
+        "INFO".bold(),
+        wallet_file_path.display()
+    );
+
     if purpose == Purpose::Deposit {
         print!(
             "{} Please do not send funds directly to this address!\r\n",
