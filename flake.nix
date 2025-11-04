@@ -210,7 +210,7 @@
                   "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
                 else if isDarwinTarget then
                   # For Darwin: disable UUID and force hermetic SDK
-                  "-C link-arg=-Wl,-no_uuid -C link-arg=-Wl,-syslibroot,${appleSdk.sdkPath}"
+                  "-C link-arg=-Wl,-no_uuid -C link-arg=-Wl,-syslibroot,${stdenvForBuild.cc.libc}"
                 else
                   "";
 
@@ -301,7 +301,7 @@
             # Environment for all builds (both native and cross)
             env = crossEnv // (if isDarwinTarget && !isCross then {
               # For native Darwin builds
-              RUSTFLAGS = "-C link-arg=-Wl,-no_uuid -C link-arg=-Wl,-syslibroot,${appleSdk.sdkPath}";
+              RUSTFLAGS = "-C link-arg=-Wl,-no_uuid -C link-arg=-Wl,-syslibroot,${stdenvForBuild.cc.libc}";
               CFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
               CXXFLAGS = "-g0 -fdebug-prefix-map=$NIX_BUILD_TOP=/build";
             } else {});
