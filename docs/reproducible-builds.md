@@ -64,6 +64,156 @@ nix build .#arm64-apple-darwin    # macOS Apple Silicon
 ls -la ./result/bin/
 ```
 
+**First build?** Expect 10-20 minutes as Nix builds ~500 dependencies. Subsequent builds take 1-2 minutes.
+
+## Supported Platforms
+
+### Working Platforms
+
+Build commands for all working platforms:
+
+```bash
+# Linux (all tested and verified reproducible)
+nix build .#x86_64-linux-gnu        # Intel/AMD 64-bit
+nix build .#aarch64-linux-gnu       # ARM 64-bit
+nix build .#arm-linux-gnueabihf     # ARMv7 32-bit (Raspberry Pi)
+nix build .#riscv64-linux-gnu       # RISC-V 64-bit
+
+# macOS (build on macOS only)
+nix build .#x86_64-apple-darwin     # Intel Macs
+nix build .#arm64-apple-darwin      # Apple Silicon (M1/M2/M3/M4)
+
+# Windows (cross-compile from Linux)
+nix build .#win64                   # 64-bit
+
+# Default (current platform)
+nix build
+```
+
+**Binary location:** `./result/bin/clementine-cli` (or `.exe` for Windows)
+
+### Cross-Compilation Matrix
+
+| Your System | Can Build For |
+|------------|---------------|
+| **Linux (x86_64)** | All Linux targets (x86_64, ARM64, ARMv7, RISC-V), Windows (win64), macOS (Intel, Apple Silicon) |
+| **Linux (ARM64)** | All Linux targets, Windows (win64), macOS (Intel, Apple Silicon) |
+| **macOS (Intel)** | macOS (Intel, Apple Silicon) |
+| **macOS (Apple Silicon)** | macOS (Intel, Apple Silicon) |
+
+> [!NOTE]
+>
+> - **macOS from Linux**: Experimental - included in Linux builds but may not work on all target systems
+> - **macOS cross-arch**: ✅ Now supported! Both Intel and Apple Silicon Macs can build for both architectures
+> - **Linux/Windows from macOS**: Not currently enabled
+> - **Best practice**: Build macOS binaries on macOS (any architecture), build Linux/Windows targets on Linux
+
+## Platform-Specific Build Instructions
+
+### From Linux
+
+Linux can build for all Linux platforms and Windows:
+
+```bash
+# Linux builds
+nix build .#x86_64-linux-gnu        # Intel/AMD 64-bit
+nix build .#aarch64-linux-gnu       # ARM 64-bit
+nix build .#arm-linux-gnueabihf     # ARMv7 32-bit
+nix build .#riscv64-linux-gnu       # RISC-V 64-bit
+
+# Cross-compile to Windows
+nix build .#win64
+```
+
+### From macOS
+
+macOS can build for **both Intel and Apple Silicon** architectures:
+
+```bash
+# Check your Mac architecture
+uname -m  # "x86_64" = Intel, "arm64" = Apple Silicon
+
+# Build for your current Mac architecture
+nix build                           # Automatically selects your architecture
+
+# Build for Intel Macs (works on both Intel and Apple Silicon)
+nix build .#x86_64-apple-darwin     # Intel Macs
+
+# Build for Apple Silicon (works on both Intel and Apple Silicon)
+nix build .#arm64-apple-darwin      # Apple Silicon (M1/M2/M3/M4)
+```
+
+> [!TIP]
+> macOS can now cross-compile between architectures! You can build Intel binaries on Apple Silicon and vice versa. This uses the universal Apple SDK with architecture-specific linker flags.
+
+**Note**: For Linux and Windows builds, use a Linux system.
+
+## Development Environment
+
+Enter a development shell with all dependencies:
+
+```bash
+nix develop
+```
+
+This provides a shell with Rust 1.89.0 and all required build dependencies.
+
+## Verifying Reproducibility
+
+### Quick Test
+
+```bash
+# Build twice and compare hashes
+nix build .#x86_64-linux-gnu
+HASH1=$(nix hash path ./result)
+
+rm -rf result
+nix build .#x86_64-linux-gnu
+HASH2=$(nix hash path ./result)
+
+# Should match
+echo "Build 1: $HASH1"
+echo "Build 2: $HASH2"
+```
+
+### Full Verification (recommended for release verification)
+
+Test with a completely clean Nix store to ensure no cached artifacts affect the build:
+
+```bash
+# First clean build
+nix build .#x86_64-linux-gnu
+HASH1=$(nix hash path ./result)
+
+# Clean everything and rebuild
+rm -rf result
+nix store gc --max 0  # Removes all cached dependencies (~36GB)
+nix build .#x86_64-linux-gnu  # Takes 10-20 minutes
+HASH2=$(nix hash path ./result)
+
+# Verify reproducibility
+[ "$HASH1" = "$HASH2" ] && echo " Reproducible!" || echo "Not reproducible"
+```
+
+### Expected Hashes (Verified Reproducible)
+
+These hashes are **verified reproducible** - building twice produces identical binaries:
+
+| Platform | Hash |
+|----------|------|
+| **x86_64-linux-gnu** | `sha256-NCmTVgAjznXctvxE012CjB3C2/by0dBJg5iDsKsHwgE=` |
+| **aarch64-linux-gnu** | `sha256-ZlH4xzRwZth8clam1P0FV6YXt9qzf4hwSfkDR7g0lgc=` |
+| **arm-linux-gnueabihf** | `sha256-LZw03xTtNGbREMnomn57MYVqVbd/bkNdZUfxuiSPKKE=` |
+| **riscv64-linux-gnu** | `sha256-fLpJHlaMFKK2AwX555dbLazTpHKAIXQmq90aUWXnwAg=` |
+| **win64** | `sha256-1WhKKBTmyTQr3ukqkohxWFX8HZna20ZAYDVmCFY1R5E=` |
+| **x86_64-apple-darwin** | `sha256-p+PlOQNjlKM36kHcIDnopuHBaJHPYkj/mxzgNH86v7U=` |
+| **arm64-apple-darwin** | `sha256-fd9F1IcPu1ez8IMQZ3KJu+n7GTgtR/tayQSeAnPtwd8=` |
+
+> **Note**: Hashes change when source code, dependencies (Cargo.lock), or build configuration (flake.nix) are modified.
+
+### Cross-Machine Verification
+
+To verify your build matches another developer's:
 **First build takes 10-20 minutes.** Subsequent builds are cached and take 1-2 minutes.
 
 ## Verify Your Build
@@ -72,6 +222,70 @@ After building, verify your binary matches the expected hash:
 
 ```bash
 nix hash path ./result
+# Should output: sha256-p+PlOQNjlKM36kHcIDnopuHBaJHPYkj/mxzgNH86v7U=
+```
+
+If hashes don't match, ensure:
+
+- Same git commit/tag
+- Same Nix version (check with `nix --version`)
+- Clean build (`nix store gc --max 0` first)
+
+## Release Process
+
+### 1. Tag Release
+
+```bash
+git tag -s v0.1.0 -m "Release v0.1.0"
+git push origin v0.1.0
+```
+
+### 2. Build All Platforms
+
+**From Linux** (recommended for all non-macOS platforms):
+
+```bash
+# Linux platforms
+nix build .#x86_64-linux-gnu
+cp result/bin/clementine-cli clementine-cli-v0.1.0-x86_64-linux-gnu
+
+nix build .#aarch64-linux-gnu
+cp result/bin/clementine-cli clementine-cli-v0.1.0-aarch64-linux-gnu
+
+nix build .#arm-linux-gnueabihf
+cp result/bin/clementine-cli clementine-cli-v0.1.0-arm-linux-gnueabihf
+
+nix build .#riscv64-linux-gnu
+cp result/bin/clementine-cli clementine-cli-v0.1.0-riscv64-linux-gnu
+
+# Windows
+nix build .#win64
+cp result/bin/clementine-cli.exe clementine-cli-v0.1.0-win64.exe
+```
+
+**From macOS** (for both macOS binaries):
+
+```bash
+# Build both architectures on any Mac
+nix build .#x86_64-apple-darwin
+cp result/bin/clementine-cli clementine-cli-v0.1.0-x86_64-apple-darwin
+
+nix build .#arm64-apple-darwin
+cp result/bin/clementine-cli clementine-cli-v0.1.0-arm64-apple-darwin
+```
+
+### 3. Generate and Sign Checksums
+
+```bash
+# Generate checksums
+sha256sum clementine-cli-v0.1.0-* > SHA256SUMS.txt
+
+# Sign (requires GPG key)
+gpg --clearsign SHA256SUMS.txt
+
+# Upload to GitHub Releases
+# Include: binaries + SHA256SUMS.txt.asc
+```
 ```
 
 Compare the output with the table below:
