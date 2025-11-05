@@ -199,10 +199,10 @@
               # Rust flags for the target
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 if isWindows then
-                  "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
+                  "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off -C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
                 else
-                  # No additional flags needed - the linker wrapper handles Darwin cross-arch
-                  "";
+                  # Reproducibility flags for deterministic builds
+                  "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
 
               # Ensure build scripts use the host compiler
               HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
@@ -217,8 +217,8 @@
                   # This ensures C code compiled during build.rs is also for the correct architecture
                   ccWrapper = pkgs.writeShellScript "cc-wrapper-${arch}" ''
                     #!/bin/bash
-                    # Use system clang to compile C code for the target architecture
-                    exec /usr/bin/clang -arch ${arch} "$@"
+                    # Use clang from nixpkgs for a reproducible build
+                    exec ${pkgs.clang}/bin/clang -arch ${arch} "$@"
                   '';
                 in {
                   TARGET_CC = "${ccWrapper}";
@@ -266,6 +266,20 @@
             SOURCE_DATE_EPOCH = "1";
             dontStrip = true;
             enableParallelBuilding = false;
+
+            # Force single-threaded builds for determinism
+            CARGO_BUILD_JOBS = "1";
+            CARGO_INCREMENTAL = "0";
+
+            # Additional environment variables for reproducibility
+            ZERO_AR_DATE = "1";
+
+            # Base RUSTFLAGS for reproducibility (applies to all builds)
+            # -C codegen-units=1: Single codegen unit for determinism
+            # -C embed-bitcode=no: Disable bitcode embedding for consistency
+            # -C debuginfo=0: No debug info for smaller, more deterministic builds
+            # -C lto=off: Disable LTO which can be non-deterministic
+            RUSTFLAGS = "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
 
             depsBuildBuild = pkgs.lib.optionals isCross [ targetPkgs.stdenv.cc ];
 
