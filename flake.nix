@@ -175,13 +175,19 @@
 
             cargoBuildFlags = pkgs.lib.optionals isCross [ "--target" rustTarget ];
 
-            # Custom install phase for cross-compilation
-            installPhase = if isCross then ''
+            # Custom install phase for reproducibility
+            installPhase = ''
               runHook preInstall
               mkdir -p $out/bin
-              cp target/${rustTarget}/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} $out/bin/
+              # Check both possible binary locations
+              if [ -f target/${rustTarget}/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} ]; then
+                cp target/${rustTarget}/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
+              else
+                cp target/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
+              fi
+              chmod 555 $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
               runHook postInstall
-            '' else null;
+            '';
 
             # Cross-compilation environment setup
             crossEnv = if isCross then {
@@ -202,6 +208,7 @@
                   "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off -C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
                 else
                   # Reproducibility flags for deterministic builds
+                  # Note: --remap-path-prefix is added dynamically in preBuild
                   "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
 
               # Ensure build scripts use the host compiler
@@ -233,7 +240,7 @@
               "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             }) else {};
           in
-          rustPlatformPinned.buildRustPackage rec {
+          (rustPlatformPinned.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
 
@@ -279,6 +286,7 @@
             # -C embed-bitcode=no: Disable bitcode embedding for consistency
             # -C debuginfo=0: No debug info for smaller, more deterministic builds
             # -C lto=off: Disable LTO which can be non-deterministic
+            # Note: --remap-path-prefix is added dynamically in preBuild to properly expand $NIX_BUILD_TOP
             RUSTFLAGS = "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
 
             depsBuildBuild = pkgs.lib.optionals isCross [ targetPkgs.stdenv.cc ];
@@ -292,7 +300,7 @@
               # See docs/reproducible-builds.md "Dependency Hash Updates" for details
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
-                "secp256k1-0.31.0"      = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
+                "secp256k1-0.31.0"       = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
               };
             };
 
@@ -304,7 +312,27 @@
               license = licenses.gpl3;
               platforms = [ pkgs.stdenv.hostPlatform.system ];
             };
-          };
+          }).overrideAttrs (old: {
+            # Use preConfigure to inject reproducibility flags AFTER all postPatch hooks
+            # (including cargoSetupPostPatchHook which creates .cargo/config)
+            preConfigure = (old.preConfigure or "") + ''
+              echo "=== Injecting reproducibility flags (preConfigure) ==="
+              echo "NIX_BUILD_TOP=$NIX_BUILD_TOP"
+
+              # Remove old config and create new one with path remapping
+              rm -f .cargo/config .cargo/config.toml
+              mkdir -p .cargo
+
+              cat > .cargo/config.toml <<EOF
+[build]
+rustflags = ["--remap-path-prefix=$NIX_BUILD_TOP/..=/build-root", "-C", "codegen-units=1", "-C", "embed-bitcode=no", "-C", "debuginfo=0", "-C", "lto=off"]
+EOF
+
+              echo "=== Cargo config created ==="
+              cat .cargo/config.toml
+              echo "=== Done ==="
+            '';
+          });
 
         packagesForAll = pkgs.lib.genAttrs availableTargets mkPackageFor;
 
