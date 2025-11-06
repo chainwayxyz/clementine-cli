@@ -28,17 +28,17 @@
           linux-x86_64 = {
             cargoTarget = "x86_64-unknown-linux-gnu";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = null;               # native
+            pkgsCross = null;
           };
           linux-aarch64 = {
             cargoTarget = "aarch64-unknown-linux-gnu";
             buildOn = [ "aarch64-linux" ]; 
-            pkgsCross = null;               # native
+            pkgsCross = null;
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
-            pkgsCross = null;               # avoid pkgsCross for darwin; use SDK
+            pkgsCross = null;
           };
           darwin-aarch64 = {
             cargoTarget = "aarch64-apple-darwin";
@@ -86,14 +86,25 @@
               ] ++
               pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            nativeBuildInputs =
+               (if isWindows then [ targetPkgs.buildPackages.binutils ] else []) ++
+               [ pkgs.pkg-config ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            crossEnv = if cfg.pkgsCross != null then {
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-            } else {};
+            crossEnv = if cfg.pkgsCross != null then
+               let
+                 UPPER = pkgs.lib.toUpper rustTargetEnv;
+                 prefix = targetPkgs.stdenv.cc.bintools.targetPrefix;
+                 binutilsBin = "${targetPkgs.buildPackages.binutils}/bin";
+                 ccBin = "${targetPkgs.stdenv.cc}/bin";
+               in {
+                 "CARGO_TARGET_${UPPER}_LINKER" = "${ccBin}/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                 "AR_${UPPER}"       = "${binutilsBin}/${prefix}ar";
+                 "RANLIB_${UPPER}"   = "${binutilsBin}/${prefix}ranlib";
+                 "DLLTOOL_${UPPER}"  = "${binutilsBin}/${prefix}dlltool";
+               }
+             else {};
 
             cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
 
