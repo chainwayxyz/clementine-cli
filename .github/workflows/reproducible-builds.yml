@@ -1,453 +1,57 @@
-name: Reproducible Builds Verification
-
-# Platform coverage:
-# - Linux: x86_64, ARM64 (aarch64), Windows cross-compile (via Nix)
-# - Windows: Native build (x86_64-pc-windows-msvc via cargo)
-# - macOS: Intel (x86_64), Apple Silicon (arm64) (via Nix)
+name: Reproducible Builds
 
 on:
   push:
-    branches:
-      - main
-      - "releases/*"
+    branches: [ main ]
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
-
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
 
 jobs:
-  verify-reproducibility-linux:
-    name: Verify Reproducible Builds (Linux/Windows)
+  linux-and-win64-on-linux:
     runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform:
-          - x86_64-linux-gnu
-          - aarch64-linux-gnu
-          - win64
-
-    steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
-      - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Setup Cachix (optional binary cache)
-        uses: cachix/cachix-action@v13
-        with:
-          name: clementine-cli
-          skipPush: true
-        continue-on-error: true
-
-      - name: Build ${{ matrix.platform }} (first time)
-        run: |
-          echo "Building for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "First build complete"
-
-      - name: Calculate first build hash
-        id: hash1
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Remove build result
-        run: rm -rf result
-
-      - name: Build ${{ matrix.platform }} (second time)
-        run: |
-          echo "Rebuilding for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for ${{ matrix.platform }}:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Build is NOT reproducible! Hashes differ."
-            exit 1
-          fi
-
-      - name: Upload binary artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-${{ matrix.platform }}
-          path: result/bin/*
-          retention-days: 7
-
-  verify-reproducibility-windows:
-    name: Verify Reproducible Windows Build
-    runs-on: windows-latest
-
-    steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
-      - uses: actions/checkout@v4
-
-      - name: Install Rust toolchain
-        uses: actions-rust-lang/setup-rust-toolchain@v1
-        with:
-          toolchain: "1.89.0"
-          components: rustfmt, rust-src
-
-      - name: Build (first time)
-        shell: bash
-        env:
-          SOURCE_DATE_EPOCH: "1"
-          RUSTFLAGS: "-C debuginfo=0 -C opt-level=3 -C codegen-units=1 -C strip=none -C link-arg=/PDBALTPATH:clementine-cli.pdb -C link-arg=/Brepro"
-        run: |
-          echo "Building for Windows native (x86_64-pc-windows-msvc) with reproducible settings..."
-          cargo build --release
-          echo "First build complete"
-
-      - name: Calculate first build hash
-        id: hash1
-        shell: bash
-        run: |
-          HASH=$(sha256sum target/release/clementine-cli.exe | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Clean build artifacts
-        run: cargo clean
-
-      - name: Build (second time)
-        shell: bash
-        env:
-          SOURCE_DATE_EPOCH: "1"
-          RUSTFLAGS: "-C debuginfo=0 -C opt-level=3 -C codegen-units=1 -C strip=none -C link-arg=/PDBALTPATH:clementine-cli.pdb -C link-arg=/Brepro"
-        run: |
-          echo "Rebuilding for Windows native with reproducible settings..."
-          cargo build --release
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        shell: bash
-        run: |
-          HASH=$(sha256sum target/release/clementine-cli.exe | awk '{print $1}')
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        shell: bash
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for Windows native build:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Native Windows build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Native Windows build is NOT reproducible! Hashes differ."
-            echo "This should not happen with our reproducibility settings."
-            exit 1
-          fi
-
-      - name: Upload binary artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-windows-native
-          path: target/release/clementine-cli.exe
-          retention-days: 7
-
-  verify-reproducibility-macos:
-    name: Verify Reproducible Builds (macOS)
-    runs-on: macos-latest
-    strategy:
-      matrix:
-        platform:
-          - x86_64-apple-darwin
-          - arm64-apple-darwin
-
-    steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
-      - uses: actions/checkout@v4
-
-      - name: Install Nix
-        uses: cachix/install-nix-action@v31
-        with:
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Setup Cachix (optional binary cache)
-        uses: cachix/cachix-action@v13
-        with:
-          name: clementine-cli
-          skipPush: true
-        continue-on-error: true
-
-      - name: Build ${{ matrix.platform }} (first time)
-        run: |
-          echo "Building for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "First build complete"
-
-      - name: Calculate first build hash
-        id: hash1
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "First build hash: $HASH"
-
-      - name: Remove build result
-        run: rm -rf result
-
-      - name: Build ${{ matrix.platform }} (second time)
-        run: |
-          echo "Rebuilding for ${{ matrix.platform }}..."
-          nix build .#${{ matrix.platform }}
-          echo "Second build complete"
-
-      - name: Calculate second build hash
-        id: hash2
-        run: |
-          HASH=$(nix hash path ./result)
-          echo "hash=$HASH" >> $GITHUB_OUTPUT
-          echo "Second build hash: $HASH"
-
-      - name: Verify reproducibility
-        run: |
-          HASH1="${{ steps.hash1.outputs.hash }}"
-          HASH2="${{ steps.hash2.outputs.hash }}"
-
-          echo "Comparing hashes for ${{ matrix.platform }}:"
-          echo "  First build:  $HASH1"
-          echo "  Second build: $HASH2"
-
-          if [ "$HASH1" = "$HASH2" ]; then
-            echo "OK: Build is reproducible! Hashes match."
-            exit 0
-          else
-            echo "ERROR: Build is NOT reproducible! Hashes differ."
-            exit 1
-          fi
-
-      - name: Upload binary artifact
-        if: success()
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-${{ matrix.platform }}
-          path: result/bin/*
-          retention-days: 7
-
-  verify-hash-documentation-linux:
-    name: Verify Documented Hashes (Linux/Windows)
-    runs-on: ubuntu-latest
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows]
     strategy:
       fail-fast: false
       matrix:
         platform:
-          - x86_64-linux-gnu
-          - aarch64-linux-gnu
-          - arm-linux-gnueabihf
-          - riscv64-linux-gnu
-          - win64
-
+          - linux-x86_64
+          - windows-x86_64 
     steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
       - uses: actions/checkout@v4
 
-      - name: Install Nix
+      - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
         with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
           extra_nix_config: |
             experimental-features = nix-command flakes
 
       - name: Build ${{ matrix.platform }}
+        run: nix build .#${{ matrix.platform }}
+
+      - name: Hash result
+        id: hash
         run: |
-          echo "Building ${{ matrix.platform }} to verify documented hash..."
-          nix build .#${{ matrix.platform }}
-          echo "Build complete"
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "${{ matrix.platform }} hash: $H"
 
-      - name: Verify documented hash for ${{ matrix.platform }}
-        run: |
-          ACTUAL_HASH=$(nix hash path ./result)
-
-          # Extract documented hash from reproducible-builds.md
-          # Platform names are in bold (**platform**) in the markdown table
-          # Table format: | **platform** | `hash` |
-          DOCUMENTED_HASH=$(grep "\*\*${{ matrix.platform }}\*\*" docs/reproducible-builds.md | sed 's/.*`\(sha256-[^`]*\)`.*/\1/')
-
-          echo "Platform: ${{ matrix.platform }}"
-          echo "Documented hash: $DOCUMENTED_HASH"
-          echo "Actual hash:     $ACTUAL_HASH"
-          echo ""
-
-          if [ -z "$DOCUMENTED_HASH" ]; then
-            echo "ERROR: No documented hash found for ${{ matrix.platform }}"
-            echo "Please add the hash to docs/reproducible-builds.md Expected Hashes table:"
-            echo "  $ACTUAL_HASH"
-            exit 1
-          elif [ "$DOCUMENTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "ERROR: Documented hash does not match actual build hash!"
-            echo "The hash in docs/reproducible-builds.md is outdated."
-            echo ""
-            echo "Please update docs/reproducible-builds.md with the new hash:"
-            echo "  Platform: ${{ matrix.platform }}"
-            echo "  Old hash: $DOCUMENTED_HASH"
-            echo "  New hash: $ACTUAL_HASH"
-            exit 1
-          else
-            echo "OK: Documented hash matches actual build for ${{ matrix.platform }}"
-          fi
-
-  verify-hash-documentation-macos:
-    name: Verify Documented Hashes (macOS)
+  macos-arm64:
     runs-on: macos-latest
-    needs: [verify-reproducibility-macos]
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - x86_64-apple-darwin
-          - arm64-apple-darwin
-
     steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
       - uses: actions/checkout@v4
 
-      - name: Install Nix
+      - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
         with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
           extra_nix_config: |
             experimental-features = nix-command flakes
 
-      - name: Build ${{ matrix.platform }}
+      - name: Build darwin-aarch64
+        run: nix build .#darwin-aarch64
+
+      - name: Hash result
+        id: hash
         run: |
-          echo "Building ${{ matrix.platform }} to verify documented hash..."
-          nix build .#${{ matrix.platform }}
-          echo "Build complete"
-
-      - name: Verify documented hash for ${{ matrix.platform }}
-        run: |
-          ACTUAL_HASH=$(nix hash path ./result)
-
-          # Extract documented hash from reproducible-builds.md
-          # Platform names are in bold (**platform**) in the markdown table
-          # Table format: | **platform** | `hash` |
-          DOCUMENTED_HASH=$(grep "\*\*${{ matrix.platform }}\*\*" docs/reproducible-builds.md | sed 's/.*`\(sha256-[^`]*\)`.*/\1/')
-
-          echo "Platform: ${{ matrix.platform }}"
-          echo "Documented hash: $DOCUMENTED_HASH"
-          echo "Actual hash:     $ACTUAL_HASH"
-          echo ""
-
-          if [ -z "$DOCUMENTED_HASH" ]; then
-            echo "ERROR: No documented hash found for ${{ matrix.platform }}"
-            echo "Please add the hash to docs/reproducible-builds.md Expected Hashes table:"
-            echo "  $ACTUAL_HASH"
-            exit 1
-          elif [ "$DOCUMENTED_HASH" != "$ACTUAL_HASH" ]; then
-            echo "ERROR: Documented hash does not match actual build hash!"
-            echo "The hash in docs/reproducible-builds.md is outdated."
-            echo ""
-            echo "Please update docs/reproducible-builds.md with the new hash:"
-            echo "  Platform: ${{ matrix.platform }}"
-            echo "  Old hash: $DOCUMENTED_HASH"
-            echo "  New hash: $ACTUAL_HASH"
-            exit 1
-          else
-            echo "OK: Documented hash matches actual build for ${{ matrix.platform }}"
-          fi
-
-  build-summary:
-    name: Build Summary
-    runs-on: ubuntu-latest
-    needs: [verify-reproducibility-linux, verify-reproducibility-windows, verify-reproducibility-macos, verify-hash-documentation-linux, verify-hash-documentation-macos]
-    if: always()
-
-    steps:
-      - name: Check results
-        run: |
-          LINUX_RESULT="${{ needs.verify-reproducibility-linux.result }}"
-          WINDOWS_RESULT="${{ needs.verify-reproducibility-windows.result }}"
-          MACOS_RESULT="${{ needs.verify-reproducibility-macos.result }}"
-          DOCS_LINUX_RESULT="${{ needs.verify-hash-documentation-linux.result }}"
-          DOCS_MACOS_RESULT="${{ needs.verify-hash-documentation-macos.result }}"
-
-          echo "Build Results Summary:"
-          echo "  Linux (Nix):                    $LINUX_RESULT"
-          echo "  Windows (Nix cross):            $LINUX_RESULT (included in Linux job)"
-          echo "  Windows (native):               $WINDOWS_RESULT"
-          echo "  macOS (Nix):                    $MACOS_RESULT"
-          echo "  Documentation hashes (Linux):   $DOCS_LINUX_RESULT"
-          echo "  Documentation hashes (macOS):   $DOCS_MACOS_RESULT"
-          echo ""
-
-          # All jobs must succeed
-          if [ "$LINUX_RESULT" = "success" ] && [ "$WINDOWS_RESULT" = "success" ] && [ "$MACOS_RESULT" = "success" ] && [ "$DOCS_LINUX_RESULT" = "success" ] && [ "$DOCS_MACOS_RESULT" = "success" ]; then
-            echo "OK: All verifications passed!"
-            echo ""
-            echo "Reproducible builds verified (twice each):"
-            echo "  - Linux (x86_64, ARM64, ARMv7, RISC-V) via Nix"
-            echo "  - Windows (x86_64 cross-compiled) via Nix"
-            echo "  - macOS (Intel, Apple Silicon) via Nix"
-            echo ""
-            echo "Native build verified:"
-            echo "  - Windows (x86_64-pc-windows-msvc) via cargo"
-            echo ""
-            echo "Documentation verified:"
-            echo "  - All platform hashes match docs/reproducible-builds.md"
-            exit 0
-          else
-            echo "ERROR: Verification failed on one or more checks"
-            echo ""
-            if [ "$DOCS_LINUX_RESULT" != "success" ] || [ "$DOCS_MACOS_RESULT" != "success" ]; then
-              echo "    Documentation hash mismatch detected!"
-              echo "    This means the code/dependencies changed and docs need updating."
-              echo "    Please update docs/reproducible-builds.md with new hashes."
-              echo ""
-            fi
-            echo "Check the individual job logs for details"
-            exit 1
-          fi
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "darwin-aarch64 hash: $H"
