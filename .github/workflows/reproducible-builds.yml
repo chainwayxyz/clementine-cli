@@ -39,9 +39,6 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Select Xcode version
-        run: sudo xcode-select -s '/Applications/Xcode_26.0.app/Contents/Developer'
-
       - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
         with:
@@ -58,3 +55,13 @@ jobs:
           H=$(nix hash path ./result)
           echo "hash=$H" >> "$GITHUB_OUTPUT"
           echo "darwin-aarch64 hash: $H"
+
+      - name: Dump full /nix/store listing
+        run: |
+          ls /nix/store > nix_store.txt
+
+      - name: Upload nix_store.txt
+        uses: actions/upload-artifact@v4
+        with:
+          name: nix-store-macos-arm64
+          path: nix_store.txt
