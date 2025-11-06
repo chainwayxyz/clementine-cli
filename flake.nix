@@ -64,7 +64,6 @@
         reproducibleEnv = {
           RUSTFLAGS = "-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no";
           SOURCE_DATE_EPOCH = "1";
-          CARGO_BUILD_JOBS = "1";
           CARGO_INCREMENTAL = "0";
           ZERO_AR_DATE = "1";
         };
