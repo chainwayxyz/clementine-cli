@@ -39,9 +39,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: maxim-lobanov/setup-xcode@v2
-        with:
-          xcode-version: '26.0'
+      - name: Select Xcode version
+        run: sudo xcode-select -s '/Applications/Xcode_26.0.app/Contents/Developer'
 
       - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
