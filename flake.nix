@@ -3,7 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
+
     flake-utils.url = "github:numtide/flake-utils";
+
     rust-overlay = {
       url = "github:oxalica/rust-overlay";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -13,21 +15,6 @@
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
     let
       buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-
-      # Working target systems
-      # 7 platforms verified reproducible - see docs/reproducible-builds.md for details
-      targetSystems = [
-        "x86_64-linux-gnu"
-        "aarch64-linux-gnu"
-        "arm-linux-gnueabihf"
-        "riscv64-linux-gnu"
-        "x86_64-apple-darwin"
-        "arm64-apple-darwin"
-        "win64"
-      ];
-
-      # Note: PowerPC64 is excluded due to known Nix cross-compilation limitations
-      # See docs/reproducible-builds.md "PowerPC64 Known Issue" section for details
     in
     flake-utils.lib.eachSystem buildSystems (buildSystem:
       let
@@ -35,347 +22,154 @@
         pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
 
         rustVersion = "1.89.0";
-        rustPinned = pkgs.rust-bin.stable.${rustVersion}.default.override {
-          targets = [
-            "x86_64-pc-windows-gnu"
-            "x86_64-unknown-linux-gnu"
-            "aarch64-unknown-linux-gnu"
-            "arm-unknown-linux-gnueabihf"
-            "riscv64gc-unknown-linux-gnu"
-            "x86_64-apple-darwin"
-            "aarch64-apple-darwin"
-          ];
-        };
-        rustPlatformPinned = pkgs.makeRustPlatform { cargo = rustPinned; rustc = rustPinned; };
+        rust = pkgs.rust-bin.stable.${rustVersion}.default;
 
-        isDarwin = pkgs.stdenv.isDarwin;
-
-        # All possible targets - we'll filter by build system below
-        allPlatformConfigs = {
-          "x86_64-linux-gnu" = {
-            rustTarget = "x86_64-unknown-linux-gnu";
-            pkgsCross = null;  # Native on x86_64-linux
-            isNative = buildSystem == "x86_64-linux";
+        allTargets = {
+          linux-x86_64 = {
+            cargoTarget = "x86_64-unknown-linux-gnu";
+            buildOn = [ "x86_64-linux" ];
+            pkgsCross = null;               # native
           };
-          "aarch64-linux-gnu" = {
-            rustTarget = "aarch64-unknown-linux-gnu";
-            pkgsCross = pkgs.pkgsCross.aarch64-multiplatform;
-            isNative = buildSystem == "aarch64-linux";
+          linux-aarch64 = {
+            cargoTarget = "aarch64-unknown-linux-gnu";
+            buildOn = [ "aarch64-linux" ]; 
+            pkgsCross = null;               # native
           };
-          "arm-linux-gnueabihf" = {
-            rustTarget = "arm-unknown-linux-gnueabihf";
-            pkgsCross = pkgs.pkgsCross.armv7l-hf-multiplatform;
-            isNative = false;
+          darwin-x86_64 = {
+            cargoTarget = "x86_64-apple-darwin";
+            buildOn = [ "x86_64-darwin" ];
+            pkgsCross = null;               # avoid pkgsCross for darwin; use SDK
           };
-          "riscv64-linux-gnu" = {
-            rustTarget = "riscv64gc-unknown-linux-gnu";
-            pkgsCross = pkgs.pkgsCross.riscv64;
-            isNative = false;
-          };
-          "x86_64-apple-darwin" = {
-            rustTarget = "x86_64-apple-darwin";
-            # On macOS, we can cross-compile between architectures using the same SDK
-            # Don't use pkgsCross - it's not needed and causes Nix LibsystemCross errors
-            # Instead, we use custom compiler wrappers with -arch flags (see darwinLinkerWrapper below)
+          darwin-aarch64 = {
+            cargoTarget = "aarch64-apple-darwin";
+            buildOn = [ "aarch64-darwin" ];
             pkgsCross = null;
-            isNative = buildSystem == "x86_64-darwin";
-            # Special flag for Darwin cross-arch builds (ARM64→x86_64 or x86_64→ARM64)
-            isDarwinCross = (buildSystem == "aarch64-darwin" || buildSystem == "x86_64-darwin") && buildSystem != "x86_64-darwin";
           };
-          "arm64-apple-darwin" = {
-            rustTarget = "aarch64-apple-darwin";
-            # On macOS, we can cross-compile between architectures using the same SDK
-            pkgsCross = null;
-            isNative = buildSystem == "aarch64-darwin";
-            # Special flag for Darwin cross-arch builds
-            isDarwinCross = (buildSystem == "aarch64-darwin" || buildSystem == "x86_64-darwin") && buildSystem != "aarch64-darwin";
-          };
-          "win64" = {
-            rustTarget = "x86_64-pc-windows-gnu";
+          windows-x86_64 = {
+            cargoTarget = "x86_64-pc-windows-gnu";
+            buildOn = [ "x86_64-linux" ];
             pkgsCross = pkgs.pkgsCross.mingwW64;
-            isNative = false;
           };
         };
 
-        # Filter platforms based on what can be built on current build system
-        # Linux can build: All Linux architectures (x86_64, ARM64, ARMv7, RISC-V) + Windows + macOS (experimental)
-        # macOS can build: Both macOS architectures (Intel & Apple Silicon) using the universal Apple SDK
-        # See docs/reproducible-builds.md for detailed cross-compilation matrix
-        availableTargets =
-          if pkgs.stdenv.isLinux then
-            [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf"
-              "riscv64-linux-gnu" "win64" "x86_64-apple-darwin" "arm64-apple-darwin" ]
-          else if pkgs.stdenv.isDarwin then
-            # macOS can build both architectures using the same SDK
-            [ "x86_64-apple-darwin" "arm64-apple-darwin" ]
-          else
-            [ ];
+        allowed = builtins.filter (name:
+          builtins.elem buildSystem allTargets.${name}.buildOn) (builtins.attrNames allTargets);
 
-        platformConfig = builtins.listToAttrs (map (name: {
-          inherit name;
-          value = allPlatformConfigs.${name};
-        }) availableTargets);
+        rustWithTargets = rust.override {
+          targets = builtins.map (n: allTargets.${n}.cargoTarget) allowed;
+        };
+
+        rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
+
+        reproducibleEnv = {
+          RUSTFLAGS = "-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no";
+          SOURCE_DATE_EPOCH = "1";
+          CARGO_BUILD_JOBS = "1";
+          CARGO_INCREMENTAL = "0";
+          ZERO_AR_DATE = "1";
+        };
 
         mkPackageFor = targetName:
           let
-            config = platformConfig.${targetName};
-            rustTarget = config.rustTarget;
-            isNative = config.isNative;
-            # For Darwin, cross-arch builds (ARM64↔x86_64) should be treated as cross-compilation
-            isDarwinCross = config.isDarwinCross or false;
-            isCross = !isNative;
-            isWindows = targetName == "win64";
-            isDarwinTarget = builtins.elem targetName [ "x86_64-apple-darwin" "arm64-apple-darwin" ];
-            isLinuxTarget = builtins.elem targetName [ "x86_64-linux-gnu" "aarch64-linux-gnu" "arm-linux-gnueabihf" "riscv64-linux-gnu" ];
+            cfg = allTargets.${targetName};
+            rustTarget = cfg.cargoTarget;
+            isWindows = rustTarget == "x86_64-pc-windows-gnu";
+            isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
+            isLinux = builtins.match ".*-unknown-linux-gnu" rustTarget != null;
 
-            # Use pkgsCross for cross-compilation, otherwise use native pkgs
-            targetPkgs = if config.pkgsCross != null then config.pkgsCross else pkgs;
+            targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
 
-            # Create a linker wrapper for Darwin cross-arch builds
-            # This enables cross-compilation between Intel and Apple Silicon on the same Mac
-            # We use system clang directly because Nix's cc-wrapper injects build-host specific
-            # flags (like -mcpu=armv8.3-a) that conflict with the target architecture
-            # See docs/reproducible-builds.md "macOS Cross-Architecture Compilation" for details
-            darwinLinkerWrapper = if isDarwinCross then
-              let
-                arch = if targetName == "x86_64-apple-darwin" then "x86_64" else "arm64";
-              in
-              pkgs.writeShellScript "darwin-cross-linker" ''
-                #!/bin/bash
-                # Use system clang directly with -arch to specify target architecture
-                # This works because macOS SDK is universal and supports both architectures
-                exec /usr/bin/clang -arch ${arch} "$@"
-              ''
-            else null;
-
-            # Rust target with underscores for environment variables
-            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
+            buildInputs =
+              pkgs.lib.optionals isDarwin [
+                pkgs.darwin.apple_sdk.frameworks.Security
+                pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+                pkgs.libiconv
+              ] ++
+              pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
-            # buildInputs should only contain libraries for the TARGET platform
-            buildInputs =
-              if isWindows then
-                [ ]
-              else if isDarwinTarget then
-                # For Darwin targets (both native and cross-arch)
-                # Use native pkgs frameworks - they work for both architectures
-                (if isDarwinCross || isNative then
-                  # Native or Darwin cross-arch build - use native frameworks
-                  [ pkgs.darwin.apple_sdk.frameworks.Security
-                    pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                    pkgs.libiconv ]
-                else
-                  # Cross-compiling to macOS from Linux is experimental
-                  [ ])
-              else if isLinuxTarget then
-                [ pkgs.openssl ]
-              else
-                [ ];
+            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            cargoBuildFlags = pkgs.lib.optionals isCross [ "--target" rustTarget ];
-
-            # Custom install phase for reproducibility
-            installPhase = ''
-              runHook preInstall
-              mkdir -p $out/bin
-              # Check both possible binary locations
-              if [ -f target/${rustTarget}/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} ]; then
-                cp target/${rustTarget}/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
-              else
-                cp target/release/clementine-cli${pkgs.lib.optionalString isWindows ".exe"} $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
-              fi
-              chmod 555 $out/bin/clementine-cli${pkgs.lib.optionalString isWindows ".exe"}
-              runHook postInstall
-            '';
-
-            # Cross-compilation environment setup
-            crossEnv = if isCross then {
-              # Tell Cargo where the cross-compilation linker is
+            crossEnv = if cfg.pkgsCross != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                if isDarwinCross then
-                  # For Darwin cross-arch, use our wrapper that forces the right architecture
-                  "${darwinLinkerWrapper}"
-                else if isDarwinTarget then
-                  # For other Darwin cross-compilation (e.g., from Linux)
-                  "cc"
-                else
-                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+            } else {};
 
-              # Rust flags for the target
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                if isWindows then
-                  "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off -C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib"
-                else
-                  # Reproducibility flags for deterministic builds
-                  # Note: --remap-path-prefix is added dynamically in preBuild
-                  "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
+            cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
 
-              # Ensure build scripts use the host compiler
-              HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
-
-              # Configure for C dependencies cross-compilation
-            } // (if isDarwinTarget then
-              # For Darwin cross-arch, we need to set flags for the C compiler too
-              (if isDarwinCross then
-                let
-                  arch = if targetName == "x86_64-apple-darwin" then "x86_64" else "arm64";
-                  # Create a CC wrapper for C dependencies (like ring's curve25519.c)
-                  # This ensures C code compiled during build.rs is also for the correct architecture
-                  ccWrapper = pkgs.writeShellScript "cc-wrapper-${arch}" ''
-                    #!/bin/bash
-                    # Use clang from nixpkgs for a reproducible build
-                    exec ${pkgs.clang}/bin/clang -arch ${arch} "$@"
-                  '';
-                in {
-                  TARGET_CC = "${ccWrapper}";
-                  "CC_${rustTargetEnv}" = "${ccWrapper}";
-                  "AR_${rustTargetEnv}" = "${pkgs.stdenv.cc}/bin/ar";
-                  "CFLAGS_${rustTargetEnv}" = "-arch ${arch}";
-                }
-              else {})
-            else {
-              TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-            }) else {};
           in
-          (rustPlatformPinned.buildRustPackage rec {
+          (rustPlatform.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
 
-            # Only include files that affect the build
-            # Exclude docs, CI, and scripts so documentation changes don't affect build hash
             src = pkgs.lib.cleanSourceWith {
               src = ./.;
               filter = path: type:
-                let
-                  baseName = baseNameOf path;
-                  relativePath = pkgs.lib.removePrefix (toString ./. + "/") (toString path);
-                in
-                # Exclude non-build-affecting directories
-                !(pkgs.lib.hasPrefix "docs/" relativePath) &&
-                !(pkgs.lib.hasPrefix ".github/" relativePath) &&
-                !(pkgs.lib.hasPrefix "reproducible/" relativePath) &&
-                !(baseName == "README.md") &&
-                !(baseName == "SETUP.md") &&
-                # Exclude git files
-                !(baseName == ".git") &&
-                !(baseName == ".gitignore");
+                let base = baseNameOf path; in
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
             };
 
-            inherit nativeBuildInputs buildInputs cargoBuildFlags installPhase;
+            inherit nativeBuildInputs buildInputs cargoBuildFlags;
+            env = reproducibleEnv // crossEnv;
 
-            # Reproducibility knobs
-            # These settings ensure bit-for-bit identical builds across different machines
-            # See docs/reproducible-builds.md "Verifying Reproducibility" for testing
-            auditable = false;
-            SOURCE_DATE_EPOCH = "1";
-            dontStrip = true;
-            enableParallelBuilding = false;
-
-            # Force single-threaded builds for determinism
-            CARGO_BUILD_JOBS = "1";
-            CARGO_INCREMENTAL = "0";
-
-            # Additional environment variables for reproducibility
-            ZERO_AR_DATE = "1";
-
-            # Base RUSTFLAGS for reproducibility (applies to all builds)
-            # -C codegen-units=1: Single codegen unit for determinism
-            # -C embed-bitcode=no: Disable bitcode embedding for consistency
-            # -C debuginfo=0: No debug info for smaller, more deterministic builds
-            # -C lto=off: Disable LTO which can be non-deterministic
-            # Note: --remap-path-prefix is added dynamically in preBuild to properly expand $NIX_BUILD_TOP
-            RUSTFLAGS = "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off";
-
-            depsBuildBuild = pkgs.lib.optionals isCross [ targetPkgs.stdenv.cc ];
-
-            env = crossEnv;
-
-            cargoLock = {
+            cargoLock = { 
               lockFile = ./Cargo.lock;
-              # Git dependency hashes for reproducibility
-              # Update these when git dependencies change using: ./reproducible/update-hashes.sh
-              # See docs/reproducible-builds.md "Dependency Hash Updates" for details
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
                 "secp256k1-0.31.0"       = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
               };
             };
 
-            doCheck = !isCross;
-
-            meta = with pkgs.lib; {
-              description = "Clementine CLI tool for ${targetName}";
-              homepage = "https://github.com/chainwayxyz/clementine-cli";
-              license = licenses.gpl3;
-              platforms = [ pkgs.stdenv.hostPlatform.system ];
-            };
-          }).overrideAttrs (old: {
-            # Use preConfigure to inject reproducibility flags AFTER all postPatch hooks
-            # (including cargoSetupPostPatchHook which creates .cargo/config)
-            preConfigure = (old.preConfigure or "") + ''
-              echo "=== Injecting reproducibility flags (preConfigure) ==="
-              echo "NIX_BUILD_TOP=$NIX_BUILD_TOP"
-
-              # Remove old config and create new one with path remapping
-              rm -f .cargo/config .cargo/config.toml
-              mkdir -p .cargo
-
-              cat > .cargo/config.toml <<EOF
-[build]
-rustflags = ["--remap-path-prefix=$NIX_BUILD_TOP/..=/build-root", "-C", "codegen-units=1", "-C", "embed-bitcode=no", "-C", "debuginfo=0", "-C", "lto=off"]
-EOF
-
-              echo "=== Cargo config created ==="
-              cat .cargo/config.toml
-              echo "=== Done ==="
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out/bin
+              binName="clementine-cli"
+              if [ -f target/${rustTarget}/release/$binName${pkgs.lib.optionalString isWindows ".exe"} ]; then
+                cp target/${rustTarget}/release/$binName${pkgs.lib.optionalString isWindows ".exe"} $out/bin/
+              else
+                cp target/release/$binName${pkgs.lib.optionalString isWindows ".exe"} $out/bin/
+              fi
+              chmod 555 $out/bin/$binName${pkgs.lib.optionalString isWindows ".exe"}
+              runHook postInstall
             '';
+
+            doCheck = false;
+            auditable = false;
+            dontStrip = true;
           });
 
-        packagesForAll = pkgs.lib.genAttrs availableTargets mkPackageFor;
+        pkgsForThisBuilder = pkgs.lib.genAttrs allowed mkPackageFor;
 
-        # Map build system to target name
         defaultTarget = {
-          "x86_64-linux" = "x86_64-linux-gnu";
-          "aarch64-linux" = "aarch64-linux-gnu";
-          "x86_64-darwin" = "x86_64-apple-darwin";
-          "aarch64-darwin" = "arm64-apple-darwin";
+          "x86_64-linux" = "linux-x86_64";
+          "aarch64-linux" = "linux-aarch64";
+          "x86_64-darwin" = "darwin-x86_64";
+          "aarch64-darwin" = "darwin-aarch64";
         }.${buildSystem};
 
-      in
-      {
-        packages = packagesForAll // {
-          default = packagesForAll.${defaultTarget};
-          clementine-cli = packagesForAll.${defaultTarget};
+      in {
+        packages = pkgsForThisBuilder // {
+          default = pkgsForThisBuilder.${defaultTarget};
         };
 
         devShells.default = pkgs.mkShell {
-          nativeBuildInputs = [ pkgs.pkg-config ];
           buildInputs =
-            (if isDarwin then [
+            (if pkgs.stdenv.isDarwin then [
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
-            ] else [
-              pkgs.openssl
-            ]) ++ [ rustPinned ];
+            ] else [ pkgs.openssl ])
+            ++ [ rustWithTargets pkgs.pkg-config ];
 
           shellHook = ''
-            echo "Clementine CLI development environment"
-            echo "Rust version: ${rustVersion}"
-            echo "Build system: ${buildSystem}"
-            echo
-            echo "Available build targets on this system:"
-            ${pkgs.lib.concatMapStringsSep "\n" (target: ''echo "  nix build .#${target}"'') availableTargets}
-            echo
-            ${if isDarwin then ''
-            echo "Note: macOS can build both Intel and Apple Silicon architectures."
-            echo "      For Linux/Windows builds, use a Linux system."
-            '' else ''
-            echo "Note: Linux can build all targets including macOS."
-            ''}
+            echo "\nDev env ready for ${buildSystem}"
+            echo "Rust ${rustVersion} with targets: ${builtins.concatStringsSep ", " (builtins.map (n: allTargets.${n}.cargoTarget) allowed)}"
+            echo "Examples:"
+            echo "  nix build .#${defaultTarget}          "
+            for t in ${builtins.concatStringsSep " " allowed}; do
+              echo "  nix build .#''${t}"
+            done
           '';
         };
       }
