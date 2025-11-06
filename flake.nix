@@ -121,10 +121,7 @@
             };
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
-             env = reproducibleEnv // crossEnv
-               // (pkgs.lib.optionalAttrs isDarwin {
-                 MACOSX_DEPLOYMENT_TARGET = "11.0";
-               });
+             env = reproducibleEnv // crossEnv;
 
             cargoLock = { 
               lockFile = ./Cargo.lock;

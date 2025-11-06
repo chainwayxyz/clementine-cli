@@ -39,6 +39,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: maxim-lobanov/setup-xcode@v2
+        with:
+          xcode-version: '26.0'
+
       - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
         with:
