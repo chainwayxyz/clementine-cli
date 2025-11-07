@@ -56,12 +56,13 @@ jobs:
           echo "hash=$H" >> "$GITHUB_OUTPUT"
           echo "darwin-aarch64 hash: $H"
 
-      - name: Dump full /nix/store listing
+      - name: SHA256 of binary
         run: |
-          ls /nix/store > nix_store.txt
-
-      - name: Upload nix_store.txt
-        uses: actions/upload-artifact@v4
-        with:
-          name: nix-store-macos-arm64
-          path: nix_store.txt
+          BINARY=$(find ./result/bin -type f -perm +111 | head -n 1)
+          if [ -n "$BINARY" ]; then
+            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
+            echo "darwin-aarch64 binary sha256: $SHA256"
+            echo "Binary path: $BINARY"
+          else
+            echo "No binary found in ./result/bin"
+          fi
