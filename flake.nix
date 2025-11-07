@@ -61,13 +61,12 @@
 
         rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
 
-        reproducibleEnv = {
-          RUSTFLAGS = "-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=/nix/var/nix/builds=/src --remap-path-prefix=${toString ./.}=/src";
-          SOURCE_DATE_EPOCH = "1";
-          CARGO_INCREMENTAL = "0";
-          ZERO_AR_DATE = "1";
-          NIX_LDFLAGS = "${builtins.getEnv "NIX_LDFLAGS"} -oso_prefix,/src";
-        };
+        # This set is now defined inside the package env for access to cargoDeps
+        # reproducibleEnv = {
+        #   SOURCE_DATE_EPOCH = "1";
+        #   CARGO_INCREMENTAL = "0";
+        #   ZERO_AR_DATE = "1";
+        # };
 
         mkPackageFor = targetName:
           let
@@ -122,7 +121,17 @@
             };
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
-             env = reproducibleEnv // crossEnv;
+
+            env = crossEnv // {
+              SOURCE_DATE_EPOCH = "1";
+              CARGO_INCREMENTAL = "0";
+              ZERO_AR_DATE = "1";
+            };
+
+            preBuild = ''
+              export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
+            '';
 
             cargoLock = { 
               lockFile = ./Cargo.lock;
