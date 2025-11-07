@@ -62,10 +62,11 @@
         rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
 
         reproducibleEnv = {
-          RUSTFLAGS = "-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no";
+          RUSTFLAGS = "-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=/nix/var/nix/builds=/src --remap-path-prefix=${toString ./.}=/src";
           SOURCE_DATE_EPOCH = "1";
           CARGO_INCREMENTAL = "0";
           ZERO_AR_DATE = "1";
+          NIX_LDFLAGS = "${builtins.getEnv "NIX_LDFLAGS"} -oso_prefix,/src";
         };
 
         mkPackageFor = targetName:
