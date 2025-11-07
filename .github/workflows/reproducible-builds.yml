@@ -58,7 +58,7 @@ jobs:
 
       - name: SHA256 of binary
         run: |
-          BINARY=$(find ./result/bin -type f -executable | head -n 1)
+          BINARY=$(find ./result/bin -type f -perm +111 | head -n 1)
           if [ -n "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "darwin-aarch64 binary sha256: $SHA256"
