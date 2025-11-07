@@ -66,13 +66,3 @@ jobs:
           else
             echo "No binary found in ./result/bin"
           fi
-
-      - name: Dump full /nix/store listing
-        run: |
-          ls /nix/store > nix_store.txt
-
-      - name: Upload nix_store.txt
-        uses: actions/upload-artifact@v4
-        with:
-          name: nix-store-macos-arm64
-          path: nix_store.txt
