@@ -61,13 +61,6 @@
 
         rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
 
-        # This set is now defined inside the package env for access to cargoDeps
-        # reproducibleEnv = {
-        #   SOURCE_DATE_EPOCH = "1";
-        #   CARGO_INCREMENTAL = "0";
-        #   ZERO_AR_DATE = "1";
-        # };
-
         mkPackageFor = targetName:
           let
             cfg = allTargets.${targetName};
@@ -75,6 +68,13 @@
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
             isLinux = builtins.match ".*-unknown-linux-gnu" rustTarget != null;
+
+            srcFiltered = pkgs.lib.cleanSourceWith {
+              src = ./.;
+              filter = path: type:
+                let base = baseNameOf path; in
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
+            };
 
             targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
 
@@ -92,17 +92,28 @@
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            crossEnv = if cfg.pkgsCross != null then
+             crossEnv = if cfg.pkgsCross != null then
                let
-                 UPPER = pkgs.lib.toUpper rustTargetEnv;
+                 TUP = rustTarget;
+                 TUP_U = pkgs.lib.toUpper rustTargetEnv;
                  prefix = targetPkgs.stdenv.cc.bintools.targetPrefix;
-                 binutilsBin = "${targetPkgs.buildPackages.binutils}/bin";
-                 ccBin = "${targetPkgs.stdenv.cc}/bin";
+                 binutils = "${targetPkgs.buildPackages.binutils}/bin";
+                 gccBin   = "${targetPkgs.stdenv.cc}/bin";
+                 baseRustFlags =
+                   "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off" +
+                   " --remap-path-prefix=${srcFiltered}=/src" +
+                   " --remap-path-prefix=$NIX_BUILD_TOP=/build" +
+                   (if isWindows then " -C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib" else "") +
+                   (if isDarwin  then " -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/" else "");
                in {
-                 "CARGO_TARGET_${UPPER}_LINKER" = "${ccBin}/${targetPkgs.stdenv.cc.targetPrefix}cc";
-                 "AR_${UPPER}"       = "${binutilsBin}/${prefix}ar";
-                 "RANLIB_${UPPER}"   = "${binutilsBin}/${prefix}ranlib";
-                 "DLLTOOL_${UPPER}"  = "${binutilsBin}/${prefix}dlltool";
+                 "CARGO_TARGET_${TUP_U}_LINKER" = "${gccBin}/${prefix}gcc";
+                 "CARGO_TARGET_${TUP_U}_AR"     = "${binutils}/${prefix}ar";
+                 "CARGO_TARGET_${TUP_U}_RANLIB" = "${binutils}/${prefix}ranlib";
+                 "AR_${TUP_U}"      = "${binutils}/${prefix}ar";
+                 "RANLIB_${TUP_U}"  = "${binutils}/${prefix}ranlib";
+                 "DLLTOOL_${TUP_U}" = "${binutils}/${prefix}dlltool";
+                 "CARGO_TARGET_${TUP_U}_RUSTFLAGS" = baseRustFlags;
+                 HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
                }
              else {};
 
@@ -113,12 +124,7 @@
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
 
-            src = pkgs.lib.cleanSourceWith {
-              src = ./.;
-              filter = path: type:
-                let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
-            };
+            src = srcFiltered;
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
 
@@ -129,9 +135,21 @@
             };
 
             preBuild = ''
-              export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
+              
+              ${pkgs.lib.optionalString isDarwin ''
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              ''}
+              
+              export RUSTFLAGS="$BASE_RUSTFLAGS"
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
+
+            depsBuildBuild = pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
+              targetPkgs.stdenv.cc
+            ];
 
             cargoLock = { 
               lockFile = ./Cargo.lock;
