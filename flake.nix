@@ -86,38 +86,20 @@
               ] ++
               pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
-            nativeBuildInputs =
-               (if isWindows then [ targetPkgs.buildPackages.binutils ] else []) ++
-               [ pkgs.pkg-config ];
+            cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
+
+            nativeBuildInputs = [ pkgs.pkg-config ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
+              # Only windows cross compilation is supported.
+             crossEnv = if cfg.pkgsCross != null then {
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" = "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib -C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=${srcFiltered}=/src --remap-path-prefix=$NIX_BUILD_TOP=/build";
+              TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+             } else {};
 
-             crossEnv = if cfg.pkgsCross != null then
-               let
-                 TUP = rustTarget;
-                 TUP_U = pkgs.lib.toUpper rustTargetEnv;
-                 prefix = targetPkgs.stdenv.cc.bintools.targetPrefix;
-                 binutils = "${targetPkgs.buildPackages.binutils}/bin";
-                 gccBin   = "${targetPkgs.stdenv.cc}/bin";
-                 baseRustFlags =
-                   "-C codegen-units=1 -C embed-bitcode=no -C debuginfo=0 -C lto=off" +
-                   " --remap-path-prefix=${srcFiltered}=/src" +
-                   " --remap-path-prefix=$NIX_BUILD_TOP=/build" +
-                   (if isWindows then " -C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib" else "") +
-                   (if isDarwin  then " -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/" else "");
-               in {
-                 "CARGO_TARGET_${TUP_U}_LINKER" = "${gccBin}/${prefix}gcc";
-                 "CARGO_TARGET_${TUP_U}_AR"     = "${binutils}/${prefix}ar";
-                 "CARGO_TARGET_${TUP_U}_RANLIB" = "${binutils}/${prefix}ranlib";
-                 "AR_${TUP_U}"      = "${binutils}/${prefix}ar";
-                 "RANLIB_${TUP_U}"  = "${binutils}/${prefix}ranlib";
-                 "DLLTOOL_${TUP_U}" = "${binutils}/${prefix}dlltool";
-                 "CARGO_TARGET_${TUP_U}_RUSTFLAGS" = baseRustFlags;
-                 HOST_CC = "${pkgs.stdenv.cc}/bin/cc";
-               }
-             else {};
-
-            cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
 
           in
           (rustPlatform.buildRustPackage rec {
@@ -134,7 +116,7 @@
               ZERO_AR_DATE = "1";
             };
 
-            preBuild = ''
+            preBuild = pkgs.lib.optionalString (!isWindows) ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
