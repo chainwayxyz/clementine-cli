@@ -30,13 +30,21 @@ jobs:
       - name: Hash result
         id: hash
         run: |
+          PLATFORM="${{ matrix.platform }}"
           H=$(nix hash path ./result)
           echo "hash=$H" >> "$GITHUB_OUTPUT"
-          echo "${{ matrix.platform }} hash: $H"
+          echo "$PLATFORM hash: $H"
 
       - name: SHA256 of binary
         run: |
-          BINARY=$(find ./result/bin -type f -perm +111 | head -n 1)
+          BINARY=""
+          for f in ./result/bin/*; do
+            [ -f "$f" ] || continue
+            if [ -x "$f" ]; then
+              BINARY="$f"
+              break
+            fi
+          done
           if [ -n "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "${{ matrix.platform }} binary sha256: $SHA256"
