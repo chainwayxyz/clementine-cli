@@ -95,21 +95,22 @@
 
 
             crossEnv = if cfg.pkgsCross != null then {
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.llvmPackages.lld}/bin/lld";
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                "-C linker-flavor=lld \
-                -C link-arg=-fuse-ld=lld \
-                -C link-arg=-Wl,--no-insert-timestamp \
+                "-C link-arg=-Wl,--no-insert-timestamp \
+                -C link-arg=-Wl,--sort-section=name \
+                -C link-arg=-Wl,--sort-common \
+                -C link-arg=-Wl,--build-id=none \
+                -C link-arg=-Wl,-s \
                 -C link-arg=-L${targetPkgs.windows.pthreads}/lib \
                 -C codegen-units=1 \
                 -C metadata=clementine-repro \
                 -C debuginfo=0 \
                 -C lto=off \
-                -C link-arg=-Wl,--no-insert-timestamp \
                 -C embed-bitcode=no \
                 --remap-path-prefix=${srcFiltered}=/src \
                 --remap-path-prefix=$NIX_BUILD_TOP=/build";
-                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc"; 
+                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
                 "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
 
@@ -159,12 +160,14 @@
             };
 
             postInstall = pkgs.lib.optionalString isWindows ''
-              # More aggressive stripping for reproducibility
+              # Strip symbol table completely for reproducibility
               ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
                 --strip-all \
+                --remove-section=.symtab \
+                --remove-section=.strtab \
                 $out/bin/clementine-cli.exe 2>/dev/null || true
-                
-              # Also try stripping debug info with objcopy
+
+              # Also remove debug sections
               ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
                 --remove-section=.debug_info \
                 --remove-section=.debug_abbrev \
