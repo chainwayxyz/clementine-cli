@@ -37,7 +37,7 @@
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
-            buildOn = [ "x86_64-darwin" ];
+            buildOn = [ "x86_64-darwin" "aarch64-darwin" ];
             pkgsCross = null;
           };
           darwin-aarch64 = {
@@ -106,7 +106,11 @@
                }
              else {};
 
-            cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
+            # Determine if we're cross-compiling (different architecture)
+            isDarwinCross = isDarwin && buildSystem == "aarch64-darwin" && rustTarget == "x86_64-apple-darwin";
+            isCrossCompile = cfg.pkgsCross != null || isDarwinCross;
+
+            cargoBuildFlags = pkgs.lib.optionals isCrossCompile [ "--target" rustTarget ];
 
           in
           (rustPlatform.buildRustPackage rec {
@@ -128,7 +132,35 @@
               ZERO_AR_DATE = "1";
             };
 
-            preBuild = ''
+            preBuild = if isDarwinCross then ''
+              # For Darwin cross-compilation from aarch64 to x86_64:
+              # Use Cargo's built-in support with explicit linker wrapper script
+
+              # Create a linker wrapper that forces x86_64 with full SDK paths
+              cat > $TMPDIR/x86_64-linker.sh << 'LINKER_EOF'
+              #!/bin/sh
+              # Force x86_64 architecture for all link operations with full framework paths
+              exec ${pkgs.stdenv.cc}/bin/cc \
+                -target x86_64-apple-darwin \
+                -arch x86_64 \
+                -isysroot ${pkgs.darwin.apple_sdk.MacOSX-SDK} \
+                -F${pkgs.darwin.apple_sdk.MacOSX-SDK}/System/Library/Frameworks \
+                -L${pkgs.libiconv}/lib \
+                "$@"
+              LINKER_EOF
+              chmod +x $TMPDIR/x86_64-linker.sh
+
+              # Set target-specific linker
+              export CARGO_TARGET_X86_64_APPLE_DARWIN_LINKER="$TMPDIR/x86_64-linker.sh"
+
+              # Target-specific RUSTFLAGS for x86_64 builds (not build scripts)
+              export CARGO_TARGET_X86_64_APPLE_DARWIN_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+
+              # Build scripts need standard RUSTFLAGS for reproducibility
+              export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src"
+
+              export NIX_CFLAGS_COMPILE="-fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
+            '' else ''
               export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
