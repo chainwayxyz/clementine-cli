@@ -61,13 +61,6 @@
 
         rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
 
-        # This set is now defined inside the package env for access to cargoDeps
-        # reproducibleEnv = {
-        #   SOURCE_DATE_EPOCH = "1";
-        #   CARGO_INCREMENTAL = "0";
-        #   ZERO_AR_DATE = "1";
-        # };
-
         mkPackageFor = targetName:
           let
             cfg = allTargets.${targetName};
@@ -75,6 +68,13 @@
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
             isLinux = builtins.match ".*-unknown-linux-gnu" rustTarget != null;
+
+            srcFiltered = pkgs.lib.cleanSourceWith {
+              src = ./.;
+              filter = path: type:
+                let base = baseNameOf path; in
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
+            };
 
             targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
 
@@ -117,12 +117,7 @@
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
 
-            src = pkgs.lib.cleanSourceWith {
-              src = ./.;
-              filter = path: type:
-                let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
-            };
+            src = srcFiltered;
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
 
@@ -164,6 +159,10 @@
               export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
+
+            depsBuildBuild = pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
+              targetPkgs.stdenv.cc
+            ];
 
             cargoLock = { 
               lockFile = ./Cargo.lock;
