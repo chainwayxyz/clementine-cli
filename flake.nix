@@ -128,7 +128,6 @@
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
-              DETERMINISTIC_BUILD = "1";
             };
 
             preBuild = ''
