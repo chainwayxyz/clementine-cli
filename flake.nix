@@ -172,6 +172,25 @@
               };
             };
 
+            postInstall = pkgs.lib.optionalString isWindows ''
+              # Strip symbol table completely for reproducibility
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
+                --strip-all \
+                --remove-section=.symtab \
+                --remove-section=.strtab \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
+
+              # Also remove debug sections
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
+                --remove-section=.debug_info \
+                --remove-section=.debug_abbrev \
+                --remove-section=.debug_line \
+                --remove-section=.debug_str \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
+            '';
+
+
+
             installPhase = ''
               runHook preInstall
               mkdir -p $out/bin
