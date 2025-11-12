@@ -91,14 +91,28 @@
             nativeBuildInputs = [ pkgs.pkg-config ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
-              # Only windows cross compilation is supported.
-             crossEnv = if cfg.pkgsCross != null then {
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" = "-C target-feature=-crt-static -C link-arg=-L${targetPkgs.windows.pthreads}/lib -C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=${srcFiltered}=/src --remap-path-prefix=$NIX_BUILD_TOP=/build";
-              TARGET_CC = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-             } else {};
+
+
+
+            crossEnv = if cfg.pkgsCross != null then {
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
+                "-C link-arg=-Wl,--no-insert-timestamp \
+                -C link-arg=-Wl,--sort-section=name \
+                -C link-arg=-Wl,--sort-common \
+                -C link-arg=-Wl,--build-id=none \
+                -C link-arg=-Wl,-s \
+                -C link-arg=-L${targetPkgs.windows.pthreads}/lib \
+                -C codegen-units=1 \
+                -C metadata=clementine-repro \
+                -C debuginfo=0 \
+                -C lto=off \
+                -C embed-bitcode=no \
+                --remap-path-prefix=${srcFiltered}=/src \
+                --remap-path-prefix=$NIX_BUILD_TOP=/build";
+                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+            } else {};
 
 
           in
@@ -116,7 +130,8 @@
               ZERO_AR_DATE = "1";
             };
 
-            preBuild = pkgs.lib.optionalString (!isWindows) ''
+            preBuild = ''
+              ${pkgs.lib.optionalString (!isWindows) ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
@@ -126,6 +141,8 @@
               ''}
               
               export RUSTFLAGS="$BASE_RUSTFLAGS"
+
+              ''}
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
@@ -140,6 +157,25 @@
                 "secp256k1-0.31.0"       = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
               };
             };
+
+            postInstall = pkgs.lib.optionalString isWindows ''
+              # Strip symbol table completely for reproducibility
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
+                --strip-all \
+                --remove-section=.symtab \
+                --remove-section=.strtab \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
+
+              # Also remove debug sections
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
+                --remove-section=.debug_info \
+                --remove-section=.debug_abbrev \
+                --remove-section=.debug_line \
+                --remove-section=.debug_str \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
+            '';
+
+
 
             installPhase = ''
               runHook preInstall
