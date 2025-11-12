@@ -92,6 +92,12 @@
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
+            # Determine if we're cross-compiling (different architecture)
+            isDarwinCross = isDarwin && buildSystem == "aarch64-darwin" && rustTarget == "x86_64-apple-darwin";
+            isCrossCompile = cfg.pkgsCross != null || isDarwinCross;
+
+            cargoBuildFlags = pkgs.lib.optionals isCrossCompile [ "--target" rustTarget ];
+
             crossEnv = if cfg.pkgsCross != null then
                let
                  UPPER = pkgs.lib.toUpper rustTargetEnv;
@@ -105,12 +111,6 @@
                  "DLLTOOL_${UPPER}"  = "${binutilsBin}/${prefix}dlltool";
                }
              else {};
-
-            # Determine if we're cross-compiling (different architecture)
-            isDarwinCross = isDarwin && buildSystem == "aarch64-darwin" && rustTarget == "x86_64-apple-darwin";
-            isCrossCompile = cfg.pkgsCross != null || isDarwinCross;
-
-            cargoBuildFlags = pkgs.lib.optionals isCrossCompile [ "--target" rustTarget ];
 
           in
           (rustPlatform.buildRustPackage rec {
@@ -156,7 +156,18 @@
 
               export NIX_CFLAGS_COMPILE="-fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '' else ''
-              export RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no --remap-path-prefix=$NIX_BUILD_TOP=/build --remap-path-prefix=${src}=/src -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              ${pkgs.lib.optionalString (!isWindows) ''
+              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
+              
+              ${pkgs.lib.optionalString isDarwin ''
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              ''}
+              
+              export RUSTFLAGS="$BASE_RUSTFLAGS"
+
+              ''}
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
