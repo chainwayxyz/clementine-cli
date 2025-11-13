@@ -14,7 +14,6 @@ jobs:
         platform:
           - linux-x86_64
           - windows-x86_64
-          - aarch64-linux-gnu 
     steps:
       - uses: actions/checkout@v4
 
@@ -48,6 +47,40 @@ jobs:
           if [ -f "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "${{ matrix.platform }} binary sha256: $SHA256"
+            echo "Binary path: $BINARY"
+          else
+            echo "No binary found at $BINARY"
+            exit 1
+          fi
+
+  linux-aarch64:
+    runs-on: ubuntu-24.04-arm64
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix (2.32.1)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build linux-aarch64
+        run: nix build .#linux-aarch64
+
+      - name: Hash result
+        id: hash
+        run: |
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "linux-aarch64 hash: $H"
+
+      - name: SHA256 of binary
+        run: |
+          BINARY="./result/bin/clementine-cli"
+          if [ -f "$BINARY" ]; then
+            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
+            echo "linux-aarch64 binary sha256: $SHA256"
             echo "Binary path: $BINARY"
           else
             echo "No binary found at $BINARY"
