@@ -32,7 +32,7 @@
           };
           linux-aarch64 = {
             cargoTarget = "aarch64-unknown-linux-gnu";
-            buildOn = [ "aarch64-linux" ]; 
+            buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
           darwin-x86_64 = {
@@ -102,7 +102,7 @@
                 -C link-arg=-Wl,--sort-common \
                 -C link-arg=-Wl,--build-id=none \
                 -C link-arg=-Wl,-s \
-                -C link-arg=-L${targetPkgs.windows.pthreads}/lib \
+                ${pkgs.lib.optionalString isWindows "-C link-arg=-L${targetPkgs.windows.pthreads}/lib"} \
                 -C codegen-units=1 \
                 -C metadata=clementine-repro \
                 -C debuginfo=0 \
