@@ -37,20 +37,20 @@ jobs:
 
       - name: SHA256 of binary
         run: |
-          BINARY=""
-          for f in ./result/bin/*; do
-            [ -f "$f" ] || continue
-            if [ -x "$f" ]; then
-              BINARY="$f"
-              break
-            fi
-          done
-          if [ -n "$BINARY" ]; then
+          PLATFORM="${{ matrix.platform }}"
+          if [ "$PLATFORM" = "windows-x86_64" ]; then
+            BINARY="./result/bin/clementine-cli.exe"
+          else
+            BINARY="./result/bin/clementine-cli"
+          fi
+
+          if [ -f "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "${{ matrix.platform }} binary sha256: $SHA256"
             echo "Binary path: $BINARY"
           else
-            echo "No binary found in ./result/bin"
+            echo "No binary found at $BINARY"
+            exit 1
           fi
 
   macos-arm64:
@@ -77,11 +77,50 @@ jobs:
 
       - name: SHA256 of binary
         run: |
-          BINARY=$(find ./result/bin -type f -perm +111 | head -n 1)
-          if [ -n "$BINARY" ]; then
+          BINARY="./result/bin/clementine-cli"
+          if [ -f "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "darwin-aarch64 binary sha256: $SHA256"
             echo "Binary path: $BINARY"
           else
-            echo "No binary found in ./result/bin"
+            echo "No binary found at $BINARY"
+            exit 1
+          fi
+
+  macos-x86_64:
+    runs-on: macos-15-intel
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix (2.32.1)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build darwin-x86_64
+        run: nix build .#darwin-x86_64
+
+      - name: Rebuild darwin-x86_64 for reproducibility
+        run: |
+          nix build --rebuild .#darwin-x86_64
+
+      - name: Hash result
+        id: hash
+        run: |
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "darwin-x86_64 hash: $H"
+
+      - name: SHA256 of binary
+        run: |
+          BINARY="./result/bin/clementine-cli"
+          if [ -f "$BINARY" ]; then
+            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
+            echo "darwin-x86_64 binary sha256: $SHA256"
+            echo "Binary path: $BINARY"
+          else
+            echo "No binary found at $BINARY"
+            exit 1
           fi
