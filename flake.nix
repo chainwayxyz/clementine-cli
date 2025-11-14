@@ -35,6 +35,11 @@
             buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
+          riscv64-linux-gnu = {
+            cargoTarget = "riscv64gc-unknown-linux-gnu";
+            buildOn = [ "x86_64-linux" ];
+            pkgsCross = pkgs.pkgsCross.riscv64;
+          };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
