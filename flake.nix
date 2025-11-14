@@ -30,9 +30,9 @@
             buildOn = [ "x86_64-linux" ];
             pkgsCross = null;
           };
-          linux-aarch64 = {
+          aarch64-linux-gnu = {
             cargoTarget = "aarch64-unknown-linux-gnu";
-            buildOn = [ "aarch64-linux" ]; 
+            buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
           darwin-x86_64 = {
@@ -102,7 +102,7 @@
                 -C link-arg=-Wl,--sort-common \
                 -C link-arg=-Wl,--build-id=none \
                 -C link-arg=-Wl,-s \
-                -C link-arg=-L${targetPkgs.windows.pthreads}/lib \
+                ${pkgs.lib.optionalString isWindows "-C link-arg=-L${targetPkgs.windows.pthreads}/lib"} \
                 -C codegen-units=1 \
                 -C metadata=clementine-repro \
                 -C debuginfo=0 \
@@ -199,7 +199,7 @@
 
         defaultTarget = {
           "x86_64-linux" = "linux-x86_64";
-          "aarch64-linux" = "linux-aarch64";
+          "aarch64-linux" = "aarch64-linux-gnu";
           "x86_64-darwin" = "darwin-x86_64";
           "aarch64-darwin" = "darwin-aarch64";
         }.${buildSystem};
