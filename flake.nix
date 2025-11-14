@@ -30,11 +30,6 @@
             buildOn = [ "x86_64-linux" ];
             pkgsCross = null;
           };
-          linux-aarch64 = {
-            cargoTarget = "aarch64-unknown-linux-gnu";
-            buildOn = [ "aarch64-linux" ];
-            pkgsCross = null;
-          };
           aarch64-linux-gnu = {
             cargoTarget = "aarch64-unknown-linux-gnu";
             buildOn = [ "aarch64-linux" ];
@@ -204,7 +199,7 @@
 
         defaultTarget = {
           "x86_64-linux" = "linux-x86_64";
-          "aarch64-linux" = "linux-aarch64";
+          "aarch64-linux" = "aarch64-linux-gnu";
           "x86_64-darwin" = "darwin-x86_64";
           "aarch64-darwin" = "darwin-aarch64";
         }.${buildSystem};
