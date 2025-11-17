@@ -35,6 +35,11 @@
             buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
+          linux-powerpc64le = {
+            cargoTarget = "powerpc64le-unknown-linux-gnu";
+            buildOn = [ "x86_64-linux" "aarch64-linux" ];
+            pkgsCross = pkgs.pkgsCross.powernv;
+          };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
