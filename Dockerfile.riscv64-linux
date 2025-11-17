@@ -1,0 +1,10 @@
+FROM scratch AS closure
+# We'll add the closure files here
+COPY /nix/store/n7c99jjr1mlsgs54x6mvnzbi4csnplyw-clementine-cli-riscv64-linux-gnu-0.1.0 /nix/store/n7c99jjr1mlsgs54x6mvnzbi4csnplyw-clementine-cli-riscv64-linux-gnu-0.1.0
+# Copy all dependencies too - you'll need to copy the entire closure
+
+FROM riscv64/debian:sid
+
+COPY --from=closure /nix/store /nix/store
+
+ENTRYPOINT ["/nix/store/n7c99jjr1mlsgs54x6mvnzbi4csnplyw-clementine-cli-riscv64-linux-gnu-0.1.0"]
