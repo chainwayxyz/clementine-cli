@@ -78,6 +78,7 @@
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
             isLinux = builtins.match ".*-unknown-linux-gnu" rustTarget != null;
+            isStaticDarwinAarch64 = rustTarget == "aarch64-apple-darwin" && buildSystem == "aarch64-darwin";
 
             srcFiltered = pkgs.lib.cleanSourceWith {
               src = ./.;
@@ -92,7 +93,6 @@
               pkgs.lib.optionals isDarwin [
                 pkgs.darwin.apple_sdk.frameworks.Security
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                pkgs.libiconv
               ] ++
               pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
@@ -138,18 +138,19 @@
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
+              STATIC_LINK_VERSION = "5"; # Force rebuild
             };
 
             preBuild = ''
               ${pkgs.lib.optionalString (!isWindows) ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-              
               ${pkgs.lib.optionalString isDarwin ''
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C target-feature=+crt-static"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
               ''}
-              
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
+
               export RUSTFLAGS="$BASE_RUSTFLAGS"
 
               ''}
@@ -168,22 +169,34 @@
               };
             };
 
-            postInstall = pkgs.lib.optionalString isWindows ''
-              # Strip symbol table completely for reproducibility
-              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
-                --strip-all \
-                --remove-section=.symtab \
-                --remove-section=.strtab \
-                $out/bin/clementine-cli.exe 2>/dev/null || true
+            postInstall =
+              pkgs.lib.optionalString isWindows ''
+                # Strip symbol table completely for reproducibility
+                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
+                  --strip-all \
+                  --remove-section=.symtab \
+                  --remove-section=.strtab \
+                  $out/bin/clementine-cli.exe 2>/dev/null || true
 
-              # Also remove debug sections
-              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
-                --remove-section=.debug_info \
-                --remove-section=.debug_abbrev \
-                --remove-section=.debug_line \
-                --remove-section=.debug_str \
-                $out/bin/clementine-cli.exe 2>/dev/null || true
-            '';
+                # Also remove debug sections
+                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
+                  --remove-section=.debug_info \
+                  --remove-section=.debug_abbrev \
+                  --remove-section=.debug_line \
+                  --remove-section=.debug_str \
+                  $out/bin/clementine-cli.exe 2>/dev/null || true
+              '' +
+              pkgs.lib.optionalString isDarwin ''
+                # Repoint libiconv to system library to remove Nix store dependency
+                chmod +w $out/bin/clementine-cli
+                LIBICONV_PATH=$(otool -L $out/bin/clementine-cli | grep libiconv.2.dylib | awk '{print $1}')
+                if [ -n "$LIBICONV_PATH" ]; then
+                  ${pkgs.darwin.cctools}/bin/install_name_tool \
+                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                    $out/bin/clementine-cli
+                fi
+                chmod 555 $out/bin/clementine-cli
+              '';
 
 
 
@@ -224,7 +237,6 @@
             (if pkgs.stdenv.isDarwin then [
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-              pkgs.libiconv
             ] else [ pkgs.openssl ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
