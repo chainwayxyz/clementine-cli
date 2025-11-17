@@ -40,6 +40,11 @@
             buildOn = [ "x86_64-linux" ];
             pkgsCross = pkgs.pkgsCross.riscv64;
           };
+          arm-linux-gnueabihf = {
+            cargoTarget = "armv7-unknown-linux-gnueabihf";
+            buildOn = [ "x86_64-linux" ];
+            pkgsCross = pkgs.pkgsCross.armv7l-hf-multiplatform;
+          };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
