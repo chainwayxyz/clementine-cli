@@ -26,12 +26,12 @@
 
         allTargets = {
           linux-x86_64 = {
-            cargoTarget = "x86_64-unknown-linux-gnu";
+            cargoTarget = "x86_64-unknown-linux-musl";
             buildOn = [ "x86_64-linux" ];
             pkgsCross = null;
           };
           aarch64-linux-gnu = {
-            cargoTarget = "aarch64-unknown-linux-gnu";
+            cargoTarget = "aarch64-unknown-linux-musl";
             buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
@@ -44,6 +44,11 @@
             cargoTarget = "armv7-unknown-linux-gnueabihf";
             buildOn = [ "x86_64-linux" ];
             pkgsCross = pkgs.pkgsCross.armv7l-hf-multiplatform;
+          };
+          linux-powerpc64le = {
+            cargoTarget = "powerpc64le-unknown-linux-musl";
+            buildOn = [ "x86_64-linux" "aarch64-linux" ];
+            pkgsCross = pkgs.pkgsCross.powernv;
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
@@ -77,7 +82,7 @@
             rustTarget = cfg.cargoTarget;
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
-            isLinux = builtins.match ".*-unknown-linux-gnu" rustTarget != null;
+            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
             isStaticDarwinAarch64 = rustTarget == "aarch64-apple-darwin" && buildSystem == "aarch64-darwin";
 
             srcFiltered = pkgs.lib.cleanSourceWith {
@@ -96,7 +101,7 @@
               ] ++
               pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
-            cargoBuildFlags = pkgs.lib.optionals (cfg.pkgsCross != null) [ "--target" rustTarget ];
+            cargoBuildFlags = [ "--target" rustTarget ];
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
