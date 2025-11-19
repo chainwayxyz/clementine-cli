@@ -24,7 +24,7 @@ Reproducible builds ensure bit-for-bit identical binaries, allowing you to verif
 | **macOS (Apple Silicon)** | macOS Apple Silicon |
 
 > [!NOTE]
-> Each platform must be built on its native architecture for reproducibility. Cross-compilation is not supported yet.
+> Cross-compilation is supported for Windows from Linux x86_64. For reproducibility, all other platforms (Linux ARM64, macOS Intel, macOS Apple Silicon) must be built on their native architecture; cross-compilation is not supported for these.
 
 ## Install Nix
 
