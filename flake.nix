@@ -35,21 +35,6 @@
             buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
-          riscv64-linux-gnu = {
-            cargoTarget = "riscv64gc-unknown-linux-gnu";
-            buildOn = [ "x86_64-linux" ];
-            pkgsCross = pkgs.pkgsCross.riscv64;
-          };
-          arm-linux-gnueabihf = {
-            cargoTarget = "armv7-unknown-linux-gnueabihf";
-            buildOn = [ "x86_64-linux" ];
-            pkgsCross = pkgs.pkgsCross.armv7l-hf-multiplatform;
-          };
-          linux-powerpc64le = {
-            cargoTarget = "powerpc64le-unknown-linux-musl";
-            buildOn = [ "x86_64-linux" "aarch64-linux" ];
-            pkgsCross = pkgs.pkgsCross.powernv;
-          };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
