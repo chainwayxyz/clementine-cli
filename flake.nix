@@ -90,30 +90,50 @@
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
-            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
+            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] (pkgs.lib.toUpper rustTarget);
 
+            commonRustFlags = [
+              "-C" "codegen-units=1"
+              "-C" "debuginfo=0"
+              "-C" "lto=off"
+              "-C" "embed-bitcode=no"
+              "--remap-path-prefix=${srcFiltered}=/src"
+              "--remap-path-prefix=$NIX_BUILD_TOP=/build"
+            ];
 
+            darwinRustFlags = pkgs.lib.optionals isDarwin [
+              "-C" "target-feature=+crt-static"
+              "-C" "link-arg=-Wl,-oso_prefix,/build/"
+            ];
 
-            crossEnv = if cfg.pkgsCross != null then {
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                "-C link-arg=-Wl,--no-insert-timestamp \
-                -C link-arg=-Wl,--sort-section=name \
-                -C link-arg=-Wl,--sort-common \
-                -C link-arg=-Wl,--build-id=none \
-                -C link-arg=-Wl,-s \
-                ${pkgs.lib.optionalString isWindows "-C link-arg=-L${targetPkgs.windows.pthreads}/lib"} \
-                -C codegen-units=1 \
-                -C metadata=clementine-repro \
-                -C debuginfo=0 \
-                -C lto=off \
-                -C embed-bitcode=no \
-                --remap-path-prefix=${srcFiltered}=/src \
-                --remap-path-prefix=$NIX_BUILD_TOP=/build";
-                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-                "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-            } else {};
+            windowsRustFlags = pkgs.lib.optionals isWindows [
+              "-C" "link-arg=-Wl,--no-insert-timestamp"
+              "-C" "link-arg=-Wl,--sort-section=name"
+              "-C" "link-arg=-Wl,--sort-common"
+              "-C" "link-arg=-Wl,--build-id=none"
+              "-C" "link-arg=-Wl,-s"
+              "-C" "metadata=clementine-repro"
+              "-C" "link-arg=-L${targetPkgs.windows.pthreads}/lib"
+            ];
 
+            finalRustFlags = commonRustFlags ++ darwinRustFlags ++ windowsRustFlags;
+
+            buildEnv = {
+              SOURCE_DATE_EPOCH = "1";
+              CARGO_INCREMENTAL = "0";
+              ZERO_AR_DATE = "1";
+              STATIC_LINK_VERSION = "5";
+
+              "CARGO_TARGET_${rustTargetEnv}_RUSTFLAGS" =
+                builtins.concatStringsSep " " finalRustFlags;
+            } // (pkgs.lib.optionalAttrs (cfg.pkgsCross != null) {
+              "CARGO_TARGET_${rustTargetEnv}_LINKER" =
+                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
+              "CC_${rustTargetEnv}" =
+                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              "AR_${rustTargetEnv}" =
+                "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+            });
 
           in
           (rustPlatform.buildRustPackage rec {
@@ -124,26 +144,9 @@
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
 
-            env = crossEnv // {
-              SOURCE_DATE_EPOCH = "1";
-              CARGO_INCREMENTAL = "0";
-              ZERO_AR_DATE = "1";
-              STATIC_LINK_VERSION = "5"; # Force rebuild
-            };
+            env = buildEnv;
 
             preBuild = ''
-              ${pkgs.lib.optionalString (!isWindows) ''
-              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              ${pkgs.lib.optionalString isDarwin ''
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C target-feature=+crt-static"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
-              ''}
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-
-              export RUSTFLAGS="$BASE_RUSTFLAGS"
-
-              ''}
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
@@ -161,14 +164,12 @@
 
             postInstall =
               pkgs.lib.optionalString isWindows ''
-                # Strip symbol table completely for reproducibility
                 ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
                   --strip-all \
                   --remove-section=.symtab \
                   --remove-section=.strtab \
                   $out/bin/clementine-cli.exe 2>/dev/null || true
 
-                # Also remove debug sections
                 ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
                   --remove-section=.debug_info \
                   --remove-section=.debug_abbrev \
@@ -177,7 +178,6 @@
                   $out/bin/clementine-cli.exe 2>/dev/null || true
               '' +
               pkgs.lib.optionalString isDarwin ''
-                # Repoint libiconv to system library to remove Nix store dependency
                 chmod +w $out/bin/clementine-cli
                 LIBICONV_PATH=$(otool -L $out/bin/clementine-cli | grep libiconv.2.dylib | awk '{print $1}')
                 if [ -n "$LIBICONV_PATH" ]; then
@@ -187,8 +187,6 @@
                 fi
                 chmod 555 $out/bin/clementine-cli
               '';
-
-
 
             installPhase = ''
               runHook preInstall
