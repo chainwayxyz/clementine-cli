@@ -90,7 +90,7 @@
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
-            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] (pkgs.lib.toUpper rustTarget);
+            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
             commonRustFlags = [
               "-C" "codegen-units=1"
@@ -124,10 +124,10 @@
               ZERO_AR_DATE = "1";
               STATIC_LINK_VERSION = "5";
 
-              "CARGO_TARGET_${rustTargetEnv}_RUSTFLAGS" =
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 builtins.concatStringsSep " " finalRustFlags;
             } // (pkgs.lib.optionalAttrs (cfg.pkgsCross != null) {
-              "CARGO_TARGET_${rustTargetEnv}_LINKER" =
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
                 "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CC_${rustTargetEnv}" =
                 "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
