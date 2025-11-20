@@ -53,6 +53,9 @@ jobs:
             exit 1
           fi
 
+      - name: Rebuild (reproducibility check)
+        run: nix build --rebuild .#${{ matrix.platform }}
+
   aarch64-linux-gnu:
     runs-on: ubuntu-24.04-arm
     steps:
@@ -87,6 +90,9 @@ jobs:
             exit 1
           fi
 
+      - name: Rebuild (reproducibility check)
+        run: nix build --rebuild .#aarch64-linux-gnu
+
   macos-arm64:
     runs-on: macos-latest
     steps:
@@ -120,4 +126,7 @@ jobs:
             echo "No binary found at $BINARY"
             exit 1
           fi
+
+      - name: Rebuild (reproducibility check)
+        run: nix build --rebuild .#darwin-aarch64
           
