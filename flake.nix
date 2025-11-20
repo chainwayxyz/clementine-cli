@@ -103,7 +103,6 @@
 
             darwinRustFlags = pkgs.lib.optionals isDarwin [
               "-C" "target-feature=+crt-static"
-              "-C" "link-arg=-Wl,-oso_prefix,/build/"
             ];
 
             windowsRustFlags = pkgs.lib.optionals isWindows [
@@ -148,6 +147,8 @@
 
             preBuild = ''
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
+            '' + pkgs.lib.optionalString isDarwin ''
+              export CARGO_TARGET_${rustTargetEnv}_RUSTFLAGS="$CARGO_TARGET_${rustTargetEnv}_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
             '';
 
             depsBuildBuild = pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
