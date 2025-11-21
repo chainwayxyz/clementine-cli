@@ -130,6 +130,12 @@ nix build .#darwin-aarch64          # macOS Apple Silicon (M1/M2/M3/M4)
 > Each macOS architecture must build on its native platform for reproducibility.
 
 > [!NOTE]
+> We assume that `/usr/lib/libiconv.2.dylib` is
+> present on target macOS systems; if it is not available or you experience
+> issues related to this adjustment, please open an issue on this repository so
+> the maintainers can assist.
+
+> [!NOTE]
 > For Linux and Windows builds, use a Linux system.
 
 ## Development Environment
