@@ -322,12 +322,12 @@ fn network_table_name(network: Network) -> Result<&'static str, BridgeCliError> 
     }
 }
 
-// Set directory permissions on Unix. Mode is a raw permission bits value
-// (e.g. 0o700). The function validates the mode is in the canonical range
-// (0..=0o777) and returns a `BridgeCliError` on failure.
-//
-// Note: This function does NOT support special bits like sticky (0o1000),
-// setgid (0o2000), or setuid (0o4000). It only allows basic rwx permissions.
+/// Set directory permissions on Unix. Mode is a raw permission bits value
+/// (e.g. 0o700). The function validates the mode is in the canonical range
+/// (0..=0o777) and returns a `BridgeCliError` on failure.
+///
+/// Note: This function does NOT support special bits like sticky (0o1000),
+/// setgid (0o2000), or setuid (0o4000). It only allows basic rwx permissions.
 #[cfg(unix)]
 fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
     if mode > 0o777 {
