@@ -83,6 +83,7 @@
               pkgs.lib.optionals isDarwin [
                 pkgs.darwin.apple_sdk.frameworks.Security
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+                pkgs.libiconv
               ] ++
               pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
@@ -175,20 +176,7 @@
                   --remove-section=.debug_line \
                   --remove-section=.debug_str \
                   $out/bin/clementine-cli.exe 2>/dev/null || true
-              '' +
-              pkgs.lib.optionalString isDarwin ''
-                # Repoint libiconv to system library to remove Nix store dependency
-                chmod +w $out/bin/clementine-cli
-                LIBICONV_PATH=$(otool -L $out/bin/clementine-cli | grep libiconv.2.dylib | awk '{print $1}')
-                if [ -n "$LIBICONV_PATH" ]; then
-                  ${pkgs.darwin.cctools}/bin/install_name_tool \
-                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
-                    $out/bin/clementine-cli
-                fi
-                chmod 555 $out/bin/clementine-cli
               '';
-
-
 
             installPhase = ''
               runHook preInstall
@@ -227,6 +215,7 @@
             (if pkgs.stdenv.isDarwin then [
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
+              pkgs.libiconv
             ] else [ pkgs.openssl ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
