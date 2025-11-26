@@ -73,8 +73,13 @@
             srcFiltered = pkgs.lib.cleanSourceWith {
               src = ./.;
               filter = path: type:
-                let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
+                let base = baseNameOf path;
+                in
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md" 
+                   # Add these lines to exclude local artifacts:
+                   || base == "bridge_cli_config.toml" 
+                   || base == "target" 
+                   || base == "result");
             };
 
             targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
