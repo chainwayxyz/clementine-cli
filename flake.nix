@@ -129,7 +129,6 @@
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
-              STATIC_LINK_VERSION = "5"; # Force rebuild
             };
 
             preBuild = ''
