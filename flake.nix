@@ -191,6 +191,29 @@
               runHook postInstall
             '';
 
+            postFixup = pkgs.lib.optionalString isDarwin ''
+              bin="$out/bin/clementine-cli"
+
+              chmod +w "$bin"
+
+              otool="${pkgs.darwin.cctools}/bin/otool"
+              install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
+              codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
+              codesign="${pkgs.darwin.sigtool}/bin/codesign"
+
+              LIBICONV_PATH="$($otool -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
+              if [ -n "$LIBICONV_PATH" ]; then
+                $install_name_tool \
+                  -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                  "$bin"
+              fi
+
+              CODESIGN_ALLOCATE="$codesign_allocate" \
+                "$codesign" -f -s - "$bin"
+
+              chmod 555 "$bin"
+            '';
+
             doCheck = false;
             auditable = false;
             dontStrip = true;
