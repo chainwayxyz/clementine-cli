@@ -92,6 +92,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Debug flake.lock
+        run: |
+          echo "=== Git commit ==="
+          git rev-parse HEAD
+          echo ""
+          echo "=== flake.lock SHA256 ==="
+          shasum -a 256 flake.lock
+          echo ""
+          echo "=== flake.lock first 30 lines ==="
+          head -30 flake.lock
+          echo ""
+          echo "=== nixpkgs locked revision ==="
+          grep -A 2 '"nixpkgs"' flake.lock | head -10
+
       - name: Install Nix (2.32.1)
         uses: cachix/install-nix-action@v31
         with:
