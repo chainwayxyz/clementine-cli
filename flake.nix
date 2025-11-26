@@ -35,6 +35,11 @@
             buildOn = [ "aarch64-linux" ];
             pkgsCross = null;
           };
+          linux-powerpc64le = {
+            cargoTarget = "powerpc64le-unknown-linux-musl";
+            buildOn = [ "x86_64-linux" "aarch64-linux" ];
+            pkgsCross = pkgs.pkgsCross.powernv;
+          };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
@@ -67,25 +72,13 @@
             rustTarget = cfg.cargoTarget;
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
-            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null || builtins.match ".*-unknown-linux-gnu" rustTarget != null || builtins.match ".*-linux-gnueabihf" rustTarget != null;
-            isStaticDarwinAarch64 = rustTarget == "aarch64-apple-darwin" && buildSystem == "aarch64-darwin";
+            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
 
-            # STRICT ALLOWLIST: Only allow strictly necessary files. 
-            # Ignores everything else (including .DS_Store, local configs, target/ etc.)
             srcFiltered = pkgs.lib.cleanSourceWith {
               src = ./.;
               filter = path: type:
-                let
-                  pathStr = toString path;
-                  rootStr = toString ./.;
-                  base = baseNameOf path;
-                in
-                  pathStr == rootStr ||                 # Allow the root directory
-                  base == "Cargo.toml" ||               # Allow Cargo manifest
-                  base == "Cargo.lock" ||               # Allow Lockfile
-                  base == "rust-toolchain.toml" ||      # Allow Toolchain config
-                  base == "COPYING" ||                  # Allow License
-                  pkgs.lib.hasPrefix "${rootStr}/src" pathStr; # Recursively allow src/
+                let base = baseNameOf path; in
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
             };
 
             targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
@@ -96,14 +89,15 @@
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
                 pkgs.libiconv
               ] ++
-              # FIX: Use targetPkgs.openssl instead of pkgs.openssl for correct cross-compilation linking
-              pkgs.lib.optionals isLinux [ targetPkgs.openssl ];
+              pkgs.lib.optionals isLinux [ pkgs.openssl ];
 
             cargoBuildFlags = [ "--target" rustTarget ];
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
+
+
 
             crossEnv = if cfg.pkgsCross != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
@@ -125,6 +119,7 @@
                 "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
 
+
           in
           (rustPlatform.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
@@ -138,19 +133,18 @@
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
-              STATIC_LINK_VERSION = "5"; # Force rebuild
             };
 
             preBuild = ''
               ${pkgs.lib.optionalString (!isWindows) ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              ${pkgs.lib.optionalString isDarwin ''
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C target-feature=+crt-static"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
-              ''}
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-
+              
+              ${pkgs.lib.optionalString isDarwin ''
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
+              ''}
+              
               export RUSTFLAGS="$BASE_RUSTFLAGS"
 
               ''}
@@ -169,34 +163,24 @@
               };
             };
 
-            postInstall =
-              pkgs.lib.optionalString isWindows ''
-                # Strip symbol table completely for reproducibility
-                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
-                  --strip-all \
-                  --remove-section=.symtab \
-                  --remove-section=.strtab \
-                  $out/bin/clementine-cli.exe 2>/dev/null || true
+            postInstall = pkgs.lib.optionalString isWindows ''
+              # Strip symbol table completely for reproducibility
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
+                --strip-all \
+                --remove-section=.symtab \
+                --remove-section=.strtab \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
 
-                # Also remove debug sections
-                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
-                  --remove-section=.debug_info \
-                  --remove-section=.debug_abbrev \
-                  --remove-section=.debug_line \
-                  --remove-section=.debug_str \
-                  $out/bin/clementine-cli.exe 2>/dev/null || true
-              '' +
-              # FIX: macOS libiconv fix re-added for portability and reproducibility
-              pkgs.lib.optionalString isDarwin ''
-                chmod +w $out/bin/clementine-cli
-                LIBICONV_PATH=$(${pkgs.darwin.cctools}/bin/otool -L $out/bin/clementine-cli | grep libiconv.2.dylib | awk '{print $1}')
-                if [ -n "$LIBICONV_PATH" ]; then
-                  ${pkgs.darwin.cctools}/bin/install_name_tool \
-                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
-                    $out/bin/clementine-cli
-                fi
-                chmod 555 $out/bin/clementine-cli
-              '';
+              # Also remove debug sections
+              ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
+                --remove-section=.debug_info \
+                --remove-section=.debug_abbrev \
+                --remove-section=.debug_line \
+                --remove-section=.debug_str \
+                $out/bin/clementine-cli.exe 2>/dev/null || true
+            '';
+
+
 
             installPhase = ''
               runHook preInstall
