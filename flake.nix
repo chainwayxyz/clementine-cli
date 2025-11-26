@@ -67,20 +67,25 @@
             rustTarget = cfg.cargoTarget;
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
-            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
+            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null || builtins.match ".*-unknown-linux-gnu" rustTarget != null || builtins.match ".*-linux-gnueabihf" rustTarget != null;
             isStaticDarwinAarch64 = rustTarget == "aarch64-apple-darwin" && buildSystem == "aarch64-darwin";
 
+            # STRICT ALLOWLIST: Only allow strictly necessary files. 
+            # Ignores everything else (including .DS_Store, local configs, target/ etc.)
             srcFiltered = pkgs.lib.cleanSourceWith {
               src = ./.;
               filter = path: type:
-                let base = baseNameOf path;
+                let
+                  pathStr = toString path;
+                  rootStr = toString ./.;
+                  base = baseNameOf path;
                 in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md"
-                   # Add these lines to exclude local artifacts:
-                   || base == "bridge_cli_config.toml"
-                   || base == "target"
-                   || base == "result"
-                   || base == ".DS_Store");
+                  pathStr == rootStr ||                 # Allow the root directory
+                  base == "Cargo.toml" ||               # Allow Cargo manifest
+                  base == "Cargo.lock" ||               # Allow Lockfile
+                  base == "rust-toolchain.toml" ||      # Allow Toolchain config
+                  base == "COPYING" ||                  # Allow License
+                  pkgs.lib.hasPrefix "${rootStr}/src" pathStr; # Recursively allow src/
             };
 
             targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
@@ -91,15 +96,14 @@
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
                 pkgs.libiconv
               ] ++
-              pkgs.lib.optionals isLinux [ pkgs.openssl ];
+              # FIX: Use targetPkgs.openssl instead of pkgs.openssl for correct cross-compilation linking
+              pkgs.lib.optionals isLinux [ targetPkgs.openssl ];
 
             cargoBuildFlags = [ "--target" rustTarget ];
 
             nativeBuildInputs = [ pkgs.pkg-config ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
-
-
 
             crossEnv = if cfg.pkgsCross != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
@@ -121,7 +125,6 @@
                 "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
 
-
           in
           (rustPlatform.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
@@ -135,6 +138,7 @@
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
+              STATIC_LINK_VERSION = "5"; # Force rebuild
             };
 
             preBuild = ''
@@ -181,6 +185,17 @@
                   --remove-section=.debug_line \
                   --remove-section=.debug_str \
                   $out/bin/clementine-cli.exe 2>/dev/null || true
+              '' +
+              # FIX: macOS libiconv fix re-added for portability and reproducibility
+              pkgs.lib.optionalString isDarwin ''
+                chmod +w $out/bin/clementine-cli
+                LIBICONV_PATH=$(${pkgs.darwin.cctools}/bin/otool -L $out/bin/clementine-cli | grep libiconv.2.dylib | awk '{print $1}')
+                if [ -n "$LIBICONV_PATH" ]; then
+                  ${pkgs.darwin.cctools}/bin/install_name_tool \
+                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                    $out/bin/clementine-cli
+                fi
+                chmod 555 $out/bin/clementine-cli
               '';
 
             installPhase = ''
