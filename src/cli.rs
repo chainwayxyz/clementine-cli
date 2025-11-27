@@ -13,7 +13,9 @@ use bitcoin::{
 use colored::Colorize;
 use eyre::eyre;
 
+use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
+use url::Url;
 
 use crate::api_utils::get_block_height_for_tx;
 use crate::config::NetworkConfigs;
@@ -141,9 +143,12 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
 /// Interactive setup for the known Bitcoin networks.
 ///
-/// Sets up all networks to use Bitcoin Esplora Api only (no Bitcoin Core RPC).
+/// Prompts users to choose Bitcoin Esplora API provider for mainnet and testnet4.
+/// Signet and regtest use their default configurations without prompting.
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
-    // Set all networks to use Bitcoin Esplora Api only (no Bitcoin Core RPC)
+    let theme = ColorfulTheme::default();
+
+    // All networks use Bitcoin Esplora API only (no Bitcoin Core RPC)
     for net in [
         &mut cfgs.bitcoin,
         &mut cfgs.testnet4,
@@ -151,6 +156,84 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
         &mut cfgs.regtest,
     ] {
         net.bitcoin_config = None;
+    }
+
+    // Only prompt for mainnet and testnet4 configurations
+    let networks = [
+        (
+            "mainnet",
+            &mut cfgs.bitcoin,
+            "https://blockstream.info/api/",
+            "https://mempool.space/api/",
+        ),
+        (
+            "testnet4",
+            &mut cfgs.testnet4,
+            "https://blockstream.info/testnet4/api/",
+            "https://mempool.space/testnet4/api/",
+        ),
+    ];
+
+    for (name, net, blockstream_url, mempool_url) in networks {
+        println!(
+            "\n== Configure Bitcoin Esplora API for '{}' network ==",
+            name
+        );
+
+        let choice = Select::with_theme(&theme)
+            .with_prompt(format!("Choose Bitcoin Esplora API provider for {}", name))
+            .items([
+                &format!("Blockstream.info ({})", blockstream_url),
+                &format!("Mempool.space ({})", mempool_url),
+                "Custom URL",
+            ])
+            .default(1) // Default to Mempool.space
+            .interact()?;
+
+        let api_url = match choice {
+            0 => {
+                // Blockstream.info
+                Url::parse(blockstream_url).map_err(|e| eyre!("Invalid Blockstream URL: {}", e))?
+            }
+            1 => {
+                // Mempool.space (keep existing default)
+                net.esplora_rest_api.clone().unwrap_or_else(|| {
+                    Url::parse(mempool_url).expect("Default mempool URL should be valid")
+                })
+            }
+            2 => {
+                // Custom URL
+                let custom_url: String = Input::with_theme(&theme)
+                    .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
+                    .validate_with(|input: &String| -> Result<(), String> {
+                        Url::parse(input)
+                            .map(|_| ())
+                            .map_err(|e| format!("Invalid URL: {}", e))
+                    })
+                    .interact_text()?;
+
+                Url::parse(&custom_url).map_err(|e| eyre!("Invalid custom URL: {}", e))?
+            }
+            _ => unreachable!(),
+        };
+
+        // Ensure the URL ends with a slash
+        let mut url_str = api_url.to_string();
+        if !url_str.ends_with('/') {
+            url_str.push('/');
+        }
+
+        net.esplora_rest_api = Some(
+            Url::parse(&url_str)
+                .map_err(|e| eyre!("Failed to parse URL with trailing slash: {}", e))?,
+        );
+
+        println!(
+            "{} {} Bitcoin Esplora API set to: {}",
+            "✓".bold().green(),
+            name,
+            net.esplora_rest_api.as_ref().unwrap()
+        );
     }
 
     Ok(())

@@ -11,6 +11,7 @@ operator_withdrawal_amount = 997000000                                 # in sato
 dust_utxo_amount = 330 
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
+# Bitcoin Esplora API - Options: https://mempool.space/api/, https://blockstream.info/api/, or custom
 esplora_rest_api = "https://mempool.space/api/"
 
 citrea_backend_endpoint = "https://api.citrea.xyz"
@@ -31,6 +32,7 @@ operator_withdrawal_amount = 997000000                                 # in sato
 dust_utxo_amount = 330 
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
+# Bitcoin Esplora API - Options: https://mempool.space/testnet4/api/, https://blockstream.info/testnet4/api/, or custom
 esplora_rest_api = "https://mempool.space/testnet4/api/"
 
 citrea_backend_endpoint = "https://api.testnet.citrea.xyz"
@@ -51,6 +53,7 @@ operator_withdrawal_amount = 997000000                                 # in sato
 dust_utxo_amount = 330 
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
+# Bitcoin Esplora API - Options: https://mempool.devnet.citrea.xyz/api/, https://blockstream.info/signet/api/, or custom
 esplora_rest_api = "https://mempool.devnet.citrea.xyz/api/"
 
 citrea_backend_endpoint = "https://api.devnet.citrea.xyz"
@@ -72,6 +75,7 @@ operator_withdrawal_amount = 997000000                                 # in sato
 dust_utxo_amount = 330
 bridge_contract_address = "0x3100000000000000000000000000000000000002"
 
+# Bitcoin Esplora API - For regtest, use your local Esplora instance
 esplora_rest_api = "https://127.0.0.1"
 
 citrea_backend_endpoint = "https://127.0.0.1"

@@ -67,14 +67,14 @@ async fn get_block_info_for_tx_from_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(u64, String), BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{txid}"))
@@ -124,14 +124,14 @@ pub async fn get_tx_details_from_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora Api URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{txid}/hex"))
@@ -151,7 +151,7 @@ pub async fn get_tx_details_from_esplora_api(
     tracing::debug!("block_height: {:?}", block_height);
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("block/{block_hash}/raw"))
@@ -237,7 +237,7 @@ pub async fn broadcast_recovery_tx(
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
     let esplora_api_txid =
-        broadcast_recovery_tx_with_esplora_api(config.bitcoin_esplora_api.clone(), raw_tx.clone()).await;
+        broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx.clone()).await;
     match esplora_api_txid {
         Ok(txid) => return Ok(txid),
         Err(ref e) => tracing::warn!(
@@ -365,18 +365,18 @@ pub(crate) async fn get_utxos_from_esplora_api(
     taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<EsploraUtxo>, BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora Api URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("address/{taproot_address}/utxo"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join bitcoin_esplora_api: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let utxos: Vec<EsploraUtxo> = resp.json().await?;
     Ok(utxos)
@@ -403,18 +403,18 @@ pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, B
 async fn get_current_block_height_from_esplora_api(
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora Api URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join("blocks/tip/height")
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join bitcoin_esplora_api: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let height: u64 = resp.json().await?;
     Ok(height)
@@ -433,18 +433,18 @@ pub async fn get_mempool_txs(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora Api URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("address/{address}/txs/mempool"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join bitcoin_esplora_api: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let txs: Vec<MempoolTx> = resp.json().await?;
     Ok(txs)
@@ -472,18 +472,18 @@ async fn is_tx_on_chain_with_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
-    if config.bitcoin_esplora_api.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
             "Bitcoin Esplora Api URL is not configured."
         )));
     }
 
     let url = config
-        .bitcoin_esplora_api
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{}/status", txid))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join bitcoin_esplora_api: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     tracing::debug!("Is tx on chain from esplora api response: {:?}", resp);
     let status: UtxoStatus = resp.json().await?;
@@ -564,7 +564,7 @@ mod tests {
             password: "admin".to_string(),
         });
         // Needs to be invalid.
-        config.bitcoin_esplora_api = Some(Url::from_str("http://127.0.0.1").unwrap());
+        config.esplora_rest_api = Some(Url::from_str("http://127.0.0.1").unwrap());
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
         let address = rpc
@@ -636,7 +636,7 @@ mod tests {
         .await;
 
         let txid =
-            super::broadcast_recovery_tx_with_esplora_api(config.bitcoin_esplora_api, raw_tx.clone())
+            super::broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api, raw_tx.clone())
                 .await
                 .unwrap();
 

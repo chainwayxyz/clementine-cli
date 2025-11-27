@@ -49,7 +49,7 @@ pub struct NetworkConfigs {
 pub struct BridgeCliConfig {
     pub network: Network,
     pub aggregated_public_key: XOnlyPublicKey,
-    pub bitcoin_esplora_api: Option<Url>,
+    pub esplora_rest_api: Option<Url>,
     pub citrea_chain_id: u64,
     pub citrea_rpc_url: Url,
     pub citrea_backend_endpoint: Url,
@@ -72,7 +72,7 @@ impl BridgeCliConfig {
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
                 .unwrap(),
-                bitcoin_esplora_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
                 citrea_chain_id: 0,
                 citrea_rpc_url: Url::parse("https://rpc.citrea.xyz/").unwrap(),
                 citrea_backend_endpoint: Url::parse("https://api.citrea.xyz/").unwrap(),
@@ -92,7 +92,7 @@ impl BridgeCliConfig {
                     "1e0f48f81dfa14d114f5d942f1e2d50771a4b019fa942606bb1f258b4b326bf7",
                 )
                 .unwrap(),
-                bitcoin_esplora_api: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
                 citrea_chain_id: 5115,
                 citrea_rpc_url: Url::parse("https://rpc.testnet.citrea.xyz/").unwrap(),
                 citrea_backend_endpoint: Url::parse("https://api.testnet.citrea.xyz/").unwrap(),
@@ -112,7 +112,7 @@ impl BridgeCliConfig {
                     "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093139e819dc",
                 )
                 .unwrap(),
-                bitcoin_esplora_api: Some(
+                esplora_rest_api: Some(
                     Url::parse("https://mempool.devnet.citrea.xyz/api/").unwrap(),
                 ),
                 citrea_chain_id: 62298,
@@ -134,7 +134,7 @@ impl BridgeCliConfig {
                     "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577",
                 )
                 .unwrap(),
-                bitcoin_esplora_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
                 citrea_chain_id: 5655,
                 citrea_rpc_url: Url::parse("https://127.0.0.1:12345/").unwrap(),
                 citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
@@ -242,16 +242,16 @@ impl BridgeCliConfig {
         };
 
         // All of the URLs needs a trailing slash. If not present, add it.
-        if config.bitcoin_esplora_api.is_some()
+        if config.esplora_rest_api.is_some()
             && !config
-                .bitcoin_esplora_api
+                .esplora_rest_api
                 .as_ref()
                 .expect("Checked in the first condition")
                 .to_string()
                 .ends_with("/")
         {
-            let str_url = config.bitcoin_esplora_api.expect("Checked above").to_string() + "/";
-            config.bitcoin_esplora_api =
+            let str_url = config.esplora_rest_api.expect("Checked above").to_string() + "/";
+            config.esplora_rest_api =
                 Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
         if !config.citrea_backend_endpoint.to_string().ends_with("/") {
@@ -297,7 +297,7 @@ impl BridgeCliConfig {
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/").expect("Valid url");
-                config.bitcoin_esplora_api =
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.space/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -310,7 +310,7 @@ impl BridgeCliConfig {
                     Url::parse("https://api.testnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
                     Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url");
-                config.bitcoin_esplora_api =
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.space/testnet4/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -323,7 +323,7 @@ impl BridgeCliConfig {
                     Url::parse("https://api.devnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
                     Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url");
-                config.bitcoin_esplora_api =
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -356,7 +356,7 @@ impl Default for BridgeCliConfig {
                 "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
             )
             .unwrap(),
-            bitcoin_esplora_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
+            esplora_rest_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
             citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
