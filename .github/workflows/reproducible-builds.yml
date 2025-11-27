@@ -120,4 +120,9 @@ jobs:
             echo "No binary found at $BINARY"
             exit 1
           fi
-          
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-${{ matrix.platform }}
+          path: result/bin/clementine-cli*
