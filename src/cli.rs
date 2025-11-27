@@ -141,9 +141,9 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
 /// Interactive setup for the known Bitcoin networks.
 ///
-/// Sets up all networks to use mempool API only (no Bitcoin Core RPC).
+/// Sets up all networks to use Bitcoin Esplora Api only (no Bitcoin Core RPC).
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
-    // Set all networks to use mempool API only (no Bitcoin Core RPC)
+    // Set all networks to use Bitcoin Esplora Api only (no Bitcoin Core RPC)
     for net in [
         &mut cfgs.bitcoin,
         &mut cfgs.testnet4,
@@ -702,7 +702,7 @@ pub async fn deposit_status(
     let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
         Err(e) => {
-            eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            eprintln!("ERROR Failed to fetch UTXOs from Esplora API: {}", e);
             vec![]
         }
     };
