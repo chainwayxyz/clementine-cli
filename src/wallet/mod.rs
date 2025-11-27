@@ -54,7 +54,7 @@ use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::GenericWalletData;
 use crate::wallet::wallet_storage::copy_wallet_file_to_destination;
-use crate::wallet::wallet_storage::get_storage_dir;
+use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::wallet::wallet_storage::get_wallets_from_registry;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
@@ -373,12 +373,8 @@ where
 
 pub fn scan_wallet_files()
 -> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let mut file_wallets: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
-
-    if !storage_dir.exists() {
-        return Ok(file_wallets);
-    }
 
     for entry in fs::read_dir(storage_dir)? {
         let entry = entry?;

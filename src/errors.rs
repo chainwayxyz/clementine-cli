@@ -114,8 +114,8 @@ pub enum BridgeCliError {
     // Wallet operation related errors
     #[error("Invalid address prefix: '{0}'. Valid prefixes are 'dep' and 'wit'.")]
     InvalidAddressPrefix(String),
-    #[error("Invalid address format")]
-    InvalidAddressFormat,
+    #[error("Invalid address format: {0}")]
+    InvalidAddressFormat(String),
     #[error("Failed to generate address from mnemonic.")]
     AddressGenerationFromMnemonicFailed,
     #[error("Failed to derive private key from mnemonic.")]

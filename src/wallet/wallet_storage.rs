@@ -102,7 +102,7 @@ pub(crate) fn store_wallet_data(
         import_method: import_method.map(|s| s.to_string()),
     };
 
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
     tracing::info!("Wallet will be saved to: {wallet_file:?}");
 
@@ -136,7 +136,7 @@ fn update_wallets_registry(
     imported: bool,
     import_method: Option<&str>,
 ) -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let wallets_file = storage_dir.join("wallets.json");
 
     let mut wallets: HashMap<String, WalletRegistryEntry> = if wallets_file.exists() {
@@ -177,7 +177,7 @@ where
     T: NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let address = address.address_without_prefix();
     let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
 
@@ -218,10 +218,21 @@ pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
     Ok(home_dir.join("keys"))
 }
 
+pub(crate) fn get_storage_dir_with_existence_check() -> Result<PathBuf, BridgeCliError> {
+    let storage_dir = get_storage_dir()?;
+    if !storage_dir.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Storage directory does not exist: {}, please run 'clementine-cli init' to create it.",
+            storage_dir.display()
+        )));
+    }
+    Ok(storage_dir)
+}
+
 /// Get wallets from the registry (wallets.json)
 pub(crate) fn get_wallets_from_registry()
 -> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let wallets_file = storage_dir.join("wallets.json");
 
     if !wallets_file.exists() {
@@ -246,7 +257,7 @@ pub(crate) fn copy_wallet_file_to_destination(
     destination_path: &Path,
 ) -> Result<std::path::PathBuf, BridgeCliError> {
     let wallet_file_name = format!("wallet_{}.json", address.address_without_prefix());
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let wallet_file = storage_dir.join(wallet_file_name.clone());
 
     // If destination is a directory, create the filename
