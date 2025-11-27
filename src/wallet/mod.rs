@@ -74,7 +74,7 @@ pub fn create_encrypted_wallet(
     label: String,
     purpose: Purpose,
     passphrase: SecureString,
-) -> Result<(TaprootAddressWithPrefix<NetworkChecked>, Mnemonic), BridgeCliError> {
+) -> Result<(TaprootAddressWithPrefix<NetworkChecked>, Mnemonic, PathBuf), BridgeCliError> {
     // Generate mnemonic
     let mnemonic = generate_mnemonic()?;
 
@@ -97,7 +97,7 @@ pub fn create_encrypted_wallet(
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
 
     // Store encrypted wallet with separate encrypted fields
-    wallet_storage::store_wallet_data(
+    let wallet_file_path = wallet_storage::store_wallet_data(
         &address,
         network,
         &encrypted_mnemonic,
@@ -107,7 +107,7 @@ pub fn create_encrypted_wallet(
         &label,
     )?;
 
-    Ok((address, mnemonic))
+    Ok((address, mnemonic, wallet_file_path))
 }
 
 /// Backup a wallet file to a specified destination

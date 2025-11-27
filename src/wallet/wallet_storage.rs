@@ -87,7 +87,7 @@ pub(crate) fn store_wallet_data(
     imported: bool,
     import_method: Option<&str>,
     label: &str,
-) -> Result<(), BridgeCliError> {
+) -> Result<PathBuf, BridgeCliError> {
     validate_wallet_availability(Some(label), Some(address), WalletValidationMode::Both)?;
 
     let wallet_data = GenericWalletData {
@@ -125,7 +125,7 @@ pub(crate) fn store_wallet_data(
     // Update wallets registry
     update_wallets_registry(label, address, network, imported, import_method)?;
 
-    Ok(())
+    Ok(wallet_file)
 }
 
 /// Update the wallets.json registry
