@@ -508,7 +508,7 @@ async fn is_tx_on_chain_bitcoin_rpc(
 mod tests {
     use crate::{
         broadcast_recovery_tx,
-        config::{BitcoinConfig, BridgeCliConfig, ToSecretBox},
+        config::{BitcoinConfig, BridgeCliConfig},
     };
     use bitcoin::{
         Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
@@ -560,8 +560,8 @@ mod tests {
         // WARNING: Change this to your own env.
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:18982/").unwrap(),
-            password: "admin".to_secret_box(),
-            user: "admin".to_secret_box(),
+            user: "admin".to_string(),
+            password: "admin".to_string(),
         });
         // Needs to be invalid.
         config.mempool_api_url = Some(Url::from_str("http://127.0.0.1").unwrap());
@@ -610,8 +610,8 @@ mod tests {
         let mut config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:22443/").unwrap(),
-            password: "admin".to_secret_box(),
-            user: "admin".to_secret_box(),
+            user: "admin".to_string(),
+            password: "admin".to_string(),
         });
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();

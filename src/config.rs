@@ -7,7 +7,6 @@ use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
 use reqwest::Url;
-use secrecy::{CloneableSecret, ExposeSecret, SecretBox};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
@@ -17,7 +16,6 @@ use std::{
     sync::LazyLock,
 };
 use thiserror::Error;
-use zeroize::Zeroize;
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
@@ -37,34 +35,6 @@ pub enum ConfigErrors {
     Other(#[from] eyre::Report),
 }
 
-#[derive(Serialize, Deserialize, Zeroize, Clone)]
-#[zeroize(drop)]
-pub struct ApiSecret(pub String);
-
-impl secrecy::SerializableSecret for ApiSecret {}
-
-impl CloneableSecret for ApiSecret {}
-
-impl From<String> for ApiSecret {
-    fn from(value: String) -> Self {
-        ApiSecret(value)
-    }
-}
-
-pub trait ToSecretBox {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret>;
-}
-
-impl ToSecretBox for &str {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
-        secrecy::SecretBox::from(Box::new(ApiSecret(self.to_owned())))
-    }
-}
-impl ToSecretBox for String {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
-        secrecy::SecretBox::from(Box::new(ApiSecret(self)))
-    }
-}
 
 /// [`BridgeCliConfig`]s for each network.
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -113,11 +83,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 6,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Testnet4 => Self {
@@ -137,11 +103,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 100,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Signet => Self {
@@ -163,11 +125,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 5,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:38332/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Regtest => Self {
@@ -187,11 +145,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 5,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:20443/wallet/admin").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             _ => panic!("Unsupported network in defaults: {network:?}"),
@@ -233,8 +187,8 @@ pub fn write_config_to(path: &Path, cfgs: &NetworkConfigs) -> Result<(), BridgeC
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BitcoinConfig {
     pub url: Url,
-    pub password: SecretBox<ApiSecret>,
-    pub user: SecretBox<ApiSecret>,
+    pub user: String,
+    pub password: String,
 }
 
 impl BridgeCliConfig {
@@ -317,10 +271,7 @@ impl BridgeCliConfig {
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {
         match self.bitcoin_config {
             Some(ref config) => {
-                let auth = Auth::UserPass(
-                    config.user.expose_secret().0.clone(),
-                    config.password.expose_secret().0.clone(),
-                );
+                let auth = Auth::UserPass(config.user.clone(), config.password.clone());
                 let rpc = Client::new(config.url.as_str(), auth).await?;
                 rpc.ping().await?;
                 Ok(rpc)
@@ -339,11 +290,7 @@ impl BridgeCliConfig {
 
         match network {
             Network::Regtest => {
-                config.bitcoin_config = Some(BitcoinConfig {
-                    url: Url::parse("http://localhost:18443/").expect("Valid url"),
-                    password: "admin".to_secret_box(),
-                    user: "admin".to_secret_box(),
-                });
+                // No bitcoin_config needed - using mempool API only
             }
             Network::Bitcoin => {
                 config.citrea_chain_id = 1;

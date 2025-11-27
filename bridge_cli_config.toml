@@ -17,11 +17,6 @@ citrea_backend_endpoint = "https://api.citrea.xyz"
 citrea_rpc_url = "https://rpc.citrea.xyz/"
 citrea_chain_id = 0
 
-[bitcoin.bitcoin_config]
-url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
-user = "admin"
-password = "admin"
-
 # ------------------------------------------------------------------------------
 [testnet4]
 network = "testnet4"
@@ -41,11 +36,6 @@ mempool_api_url = "https://mempool.space/testnet4/api/"
 citrea_backend_endpoint = "https://api.testnet.citrea.xyz"
 citrea_rpc_url = "https://rpc.testnet.citrea.xyz/"
 citrea_chain_id = 5115
-
-[testnet4.bitcoin_config]
-url = "http://127.0.0.1:18443/" # Add `/wallet/name` if necessary
-user = "admin"
-password = "admin"
 
 # ------------------------------------------------------------------------------
 [signet]
@@ -67,11 +57,6 @@ citrea_backend_endpoint = "https://api.devnet.citrea.xyz"
 citrea_rpc_url = "https://rpc.devnet.citrea.xyz/"
 citrea_chain_id = 62298
 
-[signet.bitcoin_config]
-url = "http://127.0.0.1:38332/" # Add `/wallet/name` if necessary
-user = "admin"
-password = "admin"
-
 # ------------------------------------------------------------------------------
 # Values are based on the full.regtest Docker compose file located in Clementine repo
 [regtest]
@@ -92,8 +77,3 @@ mempool_api_url = "https://127.0.0.1"
 citrea_backend_endpoint = "https://127.0.0.1"
 citrea_rpc_url = "https://127.0.0.1:12345/"
 citrea_chain_id = 5655
-
-[regtest.bitcoin_config]
-url = "http://127.0.0.1:20443/wallet/admin"
-user = "admin"
-password = "admin"
