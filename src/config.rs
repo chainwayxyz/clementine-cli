@@ -412,10 +412,7 @@ mod tests {
         // Check some of the fields.
         assert_eq!(read_config.user_takes_after, 200);
         assert_eq!(read_config.network, Network::Testnet4);
-        assert_eq!(
-            read_config.bitcoin_config.unwrap().url.as_str(),
-            "http://127.0.0.1:18443/"
-        );
+        assert_eq!(read_config.esplora_rest_api.unwrap().as_str(), "https://mempool.space/testnet4/api/");
 
         fs::remove_file(file_name).unwrap();
     }
