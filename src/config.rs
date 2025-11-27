@@ -35,7 +35,6 @@ pub enum ConfigErrors {
     Other(#[from] eyre::Report),
 }
 
-
 /// [`BridgeCliConfig`]s for each network.
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct NetworkConfigs {

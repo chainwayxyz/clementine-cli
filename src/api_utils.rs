@@ -237,7 +237,8 @@ pub async fn broadcast_recovery_tx(
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
     let esplora_api_txid =
-        broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx.clone()).await;
+        broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx.clone())
+            .await;
     match esplora_api_txid {
         Ok(txid) => return Ok(txid),
         Err(ref e) => tracing::warn!(
