@@ -208,7 +208,7 @@ pub(crate) fn verify_recovery_tx(
             eyre::eyre!("Recovery transaction input witness must have exactly 3 items").into(),
         );
     }
-
+    tracing::debug!("Calculating deposit address and taproot spend info");
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 

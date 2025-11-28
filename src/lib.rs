@@ -1,6 +1,7 @@
 #![allow(clippy::result_large_err)]
 
 use crate::errors::BridgeCliError;
+use bitcoin::consensus::deserialize;
 use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -84,4 +85,21 @@ pub(crate) fn get_clementine_config_path_with_existence_check() -> Result<PathBu
         )));
     }
     Ok(config_path)
+}
+
+pub fn parse_transaction_hex(
+    tx_hex: &str,
+) -> Result<bitcoin::Transaction, BridgeCliError> {
+    let tx_bytes = hex::decode(tx_hex).map_err(|e| {
+        BridgeCliError::HexDecodeError {
+            source: e,
+            hex_string: tx_hex.to_string(),
+        }
+    })?;
+    let transaction: bitcoin::Transaction =
+        deserialize(&tx_bytes).map_err(|e| BridgeCliError::TransactionDeserializeError {
+            source: e,
+            tx_hex: tx_hex.to_string(),
+        })?;
+    Ok(transaction)
 }

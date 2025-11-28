@@ -1,4 +1,4 @@
-use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature};
+use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
@@ -10,7 +10,7 @@ use clementine_cli::cli::{
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
-use clementine_cli::handle_simple_call;
+use clementine_cli::{handle_simple_call, parse_transaction_hex};
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
@@ -523,8 +523,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
-                let tx_bytes = handle_simple_call!(hex::decode(&recovery_tx));
-                let recovery_tx: Transaction = handle_simple_call!(deserialize(&tx_bytes));
+                let recovery_tx = handle_simple_call!(parse_transaction_hex(&recovery_tx));
                 let citrea_address = handle_simple_call!(parse_citrea_address(&evm_address));
                 let recovery_taproot_address =
                     handle_simple_call!(TaprootAddressWithPrefix::from_string_with_prefix(
