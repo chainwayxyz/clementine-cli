@@ -242,6 +242,11 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
+    /// Check if the n-of-n aggregated public key in config matches the contract.
+    CheckNofNKey {
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
+        network: CliNetwork,
+    },
 }
 
 #[derive(Subcommand)]
@@ -575,6 +580,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     get_deposit_params(&move_to_vault_txid, &config),
                     params => {
                         println!("Deposit parameters hex: {}", hex::encode(params));
+                    }
+                );
+            }
+            DepositCommands::CheckNofNKey { network } => {
+                let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
+                handle_cli_command!(async
+                    deposit::check_nofn_key_correctness(&config),
+                    () => {
+                        println!("{} N-of-N key check passed!", "SUCCESS".bold());
+                        println!("Config aggregated_public_key matches contract: {}",
+                                 config.aggregated_public_key.to_string().bold());
                     }
                 );
             }

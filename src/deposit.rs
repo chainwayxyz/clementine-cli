@@ -8,12 +8,14 @@ use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
+use crate::types::{BRIDGE_CONTRACT};
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::validate_address_purpose;
 use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
-use eyre::Result;
+use alloy::providers::ProviderBuilder;
+use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid, XOnlyPublicKey};
+use eyre::{Context, Result};
 
 /// Parameters for creating a signed recovery transaction
 pub struct RecoveryTxParams {
@@ -196,4 +198,48 @@ pub fn verify_recovery_tx(
     )?;
 
     Ok((txid, address, amount))
+}
+
+/// Check if the n-of-n aggregated public key in config matches the one in the contract
+pub async fn check_nofn_key_correctness(
+    config: &BridgeCliConfig,
+) -> Result<(), BridgeCliError> {
+    // Allow bypassing check for testing purposes
+    if std::env::var("DISABLE_NOFN_CHECK").is_ok() {
+        return Ok(());
+    }
+
+    // Create a read-only provider (no wallet needed for view functions)
+    let provider = ProviderBuilder::new()
+        .connect_http(config.citrea_rpc_url.clone());
+
+    let contract = BRIDGE_CONTRACT::new(
+        config
+            .bridge_contract_address
+            .parse()
+            .wrap_err("Failed to parse bridge contract address")?,
+        provider,
+    );
+
+    // Get the aggregated key from the contract
+    let contract_nofn_xonly_pk = contract
+        .getAggregatedKey()
+        .call()
+        .await
+        .wrap_err("Failed to get aggregated key from contract")?
+        .0;
+
+    let contract_nofn_xonly_pk = XOnlyPublicKey::from_slice(contract_nofn_xonly_pk.as_ref())
+        .wrap_err("Failed to convert contract aggregated key bytes to XOnlyPublicKey")?;
+
+    // Compare with config's aggregated_public_key
+    if contract_nofn_xonly_pk != config.aggregated_public_key {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "N-of-N key mismatch!\nConfig key:   {}\nContract key: {}",
+            config.aggregated_public_key,
+            contract_nofn_xonly_pk
+        )));
+    }
+
+    Ok(())
 }

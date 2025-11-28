@@ -9,52 +9,16 @@ use alloy::sol;
 use alloy::sol_types::SolCall;
 use alloy::sol_types::private;
 
-sol! {
-    #[derive(Debug)]
-    struct Transaction {
-        bytes4 version;
-        bytes2 flag;
-        bytes vin;
-        bytes vout;
-        bytes witness;
-        bytes4 locktime;
-    }
-
-    #[derive(Debug)]
-    struct MerkleProof {
-        bytes intermediateNodes;
-        uint256 blockHeight;
-        uint256 index;
-    }
-
-
-    #[derive(Debug)]
-    struct UTXO {
-        bytes32 txId;
-        bytes4 outputId;
-    }
-
-    #[derive(Debug)]
+// Codegen from ABI file to interact with the contract.
+sol!(
+    #[allow(missing_docs)]
     #[sol(rpc)]
-    interface BRIDGE_CONTRACT {
-        function deposit(
-            Transaction calldata moveTx,
-            MerkleProof calldata proof,
-            bytes32 shaScriptPubkeys
-        ) external;
+    #[derive(Debug)]
+    BRIDGE_CONTRACT,
+    "./src/contract/Bridge.json"
+);
 
-        function safeWithdraw(
-            Transaction calldata prepareTx,
-            MerkleProof calldata prepareProof,
-            Transaction calldata payoutTx,
-            bytes calldata blockHeader,
-            bytes memory withdrawalAddressPubKey
-        ) external payable;
-
-        UTXO[] public withdrawalUTXOs;
-        function getWithdrawalCount() external view returns (uint256);
-    }
-}
+use Bridge::{MerkleProof, Transaction};
 
 pub(crate) fn encode_citrea_deposit_params(
     move_tx: &CitreaTransaction,
@@ -131,7 +95,7 @@ pub(crate) fn encode_safe_withdraw_params(
         prepareProof: prepare_proof.clone(),
         payoutTx: payout_tx.clone(),
         blockHeader: block_header,
-        withdrawalAddressPubKey: output_script_pk,
+        scriptPubKey: output_script_pk,
     };
 
     let data = call.abi_encode();

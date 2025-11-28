@@ -7,7 +7,7 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
+use crate::types::{BRIDGE_CONTRACT, Bridge, CitreaContract, encode_safe_withdraw_params};
 use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
@@ -290,9 +290,9 @@ pub async fn prepare_withdrawal_params(
     config: &BridgeCliConfig,
 ) -> Result<
     (
-        crate::types::Transaction,
-        crate::types::MerkleProof,
-        crate::types::Transaction,
+        Bridge::Transaction,
+        Bridge::MerkleProof,
+        Bridge::Transaction,
         alloy::sol_types::private::Bytes,
         alloy::sol_types::private::Bytes,
     ),
