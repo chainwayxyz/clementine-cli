@@ -5,6 +5,7 @@ use crate::errors::BridgeCliError;
 use crate::script::{deposit_script, recover_script};
 use crate::secure_types::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
+use bitcoin::consensus::deserialize;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
@@ -416,6 +417,24 @@ fn create_recovery_script_for_address(
 ) -> Result<ScriptBuf, BridgeCliError> {
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
     Ok(recover_script(recovery_key, user_takes_after))
+}
+
+/// Parse a transaction from its hexadecimal representation
+pub fn parse_transaction_hex(
+    tx_hex: &str,
+) -> Result<bitcoin::Transaction, BridgeCliError> {
+    let tx_bytes = hex::decode(tx_hex).map_err(|e| {
+        BridgeCliError::HexDecodeError {
+            source: e,
+            hex_string: tx_hex.to_string(),
+        }
+    })?;
+    let transaction: bitcoin::Transaction =
+        deserialize(&tx_bytes).map_err(|e| BridgeCliError::TransactionDeserializeError {
+            source: e,
+            tx_hex: tx_hex.to_string(),
+        })?;
+    Ok(transaction)
 }
 
 #[cfg(test)]
