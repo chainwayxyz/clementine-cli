@@ -88,4 +88,3 @@ pub(crate) fn get_clementine_config_path_with_existence_check() -> Result<PathBu
     }
     Ok(config_path)
 }
-

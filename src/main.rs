@@ -10,7 +10,6 @@ use clementine_cli::cli::{
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
-use clementine_cli::{handle_simple_call, parse_transaction_hex};
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
@@ -21,6 +20,7 @@ use clementine_cli::{
     wallet::{Purpose, parse_address, parse_taproot_address},
     withdraw,
 };
+use clementine_cli::{handle_simple_call, parse_transaction_hex};
 use colored::Colorize;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;

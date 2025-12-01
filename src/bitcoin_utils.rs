@@ -420,14 +420,10 @@ fn create_recovery_script_for_address(
 }
 
 /// Parse a transaction from its hexadecimal representation
-pub fn parse_transaction_hex(
-    tx_hex: &str,
-) -> Result<bitcoin::Transaction, BridgeCliError> {
-    let tx_bytes = hex::decode(tx_hex).map_err(|e| {
-        BridgeCliError::HexDecodeError {
-            source: e,
-            hex_string: tx_hex.to_string(),
-        }
+pub fn parse_transaction_hex(tx_hex: &str) -> Result<bitcoin::Transaction, BridgeCliError> {
+    let tx_bytes = hex::decode(tx_hex).map_err(|e| BridgeCliError::HexDecodeError {
+        source: e,
+        hex_string: tx_hex.to_string(),
     })?;
     let transaction: bitcoin::Transaction =
         deserialize(&tx_bytes).map_err(|e| BridgeCliError::TransactionDeserializeError {

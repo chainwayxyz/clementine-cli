@@ -595,12 +595,7 @@ mod tests {
         let txid = broadcast_recovery_tx(&config, raw_tx.clone())
             .await
             .unwrap();
-        assert_eq!(
-            txid,
-            parse_transaction_hex(&raw_tx)
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 
     #[tokio::test]
@@ -641,11 +636,6 @@ mod tests {
                 .await
                 .unwrap();
 
-        assert_eq!(
-            txid,
-            parse_transaction_hex(&raw_tx)
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 }
