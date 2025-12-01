@@ -8,7 +8,7 @@ use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::types::{BRIDGE_CONTRACT};
+use crate::types::BRIDGE_CONTRACT;
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::validate_address_purpose;
@@ -200,19 +200,11 @@ pub fn verify_recovery_tx(
     Ok((txid, address, amount))
 }
 
-/// Check if the n-of-n aggregated public key in config matches the one in the contract
-pub async fn check_nofn_key_correctness(
+/// Get the current aggregated public key from the bridge contract
+pub async fn get_contract_aggregated_key(
     config: &BridgeCliConfig,
-) -> Result<(), BridgeCliError> {
-    // Allow bypassing check for testing purposes
-    if std::env::var("DISABLE_NOFN_CHECK").is_ok() {
-        return Ok(());
-    }
-
-    // Create a read-only provider (no wallet needed for view functions)
-    let provider = ProviderBuilder::new()
-        .connect_http(config.citrea_rpc_url.clone());
-
+) -> Result<XOnlyPublicKey, BridgeCliError> {
+    let provider = ProviderBuilder::new().connect_http(config.citrea_rpc_url.clone());
     let contract = BRIDGE_CONTRACT::new(
         config
             .bridge_contract_address
@@ -221,23 +213,42 @@ pub async fn check_nofn_key_correctness(
         provider,
     );
 
-    // Get the aggregated key from the contract
-    let contract_nofn_xonly_pk = contract
+    let contract_key_bytes = contract
         .getAggregatedKey()
         .call()
         .await
         .wrap_err("Failed to get aggregated key from contract")?
         .0;
 
-    let contract_nofn_xonly_pk = XOnlyPublicKey::from_slice(contract_nofn_xonly_pk.as_ref())
-        .wrap_err("Failed to convert contract aggregated key bytes to XOnlyPublicKey")?;
+    Ok(XOnlyPublicKey::from_slice(contract_key_bytes.as_ref())
+        .wrap_err("Failed to convert contract aggregated key bytes to XOnlyPublicKey")?)
+}
+
+/// Check if the n-of-n aggregated public key in config matches the one in the contract
+pub async fn check_nofn_key_correctness(config: &BridgeCliConfig) -> Result<(), BridgeCliError> {
+    // Allow bypassing check for testing purposes
+    if std::env::var("DISABLE_NOFN_CHECK").is_ok() {
+        return Ok(());
+    }
+
+    let contract_nofn_xonly_pk = get_contract_aggregated_key(config).await?;
 
     // Compare with config's aggregated_public_key
     if contract_nofn_xonly_pk != config.aggregated_public_key {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "N-of-N key mismatch!\nConfig key:   {}\nContract key: {}",
+            "N-of-N key mismatch detected!\n\
+            \n\
+            Config key:   {}\n\
+            Contract key: {}\n\
+            \n\
+            This mismatch occurs when the signer set has been updated.\n\
+            \n\
+            Please follow these steps:\n\
+            1. Update your CLI to the latest version (with the latest N-of-N key)\n\
+            2. Run 'clementine-cli init' to detect the key change\n\
+            3. Run the update-config command shown by 'clementine-cli init' command\n\"",
             config.aggregated_public_key,
-            contract_nofn_xonly_pk
+            contract_nofn_xonly_pk,
         )));
     }
 

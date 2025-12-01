@@ -56,6 +56,7 @@ use crate::{
     get_clementine_home_dir_with_existence_check,
 };
 
+use bitcoin::XOnlyPublicKey;
 use crossterm::cursor::{MoveToColumn, SavePosition};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{
@@ -66,6 +67,34 @@ use crossterm::{
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
+
+/// Parse aggregated public key from hex string and warn if it differs from config
+fn parse_and_validate_aggregated_key(
+    key_hex: &str,
+    config_key: XOnlyPublicKey,
+) -> Result<XOnlyPublicKey, BridgeCliError> {
+    if key_hex.len() != 64 {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "aggregated_public_key must be exactly 64 hex characters, got {}",
+            key_hex.len()
+        )));
+    }
+
+    let key = XOnlyPublicKey::from_str(key_hex).map_err(|e| {
+        BridgeCliError::Eyre(eyre::eyre!("Failed to parse aggregated_public_key: {}", e))
+    })?;
+
+    if key != config_key {
+        println!(
+            "{} Using aggregated_public_key different from config",
+            "WARNING".bold()
+        );
+        println!("  Config key:   {}", config_key);
+        println!("  Provided key: {}", key);
+    }
+
+    Ok(key)
+}
 
 /// Initialize the Clementine CLI environment.
 ///
@@ -137,7 +166,85 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
             "INFO".bold(),
             config_file.display()
         );
+
+        // Check if N-of-N keys have been updated
+        let old_config_contents = std::fs::read_to_string(&config_file).ok();
+        if let Some(contents) = old_config_contents {
+            if let Ok(old_network_configs) = toml::from_str::<config::NetworkConfigs>(&contents) {
+                let new_network_configs = config::default_networks();
+
+                let mut updated_networks = Vec::new();
+
+                // Check each network for aggregated_public_key changes
+                if old_network_configs.bitcoin.aggregated_public_key
+                    != new_network_configs.bitcoin.aggregated_public_key
+                {
+                    updated_networks.push((
+                        "bitcoin",
+                        old_network_configs.bitcoin.aggregated_public_key,
+                        new_network_configs.bitcoin.aggregated_public_key,
+                    ));
+                }
+                if old_network_configs.testnet4.aggregated_public_key
+                    != new_network_configs.testnet4.aggregated_public_key
+                {
+                    updated_networks.push((
+                        "testnet4",
+                        old_network_configs.testnet4.aggregated_public_key,
+                        new_network_configs.testnet4.aggregated_public_key,
+                    ));
+                }
+                if old_network_configs.signet.aggregated_public_key
+                    != new_network_configs.signet.aggregated_public_key
+                {
+                    updated_networks.push((
+                        "signet",
+                        old_network_configs.signet.aggregated_public_key,
+                        new_network_configs.signet.aggregated_public_key,
+                    ));
+                }
+                if old_network_configs.regtest.aggregated_public_key
+                    != new_network_configs.regtest.aggregated_public_key
+                {
+                    updated_networks.push((
+                        "regtest",
+                        old_network_configs.regtest.aggregated_public_key,
+                        new_network_configs.regtest.aggregated_public_key,
+                    ));
+                }
+
+                if !updated_networks.is_empty() {
+                    println!();
+                    println!("{} N-of-N Key Update Detected!", "IMPORTANT".bold());
+                    println!(
+                        "The aggregated_public_key (N-of-N key) has been updated for the following network(s):"
+                    );
+                    println!();
+
+                    for (network_name, _old_key, new_key) in &updated_networks {
+                        println!("  Network: {}", network_name);
+                        println!("  New key: {}", new_key);
+                        println!();
+                    }
+
+                    println!("To update your configuration, run the following command(s):");
+                    println!();
+                    for (network_name, _old_key, new_key) in &updated_networks {
+                        println!(
+                            "  $ clementine-cli update-config --network {} aggregated_public_key={}",
+                            network_name, new_key
+                        );
+                    }
+                    println!();
+                    println!(
+                        "{} You must update your configuration before performing deposit operations.",
+                        "NOTE:".bold()
+                    );
+                }
+            }
+        }
     }
+
     Ok(())
 }
 
@@ -1013,10 +1120,18 @@ pub async fn deposit_create_signed_recovery_tx(
     fee_rate: u64,
     amount: f64,
     config: &BridgeCliConfig,
+    aggregated_public_key: Option<String>,
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
     let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
+
+    // Parse and apply aggregated_public_key override if provided
+    let mut effective_config = config.clone();
+    if let Some(key_hex) = aggregated_public_key {
+        let key = parse_and_validate_aggregated_key(&key_hex, config.aggregated_public_key)?;
+        effective_config.aggregated_public_key = key;
+    }
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
@@ -1027,7 +1142,7 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair)?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, &effective_config, keypair)?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
@@ -1121,9 +1236,18 @@ pub async fn cli_get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
+    aggregated_public_key: Option<String>,
 ) -> Result<BitcoinAddress, BridgeCliError> {
+    // Parse and apply aggregated_public_key override if provided
+    let mut effective_config = config.clone();
+    if let Some(key_hex) = aggregated_public_key {
+        let key = parse_and_validate_aggregated_key(&key_hex, config.aggregated_public_key)?;
+        effective_config.aggregated_public_key = key;
+    }
+
     let deposit_address =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, &effective_config)
+            .await?;
     Ok(deposit_address)
 }
 
@@ -1375,4 +1499,43 @@ pub fn cli_generate_withdrawal_signatures(
         operator_withdrawal_amount,
         config,
     )
+}
+
+pub async fn cli_verify_recovery_tx_with_validation(
+    params: deposit::VerifyRecoveryTxParams,
+    config: &BridgeCliConfig,
+    aggregated_public_key: Option<String>,
+    validate_against_contract: bool,
+) -> Result<(bitcoin::Txid, BitcoinAddress, Amount), BridgeCliError> {
+    let effective_key = if let Some(key_hex) = aggregated_public_key {
+        Some(parse_and_validate_aggregated_key(
+            &key_hex,
+            config.aggregated_public_key,
+        )?)
+    } else {
+        None
+    };
+
+    // Optionally validate against contract
+    if validate_against_contract {
+        let contract_key = deposit::get_contract_aggregated_key(config).await?;
+        let key_to_check = effective_key.unwrap_or(config.aggregated_public_key);
+        if key_to_check != contract_key {
+            println!("{} Key mismatch with contract!", "ERROR".bold());
+            println!("  Key being used: {}", key_to_check);
+            println!("  Contract key:   {}", contract_key);
+            return Err(BridgeCliError::Eyre(eyre::eyre!(
+                "Aggregated public key mismatch with contract"
+            )));
+        }
+        println!("{} Key validated against contract", "SUCCESS".bold());
+    }
+
+    // Create effective config
+    let mut effective_config = config.clone();
+    if let Some(key) = effective_key {
+        effective_config.aggregated_public_key = key;
+    }
+
+    deposit::verify_recovery_tx(params, &effective_config)
 }

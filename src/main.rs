@@ -4,9 +4,9 @@ use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
     cli_import_wallet_from_private_key, cli_scan_withdrawals, cli_show_mnemonic,
-    cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
-    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
-    withdrawal_status,
+    cli_show_private_key, cli_start_withdrawal, cli_verify_recovery_tx_with_validation,
+    cli_verify_wallet_integrity, deposit_create_signed_recovery_tx, deposit_status,
+    send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -189,6 +189,11 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
+        #[arg(
+            long,
+            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
+        )]
+        n_of_n_key: Option<String>,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
     CreateSignedRecoveryTx {
@@ -204,6 +209,11 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
+        #[arg(
+            long,
+            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config, especially on airgapped devices."
+        )]
+        n_of_n_key: Option<String>,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -218,6 +228,17 @@ enum DepositCommands {
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
+        #[arg(
+            long,
+            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
+        )]
+        n_of_n_key: Option<String>,
+        #[arg(
+            long,
+            default_value_t = false,
+            help = "Validate the provided/config N-of-N key (aggregated public key) against the contract (requires network access)"
+        )]
+        validate_against_contract: bool,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -461,6 +482,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             DepositCommands::GetDepositAddress {
                 recovery_taproot_address,
                 citrea_address,
+                n_of_n_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -471,7 +493,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config, n_of_n_key),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
@@ -490,6 +512,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 fee_rate,
                 amount,
+                n_of_n_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -516,6 +539,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         fee_rate,
                         amount,
                         &config,
+                        n_of_n_key,
                     )
                     .await
                 );
@@ -525,6 +549,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 recovery_taproot_address,
                 evm_address,
                 amount,
+                n_of_n_key,
+                validate_against_contract,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -537,7 +563,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(
-                    deposit::verify_recovery_tx(
+                    async
+                    cli_verify_recovery_tx_with_validation(
                         deposit::VerifyRecoveryTxParams {
                             recovery_tx,
                             citrea_address,
@@ -545,12 +572,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             amount,
                         },
                         &config,
+                        n_of_n_key,
+                        validate_against_contract,
                     ),
                     (txid, address, amount) => {
-                        println!("Recovery transaction verification completed!");
-                        println!("Txid: {}", txid);
-                        println!("Address: {}", address);
-                        println!("Amount: {}", amount);
+                        println!("{} Recovery transaction verified successfully", "SUCCESS".bold());
+                        println!("Transaction ID: {}", txid);
+                        println!("Output address: {}", address);
+                        println!("Output amount:  {}", amount);
                     }
                 );
             }
