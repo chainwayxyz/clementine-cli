@@ -542,11 +542,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config,
                     ),
                     (txid, address, amount) => {
-                        println!("Recovery transaction verification completed!");
-                        println!("Txid: {}", txid);
-                        println!("Address: {}", address);
-                        println!("Amount: {}", amount);
-                    }
+                        println!("Recovery transaction verified!");
+                        println!(
+                            "This transaction may be broadcast only after the transaction {} \
+                    has been confirmed on-chain for at least {} blocks.",
+                            txid, config.user_takes_after
+                        );
+                        println!(
+                            "Once the condition is met, an amount of {} BTC ({} sats) \
+                    will be sent to the address {}.",
+                            amount, amount.to_sat(), address
+                        );
+                                        }
                 );
             }
             DepositCommands::Status {
