@@ -3,7 +3,7 @@
 //! Configuration options provided here are used to make a request to Clementine.
 
 use crate::{errors::BridgeCliError, get_clementine_config_path_with_existence_check};
-use bitcoin::{Amount, Network, XOnlyPublicKey};
+use bitcoin::{Amount, Network, PublicKey, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
 use reqwest::Url;
@@ -79,6 +79,8 @@ pub struct NetworkConfigs {
 pub struct BridgeCliConfig {
     pub network: Network,
     pub aggregated_public_key: XOnlyPublicKey,
+    #[serde(default)]
+    pub verifier_public_keys: Vec<PublicKey>,
     pub mempool_api_url: Option<Url>,
     pub citrea_chain_id: u64,
     pub citrea_rpc_url: Url,
@@ -93,6 +95,13 @@ pub struct BridgeCliConfig {
     pub bitcoin_config: Option<BitcoinConfig>,
 }
 
+/// Helper function to parse a list of public key hex strings into Vec<PublicKey>
+fn parse_public_keys(keys: &[&str]) -> Vec<PublicKey> {
+    keys.iter()
+        .filter_map(|key| key.parse::<PublicKey>().ok())
+        .collect()
+}
+
 impl BridgeCliConfig {
     pub fn defaults_for(network: Network) -> Self {
         match network {
@@ -102,6 +111,15 @@ impl BridgeCliConfig {
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
                 .unwrap(),
+                verifier_public_keys: parse_public_keys(&[
+                    "024ebf6626277c974726217b20bae9fc088e7f66a530b5ea21d0d1650513a99fb0",
+                    "0338c5e8932ed6b084f163a6d7a2b9a0af95f57d07c4c69567c0544e7fbfd93b98",
+                    "034c027c18a980c76b55a99d015cb0c845eb8875f2a403ff957b7e266d0aa66e1d",
+                    "02c585eb3acfff97b5d1caf73368cb9e0139fd6c42ebe4b13c68d24e9e77d9d7c7",
+                    "02582cb654c6ccc6fb4cd11a6c88af83a961b918385e9f30411ca94b5395e75048",
+                    "0310cc0687c18427ade30226629c30b1de5c6e714b261c4909172a6e4797f5bd51",
+                    "025668e399d27f0b799ed8e87c3cdb2c142c12afe97d252bcb338be6146378f526",
+                ]),
                 mempool_api_url: Some(Url::parse("https://mempool.space/api/").unwrap()),
                 citrea_chain_id: 0,
                 citrea_rpc_url: Url::parse("https://rpc.citrea.xyz/").unwrap(),
@@ -126,6 +144,17 @@ impl BridgeCliConfig {
                     "1e0f48f81dfa14d114f5d942f1e2d50771a4b019fa942606bb1f258b4b326bf7",
                 )
                 .unwrap(),
+                verifier_public_keys: parse_public_keys(&[
+                    "02f748795859ff682d8fa64b9fb5f91ab2ef22341237bfc0e894d22fe53ef84dae",
+                    "03bd5aabddb43eb75cec0a7706ad9e4252ba0e7a54def86077bdc42be4563c0ead",
+                    "020ea5a1e21cc9d891405bbc35c167fa704ad3b6cbd9410aa6a02a76b210ff6344",
+                    "023e14e5e54afe12b4da6a681f78a9b8b72aeb5c6c3f5c83a88493a89c9ad06ace",
+                    "020c3b55a2fb4fa4e2e1cc193264d26142abaf506cba5ec5155e58d079e04fb415",
+                    "028bc263c75aef9af7dfe501411f7d9193f8f2cbf56ef1efb2b5a8ea01a516f531",
+                    "02c6e105cd375cc32e5a3effeac9e215a4faf3354cc932474294699d1239c36d8e",
+                    "0356975057f50fa6410a7f23d51b9deb9283fd59e9dc276b9aed6dd4855b0a74a4",
+                    "030f00369be18e1d08eda9a865ba14951bbe544167872d52969566b15a6023f8ba",
+                ]),
                 mempool_api_url: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
                 citrea_chain_id: 5115,
                 citrea_rpc_url: Url::parse("https://rpc.testnet.citrea.xyz/").unwrap(),
@@ -150,6 +179,18 @@ impl BridgeCliConfig {
                     "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093139e819dc",
                 )
                 .unwrap(),
+                verifier_public_keys: parse_public_keys(&[
+                    "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+                    "02466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+                    "023c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
+                    "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
+                    "029ac20335eb38768d2052be1dbbc3c8f6178407458e51e6b4ad22f1d91758895b",
+                    "035ab4689e400a4a160cf01cd44730845a54768df8547dcdf073d964f109f18c30",
+                    "037962d45b38e8bcf82fa8efa8432a01f20c9a53e24c7d3f11df197cb8e70926da",
+                    "021617d38ed8d8657da4d4761e8057bc396ea9e4b9d29776d4be096016dbd2509b",
+                    "028985087b1818714f67e494a076ca0284c060fabc5d2ba66885b4ac60f801d3f5",
+                    "036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
+                ]),
                 mempool_api_url: Some(
                     Url::parse("https://mempool.devnet.citrea.xyz/api/").unwrap(),
                 ),
@@ -176,6 +217,18 @@ impl BridgeCliConfig {
                     "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577",
                 )
                 .unwrap(),
+                verifier_public_keys: parse_public_keys(&[
+                    "034f355bdcb7cc0af728ef3cceb9615d90684bb5b2ca5f859ab0f0b704075871aa",
+                    "02466d7fcae563e5cb09a0d1870bb580344804617879a14949cf22285f1bae3f27",
+                    "023c72addb4fdf09af94f0c94d7fe92a386a7e70cf8a1d85916386bb2535c7b1b1",
+                    "032c0b7cf95324a07d05398b240174dc0c2be444d96b159aa6c7f7b1e668680991",
+                    "029ac20335eb38768d2052be1dbbc3c8f6178407458e51e6b4ad22f1d91758895b",
+                    "035ab4689e400a4a160cf01cd44730845a54768df8547dcdf073d964f109f18c30",
+                    "037962d45b38e8bcf82fa8efa8432a01f20c9a53e24c7d3f11df197cb8e70926da",
+                    "021617d38ed8d8657da4d4761e8057bc396ea9e4b9d29776d4be096016dbd2509b",
+                    "028985087b1818714f67e494a076ca0284c060fabc5d2ba66885b4ac60f801d3f5",
+                    "036360e856310ce5d294e8be33fc807077dc56ac80d95d9cd4ddbd21325eff73f7",
+                ]),
                 mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
                 citrea_chain_id: 5655,
                 citrea_rpc_url: Url::parse("https://127.0.0.1:12345/").unwrap(),
@@ -409,6 +462,7 @@ impl Default for BridgeCliConfig {
                 "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
             )
             .unwrap(),
+            verifier_public_keys: vec![],
             mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),

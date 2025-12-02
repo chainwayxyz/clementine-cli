@@ -466,6 +466,7 @@ mod tests {
                 bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
                 bitcoin_config: None,
                 move_tx_finalization_blocks: 5,
+                verifier_public_keys: vec![],
             },
         };
 

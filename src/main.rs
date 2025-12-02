@@ -500,6 +500,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
+
+                        // Display individual N-of-N keys from config
+                        if !config.verifier_public_keys.is_empty() {
+                            println!("{} Individual verifier public keys that aggregate to the N-of-N key:", "INFO".bold());
+                            for (i, key) in config.verifier_public_keys.iter().enumerate() {
+                                println!("  {}. {}", i + 1, key);
+                            }
+                            println!();
+                        }
+
                         println!("After sending the funds, you can monitor the deposit status using:");
                         println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
                     }
