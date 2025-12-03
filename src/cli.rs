@@ -169,78 +169,78 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
         // Check if N-of-N keys have been updated
         let old_config_contents = std::fs::read_to_string(&config_file).ok();
-        if let Some(contents) = old_config_contents {
-            if let Ok(old_network_configs) = toml::from_str::<config::NetworkConfigs>(&contents) {
-                let new_network_configs = config::default_networks();
+        if let Some(contents) = old_config_contents
+            && let Ok(old_network_configs) = toml::from_str::<config::NetworkConfigs>(&contents)
+        {
+            let new_network_configs = config::default_networks();
 
-                let mut updated_networks = Vec::new();
+            let mut updated_networks = Vec::new();
 
-                // Check each network for aggregated_public_key changes
-                if old_network_configs.bitcoin.aggregated_public_key
-                    != new_network_configs.bitcoin.aggregated_public_key
-                {
-                    updated_networks.push((
-                        "bitcoin",
-                        old_network_configs.bitcoin.aggregated_public_key,
-                        new_network_configs.bitcoin.aggregated_public_key,
-                    ));
-                }
-                if old_network_configs.testnet4.aggregated_public_key
-                    != new_network_configs.testnet4.aggregated_public_key
-                {
-                    updated_networks.push((
-                        "testnet4",
-                        old_network_configs.testnet4.aggregated_public_key,
-                        new_network_configs.testnet4.aggregated_public_key,
-                    ));
-                }
-                if old_network_configs.signet.aggregated_public_key
-                    != new_network_configs.signet.aggregated_public_key
-                {
-                    updated_networks.push((
-                        "signet",
-                        old_network_configs.signet.aggregated_public_key,
-                        new_network_configs.signet.aggregated_public_key,
-                    ));
-                }
-                if old_network_configs.regtest.aggregated_public_key
-                    != new_network_configs.regtest.aggregated_public_key
-                {
-                    updated_networks.push((
-                        "regtest",
-                        old_network_configs.regtest.aggregated_public_key,
-                        new_network_configs.regtest.aggregated_public_key,
-                    ));
-                }
+            // Check each network for aggregated_public_key changes
+            if old_network_configs.bitcoin.aggregated_public_key
+                != new_network_configs.bitcoin.aggregated_public_key
+            {
+                updated_networks.push((
+                    "bitcoin",
+                    old_network_configs.bitcoin.aggregated_public_key,
+                    new_network_configs.bitcoin.aggregated_public_key,
+                ));
+            }
+            if old_network_configs.testnet4.aggregated_public_key
+                != new_network_configs.testnet4.aggregated_public_key
+            {
+                updated_networks.push((
+                    "testnet4",
+                    old_network_configs.testnet4.aggregated_public_key,
+                    new_network_configs.testnet4.aggregated_public_key,
+                ));
+            }
+            if old_network_configs.signet.aggregated_public_key
+                != new_network_configs.signet.aggregated_public_key
+            {
+                updated_networks.push((
+                    "signet",
+                    old_network_configs.signet.aggregated_public_key,
+                    new_network_configs.signet.aggregated_public_key,
+                ));
+            }
+            if old_network_configs.regtest.aggregated_public_key
+                != new_network_configs.regtest.aggregated_public_key
+            {
+                updated_networks.push((
+                    "regtest",
+                    old_network_configs.regtest.aggregated_public_key,
+                    new_network_configs.regtest.aggregated_public_key,
+                ));
+            }
 
-                if !updated_networks.is_empty() {
+            if !updated_networks.is_empty() {
+                println!();
+                println!("{} N-of-N Key Update Detected!", "IMPORTANT".bold());
+                println!(
+                    "The aggregated_public_key (N-of-N key) has been updated for the following network(s):"
+                );
+                println!();
+
+                for (network_name, _old_key, new_key) in &updated_networks {
+                    println!("  Network: {}", network_name);
+                    println!("  New key: {}", new_key);
                     println!();
-                    println!("{} N-of-N Key Update Detected!", "IMPORTANT".bold());
+                }
+
+                println!("To update your configuration, run the following command(s):");
+                println!();
+                for (network_name, _old_key, new_key) in &updated_networks {
                     println!(
-                        "The aggregated_public_key (N-of-N key) has been updated for the following network(s):"
-                    );
-                    println!();
-
-                    for (network_name, _old_key, new_key) in &updated_networks {
-                        println!("  Network: {}", network_name);
-                        println!("  New key: {}", new_key);
-                        println!();
-                    }
-
-                    println!("To update your configuration, run the following command(s):");
-                    println!();
-                    for (network_name, _old_key, new_key) in &updated_networks {
-                        println!(
-                            "  $ clementine-cli update-config --network {} aggregated_public_key={}",
-                            network_name, new_key
-                        );
-                    }
-                    println!();
-                    println!(
-                        "{} You must update your configuration before performing deposit operations.",
-                        "NOTE:".bold()
+                        "  $ clementine-cli update-config --network {} aggregated_public_key={}",
+                        network_name, new_key
                     );
                 }
+                println!();
+                println!(
+                    "{} You must update your configuration before performing deposit operations.",
+                    "NOTE:".bold()
+                );
             }
         }
     }
@@ -1112,6 +1112,7 @@ pub async fn deposit_status(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn deposit_create_signed_recovery_tx(
     citrea_addr: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
