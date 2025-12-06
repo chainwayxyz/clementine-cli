@@ -2,11 +2,12 @@ use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, tapr
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
-    cli_get_deposit_address, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
-    cli_import_wallet_from_private_key, cli_scan_withdrawals, cli_show_mnemonic,
-    cli_show_private_key, cli_start_withdrawal, cli_verify_wallet_integrity,
-    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
-    withdrawal_status,
+    cli_get_deposit_address, cli_get_deposit_address_by_recovery_taproot,
+    cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
+    cli_import_wallet_from_private_key, cli_list_all_recovery_taproot_addresses,
+    cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
+    cli_verify_wallet_integrity, deposit_create_signed_recovery_tx, deposit_status,
+    send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -241,6 +242,11 @@ enum DepositCommands {
         move_to_vault_txid: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
+    },
+    ListRecoveryAddresses,
+    GetDepositAddressesForRecoveryTaprootAddress {
+        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
+        recovery_taproot_address: String,
     },
 }
 
@@ -577,6 +583,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Deposit parameters hex: {}", hex::encode(params));
                     }
                 );
+            }
+            DepositCommands::ListRecoveryAddresses => {
+                handle_cli_command!(cli_list_all_recovery_taproot_addresses());
+            }
+            DepositCommands::GetDepositAddressesForRecoveryTaprootAddress {
+                recovery_taproot_address,
+            } => {
+                let recovery_taproot_address = handle_simple_call!(
+                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
+                        &recovery_taproot_address,
+                    )
+                );
+                handle_cli_command!(cli_get_deposit_address_by_recovery_taproot(
+                    &recovery_taproot_address
+                ));
             }
         },
         Commands::Withdraw { command } => match command {

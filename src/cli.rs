@@ -19,6 +19,10 @@ use url::Url;
 
 use crate::api_utils::get_block_height_for_tx;
 use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
+use crate::deposit::{
+    get_stored_deposit_addresses_for_recovery_taproot_address,
+    get_stored_deposit_recovery_taproot_addresses,
+};
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
@@ -1375,4 +1379,71 @@ pub fn cli_generate_withdrawal_signatures(
         operator_withdrawal_amount,
         config,
     )
+}
+
+pub fn cli_list_all_recovery_taproot_addresses() -> Result<(), BridgeCliError> {
+    let recovery_taproot_addresses =
+        get_stored_deposit_recovery_taproot_addresses().map_err(|e| {
+            tracing::error!(
+                "Failed to retrieve stored deposit recovery taproot addresses: {}",
+                e
+            );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to retrieve stored deposit recovery taproot addresses"
+            ))
+        })?;
+
+    if recovery_taproot_addresses.is_empty() {
+        println!("No stored deposit recovery taproot addresses found.");
+    } else {
+        println!("Stored Deposit Recovery Taproot Address(es):");
+        for (address, network) in recovery_taproot_addresses {
+            println!("- {} (network: {:?})", address, network);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn cli_get_deposit_address_by_recovery_taproot(
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
+) -> Result<(), BridgeCliError> {
+    let deposit_data =
+        get_stored_deposit_addresses_for_recovery_taproot_address(recovery_taproot_address)
+            .map_err(|e| {
+                tracing::error!(
+                    "Failed to retrieve deposit addresses for recovery taproot address {}: {}",
+                    recovery_taproot_address.address_with_prefix(),
+                    e
+                );
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to retrieve deposit addresses for recovery taproot address {}",
+                    recovery_taproot_address.address_with_prefix()
+                ))
+            })?;
+
+    match deposit_data {
+        Some(data) => {
+            println!(
+                "Deposit Address(es) for Recovery Taproot Address {} - Network: {}:",
+                recovery_taproot_address.address_with_prefix(),
+                data.network
+            );
+
+            for entry in data.entries {
+                println!(
+                    "- Deposit Address: {} Citrea Address: {}",
+                    entry.deposit_address, entry.citrea_address
+                );
+            }
+        }
+        None => {
+            println!(
+                "No deposit address found for Recovery Taproot Address {}",
+                recovery_taproot_address.address_with_prefix()
+            );
+        }
+    }
+
+    Ok(())
 }

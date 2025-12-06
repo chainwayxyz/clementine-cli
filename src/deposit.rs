@@ -11,9 +11,15 @@ use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::validate_address_purpose;
-use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
+use crate::{BitcoinAddress, CitreaAddress, get_clementine_home_dir};
+use bitcoin::address::NetworkUnchecked;
+use bitcoin::{Amount, FeeRate, Network, OutPoint, Transaction, Txid};
 use eyre::Result;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::io::Write;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Parameters for creating a signed recovery transaction
 pub struct RecoveryTxParams {
@@ -41,6 +47,31 @@ pub(crate) enum DepositStatusEnum {
     Completed,
     Unknown,
 }
+
+#[derive(Debug, Clone)]
+pub struct DepositData {
+    pub deposit_address: BitcoinAddress,
+    pub recovery_taproot_address: TaprootAddressWithPrefix<NetworkUnchecked>,
+    pub citrea_address: CitreaAddress,
+    pub network: Network,
+}
+
+const DEPOSIT_ADDRESS_STORAGE_FILE: &str = "deposit_addresses.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StoredDepositEntry {
+    pub deposit_address: String,
+    pub citrea_address: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DepositDetails {
+    pub network: Network,
+    pub entries: Vec<StoredDepositEntry>,
+    pub created_at: u64,
+}
+
+type StoredDepositMap = HashMap<String, DepositDetails>;
 
 impl DepositStatusEnum {
     pub(crate) fn from_status(status: &str) -> Self {
@@ -90,6 +121,124 @@ impl DepositStatusEnum {
     }
 }
 
+fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliError> {
+    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+
+    let mut map = if storage_path.exists() {
+        let contents = fs::read_to_string(&storage_path)?;
+        if contents.trim().is_empty() {
+            StoredDepositMap::new()
+        } else {
+            serde_json::from_str::<StoredDepositMap>(&contents)?
+        }
+    } else {
+        StoredDepositMap::new()
+    };
+
+    let key = deposit_data.recovery_taproot_address.address_with_prefix();
+
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+
+    let entry = StoredDepositEntry {
+        deposit_address: deposit_data.deposit_address.to_string(),
+        citrea_address: deposit_data.citrea_address.to_string(),
+    };
+
+    let details = map.entry(key).or_insert_with(|| DepositDetails {
+        network: deposit_data.network,
+        entries: Vec::new(),
+        created_at: now,
+    });
+
+    let is_duplicate = details.entries.iter().any(|e| {
+        e.deposit_address == entry.deposit_address && e.citrea_address == entry.citrea_address
+    });
+
+    if !is_duplicate {
+        details.entries.push(entry);
+    }
+
+    let tmp_path = storage_path.with_extension("json.tmp");
+    let json = serde_json::to_string_pretty(&map)?;
+
+    {
+        let mut file = fs::File::create(&tmp_path)?;
+        file.write_all(json.as_bytes())?;
+        file.sync_all()?;
+    }
+
+    fs::rename(tmp_path, storage_path)?;
+
+    Ok(())
+}
+
+pub fn get_stored_deposit_recovery_taproot_addresses()
+-> Result<Vec<(String, Network)>, BridgeCliError> {
+    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+
+    if !storage_path.exists() {
+        return Ok(Vec::new());
+    }
+
+    let contents = fs::read_to_string(&storage_path)?;
+    if contents.trim().is_empty() {
+        return Ok(Vec::new());
+    }
+
+    let mut pairs: Vec<(String, DepositDetails)> =
+        serde_json::from_str::<StoredDepositMap>(&contents)?
+            .into_iter()
+            .collect();
+
+    // Sort deterministically by creation time (and then by address for tie-breaker)
+    pairs.sort_by(|(a_addr, a_details), (b_addr, b_details)| {
+        a_details
+            .created_at
+            .cmp(&b_details.created_at)
+            .then_with(|| a_addr.cmp(b_addr))
+    });
+
+    Ok(pairs
+        .into_iter()
+        .map(|(addr, details)| (addr, details.network))
+        .collect())
+}
+
+pub fn get_stored_deposit_addresses_for_recovery_taproot_address(
+    recovery_taproot_address: &TaprootAddressWithPrefix<NetworkUnchecked>,
+) -> Result<Option<DepositDetails>, BridgeCliError> {
+    crate::wallet::wallet_utils::validate_address_purpose(
+        recovery_taproot_address,
+        Purpose::Deposit,
+    )?;
+
+    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+
+    if !storage_path.exists() {
+        return Ok(None);
+    }
+
+    let contents = fs::read_to_string(&storage_path)?;
+
+    if contents.trim().is_empty() {
+        return Ok(None);
+    }
+
+    let map: StoredDepositMap = serde_json::from_str::<StoredDepositMap>(&contents)?;
+
+    let key = recovery_taproot_address.address_with_prefix();
+
+    if let Some(details) = map.get(&key) {
+        let deposit_data = details.clone();
+        Ok(Some(deposit_data))
+    } else {
+        Ok(None)
+    }
+}
+
 /// Get deposit address from backend
 pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
@@ -121,6 +270,21 @@ pub async fn get_deposit_address(
             deposit_address,
         ));
     }
+
+    let deposit_data = DepositData {
+        deposit_address: calculated_deposit_address.clone(),
+        recovery_taproot_address: recovery_taproot_address.into(),
+        citrea_address: *citrea_address,
+        network: config.network,
+    };
+
+    store_deposit_address(&deposit_data).map_err(|e| {
+        tracing::error!("Failed to store deposit address: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to store deposit address for recovery taproot address '{}'",
+            recovery_taproot_address.address_with_prefix()
+        ))
+    })?;
 
     Ok(calculated_deposit_address)
 }
