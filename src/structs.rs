@@ -90,15 +90,11 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
 
         Ok(taproot_address_with_prefix)
     }
-}
 
-impl From<&TaprootAddressWithPrefix<NetworkUnchecked>>
-    for TaprootAddressWithPrefix<NetworkChecked>
-{
-    fn from(val: &TaprootAddressWithPrefix<NetworkUnchecked>) -> Self {
+    pub fn assume_checked(&self) -> TaprootAddressWithPrefix<NetworkChecked> {
         TaprootAddressWithPrefix {
-            address: val.address.clone().assume_checked(),
-            purpose: val.purpose,
+            address: self.address.clone().assume_checked(),
+            purpose: self.purpose,
         }
     }
 }
