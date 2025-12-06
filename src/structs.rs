@@ -92,25 +92,25 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
     }
 }
 
-impl Into<TaprootAddressWithPrefix<NetworkChecked>>
-    for &TaprootAddressWithPrefix<NetworkUnchecked>
+impl From<&TaprootAddressWithPrefix<NetworkUnchecked>>
+    for TaprootAddressWithPrefix<NetworkChecked>
 {
-    fn into(self) -> TaprootAddressWithPrefix<NetworkChecked> {
+    fn from(val: &TaprootAddressWithPrefix<NetworkUnchecked>) -> Self {
         TaprootAddressWithPrefix {
-            address: self.address.clone().assume_checked(),
-            purpose: self.purpose,
+            address: val.address.clone().assume_checked(),
+            purpose: val.purpose,
         }
     }
 }
 
-impl Into<TaprootAddressWithPrefix<NetworkUnchecked>>
-    for &TaprootAddressWithPrefix<NetworkChecked>
+impl From<&TaprootAddressWithPrefix<NetworkChecked>>
+    for TaprootAddressWithPrefix<NetworkUnchecked>
 {
-    fn into(self) -> TaprootAddressWithPrefix<NetworkUnchecked> {
+    fn from(val: &TaprootAddressWithPrefix<NetworkChecked>) -> Self {
         TaprootAddressWithPrefix {
-            address: Address::from_str(&self.address.to_string())
+            address: Address::from_str(&val.address.to_string())
                 .expect("Cannot fail since address is valid"),
-            purpose: self.purpose,
+            purpose: val.purpose,
         }
     }
 }
