@@ -745,7 +745,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         println!("\nPress a key to continue...");
                         std::io::stdin().read_line(&mut String::new()).unwrap();
-                        
+
                         println!("\nPlease review the transaction details below:\n");
 
                         if let Ok(json) = serde_json::from_str::<serde_json::Value>(&tx_json.0) {
