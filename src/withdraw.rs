@@ -1,5 +1,4 @@
 // Withdrawal-related commands and logic for Clementine CLI
-
 use crate::BitcoinAddress;
 use crate::api_utils::{get_tx_details, get_utxos, is_tx_on_chain};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
@@ -30,6 +29,15 @@ pub(crate) enum WithdrawStatusEnum {
     Completed,
     Unknown,
 }
+
+#[derive(Debug)]
+pub struct WithdrawalUrl(pub String);
+
+#[derive(Debug)]
+pub struct TxJson(pub String);
+
+#[derive(Debug)]
+pub struct DestinationAddress(pub String);
 
 impl WithdrawStatusEnum {
     pub(crate) fn from_backend_status(status: &str) -> Self {
@@ -154,7 +162,7 @@ pub async fn safe_withdraw(
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<String, BridgeCliError> {
+) -> Result<(WithdrawalUrl, TxJson, DestinationAddress), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
@@ -194,7 +202,11 @@ pub async fn safe_withdraw(
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
 
-    Ok(withdrawal_ui_url)
+    Ok((
+        WithdrawalUrl(withdrawal_ui_url),
+        TxJson(tx_json),
+        DestinationAddress(destination_address.to_string()),
+    ))
 }
 
 pub async fn send_safe_withdrawal(
