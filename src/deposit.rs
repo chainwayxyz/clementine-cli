@@ -48,6 +48,10 @@ pub(crate) enum DepositStatusEnum {
     Unknown,
 }
 
+/// Data structure representing a deposit address mapping.
+///
+/// Associates a Bitcoin deposit address with its recovery taproot address,
+/// Citrea address, and network information for storage and retrieval.
 #[derive(Debug, Clone)]
 pub struct DepositData {
     pub deposit_address: BitcoinAddress,
@@ -137,13 +141,13 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
 
     let key = deposit_data.recovery_taproot_address.address_with_prefix();
 
-    let now = SystemTime::now()  
-        .duration_since(UNIX_EPOCH)  
-        .map(|d| d.as_secs())  
-        .unwrap_or_else(|e| {  
-            tracing::warn!("System time error, using 0 as timestamp: {}", e);  
-            0  
-        }); 
+    let now = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or_else(|e| {
+            tracing::warn!("System time error, using 0 as timestamp: {}", e);
+            0
+        });
 
     let entry = StoredDepositEntry {
         deposit_address: deposit_data.deposit_address.to_string(),
@@ -164,7 +168,14 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
         details.entries.push(entry);
     }
 
-    let tmp_path = storage_path.with_extension("json.tmp");
+    let tmp_path = storage_path.with_file_name(format!(
+        "{}.tmp",
+        storage_path
+            .file_name()
+            .expect("Storage path has a file name")
+            .to_string_lossy()
+    ));
+
     let json = serde_json::to_string_pretty(&map)?;
 
     {
