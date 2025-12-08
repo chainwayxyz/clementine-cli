@@ -137,10 +137,13 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
 
     let key = deposit_data.recovery_taproot_address.address_with_prefix();
 
-    let now = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
+    let now = SystemTime::now()  
+        .duration_since(UNIX_EPOCH)  
+        .map(|d| d.as_secs())  
+        .unwrap_or_else(|e| {  
+            tracing::warn!("System time error, using 0 as timestamp: {}", e);  
+            0  
+        }); 
 
     let entry = StoredDepositEntry {
         deposit_address: deposit_data.deposit_address.to_string(),
