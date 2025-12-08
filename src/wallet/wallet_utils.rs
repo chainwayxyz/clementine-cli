@@ -456,6 +456,7 @@ pub fn validate_address_purpose<T>(
 where
     T: bitcoin::address::NetworkValidation,
 {
+    tracing::debug!("Validating purpose for address {:?}", address.address);
     if address.purpose != expected_purpose {
         return Err(BridgeCliError::PurposeMismatch {
             expected: expected_purpose,
@@ -476,5 +477,6 @@ where
 {
     validate_address_purpose(address, expected_purpose)?;
     let secure_passphrase = crate::wallet::passphrase::prompt_unlock_passphrase()?;
+    tracing::debug!("Loading key for address {}", address.address_with_prefix());
     load_key(address, &secure_passphrase)
 }
