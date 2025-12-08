@@ -268,7 +268,7 @@ impl BridgeCliConfig {
                     e
                 );
                 Err(ConfigErrors::FileReadFailure(std::io::Error::new(
-                    std::io::ErrorKind::NotFound,
+                    std::io::ErrorKind::InvalidData,
                     format!(
                         "Configuration file is not parsable at path: {:?}",
                         config_path
