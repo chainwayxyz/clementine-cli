@@ -170,7 +170,15 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
         file.sync_all()?;
     }
 
-    fs::rename(tmp_path, storage_path)?;
+    fs::rename(tmp_path, &storage_path)?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&storage_path)?.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(&storage_path, perms)?;
+    }
 
     Ok(())
 }
