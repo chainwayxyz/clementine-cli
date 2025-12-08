@@ -744,25 +744,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         );
 
                         println!("\nPress a key to continue...");
-                        std::io::stdin().read_line(&mut String::new()).unwrap();
+                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
 
                         println!("\nPlease review the transaction details below:\n");
 
-                        if let Ok(json) = serde_json::from_str::<serde_json::Value>(&tx_json.0) {
-                            if let Ok(pretty) = serde_json::to_string_pretty(&json) {
-                                println!("Transaction JSON (pretty):\n{}", pretty);
-                            } else {
-                                println!("Transaction JSON:\n{}", tx_json.0);
-                            }
-                        } else {
-                            println!("Transaction JSON:\n{}", tx_json.0);
-                        }
+                        let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
+                            .ok()
+                            .and_then(|json| serde_json::to_string_pretty(&json).ok())
+                            .unwrap_or_else(|| tx_json.0.clone());
+
+                        println!("Transaction JSON:\n{}", pretty_json);
+
                         println!("\nDestination Address: {}\n", destination_address.0);
                         println!("Please double check the transaction details before proceeding in the browser.\n");
-                        // take an input to continue
+
                         println!("Press a key to continue...");
                         let mut input = String::new();
-                        std::io::stdin().read_line(&mut input).unwrap();
+
+                        std::io::stdin().read_line(&mut input).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
 
                         if let Err(e) = open::that(&withdrawal_ui_url.0) {
                             return Err(eyre::eyre!(
