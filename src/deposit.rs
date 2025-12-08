@@ -215,6 +215,15 @@ pub fn get_stored_deposit_recovery_taproot_addresses()
         .collect())
 }
 
+/// Retrieves deposit details for a specific recovery taproot address.
+///
+/// # Arguments
+/// * `recovery_taproot_address` - The recovery taproot address to look up (must have deposit purpose)
+///
+/// # Returns
+/// - `Ok(Some(DepositDetails))`: If the address has stored deposit data
+/// - `Ok(None)`: If no data exists for the address
+/// - `Err(BridgeCliError)`: If validation fails or file operations fail
 pub fn get_stored_deposit_addresses_for_recovery_taproot_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<NetworkUnchecked>,
 ) -> Result<Option<DepositDetails>, BridgeCliError> {
