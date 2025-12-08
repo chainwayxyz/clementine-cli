@@ -243,7 +243,9 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    ListRecoveryAddresses,
+    /// List all stored deposit recovery taproot addresses with their networks.
+    ListDepositRecoveryAddresses,
+    /// Retrieve stored deposit addresses for a specific recovery taproot address.
     GetDepositAddressesForRecoveryTaprootAddress {
         /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
         recovery_taproot_address: String,
@@ -584,7 +586,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::ListRecoveryAddresses => {
+            DepositCommands::ListDepositRecoveryAddresses => {
                 handle_cli_command!(cli_list_all_recovery_taproot_addresses());
             }
             DepositCommands::GetDepositAddressesForRecoveryTaprootAddress {
