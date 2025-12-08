@@ -266,8 +266,8 @@ fn prompt_rpc_fields(
 
 /// Interactive setup for the known Bitcoin networks.
 ///
-/// Walks through `mainnet`, `testnet4` prompting
-/// the user to choose a backend (mempool, RPC or both) and filling the
+/// Walks through `mainnet`, `testnet4` prompting the user to
+/// choose a backend (mempool, RPC or both) and filling the
 /// provided `NetworkConfigs` structure accordingly.
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     let theme = ColorfulTheme::default();
