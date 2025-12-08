@@ -1405,7 +1405,7 @@ pub fn cli_list_all_recovery_taproot_addresses() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-pub fn cli_get_deposit_address_by_recovery_taproot(
+pub fn cli_get_deposit_addresses_by_recovery_taproot_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     let deposit_data =

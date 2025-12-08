@@ -2,7 +2,7 @@ use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, tapr
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
-    cli_get_deposit_address, cli_get_deposit_address_by_recovery_taproot,
+    cli_get_deposit_address, cli_get_deposit_addresses_by_recovery_taproot_address,
     cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
     cli_import_wallet_from_private_key, cli_list_all_recovery_taproot_addresses,
     cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
@@ -597,7 +597,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &recovery_taproot_address,
                     )
                 );
-                handle_cli_command!(cli_get_deposit_address_by_recovery_taproot(
+                handle_cli_command!(cli_get_deposit_addresses_by_recovery_taproot_address(
                     &recovery_taproot_address
                 ));
             }
