@@ -62,12 +62,20 @@ pub struct DepositData {
 
 const DEPOSIT_ADDRESS_STORAGE_FILE: &str = "deposit_addresses.json";
 
+/// A single deposit address entry stored in the JSON file.
+///
+/// Contains the deposit address and associated Citrea address as strings.
+/// Multiple entries can exist for each recovery taproot address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredDepositEntry {
     pub deposit_address: String,
     pub citrea_address: String,
 }
 
+/// Deposit details for a specific recovery taproot address.
+///
+/// Contains the network, list of deposit entries, and creation timestamp.
+/// This structure is stored in the JSON file keyed by the recovery taproot address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DepositDetails {
     pub network: Network,
@@ -160,6 +168,15 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
         created_at: now,
     });
 
+    if details.network != deposit_data.network {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Network mismatch for recovery taproot address '{}': existing network '{:?}', new network '{:?}'",
+            deposit_data.recovery_taproot_address.address_with_prefix(),
+            details.network,
+            deposit_data.network
+        )));
+    }
+
     let is_duplicate = details.entries.iter().any(|e| {
         e.deposit_address == entry.deposit_address && e.citrea_address == entry.citrea_address
     });
@@ -184,7 +201,13 @@ fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliErro
         file.sync_all()?;
     }
 
-    fs::rename(tmp_path, &storage_path)?;
+    fs::rename(&tmp_path, &storage_path).map_err(|e| {
+        let _ = fs::remove_file(tmp_path);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to rename temp deposit address storage file: {}",
+            e
+        ))
+    })?;
 
     #[cfg(unix)]
     {
