@@ -177,6 +177,18 @@ pub enum BridgeCliError {
     #[error("Transaction {0} is not found on chain, maybe wait for confirmation")]
     TransactionNotOnChain(bitcoin::Txid),
 
+    // Transaction parsing errors
+    #[error("Failed to decode hex string '{hex_string}': {source}")]
+    HexDecodeError {
+        source: hex::FromHexError,
+        hex_string: String,
+    },
+    #[error("Failed to deserialize transaction from hex '{tx_hex}': {source}")]
+    TransactionDeserializeError {
+        source: bitcoin::consensus::encode::Error,
+        tx_hex: String,
+    },
+
     // Module specific errors
     #[error("Can't get configuration: {0}")]
     ConfigError(ConfigErrors),

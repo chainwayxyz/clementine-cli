@@ -197,6 +197,7 @@ impl BridgeCliConfig {
 
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
+        tracing::debug!("Trying to read and parse configuration file from home directory...");
         let config_path = get_clementine_config_path_with_existence_check().map_err(|_| {
             ConfigErrors::FileReadFailure(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
