@@ -58,15 +58,17 @@ pub(crate) fn get_master_seed_from_mnemonic(mnemonic: &Mnemonic) -> SecureByteSl
     SecureByteSlice::new(Box::new(master_seed))
 }
 
-pub(crate) fn load_mnemonic<T>(
+pub(crate) async fn load_mnemonic<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
 ) -> Result<Mnemonic, BridgeCliError>
 where
-    T: NetworkValidation,
+    T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let wallet_data = load_wallet_data(address)?;
+    let wallet_data = load_wallet_data(address).await?.ok_or(
+        BridgeCliError::WalletNotFound(address.address_with_prefix()),
+    )?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?

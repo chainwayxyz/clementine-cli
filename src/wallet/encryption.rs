@@ -81,7 +81,7 @@ pub(crate) struct EncryptedData {
 
 /// Hex-encoded version of EncryptedData for JSON serialization
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct EncryptedDataHex {
+pub struct EncryptedDataHex {
     pub ciphertext: String,
     pub nonce: String,
     pub salt: String,

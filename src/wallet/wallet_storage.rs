@@ -37,49 +37,21 @@
 
 use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
-use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
-use std::{collections::HashMap, path::PathBuf};
+use std::path::PathBuf;
 
 use crate::errors::BridgeCliError;
-use crate::get_clementine_home_dir;
+use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::sqlite_db::wallet_db::WalletData;
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
-use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
+use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
-
-/// Registry entry for a wallet stored in wallets.json
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct WalletRegistryEntry {
-    pub label: String,
-    pub network: String,
-    pub created_at: String,
-    pub addres_with_prefix: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub imported: Option<bool>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub imported_at: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub import_method: Option<String>,
-}
-
-/// Generic wallet data structure that can handle different storage formats
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub(crate) struct GenericWalletData {
-    pub label: String,
-    pub address_with_prefix: String,
-    pub network: String,
-    pub encrypted_mnemonic: Option<EncryptedDataHex>,
-    pub encrypted_private_key: Option<EncryptedDataHex>,
-    pub created_at: String,
-    pub encryption_method: String,
-    pub imported: Option<bool>,
-    pub import_method: Option<String>,
-}
+use crate::{get_clementine_home_dir, sqlite_db};
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn store_wallet_data(
+pub(crate) async fn store_wallet_data(
     address: &TaprootAddressWithPrefix<NetworkChecked>,
     network: Network,
     encrypted_mnemonic: &EncryptedData,
@@ -87,127 +59,41 @@ pub(crate) fn store_wallet_data(
     imported: bool,
     import_method: Option<&str>,
     label: &str,
-) -> Result<PathBuf, BridgeCliError> {
+) -> Result<(), BridgeCliError> {
     validate_wallet_availability(Some(label), Some(address), WalletValidationMode::Both)?;
 
-    let wallet_data = GenericWalletData {
+    let wallet_data = WalletData {
         label: label.to_string(),
-        address_with_prefix: address.address_with_prefix(),
-        network: network.to_string(),
+        address: address.clone(),
+        network: network,
         encrypted_mnemonic: Some(encrypted_data_to_hex(encrypted_mnemonic)),
         encrypted_private_key: Some(encrypted_data_to_hex(encrypted_private_key)),
-        created_at: chrono::Utc::now().to_rfc3339(),
+        created_at: chrono::Utc::now(),
         encryption_method: "aes256_gcm_argon2id_secure".to_string(),
         imported: if imported { Some(true) } else { None },
         import_method: import_method.map(|s| s.to_string()),
     };
 
-    let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address.address_without_prefix()));
-    tracing::info!("Wallet will be saved to: {wallet_file:?}");
-
-    let json_data = serde_json::to_string_pretty(&wallet_data)?;
-    tracing::debug!("Wallet data: {wallet_data:?}");
-
-    // Create missing dirs and write to file.
-    fs::create_dir_all(storage_dir)?;
-    fs::write(&wallet_file, json_data)?;
-
-    // Set secure file permissions on Unix systems
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut permissions = fs::metadata(&wallet_file)?.permissions();
-        permissions.set_mode(0o600);
-        fs::set_permissions(&wallet_file, permissions)?;
-    }
-
-    // Update wallets registry
-    update_wallets_registry(label, address, network, imported, import_method)?;
-
-    Ok(wallet_file)
-}
-
-/// Update the wallets.json registry
-fn update_wallets_registry(
-    label: &str,
-    address: &TaprootAddressWithPrefix<NetworkChecked>,
-    network: Network,
-    imported: bool,
-    import_method: Option<&str>,
-) -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallets_file = storage_dir.join("wallets.json");
-
-    let mut wallets: HashMap<String, WalletRegistryEntry> = if wallets_file.exists() {
-        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
-    } else {
-        HashMap::new()
-    };
-
-    let wallet_entry = WalletRegistryEntry {
-        label: label.to_string(),
-        network: network.to_string(),
-        addres_with_prefix: address.address_with_prefix(),
-        created_at: chrono::Utc::now().to_rfc3339(),
-        imported: if imported { Some(true) } else { None },
-        imported_at: if imported {
-            Some(chrono::Utc::now().to_rfc3339())
-        } else {
-            None
-        },
-        import_method: if imported {
-            import_method.map(|s| s.to_string())
-        } else {
-            None
-        },
-    };
-
-    wallets.insert(address.address_without_prefix(), wallet_entry);
-    fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+    let sqlite_client = SqliteDb::open_with_schema().await?;
+    sqlite_db::wallet_db::WalletTable::insert_wallet(&sqlite_client.pool(), &wallet_data).await?;
 
     Ok(())
 }
 
 /// Load generic wallet data from file
-pub(crate) fn load_wallet_data<T>(
+pub async fn load_wallet_data<T>(
     address: &TaprootAddressWithPrefix<T>,
-) -> Result<GenericWalletData, BridgeCliError>
+) -> Result<Option<WalletData>, BridgeCliError>
 where
-    T: NetworkValidation,
+    T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let storage_dir = get_storage_dir_with_existence_check()?;
-    let address = address.address_without_prefix();
-    let wallet_file = storage_dir.join(format!("wallet_{}.json", address));
-
-    if !wallet_file.exists() {
-        return Err(BridgeCliError::WalletNotFound(address));
-    }
-
-    let json_data = fs::read_to_string(&wallet_file).map_err(|e| {
-        tracing::error!(
-            "Error reading wallet file '{}': {}",
-            wallet_file.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to read wallet file '{}'",
-            wallet_file.display()
-        ))
-    })?;
-
-    let wallet_data: GenericWalletData = serde_json::from_str(&json_data).map_err(|e| {
-        tracing::error!(
-            "Error parsing wallet file '{}': {}",
-            wallet_file.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to parse wallet file '{}'",
-            wallet_file.display()
-        ))
-    })?;
+    let sqlite_client = SqliteDb::open_with_schema().await?;
+    let wallet_data = sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
+        &sqlite_client.pool(),
+        address.clone(),
+    )
+    .await?;
 
     Ok(wallet_data)
 }
@@ -227,28 +113,6 @@ pub(crate) fn get_storage_dir_with_existence_check() -> Result<PathBuf, BridgeCl
         )));
     }
     Ok(storage_dir)
-}
-
-/// Get wallets from the registry (wallets.json)
-pub(crate) fn get_wallets_from_registry()
--> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallets_file = storage_dir.join("wallets.json");
-
-    if !wallets_file.exists() {
-        tracing::debug!("No wallets in the registry");
-        return Ok(HashMap::new());
-    }
-
-    let wallets_content = fs::read_to_string(&wallets_file)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
-
-    let wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
-        .map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e))
-        })?;
-
-    Ok(wallets)
 }
 
 /// Copy a wallet file to a destination, creating parent directories if needed.

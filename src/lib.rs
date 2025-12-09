@@ -26,12 +26,13 @@ pub mod wallet;
 pub mod withdraw;
 // Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
+pub mod sqlite_db;
 
 // Wallet operations
 pub use wallet::{
     backup_wallet, create_encrypted_wallet, get_mnemonic_from_wallet, get_private_key_from_wallet,
-    get_registry_wallet_set, import_wallet_from_file, import_wallet_from_mnemonic,
-    import_wallet_from_private_key, print_all_wallets_with_addresses, scan_wallet_files,
+    import_wallet_from_file, import_wallet_from_mnemonic,
+    import_wallet_from_private_key, print_all_wallets_with_addresses,
 };
 
 // Deposit operations

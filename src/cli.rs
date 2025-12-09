@@ -23,7 +23,6 @@ use crate::deposit::{
     get_stored_deposit_addresses_for_recovery_taproot_address,
     get_stored_deposit_recovery_taproot_addresses,
 };
-use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
@@ -42,15 +41,13 @@ use crate::{
     secure_types::SecureString,
     structs::{DepositStatusWithVout, TaprootAddressWithPrefix},
     wallet::{
-        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
+        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
-        scan_wallet_files,
         wallet_storage::get_storage_dir,
         wallet_utils::{
             WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
-            parse_and_validate_imported_wallet, report_integrity_results,
-            validate_wallet_availability,
+            parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
     withdraw::{self, start_withdrawal},
@@ -687,7 +684,7 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
 
     Ok(())
 }
-pub fn cli_create_wallet(
+pub async fn cli_create_wallet(
     network: Network,
     label: String,
     purpose: Purpose,
@@ -696,8 +693,8 @@ pub fn cli_create_wallet(
     validate_wallet_availability(Some(&label), None, WalletValidationMode::Label)?;
 
     let passphrase = prompt_passphrase(true)?;
-    let (address, mnemonic, wallet_file_path) =
-        create_encrypted_wallet(network, label, purpose, passphrase)?;
+    let (address, mnemonic) =
+        create_encrypted_wallet(network, label, purpose, passphrase).await?;
 
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
@@ -705,12 +702,6 @@ pub fn cli_create_wallet(
         "{} Wallet created with address: {}\r\n",
         "SUCCESS".bold(),
         address.address_with_prefix()
-    );
-
-    print!(
-        "{} Wallet file saved to: {}\r\n",
-        "INFO".bold(),
-        wallet_file_path.display()
     );
 
     if purpose == Purpose::Deposit {
@@ -776,25 +767,6 @@ pub fn cli_import_wallet_from_mnemonic(
     let mnemonic = prompt_mnemonic()?;
 
     import_wallet_from_mnemonic(network, label, purpose, mnemonic)
-}
-
-pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existence_check()?;
-
-    println!("{}", "Verifying Wallet Integrity".bold());
-    println!("Storage directory: {}", storage_dir.display());
-    println!();
-
-    // Load registered wallets from wallets.json
-    let registry_wallets = get_registry_wallet_set()?;
-
-    // Scan for actual wallet files in storage directory
-    let file_wallets = scan_wallet_files()?;
-
-    // Report integrity results
-    report_integrity_results(&registry_wallets, &file_wallets);
-
-    Ok(())
 }
 
 pub fn cli_import_wallet_from_file(

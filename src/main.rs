@@ -174,8 +174,6 @@ enum WalletCommands {
         /// Label for the imported wallet
         label: Option<String>,
     },
-    /// Verify integrity of wallet registry and files.
-    VerifyIntegrity,
     /// List all wallets with their addresses.
     List,
 }
@@ -439,12 +437,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "INFO".bold()
                         );
                     }
-                );
-            }
-            WalletCommands::VerifyIntegrity => {
-                handle_cli_command!(
-                    cli_verify_wallet_integrity(),
-                    "Wallet integrity verification completed"
                 );
             }
             WalletCommands::List => {
