@@ -509,7 +509,7 @@ async fn is_tx_on_chain_bitcoin_rpc(
 mod tests {
     use crate::{
         broadcast_recovery_tx,
-        config::{BitcoinConfig, BridgeCliConfig, ToSecretBox},
+        config::{BitcoinConfig, BridgeCliConfig},
         parse_transaction_hex,
     };
     use bitcoin::{
