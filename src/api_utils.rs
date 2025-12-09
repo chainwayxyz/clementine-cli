@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use crate::errors::BridgeCliError;
-use crate::{BitcoinAddress, config::BridgeCliConfig};
+use crate::{BitcoinAddress, config::BridgeCliConfig, parse_transaction_hex};
 use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
 use bitcoincore_rpc::{Client, RpcApi};
@@ -143,7 +143,7 @@ pub async fn get_tx_details_from_mempool(
         .text()
         .await
         .map_err(|e| eyre!("Failed to read transaction hex response for {txid}: {e}"))?;
-    let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
+    let tx: Transaction = parse_transaction_hex(&tx_hex)?;
     tracing::debug!("tx: {:?}", tx);
 
     let (block_height, block_hash) = get_block_info_for_tx_from_mempool_space(txid, config).await?;
@@ -509,6 +509,7 @@ mod tests {
     use crate::{
         broadcast_recovery_tx,
         config::{BitcoinConfig, BridgeCliConfig, ToSecretBox},
+        parse_transaction_hex,
     };
     use bitcoin::{
         Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
@@ -594,12 +595,7 @@ mod tests {
         let txid = broadcast_recovery_tx(&config, raw_tx.clone())
             .await
             .unwrap();
-        assert_eq!(
-            txid,
-            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 
     #[tokio::test]
@@ -640,11 +636,6 @@ mod tests {
                 .await
                 .unwrap();
 
-        assert_eq!(
-            txid,
-            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 }
