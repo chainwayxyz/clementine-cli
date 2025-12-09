@@ -10,11 +10,7 @@ use serde::{Deserialize, Serialize};
 const PROGRESS_BAR_WIDTH: usize = 40;
 
 use crate::{
-    BitcoinAddress,
-    deposit::DepositStatusEnum,
-    errors::BridgeCliError,
-    wallet::{Purpose, address::parse_taproot_address},
-    withdraw::WithdrawStatusEnum,
+    BitcoinAddress, deposit::DepositStatusEnum, errors::BridgeCliError, types::{MerkleProof, Transaction}, wallet::{Purpose, address::parse_taproot_address}, withdraw::WithdrawStatusEnum
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -381,6 +377,28 @@ impl Display for WithdrawStatus {
         };
         writeln!(f, "    Raw TX: {}", raw_tx)?;
         writeln!(f, "    TXID:   {}", txid)?;
+        Ok(())
+    }
+}
+
+
+#[derive(Debug, Clone)]
+pub struct Params {
+    pub transaction: Transaction,
+    pub merkle_proof: MerkleProof,
+    pub payout_transaction: Transaction,
+    pub block_header: alloy::sol_types::private::Bytes,
+    pub output_script_pk: alloy::sol_types::private::Bytes,
+}
+
+impl Display for Params {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\nSafe Withdraw Params")?;
+        writeln!(f, "  Transaction:          {:?}", self.transaction)?;
+        writeln!(f, "  Merkle Proof:         {:?}", self.merkle_proof)?;
+        writeln!(f, "  Payout Transaction:   {:?}", self.payout_transaction)?;
+        writeln!(f, "  Block Header:         {:?}", self.block_header)?;
+        writeln!(f, "  Output Script PK:     {:?}", self.output_script_pk)?;
         Ok(())
     }
 }
