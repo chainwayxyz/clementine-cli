@@ -6,9 +6,7 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::structs::{Params, TaprootAddressWithPrefix};
-use crate::types::{
-    BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params,
-};
+use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};

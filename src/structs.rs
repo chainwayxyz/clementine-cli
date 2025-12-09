@@ -10,7 +10,12 @@ use serde::{Deserialize, Serialize};
 const PROGRESS_BAR_WIDTH: usize = 40;
 
 use crate::{
-    BitcoinAddress, deposit::DepositStatusEnum, errors::BridgeCliError, types::{MerkleProof, Transaction}, wallet::{Purpose, address::parse_taproot_address}, withdraw::WithdrawStatusEnum
+    BitcoinAddress,
+    deposit::DepositStatusEnum,
+    errors::BridgeCliError,
+    types::{MerkleProof, Transaction},
+    wallet::{Purpose, address::parse_taproot_address},
+    withdraw::WithdrawStatusEnum,
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -380,7 +385,6 @@ impl Display for WithdrawStatus {
         Ok(())
     }
 }
-
 
 #[derive(Debug, Clone)]
 pub struct Params {
