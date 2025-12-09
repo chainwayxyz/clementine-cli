@@ -736,7 +736,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &sig,
                         &config,
                     ),
-                    (withdrawal_ui_url, tx_json) => {
+                    (withdrawal_ui_url, tx_json, params) => {
                         println!(
                             "\n{} Opening withdrawal page {} in your default browser...",
                             "INFO".bold(),
@@ -760,6 +760,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Transaction JSON:\n{}", pretty_json);
 
                         println!("\nDestination Address: {}\n", destination_address.to_string());
+
+                        println!("{:#?}\n", params);
+
                         println!("Please double check the transaction details before proceeding in the browser.\n");
 
                         println!("Press a key to continue...");
