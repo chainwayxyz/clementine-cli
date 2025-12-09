@@ -736,7 +736,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &sig,
                         &config,
                     ),
-                    (withdrawal_ui_url, tx_json, destination_address) => {
+                    (withdrawal_ui_url, tx_json) => {
                         println!(
                             "\n{} Opening withdrawal page {} in your default browser...",
                             "INFO".bold(),
@@ -751,6 +751,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         println!("\nPlease review the transaction details below:\n");
 
+
                         let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
                             .ok()
                             .and_then(|json| serde_json::to_string_pretty(&json).ok())
@@ -758,7 +759,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         println!("Transaction JSON:\n{}", pretty_json);
 
-                        println!("\nDestination Address: {}\n", destination_address.0);
+                        println!("\nDestination Address: {}\n", destination_address.to_string());
                         println!("Please double check the transaction details before proceeding in the browser.\n");
 
                         println!("Press a key to continue...");

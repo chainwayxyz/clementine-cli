@@ -36,9 +36,6 @@ pub struct WithdrawalUrl(pub String);
 #[derive(Debug)]
 pub struct TxJson(pub String);
 
-#[derive(Debug)]
-pub struct DestinationAddress(pub String);
-
 impl WithdrawStatusEnum {
     pub(crate) fn from_backend_status(status: &str) -> Self {
         match status {
@@ -162,7 +159,7 @@ pub async fn safe_withdraw(
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<(WithdrawalUrl, TxJson, DestinationAddress), BridgeCliError> {
+) -> Result<(WithdrawalUrl, TxJson), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
@@ -202,11 +199,7 @@ pub async fn safe_withdraw(
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
 
-    Ok((
-        WithdrawalUrl(withdrawal_ui_url),
-        TxJson(tx_json),
-        DestinationAddress(destination_address.to_string()),
-    ))
+    Ok((WithdrawalUrl(withdrawal_ui_url), TxJson(tx_json)))
 }
 
 pub async fn send_safe_withdrawal(
