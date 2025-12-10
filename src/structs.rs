@@ -13,6 +13,7 @@ use crate::{
     BitcoinAddress,
     deposit::DepositStatusEnum,
     errors::BridgeCliError,
+    types::{MerkleProof, Transaction},
     wallet::{Purpose, address::parse_taproot_address},
     withdraw::WithdrawStatusEnum,
 };
@@ -28,11 +29,11 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         let address_type = if let Some(t) = address.address_type() {
             t
         } else {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         };
 
         if address_type != bitcoin::AddressType::P2tr {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
         Ok(Self { address, purpose })
@@ -43,16 +44,10 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
         network: bitcoin::Network,
     ) -> Result<Self, BridgeCliError> {
         if address.len() < 3 {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
-        let purpose = Purpose::purpose_from_str(&address[0..3]).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!(
-                "Failed to parse purpose from address: {} Error: {}",
-                address,
-                e
-            ))
-        })?;
+        let purpose = Purpose::purpose_from_str(&address[0..3])?;
 
         let addr_str = &address[3..];
 
@@ -77,10 +72,11 @@ impl TaprootAddressWithPrefix<NetworkChecked> {
 impl TaprootAddressWithPrefix<NetworkUnchecked> {
     pub fn from_string_with_prefix_unchecked(address: &str) -> Result<Self, BridgeCliError> {
         if address.len() < 4 {
-            return Err(BridgeCliError::InvalidAddressFormat);
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
         }
 
         let purpose = Purpose::purpose_from_str(&address[0..3])?;
+
         let addr_str = &address[3..];
 
         let unchecked_address: BitcoinAddress<NetworkUnchecked> =
@@ -106,6 +102,7 @@ impl AddrDisplay for Address<NetworkChecked> {
         self.to_string()
     }
 }
+
 impl AddrDisplay for Address<NetworkUnchecked> {
     fn as_display_str(&self) -> String {
         self.clone().assume_checked().to_string()
@@ -385,6 +382,27 @@ impl Display for WithdrawStatus {
         };
         writeln!(f, "    Raw TX: {}", raw_tx)?;
         writeln!(f, "    TXID:   {}", txid)?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WithdrawalParams {
+    pub transaction: Transaction,
+    pub merkle_proof: MerkleProof,
+    pub payout_transaction: Transaction,
+    pub block_header: alloy::sol_types::private::Bytes,
+    pub output_script_pk: alloy::sol_types::private::Bytes,
+}
+
+impl Display for WithdrawalParams {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "\nSafe Withdraw Params")?;
+        writeln!(f, "  Transaction:          {:?}", self.transaction)?;
+        writeln!(f, "  Merkle Proof:         {:?}", self.merkle_proof)?;
+        writeln!(f, "  Payout Transaction:   {:?}", self.payout_transaction)?;
+        writeln!(f, "  Block Header:         {:?}", self.block_header)?;
+        writeln!(f, "  Output Script PK:     {:?}", self.output_script_pk)?;
         Ok(())
     }
 }

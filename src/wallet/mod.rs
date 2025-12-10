@@ -54,7 +54,7 @@ use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::GenericWalletData;
 use crate::wallet::wallet_storage::copy_wallet_file_to_destination;
-use crate::wallet::wallet_storage::get_storage_dir;
+use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::wallet::wallet_storage::get_wallets_from_registry;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
@@ -74,13 +74,16 @@ pub fn create_encrypted_wallet(
     label: String,
     purpose: Purpose,
     passphrase: SecureString,
-) -> Result<(TaprootAddressWithPrefix<NetworkChecked>, Mnemonic), BridgeCliError> {
+) -> Result<(TaprootAddressWithPrefix<NetworkChecked>, Mnemonic, PathBuf), BridgeCliError> {
     // Generate mnemonic
     let mnemonic = generate_mnemonic()?;
 
     // Generate address from mnemonic using helper function
-    let address = address::generate_address_from_mnemonic(&mnemonic, network, purpose)
-        .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+    let address =
+        address::generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
+            tracing::error!("Error generating address from mnemonic: {}", e);
+            BridgeCliError::AddressGenerationFromMnemonicFailed
+        })?;
 
     // Validate that both wallet name and address don't already exist
     validate_wallet_availability(Some(&label), Some(&address), WalletValidationMode::Both)?;
@@ -94,7 +97,7 @@ pub fn create_encrypted_wallet(
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)?;
 
     // Store encrypted wallet with separate encrypted fields
-    wallet_storage::store_wallet_data(
+    let wallet_file_path = wallet_storage::store_wallet_data(
         &address,
         network,
         &encrypted_mnemonic,
@@ -104,7 +107,7 @@ pub fn create_encrypted_wallet(
         &label,
     )?;
 
-    Ok((address, mnemonic))
+    Ok((address, mnemonic, wallet_file_path))
 }
 
 /// Backup a wallet file to a specified destination
@@ -138,24 +141,33 @@ pub fn import_wallet_from_mnemonic(
     validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
 
     // Generate address from mnemonic using helper function
-    let address = generate_address_from_mnemonic(&mnemonic, network, purpose)
-        .map_err(|e| BridgeCliError::AddressGenerationFromMnemonicFailed(e.to_string()))?;
+    let address = generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
+        tracing::error!("Error generating address from mnemonic: {}", e);
+        BridgeCliError::AddressGenerationFromMnemonicFailed
+    })?;
 
     validate_wallet_availability(None, Some(&address), WalletValidationMode::Address)?;
     let _address_str = address.address_with_prefix();
 
     let passphrase = prompt_passphrase(true)?;
 
-    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)
-        .map_err(|e| BridgeCliError::PrivateKeyDerivationFromMnemonicFailed(e.to_string()))?;
+    let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic).map_err(|e| {
+        tracing::error!("Error deriving private key from mnemonic: {}", e);
+        BridgeCliError::PrivateKeyDerivationFromMnemonicFailed
+    })?;
 
     let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
 
-    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase)
-        .map_err(|e| BridgeCliError::MnemonicEncryptionFailed(e.to_string()))?;
+    let encrypted_mnemonic = aes_encrypt_secure(&mnemonic_secure, &passphrase).map_err(|e| {
+        tracing::error!("Error encrypting mnemonic: {}", e);
+        BridgeCliError::MnemonicEncryptionFailed
+    })?;
 
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
-        .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error encrypting private key: {}", e);
+            BridgeCliError::PrivateKeyEncryptionFailed
+        })?;
 
     wallet_storage::store_wallet_data(
         &address,
@@ -166,7 +178,10 @@ pub fn import_wallet_from_mnemonic(
         Some("mnemonic_import"),
         label,
     )
-    .map_err(|e| BridgeCliError::WalletStorageFailed(e.to_string()))?;
+    .map_err(|e| {
+        tracing::error!("Error storing wallet data: {}", e);
+        BridgeCliError::WalletStorageFailed
+    })?;
 
     Ok(address)
 }
@@ -193,11 +208,12 @@ pub fn import_wallet_from_file(
             // Basic validation: should have words separated by spaces
             let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
             if words.len() != MNEMONIC_WORD_COUNT {
-                return Err(BridgeCliError::MnemonicParseError(format!(
-                    "Invalid mnemonic length: expected {} words, got {}",
+                tracing::error!(
+                    "Decrypted mnemonic has invalid word count: expected {}, got {}",
                     MNEMONIC_WORD_COUNT,
                     words.len()
-                )));
+                );
+                return Err(BridgeCliError::MnemonicParseError);
             }
 
             // Validate wallet data based on import type
@@ -276,8 +292,10 @@ pub fn import_wallet_from_private_key(
     }
 
     let master_private_key = SecureSecretKey::new(
-        SecretKey::from_slice(private_key_bytes.expose_secret())
-            .map_err(|e| BridgeCliError::InvalidPrivateKey(e.to_string()))?,
+        SecretKey::from_slice(private_key_bytes.expose_secret()).map_err(|e| {
+            tracing::error!("Error parsing private key: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to parse private key"))
+        })?,
     );
 
     let keypair = SecureKeypair::new(Keypair::from_secret_key(
@@ -297,11 +315,17 @@ pub fn import_wallet_from_private_key(
             .to_string()
     });
 
-    let encrypted_mnemonic = aes_encrypt_secure(&placeholder_mnemonic, &passphrase)
-        .map_err(|e| BridgeCliError::PlaceholderMnemonicEncryptionFailed(e.to_string()))?;
+    let encrypted_mnemonic =
+        aes_encrypt_secure(&placeholder_mnemonic, &passphrase).map_err(|e| {
+            tracing::error!("Error encrypting placeholder mnemonic: {}", e);
+            BridgeCliError::PlaceholderMnemonicEncryptionFailed
+        })?;
 
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
-        .map_err(|e| BridgeCliError::PrivateKeyEncryptionFailed(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error encrypting private key: {}", e);
+            BridgeCliError::PrivateKeyEncryptionFailed
+        })?;
 
     wallet_storage::store_wallet_data(
         &address,
@@ -349,12 +373,8 @@ where
 
 pub fn scan_wallet_files()
 -> Result<HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
     let mut file_wallets: HashSet<TaprootAddressWithPrefix<NetworkUnchecked>> = HashSet::new();
-
-    if !storage_dir.exists() {
-        return Ok(file_wallets);
-    }
 
     for entry in fs::read_dir(storage_dir)? {
         let entry = entry?;

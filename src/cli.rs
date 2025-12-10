@@ -13,7 +13,13 @@ use bitcoin::{
 use colored::Colorize;
 use eyre::eyre;
 
+use dialoguer::{Input, Password, Select, theme::ColorfulTheme};
+use eyre::Result;
+use url::Url;
+
 use crate::api_utils::get_block_height_for_tx;
+use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
+use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
@@ -45,6 +51,10 @@ use crate::{
     },
     withdraw::{self, start_withdrawal},
 };
+use crate::{
+    config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
+    get_clementine_home_dir_with_existence_check,
+};
 
 use crossterm::cursor::{MoveToColumn, SavePosition};
 use crossterm::terminal::{Clear, ClearType};
@@ -54,7 +64,625 @@ use crossterm::{
     execute,
 };
 use std::time::Duration;
+use tempfile::NamedTempFile;
+use toml_edit::{DocumentMut, Item, Value, value};
 
+/// Initialize the Clementine CLI environment.
+///
+/// Creates the Clementine home and keys directories (with secure
+/// permissions on Unix), and writes a default `bridge_cli_config.toml` if
+/// one does not already exist.
+pub fn cli_init() -> Result<(), BridgeCliError> {
+    println!("{}", "Initializing Clementine CLI...".bold());
+    let clementine_home_dir = get_clementine_home_dir()?;
+    std::fs::create_dir_all(&clementine_home_dir).map_err(|e| {
+        tracing::error!(
+            "Failed to create Clementine home directory {}: {}",
+            clementine_home_dir.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to create Clementine home directory {}",
+            clementine_home_dir.display()
+        ))
+    })?;
+
+    #[cfg(unix)]
+    {
+        set_permissions(&clementine_home_dir, 0o700)?;
+    }
+
+    println!(
+        "{} Storage directory initialized at: {}",
+        "SUCCESS".bold(),
+        clementine_home_dir.display()
+    );
+    let keys_dir = get_storage_dir()?;
+    std::fs::create_dir_all(&keys_dir).map_err(|e| {
+        tracing::error!(
+            "Failed to create keys directory {}: {}",
+            keys_dir.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to create keys directory {}",
+            keys_dir.display()
+        ))
+    })?;
+
+    #[cfg(unix)]
+    {
+        set_permissions(&keys_dir, 0o700)?;
+    }
+
+    println!(
+        "{} Keys directory initialized at: {}",
+        "SUCCESS".bold(),
+        keys_dir.display()
+    );
+
+    let config_file = clementine_home_dir.join("bridge_cli_config.toml");
+    if !config_file.exists() {
+        let mut default_cfgs = config::default_networks();
+        setup_networks(&mut default_cfgs)?;
+        config::write_config_to(&config_file, &default_cfgs)?;
+        println!(
+            "{} Default configuration file created at: {}",
+            "SUCCESS".bold(),
+            config_file.display()
+        );
+    } else {
+        println!(
+            "{} Configuration file already exists at: {}",
+            "INFO".bold(),
+            config_file.display()
+        );
+    }
+    Ok(())
+}
+
+/// Prompt the user for RPC connection inputs.
+///
+/// Returns a tuple of (url, user, password) as plain strings. The caller
+/// may reuse these values for validation or confirmation flows.
+fn collect_rpc_inputs(
+    theme: &ColorfulTheme,
+    net_name: &str,
+    existing: Option<&BitcoinConfig>,
+) -> Result<(String, String, String)> {
+    let url_s: String = Input::with_theme(theme)
+        .with_prompt(format!(
+            "[{}] RPC URL (Add `/wallet/name` if necessary)",
+            net_name
+        ))
+        .default(
+            existing
+                .map(|c| c.url.as_str())
+                .unwrap_or("http://127.0.0.1:18443/")
+                .to_string(),
+        )
+        .interact_text()?;
+
+    let user_s: String = Input::with_theme(theme)
+        .with_prompt(format!("[{}] RPC user", net_name))
+        .interact_text()?;
+
+    // allow empty password (user can hit Enter)
+    let pass_s: String = Password::with_theme(theme)
+        .with_prompt(format!("[{}] RPC password (may be empty)", net_name))
+        .allow_empty_password(true)
+        .interact()?;
+
+    Ok((url_s, user_s, pass_s))
+}
+
+/// Interactively review and (optionally) edit RPC inputs.
+///
+/// Presents a confirmation menu and returns a validated `BitcoinConfig`
+/// on success or an error if the user cancels or validation fails.
+fn review_rpc_inputs(
+    theme: &ColorfulTheme,
+    mut url_s: String,
+    mut user_s: String,
+    mut pass_s: String,
+) -> Result<BitcoinConfig> {
+    loop {
+        println!(
+            "\n✔ RPC URL · {}\n✔ RPC user · {}\n✔ RPC password · ********",
+            url_s, user_s
+        );
+
+        let choice = Select::with_theme(theme)
+            .with_prompt("Confirm details")
+            .items([
+                "Continue",
+                "Change URL",
+                "Change user",
+                "Show password",
+                "Change password",
+                "Cancel",
+            ])
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                let url =
+                    Url::parse(&url_s).map_err(|e| eyre!("Invalid RPC URL '{}': {}", url_s, e))?;
+                if user_s.trim().is_empty() {
+                    return Err(eyre!("RPC user cannot be empty"));
+                }
+                return Ok(BitcoinConfig {
+                    url,
+                    user: user_s.to_secret_box(),
+                    password: pass_s.to_secret_box(),
+                });
+            }
+            1 => {
+                url_s = Input::with_theme(theme)
+                    .with_prompt("New RPC URL")
+                    .default(url_s.clone())
+                    .interact_text()?;
+            }
+            2 => {
+                user_s = Input::with_theme(theme)
+                    .with_prompt("New RPC user")
+                    .default(user_s.clone())
+                    .interact_text()?;
+            }
+            3 => {
+                println!(
+                    "Password is: {}",
+                    if pass_s.is_empty() {
+                        "(empty)"
+                    } else {
+                        &pass_s
+                    }
+                );
+            }
+            4 => {
+                pass_s = Password::with_theme(theme)
+                    .with_prompt("New RPC password (may be empty)")
+                    .allow_empty_password(true)
+                    .interact()?;
+            }
+            5 => return Err(eyre!("Cancelled by user")),
+            _ => unreachable!(),
+        }
+    }
+}
+
+/// Collect and confirm RPC fields, returning a ready-to-use `BitcoinConfig`.
+///
+/// This is a thin helper that runs `collect_rpc_inputs` then `review_rpc_inputs`.
+fn prompt_rpc_fields(
+    theme: &ColorfulTheme,
+    net_name: &str,
+    existing: Option<&BitcoinConfig>,
+) -> Result<BitcoinConfig> {
+    let (url_s, user_s, pass_s) = collect_rpc_inputs(theme, net_name, existing)?;
+    review_rpc_inputs(theme, url_s, user_s, pass_s)
+}
+
+/// Interactive setup for the known Bitcoin networks.
+///
+/// Walks through `mainnet`, `testnet4`, `signet`, and `regtest`, prompting
+/// the user to choose a backend (mempool, RPC or both) and filling the
+/// provided `NetworkConfigs` structure accordingly.
+pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
+    let theme = ColorfulTheme::default();
+
+    for (name, net) in [
+        ("mainnet", &mut cfgs.bitcoin),
+        ("testnet", &mut cfgs.testnet4),
+        ("signet", &mut cfgs.signet),
+        ("regtest", &mut cfgs.regtest),
+    ] {
+        println!("\n== Configure '{name}' network ==");
+
+        let choice = Select::with_theme(&theme)
+            .with_prompt("Choose backend option")
+            .items(["Both (mempool + rpc)", "Mempool only", "RPC only"])
+            .default(0)
+            .interact()?;
+
+        match choice {
+            0 => {
+                // both
+                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
+                net.bitcoin_config = Some(btc);
+            }
+            1 => {
+                // mempool only
+                net.bitcoin_config = None;
+            }
+            2 => {
+                // rpc only
+                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
+                net.bitcoin_config = Some(btc);
+                net.mempool_api_url = None;
+            }
+            _ => unreachable!(),
+        }
+    }
+
+    Ok(())
+}
+
+fn network_table_name(network: Network) -> Result<&'static str, BridgeCliError> {
+    match network {
+        Network::Bitcoin => Ok("bitcoin"),
+        Network::Testnet4 => Ok("testnet4"),
+        Network::Signet => Ok("signet"),
+        Network::Regtest => Ok("regtest"),
+        _ => Err(BridgeCliError::Eyre(eyre!(
+            "Unsupported network for config operation: {}",
+            network
+        ))),
+    }
+}
+
+/// Set directory permissions on Unix. Mode is a raw permission bits value
+/// (e.g. 0o700). The function validates the mode is in the canonical range
+/// (0..=0o777) and returns a `BridgeCliError` on failure.
+///
+/// Note: This function does NOT support special bits like sticky (0o1000),
+/// setgid (0o2000), or setuid (0o4000). It only allows basic rwx permissions.
+#[cfg(unix)]
+fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
+    if mode > 0o777 {
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Invalid permission mode: {:o}. Must be <= 0o777",
+            mode
+        )));
+    }
+    use std::os::unix::fs::PermissionsExt;
+    std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
+        tracing::error!("Failed to set permissions for {}: {}", path.display(), e);
+        BridgeCliError::Eyre(eyre!(
+            "Failed to set permissions for {}: {}",
+            path.display(),
+            e
+        ))
+    })?;
+    Ok(())
+}
+
+// Helper: read and parse TOML config into a mutable document
+fn parse_config_to_doc(config_path: &Path) -> Result<DocumentMut, BridgeCliError> {
+    let contents = std::fs::read_to_string(config_path).map_err(|e| {
+        tracing::error!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    let doc = contents.parse::<DocumentMut>().map_err(|e| {
+        tracing::error!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    Ok(doc)
+}
+
+// Helper: create a toml_edit::Item from an existing Value type and a new string
+fn create_item_from_existing(
+    existing_val: &Value,
+    new_val_str: &str,
+    item_path: &str,
+) -> Result<Item, BridgeCliError> {
+    let new_item: Item = match existing_val {
+        Value::Boolean(_) => {
+            let parsed = new_val_str.parse::<bool>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as boolean for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::Integer(_) => {
+            let parsed = new_val_str.parse::<i64>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as integer for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::Float(_) => {
+            let parsed = new_val_str.parse::<f64>().map_err(|_| {
+                BridgeCliError::Eyre(eyre!(
+                    "Failed to parse '{}' as float for {}",
+                    new_val_str,
+                    item_path
+                ))
+            })?;
+            value(parsed)
+        }
+        Value::String(_) => value(new_val_str.to_string()),
+        other => {
+            tracing::warn!(
+                "Updating {} with unsupported existing type ({:?}), writing as string",
+                item_path,
+                other
+            );
+            value(new_val_str.to_string())
+        }
+    };
+
+    Ok(new_item)
+}
+
+// Helper: prompt the user for confirmation (or respect assume_yes)
+fn prompt_confirm(
+    assume_yes: bool,
+    item_path: &str,
+    old_display: &str,
+    new_display: &str,
+) -> Result<bool, BridgeCliError> {
+    if assume_yes {
+        return Ok(true);
+    }
+
+    print!(
+        "Update '{}' from '{}' to '{}'? [y/N]: ",
+        item_path, old_display, new_display
+    );
+    io::stdout().flush().ok();
+    let mut answer = String::new();
+    io::stdin()
+        .read_line(&mut answer)
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+    Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
+}
+
+// Helper: write the modified DocumentMut to a temp file and persist atomically
+fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), BridgeCliError> {
+    let clementine_home_dir = get_clementine_home_dir_with_existence_check()?;
+    let dir = clementine_home_dir;
+    let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to create temp file in {}: {}",
+            dir.display(),
+            e
+        ))
+    })?;
+
+    tmp.write_all(doc.to_string().as_bytes())
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to write to temp config file: {}", e)))?;
+    tmp.as_file()
+        .sync_all()
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
+
+    tmp.persist(config_path).map_err(|e| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to persist temp config file to {}: {}",
+            config_path.display(),
+            e.error
+        ))
+    })?;
+
+    Ok(())
+}
+
+/// Update configuration values in the bundled TOML config for a network table.
+///
+/// This function loads the config file, looks up keys inside the selected
+/// network table (dot-separated keys target nested tables), and updates only
+/// existing scalar values. For each change it asks the user to confirm unless
+/// `assume_yes` is true. If any updates are applied the config file is written
+/// atomically and a short summary is printed.
+///
+/// Parameters:
+/// - `network`: Which network table to update (e.g. `bitcoin`, `testnet4`).
+/// - `values`: Vec of `(key, new_value)` pairs. Keys may be dot-separated to
+///   address nested tables (e.g. `rpc.username`).
+/// - `assume_yes`: If true, skip interactive confirmation and apply changes.
+///
+/// Returns `Ok(())` on success. Errors are returned if the config cannot be
+/// read/parsed, a key path does not exist, the existing value is non-scalar,
+/// type parsing of the new value fails, or writing the updated config fails.
+pub fn update_config_with_confirm(
+    network: Network,
+    values: Vec<(String, String)>,
+    assume_yes: bool,
+) -> Result<(), BridgeCliError> {
+    let config_path = get_clementine_config_path_with_existence_check()?;
+    let mut doc = parse_config_to_doc(&config_path)?;
+
+    let table_name = network_table_name(network)?;
+
+    if !doc.as_table().contains_key(table_name) {
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Config table '{}' not found in {}",
+            table_name,
+            config_path.display()
+        )));
+    }
+
+    let mut applied_updates: Vec<(String, String, String)> = Vec::new();
+
+    for (key, new_val_str) in values.into_iter() {
+        let item_path = format!("{}.{}", table_name, key);
+
+        let parts: Vec<&str> = key.split('.').collect();
+
+        let mut table = doc[table_name].as_table_mut().ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config table '{}' is not a table in {}",
+                table_name,
+                config_path.display()
+            ))
+        })?;
+
+        for part in parts.iter().take(parts.len().saturating_sub(1)) {
+            if !table.contains_key(part) {
+                return Err(BridgeCliError::Eyre(eyre!(
+                    "Config path '{}' does not exist (missing table '{}')",
+                    item_path,
+                    part
+                )));
+            }
+            if !table[part].is_table() {
+                return Err(BridgeCliError::Eyre(eyre!(
+                    "Config path '{}' expected '{}' to be a table",
+                    item_path,
+                    part
+                )));
+            }
+            table = table[part].as_table_mut().ok_or_else(|| {
+                BridgeCliError::Eyre(eyre!("Failed to access table '{}' in {}", part, item_path))
+            })?;
+        }
+
+        let last = parts.last().unwrap();
+
+        let existing_item = table.get(last).ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config key '{}' does not exist; refusing to create new keys. Please run 'clementine-cli show-config' to see existing keys.",
+                item_path
+            ))
+        })?;
+
+        let existing_val = existing_item.as_value().ok_or_else(|| {
+            BridgeCliError::Eyre(eyre!(
+                "Config key '{}' is not a scalar value; refusing to overwrite",
+                item_path
+            ))
+        })?;
+
+        let new_item: Item = create_item_from_existing(existing_val, &new_val_str, &item_path)?;
+
+        let old_display = existing_val.clone().decorated("", "").to_string();
+        let new_display = if let Some(v) = new_item.as_value() {
+            v.to_string()
+        } else {
+            new_item.to_string()
+        };
+
+        let proceed = prompt_confirm(assume_yes, &item_path, &old_display, &new_display)?;
+
+        if proceed {
+            table[last] = new_item;
+            applied_updates.push((item_path.clone(), old_display, new_display));
+        } else {
+            println!("Skipped {}", item_path);
+        }
+    }
+
+    if !applied_updates.is_empty() {
+        persist_doc_atomic(&doc, &config_path)?;
+
+        println!(
+            "{} Configuration updated for '{}' table in {}",
+            "SUCCESS".bold(),
+            table_name,
+            config_path.display()
+        );
+    } else {
+        println!("No changes applied.");
+    }
+
+    if !applied_updates.is_empty() {
+        println!("\nApplied updates:");
+        for (path, old, new) in applied_updates.iter() {
+            println!("  - {}: {} -> {}", path, old, new);
+        }
+    }
+
+    Ok(())
+}
+
+pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
+    let config_path = get_clementine_config_path_with_existence_check()?;
+
+    let contents = std::fs::read_to_string(&config_path).map_err(|e| {
+        tracing::error!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to read config file {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    let doc = contents.parse::<DocumentMut>().map_err(|e| {
+        tracing::error!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse TOML config {}: {}",
+            config_path.display(),
+            e
+        ))
+    })?;
+
+    let table_name = network_table_name(network)?;
+
+    let root_table = doc.as_table();
+    if !root_table.contains_key(table_name) {
+        return Err(BridgeCliError::Eyre(eyre!(
+            "Config table '{}' not found in {}",
+            table_name,
+            config_path.display()
+        )));
+    }
+
+    let table = doc[table_name].as_table().ok_or_else(|| {
+        BridgeCliError::Eyre(eyre!(
+            "Config '{}' is not a table in {}",
+            table_name,
+            config_path.display()
+        ))
+    })?;
+
+    println!("{} Configuration ({}):", "INFO".bold(), table_name);
+
+    fn print_item(prefix: &str, key: &str, item: &toml_edit::Item, depth: usize) {
+        let indent = "  ".repeat(depth);
+        if let Some(val) = item.as_value() {
+            let val = val.clone().decorated("", "");
+            println!("{}{}{} = {}", indent, prefix, key, val);
+        } else if item.is_table() {
+            println!("{}[{}{}]", indent, prefix, key);
+            if let Some(tbl) = item.as_table() {
+                for (k, v) in tbl.iter() {
+                    print_item(&format!("{}{}.", prefix, key), k, v, depth + 1);
+                }
+            }
+        } else {
+            println!("Invalid item at {}{}{}", indent, prefix, key);
+        }
+    }
+
+    for (k, v) in table.iter() {
+        print_item("", k, v, 0);
+    }
+
+    Ok(())
+}
 pub fn cli_create_wallet(
     network: Network,
     label: String,
@@ -64,7 +692,8 @@ pub fn cli_create_wallet(
     validate_wallet_availability(Some(&label), None, WalletValidationMode::Label)?;
 
     let passphrase = prompt_passphrase(true)?;
-    let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase)?;
+    let (address, mnemonic, wallet_file_path) =
+        create_encrypted_wallet(network, label, purpose, passphrase)?;
 
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
@@ -73,6 +702,13 @@ pub fn cli_create_wallet(
         "SUCCESS".bold(),
         address.address_with_prefix()
     );
+
+    print!(
+        "{} Wallet file saved to: {}\r\n",
+        "INFO".bold(),
+        wallet_file_path.display()
+    );
+
     if purpose == Purpose::Deposit {
         print!(
             "{} Please do not send funds directly to this address!\r\n",
@@ -139,7 +775,7 @@ pub fn cli_import_wallet_from_mnemonic(
 }
 
 pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
+    let storage_dir = get_storage_dir_with_existence_check()?;
 
     println!("{}", "Verifying Wallet Integrity".bold());
     println!("Storage directory: {}", storage_dir.display());
@@ -437,7 +1073,12 @@ pub async fn send_withdrawal_signature(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint)?;
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|_| {
+        BridgeCliError::Eyre(eyre!(
+            "Failed to parse withdrawal UTXO outpoint '{}'",
+            withdrawal_utxo_outpoint,
+        ))
+    })?;
     send_withdrawal_signature_to_operators(
         signer_address,
         destination_address,

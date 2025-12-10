@@ -5,6 +5,7 @@ use crate::errors::BridgeCliError;
 use crate::script::{deposit_script, recover_script};
 use crate::secure_types::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
+use bitcoin::consensus::deserialize;
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
@@ -61,7 +62,7 @@ fn sign_with_tweak(
     merkle_root: Option<TapNodeHash>,
 ) -> schnorr::Signature {
     use bitcoin::hashes::Hash;
-    SECP.sign_schnorr(
+    SECP.sign_schnorr_no_aux_rand(
         &bitcoin::secp256k1::Message::from_digest(*sighash.as_byte_array()),
         &keypair
             .as_ref()
@@ -208,7 +209,7 @@ pub(crate) fn verify_recovery_tx(
             eyre::eyre!("Recovery transaction input witness must have exactly 3 items").into(),
         );
     }
-
+    tracing::debug!("Calculating deposit address and taproot spend info");
     let (deposit_address, taproot_spend_info) =
         calculate_deposit_address(citrea_address, recovery_taproot_address, config)?;
 
@@ -418,6 +419,20 @@ fn create_recovery_script_for_address(
     Ok(recover_script(recovery_key, user_takes_after))
 }
 
+/// Parse a transaction from its hexadecimal representation
+pub fn parse_transaction_hex(tx_hex: &str) -> Result<bitcoin::Transaction, BridgeCliError> {
+    let tx_bytes = hex::decode(tx_hex).map_err(|e| BridgeCliError::HexDecodeError {
+        source: e,
+        hex_string: tx_hex.to_string(),
+    })?;
+    let transaction: bitcoin::Transaction =
+        deserialize(&tx_bytes).map_err(|e| BridgeCliError::TransactionDeserializeError {
+            source: e,
+            tx_hex: tx_hex.to_string(),
+        })?;
+    Ok(transaction)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -454,7 +469,7 @@ mod tests {
             regtest: BridgeCliConfig {
                 network: Network::Regtest,
                 aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
-                mempool_api_url: reqwest::Url::parse("http://localhost:3006").unwrap(),
+                mempool_api_url: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
                 citrea_chain_id: 5115,
                 citrea_rpc_url: reqwest::Url::parse("http://localhost:8545").unwrap(),
                 citrea_backend_endpoint: reqwest::Url::parse("http://localhost:8080").unwrap(),

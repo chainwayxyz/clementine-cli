@@ -20,9 +20,7 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 ### Configuration
 
 The provided [`bridge_cli_config.toml`](bridge_cli_config.toml) file should not be
-modified, apart from `.bitcoin_config` sections. Some operations might require
-Bitcoin RPC connection. For each network you wish to use Clementine Bridge on,
-you need to provide correct Bitcoin RPC configuration.
+modified, apart from RPC provider details.
 
 > [!IMPORTANT]
 > If a protocol-wide change is introduced by Chainway Labs, you will need to
@@ -42,11 +40,23 @@ you need to provide correct Bitcoin RPC configuration.
    cargo install --path .
    ```
 
-3. Install configuration file by copying your config file to `~/.clementine/`:
+
+3. Install the default configuration by running the CLI init command which
+   creates the `~/.clementine/bridge_cli_config.toml` file for you:
 
    ```sh
-   mkdir -p ~/.clementine/  
-   cp ./bridge_cli_config.toml ~/.clementine/  
+   clementine-cli init
+   ```
+
+4. Show and update configuration
+
+   ```sh
+   # Show current config for a network
+   clementine-cli show-config --network testnet
+
+   # Update one or more keys (interactive confirmation). Use -y to skip confirmation prompts.
+   clementine-cli update-config --network testnet bitcoin_config.user=admin bitcoin_config.password=admin
+   clementine-cli update-config --network testnet -y bitcoin_config.user=admin bitcoin_config.password=admin
    ```
 
 > [!CAUTION]
@@ -64,15 +74,14 @@ clementine-cli --help
 
 # Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
 clementine-cli wallet create my-deposit-wallet deposit # Mainnet
-clementine-cli wallet create --network testnet4 my-deposit-wallet deposit
+clementine-cli wallet create --network testnet my-deposit-wallet deposit
 
 # Generate Deposit Address
-clementine-cli deposit get-deposit-address --network testnet4 <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit get-deposit-address --network testnet <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
-clementine-cli deposit status --network testnet4 <DEPOSIT_ADDRESS>
-```
+clementine-cli deposit status --network testnet <DEPOSIT_ADDRESS>
 
 ## Two-Device Security
 

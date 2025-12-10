@@ -86,8 +86,10 @@ pub(crate) fn validate_mnemonic_import(
         network,
     )?;
 
-    let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret())
-        .map_err(|e| BridgeCliError::MnemonicValidationFailed(e.to_string()))?;
+    let mnemonic = Mnemonic::parse(decrypted_mnemonic.expose_secret()).map_err(|e| {
+        tracing::error!("Error parsing mnemonic: {}", e);
+        BridgeCliError::MnemonicValidationFailed
+    })?;
 
     // Generate address from mnemonic to verify it matches
     match generate_address_from_mnemonic(&mnemonic, network, wallet_address.purpose) {
@@ -96,7 +98,10 @@ pub(crate) fn validate_mnemonic_import(
                 return Err(BridgeCliError::AddressMismatch);
             }
         }
-        Err(e) => return Err(BridgeCliError::MnemonicParseError(e.to_string())),
+        Err(e) => {
+            tracing::error!("Error generating address from mnemonic: {}", e);
+            return Err(BridgeCliError::AddressGenerationFromMnemonicFailed);
+        }
     }
 
     Ok(())
@@ -451,6 +456,7 @@ pub fn validate_address_purpose<T>(
 where
     T: bitcoin::address::NetworkValidation,
 {
+    tracing::debug!("Validating purpose for address {:?}", address.address);
     if address.purpose != expected_purpose {
         return Err(BridgeCliError::PurposeMismatch {
             expected: expected_purpose,
@@ -471,5 +477,6 @@ where
 {
     validate_address_purpose(address, expected_purpose)?;
     let secure_passphrase = crate::wallet::passphrase::prompt_unlock_passphrase()?;
+    tracing::debug!("Loading key for address {}", address.address_with_prefix());
     load_key(address, &secure_passphrase)
 }

@@ -1,4 +1,5 @@
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
+use crate::structs::WithdrawalParams;
 use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
 use alloy::network::EthereumWallet;
 use alloy::providers::RootProvider;
@@ -103,35 +104,29 @@ pub(crate) fn prepare_safe_withdraw_params(
     payout_tx: &CitreaTransaction,
     block_header: &[u8],
     destination_address_pubkey: &[u8],
-) -> (
-    Transaction,
-    MerkleProof,
-    Transaction,
-    private::Bytes,
-    private::Bytes,
-) {
-    (
-        prepare_tx.into(),
-        prepare_proof.into(),
-        payout_tx.into(),
-        private::Bytes::from(block_header.to_vec()),
-        private::Bytes::from(destination_address_pubkey.to_vec()),
-    )
+) -> WithdrawalParams {
+    WithdrawalParams {
+        transaction: prepare_tx.into(),
+        merkle_proof: prepare_proof.into(),
+        payout_transaction: payout_tx.into(),
+        block_header: private::Bytes::from(block_header.to_vec()),
+        output_script_pk: private::Bytes::from(destination_address_pubkey.to_vec()),
+    }
 }
 
 pub(crate) fn encode_safe_withdraw_params(
     prepare_tx: &Transaction,
     prepare_proof: &MerkleProof,
     payout_tx: &Transaction,
-    block_header: private::Bytes,
-    output_script_pk: private::Bytes,
+    block_header: &private::Bytes,
+    output_script_pk: &private::Bytes,
 ) -> Vec<u8> {
     let call = BRIDGE_CONTRACT::safeWithdrawCall {
         prepareTx: prepare_tx.clone(),
         prepareProof: prepare_proof.clone(),
         payoutTx: payout_tx.clone(),
-        blockHeader: block_header,
-        withdrawalAddressPubKey: output_script_pk,
+        blockHeader: block_header.clone(),
+        withdrawalAddressPubKey: output_script_pk.clone(),
     };
 
     let data = call.abi_encode();

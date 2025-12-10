@@ -1,7 +1,6 @@
 #![allow(clippy::result_large_err)]
 
 use crate::errors::BridgeCliError;
-use eyre::Context;
 use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -12,6 +11,7 @@ mod bitcoin_merkle;
 mod bitcoin_utils;
 pub mod cli;
 pub mod cli_macros;
+pub mod cli_network;
 pub mod config;
 pub mod deposit;
 pub mod errors;
@@ -24,7 +24,6 @@ pub mod types;
 mod utils;
 pub mod wallet;
 pub mod withdraw;
-
 // Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 
@@ -49,14 +48,43 @@ pub use api_utils::broadcast_recovery_tx;
 // Constants
 pub use bitcoin_utils::SATS_TO_WEI_MULTIPLIER;
 
+// A basic parser utility
+pub use bitcoin_utils::parse_transaction_hex;
+
+pub use cli_macros::handle_err;
+
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
-    Ok(CitreaAddress::from_str(citrea_address).wrap_err("Invalid Citrea address format")?)
+    CitreaAddress::from_str(citrea_address)
+        .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format")))
+}
+
+pub(crate) fn get_clementine_home_dir_with_existence_check() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = get_clementine_home_dir()?;
+    if !home_dir.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Clementine home directory not found at {:?}. Please run 'clementine-cli init' to create one.",
+            home_dir
+        )));
+    }
+    Ok(home_dir)
 }
 
 pub(crate) fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {
     let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
     Ok(home_dir.join(".clementine"))
+}
+
+pub(crate) fn get_clementine_config_path_with_existence_check() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = get_clementine_home_dir()?;
+    let config_path = home_dir.join("bridge_cli_config.toml");
+    if !config_path.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Configuration file not found at {:?}. Please run 'clementine-cli init' to create one.",
+            config_path
+        )));
+    }
+    Ok(config_path)
 }

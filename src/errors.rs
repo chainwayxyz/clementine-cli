@@ -6,14 +6,14 @@
 //!
 //! 1. Modules define their own error types when they need shared error messages.
 //!    Module-level errors can wrap eyre::Report to capture arbitrary errors.
-//! 2. The crate-level error wrapper (ClementineCliError) is used to wrap errors
+//! 2. The crate-level error wrapper (BridgeCliError) is used to wrap errors
 //!    from modules and attach extra context (ie. which module caused the error).
-//! 3. External crate errors are always wrapped by the ClementineCliError and
+//! 3. External crate errors are always wrapped by the BridgeCliError and
 //!    never by module-level errors.
 //! 4. When using external crates inside modules, extension traits are used to
-//!    convert external-crate errors into ClementineCliError. This is further
+//!    convert external-crate errors into BridgeCliError. This is further
 //!    wrapped in an eyre::Report to avoid a circular dependency.
-//! 5. ClementineCliError can be used to share error messages across modules.
+//! 5. BridgeCliError can be used to share error messages across modules.
 //! 6. When the error cause is not sufficiently explained by the error messages,
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
@@ -36,8 +36,6 @@ pub enum BridgeCliError {
     UnsupportedNetwork(Network),
 
     // Address-related errors
-    #[error("Failed to generate master seed from mnemonic: {0}")]
-    MnemonicToSeedError(String),
     #[error("Address is not a taproot (P2TR) address: {0}")]
     NotTaprootAddress(String),
     #[error("Address field not found or invalid in wallet data")]
@@ -52,44 +50,44 @@ pub enum BridgeCliError {
     StorageReadError(String),
 
     // Encryption-related errors
-    #[error("Failed to generate random salt: {0}")]
-    RandomSaltGenerationError(String),
-    #[error("Failed to generate random nonce: {0}")]
-    RandomNonceGenerationError(String),
-    #[error("Key derivation failed: {0}")]
-    KeyDerivationError(String),
-    #[error("Encryption failed: {0}")]
-    EncryptionError(String),
-    #[error("Decryption failed: {0}")]
-    DecryptionError(String),
-    #[error("Decryption produced invalid UTF-8: {0}")]
-    InvalidUtf8Error(String),
+    #[error("Failed to generate random salt.")]
+    RandomSaltGenerationError,
+    #[error("Failed to generate random nonce.")]
+    RandomNonceGenerationError,
+    #[error("Key derivation failed.")]
+    EncryptionKeyDerivationError,
+    #[error("Encryption failed.")]
+    EncryptionError,
+    #[error("Decryption failed.")]
+    DecryptionError,
+    #[error("Decryption produced invalid UTF-8.")]
+    InvalidUtf8Error,
     #[error("Invalid nonce length: {0}")]
     InvalidNonceLength(usize),
     #[error("Invalid salt length: {0}")]
     InvalidSaltLength(usize),
 
     // Mnemonic-related errors
-    #[error("Failed to generate mnemonic: {0}")]
-    MnemonicGenerationError(String),
-    #[error("Failed to parse mnemonic: {0}")]
-    MnemonicParseError(String),
+    #[error("Failed to generate mnemonic.")]
+    MnemonicGenerationError,
+    #[error("Failed to parse mnemonic.")]
+    MnemonicParseError,
     #[error("No encrypted mnemonic found in wallet data")]
     MissingEncryptedMnemonic,
     #[error("Invalid mnemonic length: {0} words. Must be 12 words")]
     InvalidMnemonicLength(usize),
-    #[error("Mnemonic validation failed: {0}")]
-    MnemonicValidationFailed(String),
-    #[error("Failed to encrypt placeholder mnemonic: {0}")]
-    PlaceholderMnemonicEncryptionFailed(String),
+    #[error("Mnemonic validation failed.")]
+    MnemonicValidationFailed,
+    #[error("Failed to encrypt placeholder mnemonic.")]
+    PlaceholderMnemonicEncryptionFailed,
     #[error("No mnemonic available - this wallet was imported from a private key")]
     NoMnemonicAvailable,
-    #[error("Failed to display mnemonic securely: {0}")]
-    FailedMnemonicDisplay(String),
+    #[error("Failed to display mnemonic securely.")]
+    FailedMnemonicDisplay,
 
     // Passphrase-related errors
-    #[error("Invalid Argon2 parameters: {0}")]
-    InvalidArgon2Parameters(String),
+    #[error("Invalid Argon2 parameters.")]
+    InvalidArgon2Parameters,
     #[error("Passphrase not provided for encrypted key")]
     PassphraseNotProvided,
     #[error("Invalid passphrase")]
@@ -116,18 +114,18 @@ pub enum BridgeCliError {
     // Wallet operation related errors
     #[error("Invalid address prefix: '{0}'. Valid prefixes are 'dep' and 'wit'.")]
     InvalidAddressPrefix(String),
-    #[error("Invalid address format")]
-    InvalidAddressFormat,
-    #[error("Failed to generate address from mnemonic: {0}")]
-    AddressGenerationFromMnemonicFailed(String),
-    #[error("Failed to derive private key from mnemonic: {0}")]
-    PrivateKeyDerivationFromMnemonicFailed(String),
-    #[error("Failed to encrypt mnemonic: {0}")]
-    MnemonicEncryptionFailed(String),
-    #[error("Failed to encrypt private key: {0}")]
-    PrivateKeyEncryptionFailed(String),
-    #[error("Failed to store wallet: {0}")]
-    WalletStorageFailed(String),
+    #[error("Invalid address format: {0}")]
+    InvalidAddressFormat(String),
+    #[error("Failed to generate address from mnemonic.")]
+    AddressGenerationFromMnemonicFailed,
+    #[error("Failed to derive private key from mnemonic.")]
+    PrivateKeyDerivationFromMnemonicFailed,
+    #[error("Failed to encrypt mnemonic.")]
+    MnemonicEncryptionFailed,
+    #[error("Failed to encrypt private key.")]
+    PrivateKeyEncryptionFailed,
+    #[error("Failed to store wallet.")]
+    WalletStorageFailed,
     #[error("Network mismatch: wallet is {0}, expected {1}")]
     NetworkMismatch(String, String),
     #[error("Invalid private key: {0}")]
@@ -142,15 +140,15 @@ pub enum BridgeCliError {
     MissingNetworkField,
     #[error("Invalid wallet file: missing encrypted_mnemonic field")]
     MissingEncryptedMnemonicField,
-    #[error("Failed to parse encrypted private key structure: {0}")]
-    EncryptedPrivateKeyParseError(String),
     #[error("Address mismatch! The decrypted key doesn't correspond to this wallet address.")]
     AddressMismatch,
     #[error(
         "Destination address cannot be a wallet address. The destination address belongs to one of your wallets."
     )]
     DestinationAddressIsWalletAddress,
-    #[error("Address '{0}' should not have a prefix.")]
+    #[error(
+        "Address '{0}' should not have a prefix, do not use a Clementine wallet for this operation."
+    )]
     AddressShouldNotHavePrefix(String),
 
     #[error("Invalid wallet file: missing encrypted_private_key field for private key import")]
@@ -178,6 +176,18 @@ pub enum BridgeCliError {
 
     #[error("Transaction {0} is not found on chain, maybe wait for confirmation")]
     TransactionNotOnChain(bitcoin::Txid),
+
+    // Transaction parsing errors
+    #[error("Failed to decode hex string '{hex_string}': {source}")]
+    HexDecodeError {
+        source: hex::FromHexError,
+        hex_string: String,
+    },
+    #[error("Failed to deserialize transaction from hex '{tx_hex}': {source}")]
+    TransactionDeserializeError {
+        source: bitcoin::consensus::encode::Error,
+        tx_hex: String,
+    },
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]
@@ -238,16 +248,16 @@ pub enum BridgeCliError {
 }
 
 /// Extension traits for errors to easily convert them to [`eyre::Report`]  
-/// through [`ClementineCliError`].
+/// through [`BridgeCliError`].
 pub trait ErrorExt: Sized {
     /// Converts the error into an [`eyre::Report`], first wrapping in
-    /// [`ClementineCliError`] if necessary. It does not rewrap in
+    /// [`BridgeCliError`] if necessary. It does not rewrap in
     /// [`eyre::Report`] if the given error is already an [`eyre::Report`].
     fn into_eyre(self) -> eyre::Report;
 }
 
 /// Extension traits for results to easily convert them to [`eyre::Report`] and
-/// through [`ClementineCliError`].
+/// through [`BridgeCliError`].
 pub trait ResultExt: Sized {
     type Output;
 

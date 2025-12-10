@@ -63,8 +63,10 @@ pub(crate) fn derive_key_from_passphrase(
     let argon2 = Argon2::new(
         argon2::Algorithm::Argon2id,
         argon2::Version::V0x13,
-        argon2::Params::new(memory, iterations, parallelism, Some(32))
-            .map_err(|e| BridgeCliError::InvalidArgon2Parameters(e.to_string()))?,
+        argon2::Params::new(memory, iterations, parallelism, Some(32)).map_err(|e| {
+            tracing::error!("Error creating Argon2 parameters: {}", e);
+            BridgeCliError::InvalidArgon2Parameters
+        })?,
     );
 
     let mut key = [0u8; 32];
@@ -72,7 +74,10 @@ pub(crate) fn derive_key_from_passphrase(
     // Passphrase + salt → 32-byte key via memory-hard computation
     argon2
         .hash_password_into(passphrase.expose_secret().as_bytes(), salt, &mut key)
-        .map_err(|e| BridgeCliError::KeyDerivationError(e.to_string()))?;
+        .map_err(|e| {
+            tracing::error!("Error deriving key from passphrase: {}", e);
+            BridgeCliError::EncryptionKeyDerivationError
+        })?;
 
     tracing::debug!("Encryption (also decryption) key derived successfully.");
 
@@ -85,11 +90,17 @@ pub(crate) fn derive_key_from_passphrase(
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase Protection".bold());
 
-    let passphrase = rpassword::prompt_password("Enter passphrase: ")?;
+    let passphrase = rpassword::prompt_password("Enter passphrase: ").map_err(|e| {
+        tracing::error!("Error reading passphrase: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to read passphrase."))
+    })?;
 
     // Confirm passphrase
     if confirm {
-        let confirm_input = rpassword::prompt_password("Confirm passphrase: ")?;
+        let confirm_input = rpassword::prompt_password("Confirm passphrase: ").map_err(|e| {
+            tracing::error!("Error reading passphrase confirmation: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to read passphrase confirmation."))
+        })?;
         let secure_confirm = SecureString::init_with(|| confirm_input);
 
         if passphrase != *secure_confirm.expose_secret() {
@@ -104,7 +115,11 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 
 /// Prompt user for a passphrase to unlock existing encrypted key
 pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
-    let passphrase = rpassword::prompt_password("Enter passphrase to unlock key: ")?;
+    let passphrase =
+        rpassword::prompt_password("Enter passphrase to unlock key: ").map_err(|e| {
+            tracing::error!("Error reading passphrase: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to read passphrase."))
+        })?;
 
     Ok(SecureString::init_with(|| passphrase))
 }
