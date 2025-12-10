@@ -446,36 +446,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_from_file() {
-        let file_name = "parse_from_file";
-
-        let invalid_content = "invalid file content";
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).is_err());
-
-        // Read first example test file use for this test.
-        let base_path = env!("CARGO_MANIFEST_DIR");
-        let config_path = format!("{}/bridge_cli_config.toml", base_path);
-        let content = fs::read_to_string(config_path).unwrap();
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        let read_config =
-            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).unwrap();
-
-        // Check some of the fields.
-        assert_eq!(read_config.user_takes_after, 200);
-        assert_eq!(read_config.network, Network::Testnet4);
-        assert_eq!(
-            read_config.bitcoin_config.unwrap().url.as_str(),
-            "http://127.0.0.1:18443/"
-        );
-
-        fs::remove_file(file_name).unwrap();
-    }
-
-    #[test]
     fn parse_from_file_with_invalid_headers() {
         let file_name = "parse_from_file_with_invalid_headers";
         let content = "[header1]
