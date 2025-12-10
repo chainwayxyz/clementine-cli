@@ -216,7 +216,7 @@ If you downloaded a pre-built binary from GitHub Releases, you can verify it mat
 # The tag is: v0.1.0
 
 # Clone the repository and checkout the release tag
-git clone https://github.com/chainway/clementine-cli.git
+git clone https://github.com/chainwayxyz/clementine-cli.git
 cd clementine-cli
 git checkout v0.1.0  # Use the version from your downloaded binary
 ```

@@ -68,7 +68,6 @@
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
             isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
-            isStaticDarwinAarch64 = rustTarget == "aarch64-apple-darwin" && buildSystem == "aarch64-darwin";
 
             srcFiltered = pkgs.lib.cleanSourceWith {
               src = ./.;
@@ -85,7 +84,7 @@
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
                 pkgs.libiconv
               ] ++
-              pkgs.lib.optionals isLinux [ pkgs.openssl ];
+              pkgs.lib.optionals isLinux [ ];
 
             cargoBuildFlags = [ "--target" rustTarget ];
 
@@ -239,7 +238,7 @@
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
-            ] else [ pkgs.openssl ])
+            ] else [  ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
           shellHook = ''
