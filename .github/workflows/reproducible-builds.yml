@@ -1,5 +1,8 @@
 name: Reproducible Builds
 
+permissions:
+  contents: read
+
 on:
   push:
     branches: [ main ]
@@ -45,7 +48,6 @@ jobs:
           else
             BINARY="./result/bin/clementine-cli"
           fi
-
           if [ -f "$BINARY" ]; then
             SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
             echo "${{ matrix.platform }} binary sha256: $SHA256"
