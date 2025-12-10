@@ -5,7 +5,7 @@ use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signatur
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
-use crate::structs::{Params, TaprootAddressWithPrefix};
+use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
@@ -159,7 +159,7 @@ pub async fn safe_withdraw(
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<(WithdrawalUrl, TxJson, Params), BridgeCliError> {
+) -> Result<(WithdrawalUrl, TxJson, WithdrawalParams), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
@@ -298,7 +298,7 @@ pub async fn prepare_withdrawal_params(
     payout_output: &TxOut,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<Params, BridgeCliError> {
+) -> Result<WithdrawalParams, BridgeCliError> {
     if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
         return Err(BridgeCliError::TransactionNotOnChain(
             withdrawal_outpoint.txid,

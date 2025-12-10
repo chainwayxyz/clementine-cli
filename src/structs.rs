@@ -387,7 +387,7 @@ impl Display for WithdrawStatus {
 }
 
 #[derive(Debug, Clone)]
-pub struct Params {
+pub struct WithdrawalParams {
     pub transaction: Transaction,
     pub merkle_proof: MerkleProof,
     pub payout_transaction: Transaction,
@@ -395,7 +395,7 @@ pub struct Params {
     pub output_script_pk: alloy::sol_types::private::Bytes,
 }
 
-impl Display for Params {
+impl Display for WithdrawalParams {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "\nSafe Withdraw Params")?;
         writeln!(f, "  Transaction:          {:?}", self.transaction)?;

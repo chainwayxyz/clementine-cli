@@ -1,5 +1,5 @@
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
-use crate::structs::Params;
+use crate::structs::WithdrawalParams;
 use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
 use alloy::network::EthereumWallet;
 use alloy::providers::RootProvider;
@@ -104,8 +104,8 @@ pub(crate) fn prepare_safe_withdraw_params(
     payout_tx: &CitreaTransaction,
     block_header: &[u8],
     destination_address_pubkey: &[u8],
-) -> Params {
-    Params {
+) -> WithdrawalParams {
+    WithdrawalParams {
         transaction: prepare_tx.into(),
         merkle_proof: prepare_proof.into(),
         payout_transaction: payout_tx.into(),
