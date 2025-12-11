@@ -233,7 +233,6 @@ enum DepositCommands {
             help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
         )]
         n_of_n_key: Option<String>,
-        #[arg(long, default_value_t = false)]
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
