@@ -81,7 +81,7 @@ pub struct BridgeCliConfig {
     pub aggregated_public_key: XOnlyPublicKey,
     pub mempool_api_url: Option<Url>,
     pub citrea_chain_id: u64,
-    pub citrea_rpc_url: Url,
+    pub citrea_rpc_url: Option<Url>,
     pub citrea_backend_endpoint: Url,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
@@ -104,7 +104,7 @@ impl BridgeCliConfig {
                 .unwrap(),
                 mempool_api_url: Some(Url::parse("https://mempool.space/api/").unwrap()),
                 citrea_chain_id: 0,
-                citrea_rpc_url: Url::parse("https://rpc.citrea.xyz/").unwrap(),
+                citrea_rpc_url: Some(Url::parse("https://rpc.citrea.xyz/").unwrap()),
                 citrea_backend_endpoint: Url::parse("https://api.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -128,7 +128,7 @@ impl BridgeCliConfig {
                 .unwrap(),
                 mempool_api_url: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
                 citrea_chain_id: 5115,
-                citrea_rpc_url: Url::parse("https://rpc.testnet.citrea.xyz/").unwrap(),
+                citrea_rpc_url: Some(Url::parse("https://rpc.testnet.citrea.xyz/").unwrap()),
                 citrea_backend_endpoint: Url::parse("https://api.testnet.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -154,7 +154,7 @@ impl BridgeCliConfig {
                     Url::parse("https://mempool.devnet.citrea.xyz/api/").unwrap(),
                 ),
                 citrea_chain_id: 62298,
-                citrea_rpc_url: Url::parse("https://rpc.devnet.citrea.xyz/").unwrap(),
+                citrea_rpc_url: Some(Url::parse("https://rpc.devnet.citrea.xyz/").unwrap()),
                 citrea_backend_endpoint: Url::parse("https://api.devnet.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -178,7 +178,7 @@ impl BridgeCliConfig {
                 .unwrap(),
                 mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
                 citrea_chain_id: 5655,
-                citrea_rpc_url: Url::parse("https://127.0.0.1:12345/").unwrap(),
+                citrea_rpc_url: Some(Url::parse("https://127.0.0.1:12345/").unwrap()),
                 citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -318,10 +318,20 @@ impl BridgeCliConfig {
             config.citrea_backend_endpoint =
                 Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
         }
-        if !config.citrea_rpc_url.to_string().ends_with("/") {
-            let str_url = config.citrea_rpc_url.to_string() + "/";
+
+        if config
+            .citrea_rpc_url
+            .as_ref()
+            .is_some_and(|url| !url.to_string().ends_with("/"))
+        {
+            let str_url = config
+                .citrea_rpc_url
+                .as_ref()
+                .expect("Cannot fail, checked above")
+                .to_string()
+                + "/";
             config.citrea_rpc_url =
-                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+                Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
 
         Ok(config)
@@ -362,7 +372,8 @@ impl BridgeCliConfig {
                 config.citrea_chain_id = 1;
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.citrea.xyz/").expect("Valid url");
-                config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/").expect("Valid url");
+                config.citrea_rpc_url =
+                    Some(Url::parse("https://rpc.citrea.xyz/").expect("Valid url"));
                 config.mempool_api_url =
                     Some(Url::parse("https://mempool.space/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
@@ -375,7 +386,7 @@ impl BridgeCliConfig {
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.testnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
-                    Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url");
+                    Some(Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url"));
                 config.mempool_api_url =
                     Some(Url::parse("https://mempool.space/testnet4/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
@@ -388,7 +399,7 @@ impl BridgeCliConfig {
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.devnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
-                    Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url");
+                    Some(Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url"));
                 config.mempool_api_url =
                     Some(Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
@@ -425,7 +436,7 @@ impl Default for BridgeCliConfig {
             mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
-            citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
+            citrea_rpc_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
             optimistic_withdrawal_amount: Amount::from_sat(1_000_000_000),
