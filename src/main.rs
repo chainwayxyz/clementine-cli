@@ -1,4 +1,4 @@
-use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature};
+use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
@@ -10,7 +10,6 @@ use clementine_cli::cli::{
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
-use clementine_cli::handle_simple_call;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
@@ -21,6 +20,7 @@ use clementine_cli::{
     wallet::{Purpose, parse_address, parse_taproot_address},
     withdraw,
 };
+use clementine_cli::{handle_simple_call, parse_transaction_hex};
 use colored::Colorize;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
@@ -305,6 +305,7 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
+    #[command(hide = true)]
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -553,8 +554,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
-                let tx_bytes = handle_simple_call!(hex::decode(&recovery_tx));
-                let recovery_tx: Transaction = handle_simple_call!(deserialize(&tx_bytes));
+                let recovery_tx = handle_simple_call!(parse_transaction_hex(&recovery_tx));
                 let citrea_address = handle_simple_call!(parse_citrea_address(&evm_address));
                 let recovery_taproot_address =
                     handle_simple_call!(TaprootAddressWithPrefix::from_string_with_prefix(
@@ -574,10 +574,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         n_of_n_key,
                     ),
                     (txid, address, amount) => {
-                        println!("{} Recovery transaction verified successfully", "SUCCESS".bold());
-                        println!("Transaction ID: {}", txid);
-                        println!("Output address: {}", address);
-                        println!("Output amount:  {}", amount);
+                        println!("Recovery transaction verified!");
+                        println!(
+                            "This transaction may be broadcast only after the transaction {} \
+                             has been confirmed on-chain for at least {} blocks.",
+                            txid, config.user_takes_after
+                        );
+                        println!(
+                            "Once this condition has been satisfied and the transaction is broadcast, \
+                             an amount of {} BTC ({} sats) will be sent to the address {}.",
+                            amount, amount.to_sat(), address
+                        );
                     }
                 );
             }
@@ -768,16 +775,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &sig,
                         &config,
                     ),
-                    withdrawal_ui_url => {
+                    (withdrawal_ui_url, tx_json, params) => {
                         println!(
-                            "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-                            "INFO".bold()
+                            "\n{} Opening withdrawal page {} in your default browser...",
+                            "INFO".bold(),
+                            withdrawal_ui_url.0
                         );
-                        if let Err(e) = open::that(&withdrawal_ui_url) {
+
+                        println!("\nPress a key to continue...");
+                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        println!("\nPlease review the transaction details below:\n");
+
+
+                        let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
+                            .ok()
+                            .and_then(|json| serde_json::to_string_pretty(&json).ok())
+                            .unwrap_or_else(|| tx_json.0.clone());
+
+                        println!("Transaction JSON:\n{}", pretty_json);
+
+                        println!("\nDestination Address: {}\n", destination_address.to_string());
+
+                        println!("{:#?}\n", params);
+
+                        println!("Please double check the transaction details before proceeding in the browser.\n");
+
+                        println!("Press a key to continue...");
+                        let mut input = String::new();
+
+                        std::io::stdin().read_line(&mut input).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        if let Err(e) = open::that(&withdrawal_ui_url.0) {
                             return Err(eyre::eyre!(
                             "Failed to open browser: {}. Please visit the following URL manually: {}",
                             e,
-                            withdrawal_ui_url
+                            withdrawal_ui_url.0
                             )
                             .into());
                         }

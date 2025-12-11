@@ -151,100 +151,37 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     );
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
-    if !config_file.exists() {
-        let mut default_cfgs = config::default_networks();
-        setup_networks(&mut default_cfgs)?;
-        config::write_config_to(&config_file, &default_cfgs)?;
-        println!(
-            "{} Default configuration file created at: {}",
-            "SUCCESS".bold(),
-            config_file.display()
-        );
-    } else {
+    if config_file.exists() {
         println!(
             "{} Configuration file already exists at: {}",
             "INFO".bold(),
             config_file.display()
         );
 
-        // Check if N-of-N keys have been updated
-        let old_config_contents = std::fs::read_to_string(&config_file).ok();
-        if let Some(contents) = old_config_contents
-            && let Ok(old_network_configs) = toml::from_str::<config::NetworkConfigs>(&contents)
-        {
-            let new_network_configs = config::default_networks();
+        print!("Do you want to overwrite it with a fresh configuration? [y/N]: ");
+        io::stdout().flush().ok();
 
-            let mut updated_networks = Vec::new();
+        let mut answer = String::new();
+        io::stdin()
+            .read_line(&mut answer)
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
 
-            // Check each network for aggregated_public_key changes
-            if old_network_configs.bitcoin.aggregated_public_key
-                != new_network_configs.bitcoin.aggregated_public_key
-            {
-                updated_networks.push((
-                    "bitcoin",
-                    old_network_configs.bitcoin.aggregated_public_key,
-                    new_network_configs.bitcoin.aggregated_public_key,
-                ));
-            }
-            if old_network_configs.testnet4.aggregated_public_key
-                != new_network_configs.testnet4.aggregated_public_key
-            {
-                updated_networks.push((
-                    "testnet4",
-                    old_network_configs.testnet4.aggregated_public_key,
-                    new_network_configs.testnet4.aggregated_public_key,
-                ));
-            }
-            if old_network_configs.signet.aggregated_public_key
-                != new_network_configs.signet.aggregated_public_key
-            {
-                updated_networks.push((
-                    "signet",
-                    old_network_configs.signet.aggregated_public_key,
-                    new_network_configs.signet.aggregated_public_key,
-                ));
-            }
-            if old_network_configs.regtest.aggregated_public_key
-                != new_network_configs.regtest.aggregated_public_key
-            {
-                updated_networks.push((
-                    "regtest",
-                    old_network_configs.regtest.aggregated_public_key,
-                    new_network_configs.regtest.aggregated_public_key,
-                ));
-            }
+        let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
 
-            if !updated_networks.is_empty() {
-                println!();
-                println!("{} N-of-N Key Update Detected!", "IMPORTANT".bold());
-                println!(
-                    "The aggregated_public_key (N-of-N key) has been updated for the following network(s):"
-                );
-                println!();
-
-                for (network_name, _old_key, new_key) in &updated_networks {
-                    println!("  Network: {}", network_name);
-                    println!("  New key: {}", new_key);
-                    println!();
-                }
-
-                println!("To update your configuration, run the following command(s):");
-                println!();
-                for (network_name, _old_key, new_key) in &updated_networks {
-                    println!(
-                        "  $ clementine-cli update-config --network {} aggregated_public_key={}",
-                        network_name, new_key
-                    );
-                }
-                println!();
-                println!(
-                    "{} You must update your configuration before performing deposit operations.",
-                    "NOTE:".bold()
-                );
-            }
+        if !overwrite {
+            println!("{} Keeping existing configuration.", "INFO".bold());
+            return Ok(());
         }
     }
 
+    let mut default_cfgs = config::default_networks();
+    setup_networks(&mut default_cfgs)?;
+    config::write_config_to(&config_file, &default_cfgs)?;
+    println!(
+        "{} Default configuration file created at: {}",
+        "SUCCESS".bold(),
+        config_file.display()
+    );
     Ok(())
 }
 
@@ -373,8 +310,8 @@ fn prompt_rpc_fields(
 
 /// Interactive setup for the known Bitcoin networks.
 ///
-/// Walks through `mainnet`, `testnet4`, `signet`, and `regtest`, prompting
-/// the user to choose a backend (mempool, RPC or both) and filling the
+/// Walks through `mainnet`, `testnet4` prompting the user to
+/// choose a backend (mempool, RPC or both) and filling the
 /// provided `NetworkConfigs` structure accordingly.
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     let theme = ColorfulTheme::default();
@@ -382,8 +319,6 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     for (name, net) in [
         ("mainnet", &mut cfgs.bitcoin),
         ("testnet", &mut cfgs.testnet4),
-        ("signet", &mut cfgs.signet),
-        ("regtest", &mut cfgs.regtest),
     ] {
         println!("\n== Configure '{name}' network ==");
 
@@ -410,6 +345,40 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
                 net.mempool_api_url = None;
             }
             _ => unreachable!(),
+        }
+
+        // Configure Citrea RPC URL for this network
+        let current_rpc_display = net
+            .citrea_rpc_url
+            .as_ref()
+            .map(|u| u.as_str().to_string())
+            .unwrap_or_else(|| "None (disabled)".to_string());
+
+        println!("Current Citrea RPC URL for '{name}': {current_rpc_display}",);
+
+        let default_input = net
+            .citrea_rpc_url
+            .as_ref()
+            .map(|u| u.as_str().to_string())
+            .unwrap_or_default();
+
+        let input: String = Input::with_theme(&theme)
+            .with_prompt("Citrea RPC URL (press Enter to keep current, type 'none' to disable)")
+            .default(default_input)
+            .interact_text()?;
+
+        let trimmed = input.trim();
+
+        if trimmed.eq_ignore_ascii_case("none")
+            || (trimmed.is_empty() && net.citrea_rpc_url.is_none())
+        {
+            net.citrea_rpc_url = None;
+        } else if trimmed.is_empty() {
+            // keep existing value
+        } else {
+            let url = Url::parse(trimmed)
+                .map_err(|e| eyre!("Invalid Citrea RPC URL '{}': {}", trimmed, e))?;
+            net.citrea_rpc_url = Some(url);
         }
     }
 
