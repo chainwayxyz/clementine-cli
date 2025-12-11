@@ -312,9 +312,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             .map(|u| u.as_str().to_string())
             .unwrap_or_else(|| "None (disabled)".to_string());
 
-        println!(
-            "Current Citrea RPC URL for '{name}': {current_rpc_display}",
-        );
+        println!("Current Citrea RPC URL for '{name}': {current_rpc_display}",);
 
         let default_input = net
             .citrea_rpc_url
@@ -323,9 +321,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             .unwrap_or_default();
 
         let input: String = Input::with_theme(&theme)
-            .with_prompt(
-                "Citrea RPC URL (press Enter to keep current, type 'none' to disable)",
-            )
+            .with_prompt("Citrea RPC URL (press Enter to keep current, type 'none' to disable)")
             .default(default_input)
             .interact_text()?;
 
@@ -338,9 +334,8 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
         } else if trimmed.is_empty() {
             // keep existing value
         } else {
-            let url = Url::parse(trimmed).map_err(|e| {
-                eyre!("Invalid Citrea RPC URL '{}': {}", trimmed, e)
-            })?;
+            let url = Url::parse(trimmed)
+                .map_err(|e| eyre!("Invalid Citrea RPC URL '{}': {}", trimmed, e))?;
             net.citrea_rpc_url = Some(url);
         }
     }

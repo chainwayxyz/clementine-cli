@@ -80,12 +80,14 @@ fn create_bridge_contract(
     key: PrivateKeySigner,
     config: &BridgeCliConfig,
 ) -> Result<CitreaContract, BridgeCliError> {
-    let citrea_rpc_url = config.citrea_rpc_url.as_ref().ok_or(
-        BridgeCliError::Eyre(eyre::eyre!(
-            "CITREA_RPC_URL is not set in the configuration. Please set it to proceed."
-        )),
-    )?;
-    
+    let citrea_rpc_url =
+        config
+            .citrea_rpc_url
+            .as_ref()
+            .ok_or(BridgeCliError::Eyre(eyre::eyre!(
+                "CITREA_RPC_URL is not set in the configuration. Please set it to proceed."
+            )))?;
+
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
         .connect_http(citrea_rpc_url.clone());

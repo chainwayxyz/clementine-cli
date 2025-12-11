@@ -355,7 +355,8 @@ impl BridgeCliConfig {
                 config.citrea_chain_id = 1;
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.citrea.xyz/").expect("Valid url");
-                config.citrea_rpc_url = Some(Url::parse("https://rpc.citrea.xyz/").expect("Valid url"));
+                config.citrea_rpc_url =
+                    Some(Url::parse("https://rpc.citrea.xyz/").expect("Valid url"));
                 config.mempool_api_url =
                     Some(Url::parse("https://mempool.space/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
