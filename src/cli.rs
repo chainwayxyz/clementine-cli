@@ -122,22 +122,37 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     );
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
-    if !config_file.exists() {
-        let mut default_cfgs = config::default_networks();
-        setup_networks(&mut default_cfgs)?;
-        config::write_config_to(&config_file, &default_cfgs)?;
-        println!(
-            "{} Default configuration file created at: {}",
-            "SUCCESS".bold(),
-            config_file.display()
-        );
-    } else {
+    if config_file.exists() {
         println!(
             "{} Configuration file already exists at: {}",
             "INFO".bold(),
             config_file.display()
         );
+
+        print!("Do you want to overwrite it with a fresh configuration? [y/N]: ");
+        io::stdout().flush().ok();
+
+        let mut answer = String::new();
+        io::stdin()
+            .read_line(&mut answer)
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+
+        let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
+
+        if !overwrite {
+            println!("{} Keeping existing configuration.", "INFO".bold());
+            return Ok(());
+        }
     }
+
+    let mut default_cfgs = config::default_networks();
+    setup_networks(&mut default_cfgs)?;
+    config::write_config_to(&config_file, &default_cfgs)?;
+    println!(
+        "{} Default configuration file created at: {}",
+        "SUCCESS".bold(),
+        config_file.display()
+    );
     Ok(())
 }
 
