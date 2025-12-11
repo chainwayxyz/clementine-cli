@@ -312,7 +312,12 @@ impl BridgeCliConfig {
             .as_ref()
             .is_some_and(|url| !url.to_string().ends_with("/"))
         {
-            let str_url = config.citrea_rpc_url.as_ref().unwrap().to_string() + "/";
+            let str_url = config
+                .citrea_rpc_url
+                .as_ref()
+                .expect("Cannot fail, checked above")
+                .to_string()
+                + "/";
             config.citrea_rpc_url =
                 Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
