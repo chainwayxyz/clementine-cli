@@ -129,9 +129,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
             config_file.display()
         );
 
-        print!(
-            "Do you want to overwrite it with a fresh configuration? [y/N]: "
-        );
+        print!("Do you want to overwrite it with a fresh configuration? [y/N]: ");
         io::stdout().flush().ok();
 
         let mut answer = String::new();
@@ -139,10 +137,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
             .read_line(&mut answer)
             .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
 
-        let overwrite = matches!(
-            answer.trim().to_lowercase().as_str(),
-            "y" | "yes"
-        );
+        let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
 
         if !overwrite {
             println!("{} Keeping existing configuration.", "INFO".bold());
