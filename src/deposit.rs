@@ -12,9 +12,8 @@ use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::validate_address_purpose;
 use crate::{BitcoinAddress, CitreaAddress};
-use alloy::providers::ProviderBuilder;
-use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid, XOnlyPublicKey};
-use eyre::{Context, Result};
+use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
+use eyre::Result;
 
 /// Parameters for creating a signed recovery transaction
 pub struct RecoveryTxParams {
