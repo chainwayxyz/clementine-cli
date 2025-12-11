@@ -42,7 +42,6 @@ you need to provide correct Bitcoin RPC configuration.
    cargo install --path .
    ```
 
-
 3. Install the default configuration by running the CLI init command which
    creates the `~/.clementine/bridge_cli_config.toml` file for you:
 

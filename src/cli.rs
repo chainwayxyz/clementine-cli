@@ -1506,7 +1506,6 @@ pub async fn cli_verify_recovery_tx_with_validation(
     params: deposit::VerifyRecoveryTxParams,
     config: &BridgeCliConfig,
     aggregated_public_key: Option<String>,
-    validate_against_contract: bool,
 ) -> Result<(bitcoin::Txid, BitcoinAddress, Amount), BridgeCliError> {
     let effective_key = if let Some(key_hex) = aggregated_public_key {
         Some(parse_and_validate_aggregated_key(
@@ -1516,21 +1515,6 @@ pub async fn cli_verify_recovery_tx_with_validation(
     } else {
         None
     };
-
-    // Optionally validate against contract
-    if validate_against_contract {
-        let contract_key = deposit::get_contract_aggregated_key(config).await?;
-        let key_to_check = effective_key.unwrap_or(config.aggregated_public_key);
-        if key_to_check != contract_key {
-            println!("{} Key mismatch with contract!", "ERROR".bold());
-            println!("  Key being used: {}", key_to_check);
-            println!("  Contract key:   {}", contract_key);
-            return Err(BridgeCliError::Eyre(eyre::eyre!(
-                "Aggregated public key mismatch with contract"
-            )));
-        }
-        println!("{} Key validated against contract", "SUCCESS".bold());
-    }
 
     // Create effective config
     let mut effective_config = config.clone();

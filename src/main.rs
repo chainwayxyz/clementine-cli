@@ -233,12 +233,7 @@ enum DepositCommands {
             help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
         )]
         n_of_n_key: Option<String>,
-        #[arg(
-            long,
-            default_value_t = false,
-            help = "Validate the provided/config N-of-N key (aggregated public key) against the contract (requires network access)"
-        )]
-        validate_against_contract: bool,
+        #[arg(long, default_value_t = false)]
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -260,11 +255,6 @@ enum DepositCommands {
     GetDepositParams {
         /// Move-to-vault transaction ID (txid)
         move_to_vault_txid: String,
-        #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
-        network: CliNetwork,
-    },
-    /// Check if the n-of-n aggregated public key in config matches the contract.
-    CheckNofNKey {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -560,7 +550,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 evm_address,
                 amount,
                 n_of_n_key,
-                validate_against_contract,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -583,7 +572,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         },
                         &config,
                         n_of_n_key,
-                        validate_against_contract,
                     ),
                     (txid, address, amount) => {
                         println!("{} Recovery transaction verified successfully", "SUCCESS".bold());
@@ -619,17 +607,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     get_deposit_params(&move_to_vault_txid, &config),
                     params => {
                         println!("Deposit parameters hex: {}", hex::encode(params));
-                    }
-                );
-            }
-            DepositCommands::CheckNofNKey { network } => {
-                let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
-                handle_cli_command!(async
-                    deposit::check_nofn_key_correctness(&config),
-                    () => {
-                        println!("{} N-of-N key check passed!", "SUCCESS".bold());
-                        println!("Config aggregated_public_key matches contract: {}",
-                                 config.aggregated_public_key.to_string().bold());
                     }
                 );
             }
