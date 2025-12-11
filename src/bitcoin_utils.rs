@@ -465,8 +465,8 @@ mod tests {
         let network_configs = NetworkConfigs {
             bitcoin: BridgeCliConfig::default(),
             testnet4: BridgeCliConfig::default(),
-            signet: BridgeCliConfig::default(),
-            regtest: BridgeCliConfig {
+            signet: Some(BridgeCliConfig::default()),
+            regtest: Some(BridgeCliConfig {
                 network: Network::Regtest,
                 aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
                 mempool_api_url: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
@@ -481,10 +481,10 @@ mod tests {
                 bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
                 bitcoin_config: None,
                 move_tx_finalization_blocks: 5,
-            },
+            }),
         };
 
-        network_configs.regtest
+        network_configs.regtest.unwrap()
     }
 
     fn create_test_keypair() -> SecureKeypair {

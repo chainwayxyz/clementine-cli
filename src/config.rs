@@ -71,8 +71,8 @@ impl ToSecretBox for String {
 pub struct NetworkConfigs {
     pub bitcoin: BridgeCliConfig,
     pub testnet4: BridgeCliConfig,
-    pub signet: BridgeCliConfig,
-    pub regtest: BridgeCliConfig,
+    pub signet: Option<BridgeCliConfig>,
+    pub regtest: Option<BridgeCliConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
@@ -203,8 +203,8 @@ pub fn default_networks() -> NetworkConfigs {
     NetworkConfigs {
         bitcoin: BridgeCliConfig::defaults_for(Network::Bitcoin),
         testnet4: BridgeCliConfig::defaults_for(Network::Testnet4),
-        signet: BridgeCliConfig::defaults_for(Network::Signet),
-        regtest: BridgeCliConfig::defaults_for(Network::Regtest),
+        signet: None,
+        regtest: None,
     }
 }
 
@@ -252,23 +252,31 @@ impl BridgeCliConfig {
             ))
         })?;
         let config = Self::try_parse_file(config_path.clone(), network);
-        if let Ok(config) = config {
-            tracing::debug!("Using home configuration file: {config_path:?}");
-            return Ok(config);
+        match config {
+            Ok(cfg) => {
+                tracing::debug!("Using home configuration file: {config_path:?}");
+                Ok(cfg)
+            }
+            Err(ConfigErrors::UnsupportedNetwork(_)) => {
+                tracing::error!(
+                    "Configuration file does not support the selected network at path: {config_path:?}"
+                );
+                Err(ConfigErrors::UnsupportedNetwork(network))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
+                    e
+                );
+                Err(ConfigErrors::FileReadFailure(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "Configuration file is not parsable at path: {:?}",
+                        config_path
+                    ),
+                )))
+            }
         }
-
-        tracing::error!(
-            "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
-            config.err()
-        );
-
-        Err(ConfigErrors::FileReadFailure(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!(
-                "Configuration file is not parsable at path: {:?}",
-                config_path
-            ),
-        )))
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
@@ -283,8 +291,12 @@ impl BridgeCliConfig {
         let mut config = match network {
             Network::Bitcoin => network_configs.bitcoin,
             Network::Testnet4 => network_configs.testnet4,
-            Network::Signet => network_configs.signet,
-            Network::Regtest => network_configs.regtest,
+            Network::Signet => network_configs
+                .signet
+                .ok_or(ConfigErrors::UnsupportedNetwork(network))?,
+            Network::Regtest => network_configs
+                .regtest
+                .ok_or(ConfigErrors::UnsupportedNetwork(network))?,
             rest => return Err(ConfigErrors::UnsupportedNetwork(rest)),
         };
 
