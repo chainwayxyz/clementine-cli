@@ -2,12 +2,11 @@ use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, tapr
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
-    cli_get_deposit_address, cli_get_deposit_addresses_by_recovery_taproot_address,
-    cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
-    cli_import_wallet_from_private_key, cli_list_all_recovery_taproot_addresses,
-    cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
-    cli_verify_wallet_integrity, deposit_create_signed_recovery_tx, deposit_status,
-    send_withdrawal_signature, withdrawal_status,
+    cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
+    cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
+    cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
+    cli_start_withdrawal, cli_verify_wallet_integrity, deposit_create_signed_recovery_tx,
+    deposit_status, send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -243,12 +242,12 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// List all stored deposit recovery taproot addresses with their networks.
-    ListDepositRecoveryAddresses,
-    /// Retrieve stored deposit addresses for a specific recovery taproot address.
-    GetDepositAddressesForRecoveryTaprootAddress {
-        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
-        recovery_taproot_address: String,
+    /// List all stored deposit addresses with their associated networks.
+    ListDepositAddresses,
+    /// Retrieve stored details for a specific deposit address.
+    GetDepositAddressDetails {
+        /// Deposit address (taproot address funds were sent to)
+        deposit_address: String,
     },
 }
 
@@ -586,20 +585,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::ListDepositRecoveryAddresses => {
-                handle_cli_command!(cli_list_all_recovery_taproot_addresses());
+            DepositCommands::ListDepositAddresses => {
+                handle_cli_command!(cli_list_all_deposit_addresses());
             }
-            DepositCommands::GetDepositAddressesForRecoveryTaprootAddress {
-                recovery_taproot_address,
-            } => {
-                let recovery_taproot_address = handle_simple_call!(
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
-                        &recovery_taproot_address,
-                    )
-                );
-                handle_cli_command!(cli_get_deposit_addresses_by_recovery_taproot_address(
-                    &recovery_taproot_address
-                ));
+            DepositCommands::GetDepositAddressDetails { deposit_address } => {
+                handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
             }
         },
         Commands::Withdraw { command } => match command {

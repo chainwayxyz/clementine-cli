@@ -14,6 +14,7 @@ pub mod cli_macros;
 pub mod cli_network;
 pub mod config;
 pub mod deposit;
+mod deposit_storage;
 pub mod errors;
 mod parameters;
 mod script;

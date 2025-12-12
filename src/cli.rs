@@ -20,8 +20,7 @@ use url::Url;
 use crate::api_utils::get_block_height_for_tx;
 use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
 use crate::deposit::{
-    get_stored_deposit_addresses_for_recovery_taproot_address,
-    get_stored_deposit_recovery_taproot_addresses,
+    get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
@@ -1381,67 +1380,60 @@ pub fn cli_generate_withdrawal_signatures(
     )
 }
 
-pub fn cli_list_all_recovery_taproot_addresses() -> Result<(), BridgeCliError> {
-    let recovery_taproot_addresses =
-        get_stored_deposit_recovery_taproot_addresses().map_err(|e| {
-            tracing::error!(
-                "Failed to retrieve stored deposit recovery taproot addresses: {}",
-                e
-            );
-            BridgeCliError::Eyre(eyre!(
-                "Failed to retrieve stored deposit recovery taproot addresses"
-            ))
-        })?;
+pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
+    let deposits = get_all_deposit_address_details().map_err(|e| {
+        tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
+    })?;
 
-    if recovery_taproot_addresses.is_empty() {
-        println!("No stored deposit recovery taproot addresses found.");
+    if deposits.is_empty() {
+        println!("No stored deposit addresses found.");
     } else {
-        println!("Stored Deposit Recovery Taproot Address(es):");
-        for (address, network) in recovery_taproot_addresses {
-            println!("- {} (network: {:?})", address, network);
+        println!("Stored Deposit Address(es):");
+        for d in deposits {
+            println!(
+                "- Deposit address: {} | Network: {:?}",
+                d.deposit_address, d.network
+            );
         }
     }
 
     Ok(())
 }
 
-pub fn cli_get_deposit_addresses_by_recovery_taproot_address(
-    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
-) -> Result<(), BridgeCliError> {
-    let deposit_data =
-        get_stored_deposit_addresses_for_recovery_taproot_address(recovery_taproot_address)
-            .map_err(|e| {
-                tracing::error!(
-                    "Failed to retrieve deposit addresses for recovery taproot address {}: {}",
-                    recovery_taproot_address.address_with_prefix(),
-                    e
-                );
-                BridgeCliError::Eyre(eyre!(
-                    "Failed to retrieve deposit addresses for recovery taproot address {}",
-                    recovery_taproot_address.address_with_prefix()
-                ))
-            })?;
-
-    match deposit_data {
-        Some(data) => {
-            println!(
-                "Deposit Address(es) for Recovery Taproot Address {} - Network: {}:",
-                recovery_taproot_address.address_with_prefix(),
-                data.network
+pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
+    // check if deposit_address is a valid Bitcoin address
+    let _ = BitcoinAddress::from_str(deposit_address).map_err(|e| {
+        tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
+        BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
+    })?;
+    let details =
+        get_deposit_address_details_for_deposit_address(deposit_address).map_err(|e| {
+            tracing::error!(
+                "Failed to retrieve details for deposit address {}: {}",
+                deposit_address,
+                e
             );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to retrieve details for deposit address {}",
+                deposit_address
+            ))
+        })?;
 
-            for entry in data.entries {
-                println!(
-                    "- Deposit Address: {} Citrea Address: {}",
-                    entry.deposit_address, entry.citrea_address
-                );
-            }
-        }
+    match details {
         None => {
             println!(
-                "No deposit address found for Recovery Taproot Address {}",
-                recovery_taproot_address.address_with_prefix()
+                "No stored details found for deposit address {}",
+                deposit_address
             );
+        }
+        Some(d) => {
+            println!("Deposit address details:");
+            println!("  Deposit address: {}", d.deposit_address);
+            println!("  Recovery taproot address: {}", d.recovery_taproot_address);
+            println!("  Citrea address: {}", d.citrea_address);
+            println!("  Network: {:?}", d.network);
+            println!("  Created at (unix timestamp): {}", d.created_at);
         }
     }
 
