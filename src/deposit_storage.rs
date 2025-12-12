@@ -10,10 +10,7 @@ use std::fs;
 use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-/// Data structure representing a deposit address mapping.
-///
-/// Associates a Bitcoin deposit address with its recovery taproot address,
-/// Citrea address, and network information for storage and retrieval.
+/// Data needed to store a deposit address.
 #[derive(Debug, Clone)]
 pub struct DepositData {
     pub deposit_address: BitcoinAddress,
@@ -24,21 +21,18 @@ pub struct DepositData {
 
 const DEPOSIT_ADDRESS_STORAGE_FILE: &str = "deposit_addresses.json";
 
-/// Wrapper for a stored deposit address used as a map key.
+/// Map key for a stored deposit address.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
 pub struct StoredDepositAddress(pub String);
 
-/// A single deposit address entry stored in the JSON file.
-///
-/// Contains the deposit address and associated Citrea address as strings.
-/// Multiple entries can exist for each recovery taproot address.
+/// Stored metadata for a deposit address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredDepositEntry {
     pub recovery_taproot_address: String,
     pub citrea_address: String,
 }
 
-/// Internal details for a specific deposit address, keyed by deposit address.
+/// Internal record for a deposit address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct StoredDepositDetails {
     pub network: Network,
@@ -46,7 +40,7 @@ struct StoredDepositDetails {
     pub created_at: u64,
 }
 
-/// Public, deposit-address-centric view of a stored deposit.
+/// Public view of a stored deposit address.
 #[derive(Debug, Clone)]
 pub struct DepositAddressDetails {
     pub deposit_address: String,
@@ -58,6 +52,10 @@ pub struct DepositAddressDetails {
 
 type StoredDepositMap = HashMap<StoredDepositAddress, StoredDepositDetails>;
 
+/// Store a deposit address and its metadata.
+///
+/// If the address already exists, the existing record is kept.
+/// Returns an error if the storage file cannot be read or written.
 pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliError> {
     let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
 
@@ -128,7 +126,9 @@ pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCli
     Ok(())
 }
 
-/// List all stored deposits, keyed by deposit address.
+/// List all stored deposits.
+///
+/// Returns an empty vector if no deposits have been stored.
 pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, BridgeCliError> {
     let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
 

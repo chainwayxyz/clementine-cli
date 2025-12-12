@@ -242,9 +242,9 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// List all stored deposit addresses with their associated networks.
+    /// List all stored deposit addresses.
     ListDepositAddresses,
-    /// Retrieve stored details for a specific deposit address.
+    /// Show stored details for a deposit address.
     GetDepositAddressDetails {
         /// Deposit address (taproot address funds were sent to)
         deposit_address: String,
