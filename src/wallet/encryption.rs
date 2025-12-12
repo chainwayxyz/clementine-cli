@@ -205,3 +205,213 @@ pub(crate) fn encrypted_data_from_hex(
             .map_err(|e: Vec<u8>| BridgeCliError::InvalidSaltLength(e.len()))?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    const TEST_PASSPHRASE: &str = "test_passphrase_12345";
+
+    #[test]
+    fn test_encrypt_decrypt_round_trip() {
+        let plaintext = SecureString::init_with(|| "sensitive wallet data".to_string());
+        let passphrase = SecureString::init_with(|| TEST_PASSPHRASE.to_string());
+
+        // Encrypt
+        let encrypted =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("Encryption should succeed");
+
+        // Decrypt
+        let decrypted =
+            aes_decrypt_secure(&encrypted, &passphrase).expect("Decryption should succeed");
+
+        assert_eq!(plaintext.expose_secret(), decrypted.expose_secret());
+    }
+
+    #[test]
+    fn test_decrypt_with_wrong_passphrase_fails() {
+        let plaintext = SecureString::init_with(|| "sensitive data".to_string());
+        let passphrase1 = SecureString::init_with(|| "correct_pass".to_string());
+        let passphrase2 = SecureString::init_with(|| "wrong_pass".to_string());
+
+        let encrypted =
+            aes_encrypt_secure(&plaintext, &passphrase1).expect("Encryption should succeed");
+
+        let result = aes_decrypt_secure(&encrypted, &passphrase2);
+        assert!(
+            result.is_err(),
+            "Decryption with wrong passphrase should fail"
+        );
+
+        // Verify it's a decryption error
+        match result {
+            Err(BridgeCliError::DecryptionError) => (),
+            _ => panic!("Expected DecryptionError or EncryptionKeyDerivationError"),
+        }
+    }
+
+    #[test]
+    fn test_encrypted_data_to_from_hex_round_trip() {
+        let plaintext = SecureString::init_with(|| "test data".to_string());
+        let passphrase = SecureString::init_with(|| TEST_PASSPHRASE.to_string());
+
+        let encrypted =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("Encryption should succeed");
+
+        // Convert to hex
+        let hex_data = encrypted_data_to_hex(&encrypted);
+
+        // Verify hex strings are valid
+        assert!(!hex_data.ciphertext.is_empty());
+        assert!(!hex_data.nonce.is_empty());
+        assert!(!hex_data.salt.is_empty());
+
+        // Convert back from hex
+        let recovered = encrypted_data_from_hex(&hex_data).expect("Should parse from hex");
+
+        // Verify decryption still works
+        let decrypted =
+            aes_decrypt_secure(&recovered, &passphrase).expect("Should decrypt recovered data");
+
+        assert_eq!(plaintext.expose_secret(), decrypted.expose_secret());
+    }
+
+    #[test]
+    fn test_encrypted_data_from_hex_invalid_hex() {
+        let invalid_hex = EncryptedDataHex {
+            ciphertext: "not_valid_hex_zzz".to_string(),
+            nonce: "aabbccdd".to_string(),
+            salt: "11223344".to_string(),
+        };
+
+        let result = encrypted_data_from_hex(&invalid_hex);
+        assert!(result.is_err(), "Should fail on invalid hex");
+    }
+
+    #[test]
+    fn test_encrypted_data_from_hex_invalid_nonce_length() {
+        let invalid_nonce = EncryptedDataHex {
+            ciphertext: hex::encode(vec![1, 2, 3, 4]),
+            nonce: hex::encode(vec![1, 2, 3]), // Wrong length (should be 12)
+            salt: hex::encode(vec![0u8; 32]),
+        };
+
+        let result = encrypted_data_from_hex(&invalid_nonce);
+        assert!(result.is_err(), "Should fail on invalid nonce length");
+
+        match result {
+            Err(BridgeCliError::InvalidNonceLength(len)) => {
+                assert_eq!(len, 3, "Should report actual length");
+            }
+            _ => panic!("Expected InvalidNonceLength error"),
+        }
+    }
+
+    #[test]
+    fn test_encrypted_data_from_hex_invalid_salt_length() {
+        let invalid_salt = EncryptedDataHex {
+            ciphertext: hex::encode(vec![1, 2, 3, 4]),
+            nonce: hex::encode(vec![0u8; 12]),
+            salt: hex::encode(vec![1, 2, 3]), // Wrong length (should be 32)
+        };
+
+        let result = encrypted_data_from_hex(&invalid_salt);
+        assert!(result.is_err(), "Should fail on invalid salt length");
+
+        match result {
+            Err(BridgeCliError::InvalidSaltLength(len)) => {
+                assert_eq!(len, 3, "Should report actual length");
+            }
+            _ => panic!("Expected InvalidSaltLength error"),
+        }
+    }
+
+    #[test]
+    fn test_encryption_produces_different_ciphertext() {
+        // Same plaintext + passphrase should produce different ciphertext due to random nonce/salt
+        let plaintext = SecureString::init_with(|| "test data".to_string());
+        let passphrase = SecureString::init_with(|| TEST_PASSPHRASE.to_string());
+
+        let encrypted1 =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("First encryption should succeed");
+        let encrypted2 =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("Second encryption should succeed");
+
+        // Ciphertexts should be different
+        assert_ne!(
+            encrypted1.ciphertext, encrypted2.ciphertext,
+            "Different encryptions should produce different ciphertext"
+        );
+
+        // Nonces should be different
+        assert_ne!(
+            encrypted1.nonce, encrypted2.nonce,
+            "Different encryptions should use different nonces"
+        );
+
+        // Salts should be different
+        assert_ne!(
+            encrypted1.salt, encrypted2.salt,
+            "Different encryptions should use different salts"
+        );
+
+        // But both should decrypt to same plaintext
+        let decrypted1 = aes_decrypt_secure(&encrypted1, &passphrase).unwrap();
+        let decrypted2 = aes_decrypt_secure(&encrypted2, &passphrase).unwrap();
+        assert_eq!(decrypted1.expose_secret(), decrypted2.expose_secret());
+    }
+
+    #[test]
+    fn test_nonce_has_correct_length() {
+        let plaintext = SecureString::init_with(|| "test".to_string());
+        let passphrase = SecureString::init_with(|| TEST_PASSPHRASE.to_string());
+
+        let encrypted =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("Encryption should succeed");
+
+        assert_eq!(
+            encrypted.nonce.len(),
+            12,
+            "Nonce should be 12 bytes for AES-GCM"
+        );
+    }
+
+    #[test]
+    fn test_salt_has_correct_length() {
+        let plaintext = SecureString::init_with(|| "test".to_string());
+        let passphrase = SecureString::init_with(|| TEST_PASSPHRASE.to_string());
+
+        let encrypted =
+            aes_encrypt_secure(&plaintext, &passphrase).expect("Encryption should succeed");
+
+        assert_eq!(encrypted.salt.len(), 32, "Salt should be 32 bytes");
+    }
+
+    #[test]
+    fn test_different_passphrases_produce_different_results() {
+        let plaintext = SecureString::init_with(|| "test data".to_string());
+        let passphrase1 = SecureString::init_with(|| "password1".to_string());
+        let passphrase2 = SecureString::init_with(|| "password2".to_string());
+
+        let encrypted1 =
+            aes_encrypt_secure(&plaintext, &passphrase1).expect("First encryption should succeed");
+        let encrypted2 =
+            aes_encrypt_secure(&plaintext, &passphrase2).expect("Second encryption should succeed");
+
+        // Different passphrases should produce different ciphertexts
+        assert_ne!(encrypted1.ciphertext, encrypted2.ciphertext);
+
+        // Each should decrypt with its own passphrase
+        let decrypted1 =
+            aes_decrypt_secure(&encrypted1, &passphrase1).expect("Should decrypt with passphrase1");
+        let decrypted2 =
+            aes_decrypt_secure(&encrypted2, &passphrase2).expect("Should decrypt with passphrase2");
+
+        // But not with the wrong passphrase
+        assert!(aes_decrypt_secure(&encrypted1, &passphrase2).is_err());
+        assert!(aes_decrypt_secure(&encrypted2, &passphrase1).is_err());
+
+        // Both should produce the same plaintext
+        assert_eq!(decrypted1.expose_secret(), decrypted2.expose_secret());
+    }
+}

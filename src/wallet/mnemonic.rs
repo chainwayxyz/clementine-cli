@@ -109,6 +109,8 @@ pub(crate) fn derive_private_key_from_mnemonic(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
+/// Prompt user to enter mnemonic interactively (production version)
+#[cfg(not(any(test, feature = "test-helpers")))]
 pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     println!("{}", "Secure Mnemonic Input".bold());
     println!(
@@ -177,4 +179,124 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     })?;
 
     Ok(mnemonic)
+}
+
+/// Test version: returns a fixed test mnemonic without prompting
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
+    // This is a standard test mnemonic from BIP-39 spec
+    let test_mnemonic = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    Mnemonic::parse(test_mnemonic).map_err(|e| {
+        tracing::error!("Error creating test mnemonic: {}", e);
+        BridgeCliError::MnemonicValidationFailed
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Standard BIP39 test mnemonic from the spec
+    const KNOWN_MNEMONIC: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    #[test]
+    fn test_generate_mnemonic_produces_12_words() {
+        let mnemonic = generate_mnemonic().expect("Should generate mnemonic");
+        let words: Vec<&str> = mnemonic.words().collect();
+        assert_eq!(
+            words.len(),
+            MNEMONIC_WORD_COUNT,
+            "Mnemonic should have 12 words"
+        );
+    }
+
+    #[test]
+    fn test_known_mnemonic_produces_deterministic_seed() {
+        // Test with known mnemonic to ensure determinism
+        let mnemonic = Mnemonic::parse(KNOWN_MNEMONIC).expect("Known mnemonic should parse");
+
+        let seed1 = get_master_seed_from_mnemonic(&mnemonic);
+        let seed2 = get_master_seed_from_mnemonic(&mnemonic);
+
+        assert_eq!(
+            seed1.expose_secret(),
+            seed2.expose_secret(),
+            "Same mnemonic should produce same seed"
+        );
+    }
+
+    #[test]
+    fn test_seed_has_correct_length() {
+        let mnemonic = Mnemonic::parse(KNOWN_MNEMONIC).expect("Known mnemonic should parse");
+
+        let seed = get_master_seed_from_mnemonic(&mnemonic);
+
+        assert_eq!(seed.expose_secret().len(), 32, "Seed should be 32 bytes");
+    }
+
+    #[test]
+    fn test_derive_private_key_is_deterministic() {
+        let mnemonic = Mnemonic::parse(KNOWN_MNEMONIC).expect("Known mnemonic should parse");
+
+        let key1 = derive_private_key_from_mnemonic(&mnemonic).expect("Should derive key");
+        let key2 = derive_private_key_from_mnemonic(&mnemonic).expect("Should derive key");
+
+        assert_eq!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Same mnemonic should produce same private key"
+        );
+    }
+
+    #[test]
+    fn test_different_mnemonics_produce_different_keys() {
+        let mnemonic1 = generate_mnemonic().expect("Should generate mnemonic 1");
+        let mnemonic2 = generate_mnemonic().expect("Should generate mnemonic 2");
+
+        // Ensure they're actually different
+        assert_ne!(
+            mnemonic1.to_string(),
+            mnemonic2.to_string(),
+            "Generated mnemonics should be different"
+        );
+
+        let key1 = derive_private_key_from_mnemonic(&mnemonic1).expect("Should derive key 1");
+        let key2 = derive_private_key_from_mnemonic(&mnemonic2).expect("Should derive key 2");
+
+        assert_ne!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Different mnemonics should produce different keys"
+        );
+    }
+
+    #[test]
+    fn test_different_mnemonics_produce_different_seeds() {
+        let mnemonic1 = generate_mnemonic().expect("Should generate mnemonic 1");
+        let mnemonic2 = generate_mnemonic().expect("Should generate mnemonic 2");
+
+        let seed1 = get_master_seed_from_mnemonic(&mnemonic1);
+        let seed2 = get_master_seed_from_mnemonic(&mnemonic2);
+
+        assert_ne!(
+            seed1.expose_secret(),
+            seed2.expose_secret(),
+            "Different mnemonics should produce different seeds"
+        );
+    }
+
+    #[test]
+    fn test_private_key_length() {
+        let mnemonic = Mnemonic::parse(KNOWN_MNEMONIC).expect("Known mnemonic should parse");
+
+        let privkey =
+            derive_private_key_from_mnemonic(&mnemonic).expect("Should derive private key");
+
+        // Private key display format should be 64 hex characters
+        assert_eq!(
+            privkey.expose_secret().len(),
+            64,
+            "Private key hex string should be 64 characters"
+        );
+    }
 }

@@ -87,6 +87,7 @@ pub(crate) fn derive_key_from_passphrase(
 /// Prompt user for a passphrase with confirmation for new keys. The passphrase can be
 /// empty; however, it is recommended to use a non-empty passphrase for security, since
 /// it protects your private key from unauthorized access.
+#[cfg(not(any(test, feature = "test-helpers")))]
 pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase Protection".bold());
 
@@ -113,7 +114,14 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
     Ok(secure_passphrase)
 }
 
+/// Test version: returns a fixed test passphrase without prompting
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) fn prompt_passphrase(_confirm: bool) -> Result<SecureString, BridgeCliError> {
+    Ok(SecureString::init_with(|| "test_passphrase".to_string()))
+}
+
 /// Prompt user for a passphrase to unlock existing encrypted key
+#[cfg(not(any(test, feature = "test-helpers")))]
 pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
     let passphrase =
         rpassword::prompt_password("Enter passphrase to unlock key: ").map_err(|e| {
@@ -122,4 +130,222 @@ pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError>
         })?;
 
     Ok(SecureString::init_with(|| passphrase))
+}
+
+/// Test version: returns a fixed test passphrase without prompting
+#[cfg(any(test, feature = "test-helpers"))]
+pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
+    Ok(SecureString::init_with(|| "test_passphrase".to_string()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use secrecy::ExposeSecret;
+
+    // Standard test parameters matching production values
+    const TEST_ITERATIONS: u32 = 3;
+    const TEST_MEMORY: u32 = 65536; // 64 MB
+    const TEST_PARALLELISM: u32 = 1;
+
+    #[test]
+    fn test_derive_key_produces_32_byte_key() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let key = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("Key derivation should succeed");
+
+        assert_eq!(key.expose_secret().len(), 32, "Key should be 32 bytes");
+    }
+
+    #[test]
+    fn test_derive_key_is_deterministic() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let key1 = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("First key derivation should succeed");
+
+        let key2 = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("Second key derivation should succeed");
+
+        assert_eq!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Same passphrase and salt should produce identical keys"
+        );
+    }
+
+    #[test]
+    fn test_different_passphrase_produces_different_key() {
+        let passphrase1 = SecureString::init_with(|| "passphrase1".to_string());
+        let passphrase2 = SecureString::init_with(|| "passphrase2".to_string());
+        let salt = [1u8; 32];
+
+        let key1 = derive_key_from_passphrase(
+            &passphrase1,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("First key derivation should succeed");
+
+        let key2 = derive_key_from_passphrase(
+            &passphrase2,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("Second key derivation should succeed");
+
+        assert_ne!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Different passphrases should produce different keys"
+        );
+    }
+
+    #[test]
+    fn test_different_salt_produces_different_key() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt1 = [1u8; 32];
+        let salt2 = [2u8; 32];
+
+        let key1 = derive_key_from_passphrase(
+            &passphrase,
+            &salt1,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("First key derivation should succeed");
+
+        let key2 = derive_key_from_passphrase(
+            &passphrase,
+            &salt2,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("Second key derivation should succeed");
+
+        assert_ne!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Different salts should produce different keys"
+        );
+    }
+
+    #[test]
+    fn test_invalid_argon2_parameters_zero_iterations() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let result = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            0, // Invalid: zero iterations
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        );
+
+        assert!(
+            matches!(result, Err(BridgeCliError::InvalidArgon2Parameters)),
+            "Zero iterations should return InvalidArgon2Parameters error"
+        );
+    }
+
+    #[test]
+    fn test_invalid_argon2_parameters_zero_memory() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let result = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            0, // Invalid: zero memory
+            TEST_PARALLELISM,
+        );
+
+        assert!(
+            matches!(result, Err(BridgeCliError::InvalidArgon2Parameters)),
+            "Zero memory should return InvalidArgon2Parameters error"
+        );
+    }
+
+    #[test]
+    fn test_invalid_argon2_parameters_zero_parallelism() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let result = derive_key_from_passphrase(
+            &passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            0, // Invalid: zero parallelism
+        );
+
+        assert!(
+            matches!(result, Err(BridgeCliError::InvalidArgon2Parameters)),
+            "Zero parallelism should return InvalidArgon2Parameters error"
+        );
+    }
+
+    #[test]
+    fn test_empty_passphrase_produces_valid_key() {
+        let empty_passphrase = SecureString::init_with(|| "".to_string());
+        let salt = [1u8; 32];
+
+        let key = derive_key_from_passphrase(
+            &empty_passphrase,
+            &salt,
+            TEST_ITERATIONS,
+            TEST_MEMORY,
+            TEST_PARALLELISM,
+        )
+        .expect("Empty passphrase should still derive a key");
+
+        assert_eq!(key.expose_secret().len(), 32, "Key should be 32 bytes");
+    }
+
+    #[test]
+    fn test_varying_iterations_produces_different_keys() {
+        let passphrase = SecureString::init_with(|| "test_passphrase".to_string());
+        let salt = [1u8; 32];
+
+        let key1 = derive_key_from_passphrase(&passphrase, &salt, 2, TEST_MEMORY, TEST_PARALLELISM)
+            .expect("Key derivation with 2 iterations should succeed");
+
+        let key2 = derive_key_from_passphrase(&passphrase, &salt, 3, TEST_MEMORY, TEST_PARALLELISM)
+            .expect("Key derivation with 3 iterations should succeed");
+
+        assert_ne!(
+            key1.expose_secret(),
+            key2.expose_secret(),
+            "Different iteration counts should produce different keys"
+        );
+    }
 }

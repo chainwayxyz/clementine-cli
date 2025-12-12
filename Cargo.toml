@@ -12,6 +12,9 @@ repository = "https://github.com/chainwayxyz/clementine-cli"
 name = "clementine_cli"
 path = "src/lib.rs"
 
+[features]
+# Feature flag to enable test helpers and temp directory isolation for integration tests
+test-helpers = []
 
 [dependencies]
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
@@ -71,3 +74,11 @@ dialoguer = "0.12.0"
 [patch.crates-io]
 secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc" }
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "5da45109a2de352472a6056ef90a517b66bc106f" }
+
+[dev-dependencies]
+clementine-cli = { path = ".", features = ["test-helpers"] }
+hex-literal = "1.1.0"
+mockall = "0.14.0"
+rstest = "0.26.1"
+serial_test = "3.2.0"
+wiremock = "0.6"

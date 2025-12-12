@@ -235,4 +235,166 @@ mod tests {
         let invalid = "invalid_address";
         assert!(parse_taproot_address(invalid, Network::Testnet4).is_err());
     }
+
+    // Tests for Purpose enum methods
+    #[test]
+    fn test_purpose_to_prefix_deposit() {
+        assert_eq!(Purpose::Deposit.to_prefix(), "dep");
+    }
+
+    #[test]
+    fn test_purpose_to_prefix_withdrawal() {
+        assert_eq!(Purpose::Withdrawal.to_prefix(), "wit");
+    }
+
+    #[test]
+    fn test_purpose_from_str_deposit() {
+        let result = Purpose::purpose_from_str("dep");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Purpose::Deposit);
+    }
+
+    #[test]
+    fn test_purpose_from_str_withdrawal() {
+        let result = Purpose::purpose_from_str("wit");
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), Purpose::Withdrawal);
+    }
+
+    #[test]
+    fn test_purpose_from_str_invalid_returns_error() {
+        let result = Purpose::purpose_from_str("invalid");
+        assert!(result.is_err());
+        match result {
+            Err(BridgeCliError::InvalidPrefix(prefix)) => {
+                assert_eq!(prefix, "invalid");
+            }
+            _ => panic!("Expected InvalidPrefix error"),
+        }
+    }
+
+    #[test]
+    fn test_purpose_from_str_empty_string() {
+        let result = Purpose::purpose_from_str("");
+        assert!(result.is_err());
+        assert!(matches!(result, Err(BridgeCliError::InvalidPrefix(_))));
+    }
+
+    #[test]
+    fn test_purpose_from_str_whitespace() {
+        let result = Purpose::purpose_from_str("  dep  ");
+        // Should fail because we don't trim whitespace
+        assert!(result.is_err());
+        assert!(matches!(result, Err(BridgeCliError::InvalidPrefix(_))));
+    }
+
+    // Tests for should_not_have_purpose function
+    #[test]
+    fn test_should_not_have_purpose_with_dep_prefix() {
+        let address = "depbcrt1pexample";
+        let result = should_not_have_purpose(address);
+        assert!(result.is_err());
+        match result {
+            Err(BridgeCliError::AddressShouldNotHavePrefix(addr)) => {
+                assert_eq!(addr, address);
+            }
+            _ => panic!("Expected AddressShouldNotHavePrefix error"),
+        }
+    }
+
+    #[test]
+    fn test_should_not_have_purpose_with_wit_prefix() {
+        let address = "witbcrt1pexample";
+        let result = should_not_have_purpose(address);
+        assert!(result.is_err());
+        match result {
+            Err(BridgeCliError::AddressShouldNotHavePrefix(addr)) => {
+                assert_eq!(addr, address);
+            }
+            _ => panic!("Expected AddressShouldNotHavePrefix error"),
+        }
+    }
+
+    #[test]
+    fn test_should_not_have_purpose_without_prefix() {
+        let address = "bcrt1pexample";
+        let result = should_not_have_purpose(address);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_should_not_have_purpose_short_address() {
+        // Test with address shorter than 3 characters
+        let address = "bc";
+        let result = should_not_have_purpose(address);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_should_not_have_purpose_empty_string() {
+        let address = "";
+        let result = should_not_have_purpose(address);
+        assert!(result.is_ok());
+    }
+
+    // Tests for parse_address function
+    #[test]
+    fn test_parse_address_p2tr_valid() {
+        let addr_str = "bc1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdyspfxcv6";
+        let result = parse_address(addr_str, Network::Bitcoin);
+        assert!(result.is_ok());
+        let addr = result.unwrap();
+        assert_eq!(addr.address_type(), Some(AddressType::P2tr));
+    }
+
+    #[test]
+    fn test_parse_address_p2wpkh_valid() {
+        let addr_str = "bc1qw508d6qejxtdg4y5r3zarvary0c5xw7kv8f3t4";
+        let result = parse_address(addr_str, Network::Bitcoin);
+        assert!(result.is_ok());
+        let addr = result.unwrap();
+        assert_eq!(addr.address_type(), Some(AddressType::P2wpkh));
+    }
+
+    #[test]
+    fn test_parse_address_p2wsh_valid() {
+        let addr_str = "bc1qrp33g0q5c5txsp9arysrx4k6zdkfs4nce4xj0gdcccefvpysxf3qccfmv3";
+        let result = parse_address(addr_str, Network::Bitcoin);
+        assert!(result.is_ok());
+        let addr = result.unwrap();
+        assert_eq!(addr.address_type(), Some(AddressType::P2wsh));
+    }
+
+    #[test]
+    fn test_parse_address_network_mismatch() {
+        // Mainnet address parsed with testnet network
+        let mainnet_addr = "bc1pdqrcrxa8vx6gy75mfdfj84puhxffh4fq46h3gkp6jxdd0vjcsdyspfxcv6";
+        let result = parse_address(mainnet_addr, Network::Testnet4);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_address_invalid_format() {
+        let invalid = "not_a_bitcoin_address";
+        let result = parse_address(invalid, Network::Bitcoin);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_address_empty_string() {
+        let result = parse_address("", Network::Bitcoin);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_parse_address_regtest() {
+        // Regtest taproot address with 'bcrt1p' prefix (P2TR)
+        // This is a valid regtest taproot address
+        let regtest_addr = "bcrt1p0xlxvlhemja6c4dqv22uapctqupfhlxm9h8z3k2e72q4k9hcz7vqc8gma6";
+        let result = parse_address(regtest_addr, Network::Regtest);
+        assert!(
+            result.is_ok(),
+            "Valid regtest address should parse successfully"
+        );
+    }
 }

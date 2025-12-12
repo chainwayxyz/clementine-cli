@@ -478,3 +478,138 @@ where
     let secure_passphrase = crate::wallet::passphrase::prompt_unlock_passphrase()?;
     load_key(address, &secure_passphrase)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use bitcoin::secp256k1::{Keypair, Secp256k1};
+
+    #[test]
+    fn test_parse_network() {
+        assert_eq!(parse_network("bitcoin").unwrap(), Network::Bitcoin);
+        assert_eq!(parse_network("testnet4").unwrap(), Network::Testnet4);
+        assert_eq!(parse_network("signet").unwrap(), Network::Signet);
+        assert_eq!(parse_network("regtest").unwrap(), Network::Regtest);
+
+        // Test invalid networks
+        assert!(parse_network("invalid_network").is_err());
+
+        // Test that valid bitcoin networks not explicitly supported are rejected
+        // "testnet" parses to Network::Testnet (v3) but is returned as UnsupportedNetwork
+        let result = parse_network("testnet");
+        assert!(result.is_err());
+        match result {
+            Err(BridgeCliError::UnsupportedNetwork(n)) => assert_eq!(n, Network::Testnet),
+            _ => panic!("Expected UnsupportedNetwork error"),
+        }
+    }
+
+    // Helper function to create a test address with a specific purpose
+    fn create_test_address(purpose: Purpose) -> TaprootAddressWithPrefix<NetworkChecked> {
+        use crate::secure_types::{SecureKeypair, SecureSecretKey};
+        use bitcoin::secp256k1::SecretKey;
+
+        let secp = Secp256k1::new();
+        // Use a fixed test private key for deterministic address generation
+        let secret_key = SecretKey::from_slice(&[1u8; 32]).expect("Valid secret key");
+        let secure_secret_key = SecureSecretKey::new(secret_key);
+        let keypair = SecureKeypair::new(Keypair::from_secret_key(
+            &secp,
+            secure_secret_key.as_ref_inner(),
+        ));
+        let address = calculate_taproot_address(&keypair, Network::Regtest);
+
+        TaprootAddressWithPrefix::new(address, purpose).expect("Valid address with prefix")
+    }
+
+    #[test]
+    fn test_validate_address_purpose_deposit_matches() {
+        let address = create_test_address(Purpose::Deposit);
+        let result = validate_address_purpose(&address, Purpose::Deposit);
+        assert!(
+            result.is_ok(),
+            "Deposit address should validate for Deposit purpose"
+        );
+    }
+
+    #[test]
+    fn test_validate_address_purpose_withdrawal_matches() {
+        let address = create_test_address(Purpose::Withdrawal);
+        let result = validate_address_purpose(&address, Purpose::Withdrawal);
+        assert!(
+            result.is_ok(),
+            "Withdrawal address should validate for Withdrawal purpose"
+        );
+    }
+
+    #[test]
+    fn test_validate_address_purpose_mismatch_deposit_expected() {
+        let address = create_test_address(Purpose::Withdrawal);
+        let result = validate_address_purpose(&address, Purpose::Deposit);
+
+        assert!(
+            result.is_err(),
+            "Should fail when expecting Deposit but got Withdrawal"
+        );
+        match result {
+            Err(BridgeCliError::PurposeMismatch { expected, found }) => {
+                assert_eq!(
+                    expected,
+                    Purpose::Deposit,
+                    "Expected purpose should be Deposit"
+                );
+                assert_eq!(
+                    found,
+                    Purpose::Withdrawal,
+                    "Found purpose should be Withdrawal"
+                );
+            }
+            _ => panic!("Expected PurposeMismatch error"),
+        }
+    }
+
+    #[test]
+    fn test_validate_address_purpose_mismatch_withdrawal_expected() {
+        let address = create_test_address(Purpose::Deposit);
+        let result = validate_address_purpose(&address, Purpose::Withdrawal);
+
+        assert!(
+            result.is_err(),
+            "Should fail when expecting Withdrawal but got Deposit"
+        );
+        match result {
+            Err(BridgeCliError::PurposeMismatch { expected, found }) => {
+                assert_eq!(
+                    expected,
+                    Purpose::Withdrawal,
+                    "Expected purpose should be Withdrawal"
+                );
+                assert_eq!(found, Purpose::Deposit, "Found purpose should be Deposit");
+            }
+            _ => panic!("Expected PurposeMismatch error"),
+        }
+    }
+
+    #[test]
+    fn test_wallet_validation_mode_matching() {
+        // Test that the WalletValidationMode enum values work correctly
+        let mode_label = WalletValidationMode::Label;
+        let mode_address = WalletValidationMode::Address;
+        let mode_both = WalletValidationMode::Both;
+
+        // Label mode should check label
+        assert!(matches!(mode_label, WalletValidationMode::Label));
+        assert!(!matches!(mode_label, WalletValidationMode::Address));
+        assert!(!matches!(mode_label, WalletValidationMode::Both));
+
+        // Address mode should check address
+        assert!(!matches!(mode_address, WalletValidationMode::Label));
+        assert!(matches!(mode_address, WalletValidationMode::Address));
+        assert!(!matches!(mode_address, WalletValidationMode::Both));
+
+        // Both mode should be distinct
+        assert!(!matches!(mode_both, WalletValidationMode::Label));
+        assert!(!matches!(mode_both, WalletValidationMode::Address));
+        assert!(matches!(mode_both, WalletValidationMode::Both));
+    }
+}

@@ -652,4 +652,117 @@ mod tests {
     fn test_sign_recovery_tx_p2wsh_fee_rate_correctness() {
         test_fee_rate_correctness_for_address_type(AddressType::P2wsh, 6);
     }
+
+    // Deposit address calculation tests
+    #[test]
+    fn test_calculate_deposit_address_is_deterministic() {
+        let setup = TestSetup::new();
+
+        let (address1, spend_info1) = calculate_deposit_address(
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.config,
+        )
+        .expect("Should calculate deposit address");
+
+        let (address2, spend_info2) = calculate_deposit_address(
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.config,
+        )
+        .expect("Should calculate deposit address");
+
+        assert_eq!(
+            address1.to_string(),
+            address2.to_string(),
+            "Same inputs should produce same deposit address"
+        );
+
+        assert_eq!(
+            spend_info1.merkle_root(),
+            spend_info2.merkle_root(),
+            "Same inputs should produce same merkle root"
+        );
+    }
+
+    #[test]
+    fn test_calculate_deposit_address_produces_taproot() {
+        let setup = TestSetup::new();
+
+        let (address, _) = calculate_deposit_address(
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.config,
+        )
+        .expect("Should calculate deposit address");
+
+        assert_eq!(
+            address.address_type(),
+            Some(AddressType::P2tr),
+            "Deposit address should be taproot (P2TR)"
+        );
+    }
+
+    #[test]
+    fn test_calculate_deposit_address_has_merkle_root() {
+        let setup = TestSetup::new();
+
+        let (_, spend_info) = calculate_deposit_address(
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.config,
+        )
+        .expect("Should calculate deposit address");
+
+        assert!(
+            spend_info.merkle_root().is_some(),
+            "Taproot spend info should have a merkle root (not key-path only)"
+        );
+    }
+
+    #[test]
+    fn test_calculate_deposit_address_correct_network() {
+        let setup = TestSetup::new();
+
+        let (address, _) = calculate_deposit_address(
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.config,
+        )
+        .expect("Should calculate deposit address");
+
+        // Verify network by checking address prefix
+        // Regtest addresses start with "bcrt1"
+        let addr_str = address.to_string();
+        assert!(
+            addr_str.starts_with("bcrt1"),
+            "Deposit address should be on regtest network (starts with bcrt1)"
+        );
+    }
+
+    #[test]
+    fn test_convert_btc_to_amount_some() {
+        let btc_amount = Some(0.001);
+        let result = convert_btc_to_amount(btc_amount).expect("Should convert BTC amount");
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), Amount::from_sat(100_000));
+    }
+
+    #[test]
+    fn test_convert_btc_to_amount_none() {
+        let btc_amount = None;
+        let result = convert_btc_to_amount(btc_amount).expect("Should handle None");
+
+        assert!(result.is_none());
+    }
+
+    #[test]
+    fn test_convert_btc_to_amount_zero() {
+        let btc_amount = Some(0.0);
+        let result = convert_btc_to_amount(btc_amount).expect("Should convert zero");
+
+        assert!(result.is_some());
+        assert_eq!(result.unwrap(), Amount::ZERO);
+    }
 }

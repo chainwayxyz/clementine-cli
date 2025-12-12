@@ -32,8 +32,7 @@ use crate::{
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
     errors::BridgeCliError,
-    generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
-    import_wallet_from_private_key,
+    import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
     secure_types::SecureString,
     structs::{DepositStatusWithVout, TaprootAddressWithPrefix},
@@ -49,7 +48,7 @@ use crate::{
             validate_wallet_availability,
         },
     },
-    withdraw::{self, start_withdrawal},
+    withdraw::{self, generate_withdrawal_signatures, start_withdrawal},
 };
 use crate::{
     config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
@@ -806,6 +805,20 @@ pub fn cli_import_wallet_from_file(
     import_wallet_from_file(file_path, label, passphrase)
 }
 
+/// Helper to prompt for private key (with test bypass)
+#[cfg(not(test))]
+fn prompt_private_key_input() -> Result<String, BridgeCliError> {
+    rpassword::prompt_password("Enter your private key (hex format): ")
+        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))
+}
+
+/// Test version: returns a fixed test private key without prompting
+#[cfg(test)]
+fn prompt_private_key_input() -> Result<String, BridgeCliError> {
+    // This is a test private key, not a real one
+    Ok("0000000000000000000000000000000000000000000000000000000000000001".to_string())
+}
+
 pub fn cli_import_wallet_from_private_key(
     network: Network,
     label: &str,
@@ -814,9 +827,7 @@ pub fn cli_import_wallet_from_private_key(
     // Duplicate pre-check before passphrase prompt for better UX
     validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
 
-    let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
-
+    let private_key_input = prompt_private_key_input()?;
     let secure_private_key = SecureString::init_with(|| private_key_input);
 
     let passphrase = prompt_passphrase(true)?;
