@@ -30,6 +30,10 @@ pub enum ConfigErrors {
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
     UnsupportedNetwork(Network),
+    #[error(
+        "Invalid configuration: You must configure exactly one of 'esplora_rest_api' or 'bitcoin_config', not both or neither"
+    )]
+    InvalidApiConfiguration,
 
     #[error(transparent)]
     Other(#[from] eyre::Report),
@@ -240,6 +244,13 @@ impl BridgeCliConfig {
             Network::Regtest => network_configs.regtest,
             rest => return Err(ConfigErrors::UnsupportedNetwork(rest)),
         };
+
+        // Validate that exactly one API is configured
+        match (&config.esplora_rest_api, &config.bitcoin_config) {
+            (None, None) => return Err(ConfigErrors::InvalidApiConfiguration),
+            (Some(_), Some(_)) => return Err(ConfigErrors::InvalidApiConfiguration),
+            _ => {} // Exactly one is configured, which is valid
+        }
 
         // All of the URLs needs a trailing slash. If not present, add it.
         if config.esplora_rest_api.is_some()
