@@ -1,4 +1,4 @@
-// API utility functions for handling fallback patterns
+// API utility functions
 
 use std::str::FromStr;
 
@@ -143,7 +143,7 @@ pub async fn get_tx_details_from_esplora_api(
     Ok((tx, block, block_height as u32))
 }
 
-/// Get transaction details with automatic fallback
+/// Get transaction details
 pub async fn get_tx_details(
     txid: &Txid,
     config: &BridgeCliConfig,
@@ -154,7 +154,7 @@ pub async fn get_tx_details(
     }
 }
 
-/// Get transaction output details with automatic fallback
+/// Get transaction output details
 pub async fn get_txout_details(
     config: &BridgeCliConfig,
     txid: &Txid,
@@ -169,8 +169,7 @@ pub async fn get_txout_details(
     Ok(txout.clone())
 }
 
-/// Triest to broadcast recovery transaction using Bitcoin Esplora Api. If that fails,
-/// fallbacks to Bitcoin RPC. This is a basic wrapper and won't check if a tx
+/// Triest to broadcast recovery transaction using Bitcoin Esplora Api. This is a basic wrapper and won't check if a tx
 /// is valid or encoded correctly.
 pub async fn broadcast_recovery_tx(
     config: &BridgeCliConfig,
