@@ -23,7 +23,8 @@ use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{
-        MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
+        MempoolTx, UtxoInfo, get_current_block_height, get_esplora_api_mempool_txs, get_tx_details,
+        get_utxos,
     },
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
@@ -912,7 +913,7 @@ pub async fn deposit_status(
         println!("{} {}", deposit_status_with_vout, refund_msg);
     }
 
-    let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
+    let mempool_txs = match get_esplora_api_mempool_txs(&taproot_address, config).await {
         Ok(txs) => txs,
         Err(e) => {
             eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
