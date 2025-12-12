@@ -16,7 +16,7 @@ pub enum CliNetwork {
 
 /// If the CliNetwork enum or aliases are changed, update `NETS` below and this help message.
 pub const NETWORK_HELP_MESSAGE: &str =
-    "Bitcoin network to use. [aliases: mainnet=bitcoin, testnet=testnet4, devnet=signet]";
+    "Bitcoin network to use. [aliases: mainnet=bitcoin, testnet=testnet4]";
 
 /// One source of truth for canonical names, aliases and pretty labels.
 struct NetRow {
@@ -53,6 +53,8 @@ const NETS: &[NetRow] = &[
     },
 ];
 
+const HIDDEN_NETWORKS: &[&str] = &["signet", "regtest"];
+
 fn find_network(s: &str) -> Option<CliNetwork> {
     let s = s.to_lowercase();
     for row in NETS {
@@ -85,6 +87,10 @@ fn build_network_error(bad: &str) -> String {
     ));
 
     for row in NETS {
+        if HIDDEN_NETWORKS.contains(&row.canon) {
+            continue;
+        }
+
         let alias_str = row.aliases.join(" | ");
         // Reserve alias column even if empty so the arrow aligns.
         let lhs = if alias_str.is_empty() {
@@ -155,6 +161,8 @@ impl TypedValueParser for NetworkParser {
             for &a in row.aliases {
                 pv = pv.alias(a);
             }
+            pv = pv.hide(HIDDEN_NETWORKS.contains(&row.canon));
+
             pv
         })))
     }
