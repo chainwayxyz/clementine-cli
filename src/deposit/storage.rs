@@ -81,7 +81,7 @@ impl FileLock {
 
 impl Drop for FileLock {
     fn drop(&mut self) {
-        let _ = self.file.unlock(); 
+        let _ = self.file.unlock();
     }
 }
 
@@ -233,6 +233,7 @@ fn open_lock_file(path: &Path) -> Result<File, BridgeCliError> {
         .read(true)
         .write(true)
         .create(true)
+        .truncate(false)
         .open(path)?)
 }
 
