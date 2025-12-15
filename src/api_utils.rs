@@ -12,6 +12,19 @@ use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
 
+/// Helper macro to reduce duplication in API selection logic
+macro_rules! with_api {
+    ($config:expr, esplora => $esplora:expr, rpc => $rpc:expr) => {
+        if $config.esplora_rest_api.is_some() {
+            $esplora
+        } else if $config.bitcoin_config.is_some() {
+            $rpc
+        } else {
+            Err(BridgeCliError::Eyre(eyre!("No Bitcoin API configured")))
+        }
+    };
+}
+
 #[derive(Debug)]
 pub struct UtxoInfo {
     pub txid: bitcoin::Txid,
@@ -101,22 +114,16 @@ pub async fn get_block_height_for_tx(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
-    match get_block_info_for_tx_from_esplora_api(txid, config).await {
-        Ok((block_height, _)) => Ok(block_height),
-        Err(esplora_error) => {
-            tracing::warn!(
-                "Bitcoin Esplora Api failed for get_block_height_for_tx: {}, falling back to Bitcoin RPC",
-                esplora_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                let rpc = config.connect_to_bitcoin_rpc().await?;
-                get_block_height_for_tx_from_rpc(&rpc, txid).await
-            } else {
-                Err(esplora_error)
-            }
+    with_api!(
+        config,
+        esplora => get_block_info_for_tx_from_esplora_api(txid, config)
+            .await
+            .map(|(height, _)| height),
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            get_block_height_for_tx_from_rpc(&rpc, txid).await
         }
-    }
+    )
 }
 
 /// Get transaction details using Bitcoin Esplora Api
@@ -191,30 +198,22 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-/// Get transaction details with automatic fallback
+/// Get transaction details
 pub async fn get_tx_details(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    match get_tx_details_from_esplora_api(txid, config).await {
-        Ok(result) => Ok(result),
-        Err(esplora_error) => {
-            tracing::warn!(
-                "Bitcoin Esplora Api failed for get_tx_details: {}, falling back to Bitcoin RPC",
-                esplora_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                let rpc = config.connect_to_bitcoin_rpc().await?;
-                get_tx_details_from_rpc(&rpc, txid).await
-            } else {
-                Err(esplora_error)
-            }
+    with_api!(
+        config,
+        esplora => get_tx_details_from_esplora_api(txid, config).await,
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            get_tx_details_from_rpc(&rpc, txid).await
         }
-    }
+    )
 }
 
-/// Get transaction output details with automatic fallback
+/// Get transaction output details
 pub async fn get_txout_details(
     config: &BridgeCliConfig,
     txid: &Txid,
@@ -229,32 +228,23 @@ pub async fn get_txout_details(
     Ok(txout.clone())
 }
 
-/// Triest to broadcast recovery transaction using Bitcoin Esplora Api. If that fails,
-/// fallbacks to Bitcoin RPC. This is a basic wrapper and won't check if a tx
+/// Tries to broadcast recovery transaction. This is a basic wrapper and won't check if a tx
 /// is valid or encoded correctly.
 pub async fn broadcast_recovery_tx(
     config: &BridgeCliConfig,
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
-    let esplora_api_txid =
-        broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx.clone())
-            .await;
-    match esplora_api_txid {
-        Ok(txid) => return Ok(txid),
-        Err(ref e) => tracing::warn!(
-            "Can't broadcast tx using Bitcoin Esplora Api: {e}. Trying to do with Bitcoin RPC..."
-        ),
-    };
-
-    let rpc = config.connect_to_bitcoin_rpc().await?;
-    let txid = rpc.send_raw_transaction(raw_tx).await.map_err(|btc_err| {
-        BridgeCliError::CantBroadcastTransaction {
-            esplora_api_error: esplora_api_txid.err().unwrap().to_string(),
-            bitcoin_rpc_error: btc_err.to_string(),
+    with_api!(
+        config,
+        esplora => broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx).await,
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            let tx: Transaction = parse_transaction_hex(&raw_tx)?;
+            rpc.send_raw_transaction(&tx).await.map_err(|e| {
+                BridgeCliError::Eyre(eyre!("Failed to broadcast transaction via RPC: {}", e))
+            })
         }
-    })?;
-
-    Ok(txid)
+    )
 }
 
 async fn broadcast_recovery_tx_with_esplora_api(
@@ -314,42 +304,38 @@ pub(crate) async fn get_utxos(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    let utxos_to_info = |utxos: Vec<Utxo>| {
-        utxos
-            .into_iter()
-            .map(|utxo| UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-                block_height: Some(utxo.height),
-            })
-            .collect::<Vec<_>>()
-    };
-
-    let utxos = match get_utxos_from_esplora_api(address, config).await {
-        Ok(utxos) => utxos,
-        Err(e) => {
-            tracing::debug!("ERROR Failed to fetch UTXOs from Esplora API: {}", e);
-            tracing::debug!("Falling back to Bitcoin RPC...");
+    with_api!(
+        config,
+        esplora => {
+            let utxos = get_utxos_from_esplora_api(address, config).await?;
+            let mut utxo_infos = Vec::new();
+            for utxo in utxos {
+                let txid = Txid::from_str(&utxo.txid).map_err(|e| {
+                    BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
+                })?;
+                utxo_infos.push(UtxoInfo {
+                    txid,
+                    vout: utxo.vout,
+                    value: Amount::from_sat(utxo.value),
+                    block_height: utxo.status.block_height,
+                });
+            }
+            Ok(utxo_infos)
+        },
+        rpc => {
             let utxos = get_utxos_from_rpc(address, config).await?;
-            return Ok(utxos_to_info(utxos));
+            let utxo_infos = utxos
+                .into_iter()
+                .map(|utxo| UtxoInfo {
+                    txid: utxo.txid,
+                    vout: utxo.vout,
+                    value: utxo.amount,
+                    block_height: Some(utxo.height),
+                })
+                .collect::<Vec<_>>();
+            Ok(utxo_infos)
         }
-    };
-
-    let mut utxo_infos = Vec::new();
-    for utxo in utxos {
-        let txid = Txid::from_str(&utxo.txid).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
-        })?;
-        utxo_infos.push(UtxoInfo {
-            txid,
-            vout: utxo.vout,
-            value: Amount::from_sat(utxo.value),
-            block_height: utxo.status.block_height,
-        });
-    }
-
-    Ok(utxo_infos)
+    )
 }
 
 pub(crate) async fn get_utxos_from_rpc(
@@ -384,21 +370,11 @@ pub(crate) async fn get_utxos_from_esplora_api(
 }
 
 pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
-    match get_current_block_height_from_esplora_api(config).await {
-        Ok(height) => Ok(height),
-        Err(esplora_error) => {
-            tracing::warn!(
-                "Bitcoin Esplora Api failed for get_current_block_height: {}, falling back to Bitcoin RPC",
-                esplora_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                get_current_block_height_from_rpc(config).await
-            } else {
-                Err(esplora_error)
-            }
-        }
-    }
+    with_api!(
+        config,
+        esplora => get_current_block_height_from_esplora_api(config).await,
+        rpc => get_current_block_height_from_rpc(config).await
+    )
 }
 
 async fn get_current_block_height_from_esplora_api(
@@ -452,21 +428,11 @@ pub async fn get_mempool_txs(
 }
 
 pub async fn is_tx_on_chain(txid: &Txid, config: &BridgeCliConfig) -> Result<bool, BridgeCliError> {
-    match is_tx_on_chain_with_esplora_api(txid, config).await {
-        Ok(is_confirmed) => Ok(is_confirmed),
-        Err(esplora_error) => {
-            tracing::warn!(
-                "Bitcoin Esplora Api failed for is_tx_on_chain: {}, falling back to Bitcoin RPC",
-                esplora_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                is_tx_on_chain_bitcoin_rpc(txid, config).await
-            } else {
-                Err(esplora_error)
-            }
-        }
-    }
+    with_api!(
+        config,
+        esplora => is_tx_on_chain_with_esplora_api(txid, config).await,
+        rpc => is_tx_on_chain_bitcoin_rpc(txid, config).await
+    )
 }
 
 async fn is_tx_on_chain_with_esplora_api(

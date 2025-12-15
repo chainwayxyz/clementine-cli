@@ -17,14 +17,12 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::api_utils::get_block_height_for_tx;
+use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
 use crate::config::NetworkConfigs;
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
-    api_utils::{
-        MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
-    },
+    api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
     },
@@ -912,23 +910,26 @@ pub async fn deposit_status(
         println!("{} {}", deposit_status_with_vout, refund_msg);
     }
 
-    let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
-        Ok(txs) => txs,
-        Err(e) => {
-            eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
-            vec![]
-        }
-    };
+    // Mempool transaction checking is only available with Esplora API
+    if config.esplora_rest_api.is_some() {
+        let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
+            Ok(txs) => txs,
+            Err(e) => {
+                eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
+                vec![]
+            }
+        };
 
-    if !mempool_txs.is_empty() {
-        println!(
-            "\n{} Deposit transactions in mempool for address {}:",
-            "INFO".bold(),
-            taproot_address
-        );
+        if !mempool_txs.is_empty() {
+            println!(
+                "\n{} Deposit transactions in mempool for address {}:",
+                "INFO".bold(),
+                taproot_address
+            );
 
-        for tx in &mempool_txs {
-            print_mempool_tx(&taproot_address, tx);
+            for tx in &mempool_txs {
+                print_mempool_tx(&taproot_address, tx);
+            }
         }
     }
 
