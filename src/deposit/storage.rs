@@ -6,8 +6,9 @@ use bitcoin::address::NetworkUnchecked;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fs;
-use std::io::Write;
+use std::fs::{self, File, OpenOptions};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Data needed to store a deposit address.
@@ -20,6 +21,11 @@ pub struct DepositData {
 }
 
 const DEPOSIT_ADDRESS_STORAGE_FILE: &str = "deposit_addresses.json";
+
+// Use a separate lock file so we can coordinate readers/writers while
+// atomically replacing deposit_addresses.json (esp. on Windows, where
+// replacing/renaming an open file can fail).
+const DEPOSIT_ADDRESS_LOCK_FILE: &str = "deposit_addresses.lock";
 
 /// Map key for a stored deposit address.
 #[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
@@ -52,23 +58,49 @@ pub struct DepositAddressDetails {
 
 type StoredDepositMap = HashMap<StoredDepositAddress, StoredDepositDetails>;
 
+struct FileLock {
+    file: File,
+}
+
+// Cross-process shared/exclusive file lock.
+// Note: platform-dependent semantics — may be advisory or mandatory, and
+// may or may not block non-lockholders’ read/write operations.
+impl FileLock {
+    fn shared(path: &Path) -> Result<Self, BridgeCliError> {
+        let file = open_lock_file(path)?;
+        file.lock_shared()?;
+        Ok(Self { file })
+    }
+
+    fn exclusive(path: &Path) -> Result<Self, BridgeCliError> {
+        let file = open_lock_file(path)?;
+        file.lock()?;
+        Ok(Self { file })
+    }
+}
+
+impl Drop for FileLock {
+    fn drop(&mut self) {
+        let _ = self.file.unlock(); 
+    }
+}
+
 /// Store a deposit address and its metadata.
 ///
 /// If the address already exists, the existing record is kept.
 /// Returns an error if the storage file cannot be read or written.
 pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+    let storage_path = storage_path()?;
+    let lock_path = lock_path()?;
 
-    let mut map: StoredDepositMap = if storage_path.exists() {
-        let contents = fs::read_to_string(&storage_path)?;
-        if contents.trim().is_empty() {
-            StoredDepositMap::new()
-        } else {
-            serde_json::from_str::<StoredDepositMap>(&contents)?
-        }
-    } else {
-        StoredDepositMap::new()
-    };
+    // Exclusive lock to coordinate writers/readers across processes.
+    let _lock = FileLock::exclusive(&lock_path)?;
+
+    let mut map = read_storage_map(&storage_path)?.unwrap_or_default();
+
+    if let Some(parent) = storage_path.parent() {
+        fs::create_dir_all(parent)?;
+    }
 
     let key = StoredDepositAddress(deposit_data.deposit_address.to_string());
 
@@ -91,29 +123,17 @@ pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCli
         created_at: now,
     });
 
-    let tmp_path = storage_path.with_file_name(format!(
-        "{}.tmp",
-        storage_path
-            .file_name()
-            .expect("Storage path has a file name")
-            .to_string_lossy()
-    ));
+    let tmp_path = tmp_storage_path(&storage_path);
 
     let json = serde_json::to_string_pretty(&map)?;
 
     {
-        let mut file = fs::File::create(&tmp_path)?;
+        let mut file = File::create(&tmp_path)?;
         file.write_all(json.as_bytes())?;
         file.sync_all()?;
     }
 
-    fs::rename(&tmp_path, &storage_path).map_err(|e| {
-        let _ = fs::remove_file(tmp_path);
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to rename temp deposit address storage file: {}",
-            e
-        ))
-    })?;
+    replace_storage_file(&tmp_path, &storage_path)?;
 
     #[cfg(unix)]
     {
@@ -130,18 +150,14 @@ pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCli
 ///
 /// Returns an empty vector if no deposits have been stored.
 pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+    let storage_path = storage_path()?;
+    let lock_path = lock_path()?;
 
-    if !storage_path.exists() {
+    let _lock = FileLock::shared(&lock_path)?;
+
+    let Some(map) = read_storage_map(&storage_path)? else {
         return Ok(Vec::new());
-    }
-
-    let contents = fs::read_to_string(&storage_path)?;
-    if contents.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let map: StoredDepositMap = serde_json::from_str::<StoredDepositMap>(&contents)?;
+    };
 
     let mut records: Vec<DepositAddressDetails> = map
         .into_iter()
@@ -176,19 +192,14 @@ pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, B
 pub fn get_deposit_address_details_for_deposit_address(
     deposit_address: &str,
 ) -> Result<Option<DepositAddressDetails>, BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+    let storage_path = storage_path()?;
+    let lock_path = lock_path()?;
 
-    if !storage_path.exists() {
+    let _lock = FileLock::shared(&lock_path)?;
+
+    let Some(map) = read_storage_map(&storage_path)? else {
         return Ok(None);
-    }
-
-    let contents = fs::read_to_string(&storage_path)?;
-
-    if contents.trim().is_empty() {
-        return Ok(None);
-    }
-
-    let map: StoredDepositMap = serde_json::from_str::<StoredDepositMap>(&contents)?;
+    };
 
     let key = StoredDepositAddress(deposit_address.to_string());
 
@@ -203,4 +214,78 @@ pub fn get_deposit_address_details_for_deposit_address(
     } else {
         Ok(None)
     }
+}
+
+fn storage_path() -> Result<PathBuf, BridgeCliError> {
+    Ok(get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE))
+}
+
+fn lock_path() -> Result<PathBuf, BridgeCliError> {
+    Ok(get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_LOCK_FILE))
+}
+
+fn open_lock_file(path: &Path) -> Result<File, BridgeCliError> {
+    if let Some(parent) = path.parent() {
+        fs::create_dir_all(parent)?;
+    }
+
+    Ok(OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .open(path)?)
+}
+
+fn read_storage_map(path: &Path) -> Result<Option<StoredDepositMap>, BridgeCliError> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let mut contents = String::new();
+    {
+        let mut file = OpenOptions::new().read(true).open(path)?;
+        file.read_to_string(&mut contents)?;
+    }
+
+    if contents.trim().is_empty() {
+        return Ok(None);
+    }
+
+    Ok(Some(serde_json::from_str::<StoredDepositMap>(&contents)?))
+}
+
+fn tmp_storage_path(path: &Path) -> PathBuf {
+    path.with_file_name(format!(
+        "{}.tmp",
+        path.file_name()
+            .expect("Storage path has a file name")
+            .to_string_lossy()
+    ))
+}
+
+fn replace_storage_file(tmp_path: &Path, final_path: &Path) -> Result<(), BridgeCliError> {
+    match fs::rename(tmp_path, final_path) {
+        Ok(_) => return Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+            fs::remove_file(final_path)?;
+        }
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            // On some platforms (notably Windows), an existing file may block overwrite.
+            let _ = fs::remove_file(final_path);
+        }
+        Err(err) => {
+            let _ = fs::remove_file(tmp_path);
+            return Err(err.into());
+        }
+    }
+
+    fs::rename(tmp_path, final_path).map_err(|e| {
+        let _ = fs::remove_file(tmp_path);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to replace deposit address storage file: {}",
+            e
+        ))
+    })?;
+
+    Ok(())
 }
