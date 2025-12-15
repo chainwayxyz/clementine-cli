@@ -1,10 +1,11 @@
 // Deposit-related commands and logic for Clementine CLI
 
+mod storage;
+
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
-use crate::deposit_storage::{DepositData, store_deposit_address};
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
@@ -14,8 +15,9 @@ use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
+use storage::{DepositData, store_deposit_address};
 
-pub use crate::deposit_storage::{
+pub use storage::{
     DepositAddressDetails, get_all_deposit_address_details,
     get_deposit_address_details_for_deposit_address,
 };
