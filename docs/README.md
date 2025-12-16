@@ -30,7 +30,7 @@ Clementine CLI is designed for maximum security using separate airgapped and onl
 - Monitor deposit/withdrawal status
 - Generate addresses for verification
 - Broadcast transactions to Bitcoin network
-- Access to a Esplora Rest API or a Bitcoin Core RPC API
+- Access to an Esplora Rest API or a Bitcoin Core RPC API
 
 ### Essential Two-Device Workflow
 

@@ -94,7 +94,7 @@ enum Commands {
         /// Assume yes to all prompts, changes will be applied without confirmation
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
         yes: bool,
-        /// Key=value pairs to update, e.g. bridge_amount=123456 bitcoin_esplora_api=https://...
+        /// Key=value pairs to update, e.g. bridge_amount=123456 esplora_rest_api=https://...
         #[arg(required = true)]
         kv: Vec<String>,
     },
