@@ -1,6 +1,7 @@
 use crate::errors::BridgeCliError;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::{BitcoinAddress, CitreaAddress, get_clementine_home_dir};
+use crate::{get_clementine_home_dir, BitcoinAddress, CitreaAddress};
+use bitcoin::secp256k1::XOnlyPublicKey;
 use bitcoin::Network;
 use bitcoin::address::NetworkUnchecked;
 use eyre::Result;
@@ -15,7 +16,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 pub struct DepositData {
     pub deposit_address: BitcoinAddress,
     pub recovery_taproot_address: TaprootAddressWithPrefix<NetworkUnchecked>,
+    pub aggregated_public_key: XOnlyPublicKey,
     pub citrea_address: CitreaAddress,
+    pub user_takes_after: u64,
     pub network: Network,
 }
 
@@ -28,8 +31,10 @@ pub struct StoredDepositAddress(pub String);
 /// Stored metadata for a deposit address.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StoredDepositEntry {
+    pub aggregated_public_key: String,
     pub recovery_taproot_address: String,
     pub citrea_address: String,
+    pub user_takes_after: u64,
 }
 
 /// Internal record for a deposit address.
@@ -44,8 +49,10 @@ struct StoredDepositDetails {
 #[derive(Debug, Clone)]
 pub struct DepositAddressDetails {
     pub deposit_address: String,
+    pub aggregated_public_key: String,
     pub recovery_taproot_address: String,
     pub citrea_address: String,
+    pub user_takes_after: u64,
     pub network: Network,
     pub created_at: u64,
 }
@@ -81,8 +88,10 @@ pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCli
         });
 
     let entry = StoredDepositEntry {
+        aggregated_public_key: deposit_data.aggregated_public_key.to_string(),
         recovery_taproot_address: deposit_data.recovery_taproot_address.address_with_prefix(),
         citrea_address: deposit_data.citrea_address.to_string(),
+        user_takes_after: deposit_data.user_takes_after,
     };
 
     map.entry(key).or_insert_with(|| StoredDepositDetails {
@@ -148,8 +157,10 @@ pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, B
         .map(
             |(StoredDepositAddress(deposit_address), details)| DepositAddressDetails {
                 deposit_address,
+                aggregated_public_key: details.entry.aggregated_public_key,
                 recovery_taproot_address: details.entry.recovery_taproot_address,
                 citrea_address: details.entry.citrea_address,
+                user_takes_after: details.entry.user_takes_after,
                 network: details.network,
                 created_at: details.created_at,
             },
@@ -195,8 +206,10 @@ pub fn get_deposit_address_details_for_deposit_address(
     if let Some(details) = map.get(&key) {
         Ok(Some(DepositAddressDetails {
             deposit_address: deposit_address.to_string(),
+            aggregated_public_key: details.entry.aggregated_public_key.clone(),
             recovery_taproot_address: details.entry.recovery_taproot_address.clone(),
             citrea_address: details.entry.citrea_address.clone(),
+            user_takes_after: details.entry.user_takes_after,
             network: details.network,
             created_at: details.created_at,
         }))

@@ -1477,8 +1477,10 @@ pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), Brid
         Some(d) => {
             println!("Deposit address details:");
             println!("  Deposit address: {}", d.deposit_address);
+            println!("  Aggregated public key: {}", d.aggregated_public_key);
             println!("  Recovery taproot address: {}", d.recovery_taproot_address);
             println!("  Citrea address: {}", d.citrea_address);
+            println!("  User takes after: {} blocks", d.user_takes_after);
             println!("  Network: {:?}", d.network);
             println!("  Created at (unix timestamp): {}", d.created_at);
         }
