@@ -227,7 +227,7 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// Broadcasts raw recovery transaction to Bitcoin network either by Bitcoin Esplora Api or Bitcoin RPC.
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Bitcoin Esplora API or Bitcoin RPC.
     BroadcastRecoveryTx {
         /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,

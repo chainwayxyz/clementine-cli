@@ -323,7 +323,7 @@ impl BridgeCliConfig {
 
         match network {
             Network::Regtest => {
-                // No bitcoin_config needed - using Bitcoin Esplora Api only
+                // No bitcoin_config needed - using Bitcoin Esplora API only
             }
             Network::Bitcoin => {
                 config.citrea_chain_id = 1;

@@ -164,7 +164,7 @@ pub enum BridgeCliError {
     CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
     #[error(
-        "Can't broadcast raw transaction by either Bitcoin Esplora Api or Bitcoin RPC: {esplora_api_error} and {bitcoin_rpc_error}"
+        "Can't broadcast raw transaction by either Bitcoin Esplora API or Bitcoin RPC: {esplora_api_error} and {bitcoin_rpc_error}"
     )]
     CantBroadcastTransaction {
         esplora_api_error: String,

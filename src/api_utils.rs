@@ -133,7 +133,7 @@ pub async fn get_tx_details_from_esplora_api(
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
     if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
@@ -253,7 +253,7 @@ async fn broadcast_recovery_tx_with_esplora_api(
 ) -> Result<Txid, BridgeCliError> {
     if esplora_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
@@ -354,7 +354,7 @@ pub(crate) async fn get_utxos_from_esplora_api(
 ) -> Result<Vec<EsploraUtxo>, BridgeCliError> {
     if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
@@ -382,7 +382,7 @@ async fn get_current_block_height_from_esplora_api(
 ) -> Result<u64, BridgeCliError> {
     if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
@@ -412,7 +412,7 @@ pub async fn get_mempool_txs(
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
     if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
@@ -441,7 +441,7 @@ async fn is_tx_on_chain_with_esplora_api(
 ) -> Result<bool, BridgeCliError> {
     if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Bitcoin Esplora Api URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
