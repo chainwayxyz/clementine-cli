@@ -465,13 +465,13 @@ mod tests {
         let network_configs = NetworkConfigs {
             bitcoin: BridgeCliConfig::default(),
             testnet4: BridgeCliConfig::default(),
-            signet: BridgeCliConfig::default(),
-            regtest: BridgeCliConfig {
+            signet: Some(BridgeCliConfig::default()),
+            regtest: Some(BridgeCliConfig {
                 network: Network::Regtest,
                 aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
                 esplora_rest_api: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
                 citrea_chain_id: 5115,
-                citrea_rpc_url: reqwest::Url::parse("http://localhost:8545").unwrap(),
+                citrea_rpc_url: Some(reqwest::Url::parse("http://localhost:8545").unwrap()),
                 citrea_backend_endpoint: reqwest::Url::parse("http://localhost:8080").unwrap(),
                 user_takes_after: 4320,
                 bridge_amount: Amount::from_sat(100000),
@@ -481,10 +481,10 @@ mod tests {
                 bridge_contract_address: "0x1234567890123456789012345678901234567890".to_string(),
                 bitcoin_config: None,
                 move_tx_finalization_blocks: 5,
-            },
+            }),
         };
 
-        network_configs.regtest
+        network_configs.regtest.unwrap()
     }
 
     fn create_test_keypair() -> SecureKeypair {

@@ -216,7 +216,6 @@ enum DepositCommands {
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
-        #[arg(long)]
         amount: Option<f64>,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -289,6 +288,7 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
+    #[command(hide = true)]
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -742,16 +742,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &sig,
                         &config,
                     ),
-                    withdrawal_ui_url => {
+                    (withdrawal_ui_url, tx_json, params) => {
                         println!(
-                            "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-                            "INFO".bold()
+                            "\n{} Opening withdrawal page {} in your default browser...",
+                            "INFO".bold(),
+                            withdrawal_ui_url.0
                         );
-                        if let Err(e) = open::that(&withdrawal_ui_url) {
+
+                        println!("\nPress a key to continue...");
+                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        println!("\nPlease review the transaction details below:\n");
+
+
+                        let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
+                            .ok()
+                            .and_then(|json| serde_json::to_string_pretty(&json).ok())
+                            .unwrap_or_else(|| tx_json.0.clone());
+
+                        println!("Transaction JSON:\n{}", pretty_json);
+
+                        println!("\nDestination Address: {}\n", destination_address.to_string());
+
+                        println!("{:#?}\n", params);
+
+                        println!("Please double check the transaction details before proceeding in the browser.\n");
+
+                        println!("Press a key to continue...");
+                        let mut input = String::new();
+
+                        std::io::stdin().read_line(&mut input).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        if let Err(e) = open::that(&withdrawal_ui_url.0) {
                             return Err(eyre::eyre!(
                             "Failed to open browser: {}. Please visit the following URL manually: {}",
                             e,
-                            withdrawal_ui_url
+                            withdrawal_ui_url.0
                             )
                             .into());
                         }

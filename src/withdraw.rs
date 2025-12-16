@@ -1,12 +1,11 @@
 // Withdrawal-related commands and logic for Clementine CLI
-
 use crate::BitcoinAddress;
 use crate::api_utils::{get_tx_details, get_utxos, is_tx_on_chain};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
-use crate::structs::TaprootAddressWithPrefix;
+use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::utils::is_wallet_address;
 use crate::wallet::Purpose;
@@ -30,6 +29,12 @@ pub(crate) enum WithdrawStatusEnum {
     Completed,
     Unknown,
 }
+
+#[derive(Debug)]
+pub struct WithdrawalUrl(pub String);
+
+#[derive(Debug)]
+pub struct TxJson(pub String);
 
 impl WithdrawStatusEnum {
     pub(crate) fn from_backend_status(status: &str) -> Self {
@@ -75,9 +80,17 @@ fn create_bridge_contract(
     key: PrivateKeySigner,
     config: &BridgeCliConfig,
 ) -> Result<CitreaContract, BridgeCliError> {
+    let citrea_rpc_url =
+        config
+            .citrea_rpc_url
+            .as_ref()
+            .ok_or(BridgeCliError::Eyre(eyre::eyre!(
+                "CITREA_RPC_URL is not set in the configuration. Please set it to proceed."
+            )))?;
+
     let provider = ProviderBuilder::new()
         .wallet(EthereumWallet::from(key))
-        .connect_http(config.citrea_rpc_url.clone());
+        .connect_http(citrea_rpc_url.clone());
 
     let contract = BRIDGE_CONTRACT::new(
         config
@@ -154,7 +167,7 @@ pub async fn safe_withdraw(
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<String, BridgeCliError> {
+) -> Result<(WithdrawalUrl, TxJson, WithdrawalParams), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
@@ -175,8 +188,13 @@ pub async fn safe_withdraw(
     let params =
         prepare_withdrawal_params(withdrawal_outpoint, &payout_output, sig, config).await?;
 
-    let calldata_hex =
-        encode_safe_withdraw_params(&params.0, &params.1, &params.2, params.3, params.4);
+    let calldata_hex = encode_safe_withdraw_params(
+        &params.transaction,
+        &params.merkle_proof,
+        &params.payout_transaction,
+        &params.block_header,
+        &params.output_script_pk,
+    );
 
     let tx_json = json!({
         "to": config.bridge_contract_address,
@@ -194,7 +212,7 @@ pub async fn safe_withdraw(
     );
     let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
 
-    Ok(withdrawal_ui_url)
+    Ok((WithdrawalUrl(withdrawal_ui_url), TxJson(tx_json), params))
 }
 
 pub async fn send_safe_withdrawal(
@@ -238,11 +256,11 @@ pub async fn send_safe_withdrawal(
 
     let citrea_withdrawal_tx = contract
         .safeWithdraw(
-            withdrawal_params.0,
-            withdrawal_params.1,
-            withdrawal_params.2,
-            withdrawal_params.3,
-            withdrawal_params.4,
+            withdrawal_params.transaction,
+            withdrawal_params.merkle_proof,
+            withdrawal_params.payout_transaction,
+            withdrawal_params.block_header,
+            withdrawal_params.output_script_pk,
         )
         .value(U256::from(
             config.bridge_amount.to_sat() * crate::bitcoin_utils::SATS_TO_WEI_MULTIPLIER,
@@ -288,16 +306,7 @@ pub async fn prepare_withdrawal_params(
     payout_output: &TxOut,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
-) -> Result<
-    (
-        crate::types::Transaction,
-        crate::types::MerkleProof,
-        crate::types::Transaction,
-        alloy::sol_types::private::Bytes,
-        alloy::sol_types::private::Bytes,
-    ),
-    BridgeCliError,
-> {
+) -> Result<WithdrawalParams, BridgeCliError> {
     if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
         return Err(BridgeCliError::TransactionNotOnChain(
             withdrawal_outpoint.txid,

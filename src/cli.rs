@@ -120,22 +120,37 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     );
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
-    if !config_file.exists() {
-        let mut default_cfgs = config::default_networks();
-        setup_networks(&mut default_cfgs)?;
-        config::write_config_to(&config_file, &default_cfgs)?;
-        println!(
-            "{} Default configuration file created at: {}",
-            "SUCCESS".bold(),
-            config_file.display()
-        );
-    } else {
+    if config_file.exists() {
         println!(
             "{} Configuration file already exists at: {}",
             "INFO".bold(),
             config_file.display()
         );
+
+        print!("Do you want to overwrite it with a fresh configuration? [y/N]: ");
+        io::stdout().flush().ok();
+
+        let mut answer = String::new();
+        io::stdin()
+            .read_line(&mut answer)
+            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+
+        let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
+
+        if !overwrite {
+            println!("{} Keeping existing configuration.", "INFO".bold());
+            return Ok(());
+        }
     }
+
+    let mut default_cfgs = config::default_networks();
+    setup_networks(&mut default_cfgs)?;
+    config::write_config_to(&config_file, &default_cfgs)?;
+    println!(
+        "{} Default configuration file created at: {}",
+        "SUCCESS".bold(),
+        config_file.display()
+    );
     Ok(())
 }
 
@@ -150,8 +165,6 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     for net in [
         &mut cfgs.bitcoin,
         &mut cfgs.testnet4,
-        &mut cfgs.signet,
-        &mut cfgs.regtest,
     ] {
         net.bitcoin_config = None;
     }
@@ -232,6 +245,39 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             name,
             net.esplora_rest_api.as_ref().unwrap()
         );
+        // Configure Citrea RPC URL for this network
+        let current_rpc_display = net
+            .citrea_rpc_url
+            .as_ref()
+            .map(|u| u.as_str().to_string())
+            .unwrap_or_else(|| "None (disabled)".to_string());
+
+        println!("Current Citrea RPC URL for '{name}': {current_rpc_display}",);
+
+        let default_input = net
+            .citrea_rpc_url
+            .as_ref()
+            .map(|u| u.as_str().to_string())
+            .unwrap_or_default();
+
+        let input: String = Input::with_theme(&theme)
+            .with_prompt("Citrea RPC URL (press Enter to keep current, type 'none' to disable)")
+            .default(default_input)
+            .interact_text()?;
+
+        let trimmed = input.trim();
+
+        if trimmed.eq_ignore_ascii_case("none")
+            || (trimmed.is_empty() && net.citrea_rpc_url.is_none())
+        {
+            net.citrea_rpc_url = None;
+        } else if trimmed.is_empty() {
+            // keep existing value
+        } else {
+            let url = Url::parse(trimmed)
+                .map_err(|e| eyre!("Invalid Citrea RPC URL '{}': {}", trimmed, e))?;
+            net.citrea_rpc_url = Some(url);
+        }
     }
 
     Ok(())

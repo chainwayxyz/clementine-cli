@@ -12,10 +12,6 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 
 ## Installation
 
-### Configuration
-
-### Installing
-
 1. Install Rust:
 
    ```sh
