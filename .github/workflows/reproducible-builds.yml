@@ -32,6 +32,12 @@ jobs:
       - name: Build ${{ matrix.platform }}
         run: nix build .#${{ matrix.platform }}
 
+      - name: Rebuild ${{ matrix.platform }} to verify reproducibility
+        run: |
+          echo "Rebuilding ${{ matrix.platform }} to confirm reproducibility..."
+          nix build .#${{ matrix.platform }} --rebuild
+          echo "Rebuild for ${{ matrix.platform }} completed"
+
       - name: Hash result
         id: hash
         run: |
@@ -74,6 +80,12 @@ jobs:
       - name: Build aarch64-linux-gnu
         run: nix build .#aarch64-linux-gnu
 
+      - name: Rebuild aarch64-linux-gnu to verify reproducibility
+        run: |
+          echo "Rebuilding aarch64-linux-gnu to confirm reproducibility..."
+          nix build .#aarch64-linux-gnu --rebuild
+          echo "Rebuild for aarch64-linux-gnu completed"
+
       - name: Hash result
         id: hash
         run: |
@@ -109,6 +121,12 @@ jobs:
 
       - name: Build darwin-aarch64
         run: nix build .#darwin-aarch64
+
+      - name: Rebuild darwin-aarch64 to verify reproducibility
+        run: |
+          echo "Rebuilding darwin-aarch64 to confirm reproducibility..."
+          nix build .#darwin-aarch64 --rebuild
+          echo "Rebuild for darwin-aarch64 completed"
 
       - name: Hash result
         id: hash
