@@ -1,9 +1,9 @@
 use crate::errors::BridgeCliError;
 use crate::structs::TaprootAddressWithPrefix;
-use crate::{get_clementine_home_dir, BitcoinAddress, CitreaAddress};
-use bitcoin::secp256k1::XOnlyPublicKey;
+use crate::{BitcoinAddress, CitreaAddress, get_clementine_home_dir};
 use bitcoin::Network;
 use bitcoin::address::NetworkUnchecked;
+use bitcoin::secp256k1::XOnlyPublicKey;
 use eyre::Result;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
