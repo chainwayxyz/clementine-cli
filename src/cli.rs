@@ -162,10 +162,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     let theme = ColorfulTheme::default();
 
     // All networks use Bitcoin Esplora API only (no Bitcoin Core RPC)
-    for net in [
-        &mut cfgs.bitcoin,
-        &mut cfgs.testnet4,
-    ] {
+    for net in [&mut cfgs.bitcoin, &mut cfgs.testnet4] {
         net.bitcoin_config = None;
     }
 
