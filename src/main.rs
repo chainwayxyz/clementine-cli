@@ -216,7 +216,6 @@ enum DepositCommands {
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
-        #[arg(long)]
         amount: Option<f64>,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -289,6 +288,7 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
+    #[command(hide = true)]
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
