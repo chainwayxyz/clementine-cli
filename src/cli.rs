@@ -19,6 +19,9 @@ use url::Url;
 
 use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
 use crate::config::NetworkConfigs;
+use crate::deposit::{
+    get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
+};
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
@@ -1349,4 +1352,66 @@ pub fn cli_generate_withdrawal_signatures(
         operator_withdrawal_amount,
         config,
     )
+}
+
+pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
+    let deposits = get_all_deposit_address_details().map_err(|e| {
+        tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
+    })?;
+
+    if deposits.is_empty() {
+        println!("No stored deposit addresses found.");
+    } else {
+        println!("Stored Deposit Address(es):");
+        for d in deposits {
+            println!(
+                "- Deposit address: {} | Network: {:?}",
+                d.deposit_address, d.network
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
+    // check if deposit_address is a valid Bitcoin address
+    let _ = BitcoinAddress::from_str(deposit_address).map_err(|e| {
+        tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
+        BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
+    })?;
+    let details =
+        get_deposit_address_details_for_deposit_address(deposit_address).map_err(|e| {
+            tracing::error!(
+                "Failed to retrieve details for deposit address {}: {}",
+                deposit_address,
+                e
+            );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to retrieve details for deposit address {}",
+                deposit_address
+            ))
+        })?;
+
+    match details {
+        None => {
+            println!(
+                "No stored details found for deposit address {}",
+                deposit_address
+            );
+        }
+        Some(d) => {
+            println!("Deposit address details:");
+            println!("  Deposit address: {}", d.deposit_address);
+            println!("  Aggregated public key: {}", d.aggregated_public_key);
+            println!("  Recovery taproot address: {}", d.recovery_taproot_address);
+            println!("  Citrea address: {}", d.citrea_address);
+            println!("  User takes after: {} blocks", d.user_takes_after);
+            println!("  Network: {:?}", d.network);
+            println!("  Created at (unix timestamp): {}", d.created_at);
+        }
+    }
+
+    Ok(())
 }

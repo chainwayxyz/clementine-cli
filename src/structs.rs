@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display};
+use std::{borrow::Cow, fmt::Display, str::FromStr};
 
 use bitcoin::{
     Address,
@@ -90,6 +90,25 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
         };
 
         Ok(taproot_address_with_prefix)
+    }
+
+    pub fn assume_checked(&self) -> TaprootAddressWithPrefix<NetworkChecked> {
+        TaprootAddressWithPrefix {
+            address: self.address.clone().assume_checked(),
+            purpose: self.purpose,
+        }
+    }
+}
+
+impl From<&TaprootAddressWithPrefix<NetworkChecked>>
+    for TaprootAddressWithPrefix<NetworkUnchecked>
+{
+    fn from(val: &TaprootAddressWithPrefix<NetworkChecked>) -> Self {
+        TaprootAddressWithPrefix {
+            address: Address::from_str(&val.address.to_string())
+                .expect("Cannot fail since address is valid"),
+            purpose: val.purpose,
+        }
     }
 }
 

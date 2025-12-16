@@ -1,5 +1,7 @@
 // Deposit-related commands and logic for Clementine CLI
 
+mod storage;
+
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
@@ -9,11 +11,16 @@ use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
-use crate::wallet::wallet_utils::ensure_wallet_exists;
-use crate::wallet::wallet_utils::validate_address_purpose;
+use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
 use eyre::Result;
+use storage::{DepositData, store_deposit_address};
+
+pub use storage::{
+    DepositAddressDetails, get_all_deposit_address_details,
+    get_deposit_address_details_for_deposit_address,
+};
 
 /// Parameters for creating a signed recovery transaction
 pub struct RecoveryTxParams {
@@ -121,6 +128,23 @@ pub async fn get_deposit_address(
             deposit_address,
         ));
     }
+
+    let deposit_data = DepositData {
+        deposit_address: calculated_deposit_address.clone(),
+        recovery_taproot_address: recovery_taproot_address.into(),
+        aggregated_public_key: config.aggregated_public_key,
+        citrea_address: *citrea_address,
+        user_takes_after: config.user_takes_after,
+        network: config.network,
+    };
+
+    store_deposit_address(&deposit_data).map_err(|e| {
+        tracing::error!("Failed to store deposit address: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to store deposit address for recovery taproot address '{}'",
+            recovery_taproot_address.address_with_prefix()
+        ))
+    })?;
 
     Ok(calculated_deposit_address)
 }
