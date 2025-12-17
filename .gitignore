@@ -1,9 +1,12 @@
 /target
 ./bridge_cli_config.toml
 
+/artifacts
+
 # Nix build artifacts
 result
 result-*
 .direnv
+
 
 .DS_Store
