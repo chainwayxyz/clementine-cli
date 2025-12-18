@@ -130,10 +130,9 @@
             };
 
             preBuild = ''
-              ${pkgs.lib.optionalString (!isWindows) ''
-              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              ${pkgs.lib.optionalString isDarwin ''
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C target-feature=+crt-static"
+              ${pkgs.lib.optionalString (isWindows) ''
+                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="$CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+              ''}
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
               ''}
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
@@ -143,10 +142,10 @@
 
               ''}
 
-
               ${pkgs.lib.optionalString (isWindows) ''
-                export CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS="${CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS:-} --remap-path-prefix=$NIX_BUILD_TOP=/build"
-              ''}
+                var="CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS"
+                eval "export $var=\"\${$var:-} --remap-path-prefix=\$NIX_BUILD_TOP=/build\""
+              }
 
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
