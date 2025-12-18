@@ -143,8 +143,9 @@
 
               ''}
 
+
               ${pkgs.lib.optionalString (isWindows) ''
-                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="$CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+                export CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS="${CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS:-} --remap-path-prefix=$NIX_BUILD_TOP=/build"
               ''}
 
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
