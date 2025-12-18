@@ -19,7 +19,7 @@ build_target() {
 
   echo "[build] $attr using $IMAGE_TAG on platform $platform"
 
-  docker run --rm -i \
+  docker run --rm -i --privileged \
     --platform "$platform" \
     -v "$PWD:/workspace" \
     -v "nix-store-$attr:/nix" \
@@ -33,12 +33,15 @@ build_target() {
     bash -seu <<'EOF'
 set -o pipefail
 
+nix --extra-experimental-features 'nix-command flakes' show-config | grep -E 'sandbox|build-use-sandbox'
 
 outPath="$(
   nix --extra-experimental-features 'nix-command flakes' \
       --accept-flake-config \
-      build ".#${ATTR}" --print-out-paths | tail -n1
+      build ".#${ATTR}" --option sandbox true --print-out-paths | tail -n1
 )"
+
+nix --extra-experimental-features 'nix-command flakes' show-config | grep -E 'sandbox|build-use-sandbox'
 
 binSrc="${outPath}/bin/${PROJECT_NAME}${SUFFIX}"
 destDir="/workspace/${ARTIFACTS_DIR}/${ATTR}"

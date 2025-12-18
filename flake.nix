@@ -108,8 +108,7 @@
                 -C debuginfo=0 \
                 -C lto=off \
                 -C embed-bitcode=no \
-                --remap-path-prefix=${srcFiltered}=/src \
-                --remap-path-prefix=$NIX_BUILD_TOP=/build";
+                --remap-path-prefix=${srcFiltered}=/src";
                 "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
                 "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
@@ -143,6 +142,11 @@
               export RUSTFLAGS="$BASE_RUSTFLAGS"
 
               ''}
+
+              ${pkgs.lib.optionalString (isWindows) ''
+                export CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS="$CARGO_TARGET_X86_64_PC_WINDOWS_GNU_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
+              ''}
+
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
