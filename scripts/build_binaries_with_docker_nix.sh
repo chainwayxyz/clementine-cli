@@ -37,7 +37,7 @@ set -o pipefail
 outPath="$(
   nix --extra-experimental-features 'nix-command flakes' \
       --accept-flake-config \
-      build ".#${ATTR}" --system "${SYSTEM}" --print-out-paths | tail -n1
+      build ".#${ATTR}" --print-out-paths | tail -n1
 )"
 
 binSrc="${outPath}/bin/${PROJECT_NAME}${SUFFIX}"
@@ -57,7 +57,7 @@ EOF
 
 
 for entry in "${TARGET_MATRIX[@]}"; do
-  read -r attr platform system suffix <<<"$entry"
+  read -r attr platform suffix <<<"$entry"
   build_target "$attr" "$platform" "${suffix-}"
   echo
 done
