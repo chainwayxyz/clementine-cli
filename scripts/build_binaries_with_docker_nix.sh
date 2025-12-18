@@ -79,6 +79,7 @@ if [[ "$(uname)" == "Darwin" ]]; then
       binSrc="${outPath}/bin/${PROJECT_NAME}"
       destDir="${ARTIFACTS_DIR}/${attr}"
       mkdir -p "$destDir"
+      rm -rf "$destDir/${PROJECT_NAME}"
       cp "$binSrc" "$destDir/${PROJECT_NAME}"
       chmod 0555 "$destDir/${PROJECT_NAME}"
       echo "[done] $attr -> ${ARTIFACTS_DIR}/${attr}/${PROJECT_NAME}"
