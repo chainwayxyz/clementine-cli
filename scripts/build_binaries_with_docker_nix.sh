@@ -6,10 +6,15 @@ ARTIFACTS_DIR="${ARTIFACTS_DIR:-artifacts}"
 PROJECT_NAME="${PROJECT_NAME:-clementine-cli}"
 NIX_CONFIG="${NIX_CONFIG:-filter-syscalls = false}"
 
+
 TARGET_MATRIX=(
   "linux-x86_64 linux/amd64"
   "windows-x86_64 linux/amd64 .exe"
   "aarch64-linux-gnu linux/arm64"
+)
+
+MACOS_TARGET_MATRIX=(
+  "darwin-aarch64 aarch64-darwin"
 )
 
 build_target() {
@@ -19,7 +24,7 @@ build_target() {
 
   echo "[build] $attr using $IMAGE_TAG on platform $platform"
 
-  docker run --rm -i --privileged \
+  docker run --rm -i \
     --platform "$platform" \
     -v "$PWD:/workspace" \
     -v "nix-store-$attr:/nix" \
@@ -33,15 +38,11 @@ build_target() {
     bash -seu <<'EOF'
 set -o pipefail
 
-nix --extra-experimental-features 'nix-command flakes' show-config | grep -E 'sandbox|build-use-sandbox'
-
 outPath="$(
   nix --extra-experimental-features 'nix-command flakes' \
       --accept-flake-config \
-      build ".#${ATTR}" --option sandbox true --print-out-paths | tail -n1
+      build ".#${ATTR}" --print-out-paths | tail -n1
 )"
-
-nix --extra-experimental-features 'nix-command flakes' show-config | grep -E 'sandbox|build-use-sandbox'
 
 binSrc="${outPath}/bin/${PROJECT_NAME}${SUFFIX}"
 destDir="/workspace/${ARTIFACTS_DIR}/${ATTR}"
@@ -59,10 +60,33 @@ EOF
 }
 
 
+
 for entry in "${TARGET_MATRIX[@]}"; do
   read -r attr platform suffix <<<"$entry"
   build_target "$attr" "$platform" "${suffix-}"
   echo
 done
+
+# If on macOS, build native macOS binaries without Docker
+if [[ "$(uname)" == "Darwin" ]]; then
+  for entry in "${MACOS_TARGET_MATRIX[@]}"; do
+    read -r attr system <<<"$entry"
+    host_nix_system=$(nix eval --impure --expr 'builtins.currentSystem' | tr -d '"')
+    if [[ "$host_nix_system" == "$system" ]]; then
+      echo "[build] $attr natively on macOS ($system)"
+      nix build ".#${attr}"
+      outPath=$(nix path-info ".#${attr}" | tail -n1)
+      binSrc="${outPath}/bin/${PROJECT_NAME}"
+      destDir="${ARTIFACTS_DIR}/${attr}"
+      mkdir -p "$destDir"
+      cp "$binSrc" "$destDir/${PROJECT_NAME}"
+      chmod 0555 "$destDir/${PROJECT_NAME}"
+      echo "[done] $attr -> ${ARTIFACTS_DIR}/${attr}/${PROJECT_NAME}"
+      echo
+    else
+      echo "[skip] $attr: host system ($host_nix_system) does not match target system ($system)"
+    fi
+  done
+fi
 
 echo "All requested builds finished. Darwin binaries require a macOS builder and are not built here."
