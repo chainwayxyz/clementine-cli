@@ -154,10 +154,6 @@ clementine-cli deposit verify-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVER
 clementine-cli deposit broadcast-recovery-tx <RECOVERY_TX>
 ```
 
-> [!TIP]
-> You don't have to use `clementine-cli` if you know how to send raw transactions
-> by yourself. `clementine-cli` only provides helping wrappers around mempool.space API and Bitcoin Core CLI.
-
 **Broadcasting Protocol:**
 
 1. **Receive**: Get signed recovery transaction from airgapped device

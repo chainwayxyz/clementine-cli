@@ -94,7 +94,7 @@ enum Commands {
         /// Assume yes to all prompts, changes will be applied without confirmation
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
         yes: bool,
-        /// Key=value pairs to update, e.g. bridge_amount=123456 mempool_api_url=https://...
+        /// Key=value pairs to update, e.g. bridge_amount=123456 esplora_rest_api=https://...
         #[arg(required = true)]
         kv: Vec<String>,
     },
@@ -216,7 +216,6 @@ enum DepositCommands {
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
-        #[arg(long)]
         amount: Option<f64>,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -228,7 +227,7 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC.
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Bitcoin Esplora API or Bitcoin RPC.
     BroadcastRecoveryTx {
         /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,

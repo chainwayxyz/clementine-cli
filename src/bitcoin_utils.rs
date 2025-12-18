@@ -469,7 +469,7 @@ mod tests {
             regtest: Some(BridgeCliConfig {
                 network: Network::Regtest,
                 aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
-                mempool_api_url: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
+                esplora_rest_api: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
                 citrea_chain_id: 5115,
                 citrea_rpc_url: Some(reqwest::Url::parse("http://localhost:8545").unwrap()),
                 citrea_backend_endpoint: reqwest::Url::parse("http://localhost:8080").unwrap(),

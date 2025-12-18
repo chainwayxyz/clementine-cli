@@ -132,7 +132,9 @@ pub async fn get_deposit_address(
     let deposit_data = DepositData {
         deposit_address: calculated_deposit_address.clone(),
         recovery_taproot_address: recovery_taproot_address.into(),
+        aggregated_public_key: config.aggregated_public_key,
         citrea_address: *citrea_address,
+        user_takes_after: config.user_takes_after,
         network: config.network,
     };
 
