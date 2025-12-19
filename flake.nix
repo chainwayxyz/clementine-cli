@@ -95,6 +95,8 @@
 
 
             crossEnv = if cfg.pkgsCross != null then {
+              "LC_ALL" = "C";
+
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 "-C link-arg=-Wl,--no-insert-timestamp \
