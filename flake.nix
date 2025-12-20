@@ -88,7 +88,11 @@
 
             cargoBuildFlags = [ "--target" rustTarget ];
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
+            nativeBuildInputs =
+              [ pkgs.pkg-config ]
+              ++ pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
+                pkgs.llvmPackages.lld
+              ];
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
@@ -100,6 +104,8 @@
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 "-C link-arg=-Wl,--no-insert-timestamp \
+                -C link-arg=-fuse-ld=lld \
+                -C link-arg=-Wl,--no-insert-timestamp \
                 -C link-arg=-Wl,--sort-section=name \
                 -C link-arg=-Wl,--sort-common \
                 -C link-arg=-Wl,--build-id=none \
