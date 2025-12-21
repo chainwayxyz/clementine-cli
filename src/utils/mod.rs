@@ -6,6 +6,8 @@ use crate::{
     wallet::{Purpose, wallet_utils::address_exists},
 };
 
+pub mod storage_lock;
+
 pub(crate) fn is_wallet_address(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,

@@ -65,33 +65,6 @@ pub struct DepositAddressDetails {
 
 type StoredDepositMap = HashMap<StoredDepositAddress, StoredDepositDetails>;
 
-struct FileLock {
-    file: File,
-}
-
-// Cross-process shared/exclusive file lock.
-// Note: platform-dependent semantics — may be advisory or mandatory, and
-// may or may not block non-lockholders’ read/write operations.
-impl FileLock {
-    fn shared(path: &Path) -> Result<Self, BridgeCliError> {
-        let file = open_lock_file(path)?;
-        file.lock_shared()?;
-        Ok(Self { file })
-    }
-
-    fn exclusive(path: &Path) -> Result<Self, BridgeCliError> {
-        let file = open_lock_file(path)?;
-        file.lock()?;
-        Ok(Self { file })
-    }
-}
-
-impl Drop for FileLock {
-    fn drop(&mut self) {
-        let _ = self.file.unlock();
-    }
-}
-
 /// Store a deposit address and its metadata.
 ///
 /// If the address already exists, the existing record is kept.
@@ -237,19 +210,6 @@ fn lock_path() -> Result<PathBuf, BridgeCliError> {
     Ok(get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_LOCK_FILE))
 }
 
-fn open_lock_file(path: &Path) -> Result<File, BridgeCliError> {
-    if let Some(parent) = path.parent() {
-        fs::create_dir_all(parent)?;
-    }
-
-    Ok(OpenOptions::new()
-        .read(true)
-        .write(true)
-        .create(true)
-        .truncate(false)
-        .open(path)?)
-}
-
 fn read_storage_map(path: &Path) -> Result<Option<StoredDepositMap>, BridgeCliError> {
     if !path.exists() {
         return Ok(None);
@@ -266,15 +226,6 @@ fn read_storage_map(path: &Path) -> Result<Option<StoredDepositMap>, BridgeCliEr
     }
 
     Ok(Some(serde_json::from_str::<StoredDepositMap>(&contents)?))
-}
-
-fn tmp_storage_path(path: &Path) -> PathBuf {
-    path.with_file_name(format!(
-        "{}.tmp",
-        path.file_name()
-            .expect("Storage path has a file name")
-            .to_string_lossy()
-    ))
 }
 
 fn replace_storage_file(tmp_path: &Path, final_path: &Path) -> Result<(), BridgeCliError> {
