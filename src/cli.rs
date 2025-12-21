@@ -18,7 +18,7 @@ use eyre::Result;
 use url::Url;
 
 use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
-use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
+use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
