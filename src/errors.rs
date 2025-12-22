@@ -157,6 +157,9 @@ pub enum BridgeCliError {
     #[error("Incorrect passphrase! Cannot decrypt wallet data.")]
     IncorrectPassphrase,
 
+    #[error("File does not exist: {0}")]
+    FileNotFound(String),
+
     // Deposit related errors
     #[error(
         "Calculated recovery taproot {0} not matches with Citrea response {1}: Please check configuration file and CLI version"

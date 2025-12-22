@@ -1,20 +1,18 @@
-use std::{fs::{self, File, OpenOptions}, marker::PhantomData, path::{Path, PathBuf}};
+use std::{fs::{self, File, OpenOptions}, io, marker::PhantomData, path::{Path, PathBuf}};
 
 use crate::errors::BridgeCliError;
 
-struct AtomicFileStorage<T> {
+pub(crate) struct AtomicFileStorage<T> {
     storage_path: std::path::PathBuf,
     lock_file: File,
     _marker: PhantomData<T>,
 }
 
-
-
 // Cross-process shared/exclusive file lock.
 // Note: platform-dependent semantics — may be advisory or mandatory, and
 // may or may not block non-lockholders’ read/write operations.
 impl<T> AtomicFileStorage<T> {
-    fn new(storage_path: std::path::PathBuf, lock_path: std::path::PathBuf) -> Result<Self, BridgeCliError> {
+    pub fn new(storage_path: std::path::PathBuf, lock_path: std::path::PathBuf) -> Result<Self, BridgeCliError> {
         let lock_file = open_lock_file(&lock_path)?;
         Ok(Self {
             storage_path,
@@ -23,37 +21,103 @@ impl<T> AtomicFileStorage<T> {
         })
     }
 
-    fn read_shared(&self) -> Result<T, BridgeCliError>
+    pub fn read_shared(&self) -> Result<T, BridgeCliError>
     where
         T: serde::de::DeserializeOwned,
     {
         self.shared()?;
+
+        if !check_file_exists(&self.storage_path) {
+            return Err(BridgeCliError::FileNotFound(
+                self.storage_path.to_string_lossy().to_string(),
+            ));
+        }
+
         let data = fs::read_to_string(&self.storage_path)?;
         let parsed: T = serde_json::from_str(&data)?;
+
+        self.unlock()?;
         Ok(parsed)
     }
 
-    fn write_exclusive(&self, data: &T) -> Result<(), BridgeCliError>
+    pub fn insert_exclusive<F>(&self, modify_fn: F) -> Result<(), BridgeCliError>
+    where
+        T: serde::de::DeserializeOwned + serde::Serialize,
+        F: FnOnce(&mut T),
+    {
+        self.exclusive()?;
+
+        let mut current_data = if check_file_exists(&self.storage_path) {
+            let existing_data = fs::read_to_string(&self.storage_path)?;
+            serde_json::from_str(&existing_data)?
+        } else {
+            serde_json::from_str("{}")? // Assuming T can be deserialized from an empty object
+        };
+
+        modify_fn(&mut current_data);
+
+        self.write(&current_data)?;
+
+        self.unlock()?;
+        Ok(())
+    }
+
+    fn write(&self, data: &T) -> Result<(), BridgeCliError>
     where
         T: serde::Serialize,
     {
-        self.exclusive()?;
         let tmp_path = tmp_storage_path(&self.storage_path);
-        let json_data = serde_json::to_string_pretty(data)?;
-        fs::write(&tmp_path, json_data)?;
-        fs::rename(&tmp_path, &self.storage_path)?;
+
+        let json_data = serde_json::to_string_pretty(data).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to serialize storage data to JSON: {}",
+                e
+            ))
+        })?;
+
+        fs::write(&tmp_path, json_data).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to write temporary storage file '{}': {}",
+                tmp_path.display(),
+                e
+            ))
+        })?;
+
+        replace_storage_file(&tmp_path, &self.storage_path)?;
+
         Ok(())
     }
 
     fn shared(&self) -> Result<(), BridgeCliError> {
-        self.lock_file.lock_shared()?;
+        self.lock_file.lock_shared().map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to acquire shared lock on storage file: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
 
     fn exclusive(&self) -> Result<(), BridgeCliError> {
-        self.lock_file.lock()?;
+        self.lock_file.lock().map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to acquire exclusive lock on storage file: {}",
+                e
+            ))
+        })?;
         Ok(())
     }
+    
+    fn unlock(&self) -> Result<(), BridgeCliError> {
+        self.lock_file.unlock().map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to release lock on storage file: {}",
+                e
+            ))
+        })?;
+        Ok(())
+    }
+
 }
 
 impl<T> Drop for AtomicFileStorage<T> {
@@ -82,4 +146,38 @@ fn tmp_storage_path(path: &Path) -> PathBuf {
             .expect("Storage path has a file name")
             .to_string_lossy()
     ))
+}
+
+fn replace_storage_file(tmp_path: &Path, final_path: &Path) -> Result<(), BridgeCliError> {
+    match fs::rename(tmp_path, final_path) {
+        Ok(_) => return Ok(()),
+        Err(err) if err.kind() == io::ErrorKind::AlreadyExists => {
+            fs::remove_file(final_path)?;
+        }
+        Err(err) if err.kind() == io::ErrorKind::PermissionDenied => {
+            // On some platforms (notably Windows), an existing file may block overwrite.
+            let _ = fs::remove_file(final_path);
+        }
+        Err(err) => {
+            let _ = fs::remove_file(tmp_path);
+            return Err(BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to replace deposit address storage file: {}",
+                err
+            )));
+        }
+    }
+
+    fs::rename(tmp_path, final_path).map_err(|e| {
+        let _ = fs::remove_file(tmp_path);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to replace deposit address storage file: {}",
+            e
+        ))
+    })?;
+
+    Ok(())
+}
+
+fn check_file_exists(path: &Path) -> bool {
+    path.exists()
 }
