@@ -58,7 +58,7 @@ impl<T> AtomicFileStorage<T> {
 
     pub fn insert_exclusive<F>(&self, modify_fn: F) -> Result<(), BridgeCliError>
     where
-        T: serde::de::DeserializeOwned + serde::Serialize,
+        T: serde::de::DeserializeOwned + serde::Serialize + Default,
         F: FnOnce(&mut T),
     {
         let _guard = self.exclusive()?;
@@ -67,7 +67,7 @@ impl<T> AtomicFileStorage<T> {
             let existing_data = fs::read_to_string(&self.storage_path)?;
             serde_json::from_str(&existing_data)?
         } else {
-            serde_json::from_str("{}")? // Assuming T can be deserialized from an empty object
+            T::default()
         };
 
         modify_fn(&mut current_data);
