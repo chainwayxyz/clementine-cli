@@ -1,4 +1,9 @@
-use std::{fs::{self, File, OpenOptions}, io, marker::PhantomData, path::{Path, PathBuf}};
+use std::{
+    fs::{self, File, OpenOptions},
+    io,
+    marker::PhantomData,
+    path::{Path, PathBuf},
+};
 
 use crate::errors::BridgeCliError;
 
@@ -12,7 +17,10 @@ pub(crate) struct AtomicFileStorage<T> {
 // Note: platform-dependent semantics — may be advisory or mandatory, and
 // may or may not block non-lockholders’ read/write operations.
 impl<T> AtomicFileStorage<T> {
-    pub fn new(storage_path: std::path::PathBuf, lock_path: std::path::PathBuf) -> Result<Self, BridgeCliError> {
+    pub fn new(
+        storage_path: std::path::PathBuf,
+        lock_path: std::path::PathBuf,
+    ) -> Result<Self, BridgeCliError> {
         let lock_file = open_lock_file(&lock_path)?;
         Ok(Self {
             storage_path,
@@ -68,6 +76,13 @@ impl<T> AtomicFileStorage<T> {
     {
         let tmp_path = tmp_storage_path(&self.storage_path);
 
+        if check_file_exists(&tmp_path) {
+            return Err(BridgeCliError::Eyre(eyre::eyre!(
+                "Temporary storage file '{}' already exists. Aborting write to prevent data loss. Please reach out to support.",
+                tmp_path.display()
+            )));
+        };
+
         let json_data = serde_json::to_string_pretty(data).map_err(|e| {
             BridgeCliError::Eyre(eyre::eyre!(
                 "Failed to serialize storage data to JSON: {}",
@@ -107,17 +122,13 @@ impl<T> AtomicFileStorage<T> {
         })?;
         Ok(())
     }
-    
+
     fn unlock(&self) -> Result<(), BridgeCliError> {
         self.lock_file.unlock().map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!(
-                "Failed to release lock on storage file: {}",
-                e
-            ))
+            BridgeCliError::Eyre(eyre::eyre!("Failed to release lock on storage file: {}", e))
         })?;
         Ok(())
     }
-
 }
 
 impl<T> Drop for AtomicFileStorage<T> {
@@ -168,9 +179,16 @@ fn replace_storage_file(tmp_path: &Path, final_path: &Path) -> Result<(), Bridge
     }
 
     fs::rename(tmp_path, final_path).map_err(|e| {
-        let _ = fs::remove_file(tmp_path);
         BridgeCliError::Eyre(eyre::eyre!(
             "Failed to replace deposit address storage file: {}",
+            e
+        ))
+    })?;
+
+    fs::remove_file(tmp_path).map_err(|e| {
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to remove temporary storage file '{}': {}",
+            tmp_path.display(),
             e
         ))
     })?;
