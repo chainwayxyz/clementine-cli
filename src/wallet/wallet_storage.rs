@@ -35,8 +35,8 @@
 //! - **Import metadata**: Timestamps and import method tracking
 //!
 
-use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
+use bitcoin::Network;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
@@ -45,8 +45,12 @@ use std::{collections::HashMap, path::PathBuf};
 use crate::errors::BridgeCliError;
 use crate::get_clementine_home_dir;
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
+use crate::utils::storage_lock::AtomicFileStorage;
 use crate::wallet::encryption::{EncryptedData, EncryptedDataHex, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
+
+const WALLETS_REGISTRY_FILE: &str = "wallets.json";
+const WALLETS_REGISTRY_LOCK_FILE: &str = "wallets.lock";
 
 /// Registry entry for a wallet stored in wallets.json
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -62,6 +66,12 @@ pub(crate) struct WalletRegistryEntry {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub import_method: Option<String>,
 }
+
+/// Map key for a wallet entry.
+#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
+pub(crate) struct WalletRegistryKey(pub String);
+
+type WalletRegistryMap = HashMap<WalletRegistryKey, WalletRegistryEntry>;
 
 /// Generic wallet data structure that can handle different storage formats
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,13 +147,13 @@ fn update_wallets_registry(
     import_method: Option<&str>,
 ) -> Result<(), BridgeCliError> {
     let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallets_file = storage_dir.join("wallets.json");
+    let wallets_file = storage_dir.join(WALLETS_REGISTRY_FILE);
+    let lock_file = storage_dir.join(WALLETS_REGISTRY_LOCK_FILE);
 
-    let mut wallets: HashMap<String, WalletRegistryEntry> = if wallets_file.exists() {
-        serde_json::from_str(&fs::read_to_string(&wallets_file)?)?
-    } else {
-        HashMap::new()
-    };
+    let registry = AtomicFileStorage::<WalletRegistryMap>::new(
+        wallets_file.clone(),
+        lock_file.clone(),
+    )?;
 
     let wallet_entry = WalletRegistryEntry {
         label: label.to_string(),
@@ -163,8 +173,19 @@ fn update_wallets_registry(
         },
     };
 
-    wallets.insert(address.address_without_prefix(), wallet_entry);
-    fs::write(&wallets_file, serde_json::to_string_pretty(&wallets)?)?;
+    let wallet_key = WalletRegistryKey(address.address_without_prefix());
+
+    registry.insert_exclusive(|map| {
+        map.insert(wallet_key, wallet_entry);
+    })?;
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perms = fs::metadata(&wallets_file)?.permissions();
+        perms.set_mode(0o600);
+        fs::set_permissions(&wallets_file, perms)?;
+    }
 
     Ok(())
 }
@@ -233,22 +254,24 @@ pub(crate) fn get_storage_dir_with_existence_check() -> Result<PathBuf, BridgeCl
 pub(crate) fn get_wallets_from_registry()
 -> Result<HashMap<String, WalletRegistryEntry>, BridgeCliError> {
     let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallets_file = storage_dir.join("wallets.json");
+    let wallets_file = storage_dir.join(WALLETS_REGISTRY_FILE);
+    let lock_file = storage_dir.join(WALLETS_REGISTRY_LOCK_FILE);
 
-    if !wallets_file.exists() {
-        tracing::debug!("No wallets in the registry");
-        return Ok(HashMap::new());
-    }
+    let registry = AtomicFileStorage::<WalletRegistryMap>::new(wallets_file, lock_file)?;
 
-    let wallets_content = fs::read_to_string(&wallets_file)
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to read wallets registry: {}", e)))?;
+    let map = match registry.read_shared() {
+        Ok(m) => m,
+        Err(BridgeCliError::FileNotFound(_)) => {
+            tracing::debug!("No wallets in the registry");
+            return Ok(HashMap::new());
+        }
+        Err(e) => return Err(e),
+    };
 
-    let wallets: HashMap<String, WalletRegistryEntry> = serde_json::from_str(&wallets_content)
-        .map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse wallets registry JSON: {}", e))
-        })?;
-
-    Ok(wallets)
+    Ok(map
+        .into_iter()
+        .map(|(WalletRegistryKey(address), entry)| (address, entry))
+        .collect())
 }
 
 /// Copy a wallet file to a destination, creating parent directories if needed.
