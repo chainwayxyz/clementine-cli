@@ -1075,7 +1075,7 @@ pub async fn deposit_create_signed_recovery_tx(
     fee_rate: u64,
     amount: f64,
     config: &BridgeCliConfig,
-    aggregated_public_key: Option<String>,
+    aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
@@ -1083,10 +1083,9 @@ pub async fn deposit_create_signed_recovery_tx(
 
     // Parse and apply aggregated_public_key override if provided
     let mut effective_config = config.clone();
-    if let Some(key_hex) = aggregated_public_key {
-        let key = parse_and_validate_aggregated_key(&key_hex, config.aggregated_public_key)?;
-        effective_config.aggregated_public_key = key;
-    }
+    let key =
+        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
+    effective_config.aggregated_public_key = key;
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
@@ -1191,14 +1190,13 @@ pub async fn cli_get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-    aggregated_public_key: Option<String>,
+    aggregated_public_key: String,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     // Parse and apply aggregated_public_key override if provided
     let mut effective_config = config.clone();
-    if let Some(key_hex) = aggregated_public_key {
-        let key = parse_and_validate_aggregated_key(&key_hex, config.aggregated_public_key)?;
-        effective_config.aggregated_public_key = key;
-    }
+    let key =
+        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
+    effective_config.aggregated_public_key = key;
 
     let deposit_address =
         deposit::get_deposit_address(citrea_address, recovery_taproot_address, &effective_config)
@@ -1459,22 +1457,14 @@ pub fn cli_generate_withdrawal_signatures(
 pub async fn cli_verify_recovery_tx_with_validation(
     params: deposit::VerifyRecoveryTxParams,
     config: &BridgeCliConfig,
-    aggregated_public_key: Option<String>,
+    aggregated_public_key: String,
 ) -> Result<(bitcoin::Txid, BitcoinAddress, Amount), BridgeCliError> {
-    let effective_key = if let Some(key_hex) = aggregated_public_key {
-        Some(parse_and_validate_aggregated_key(
-            &key_hex,
-            config.aggregated_public_key,
-        )?)
-    } else {
-        None
-    };
+    let effective_key =
+        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
 
     // Create effective config
     let mut effective_config = config.clone();
-    if let Some(key) = effective_key {
-        effective_config.aggregated_public_key = key;
-    }
+    effective_config.aggregated_public_key = effective_key;
 
     deposit::verify_recovery_tx(params, &effective_config)
 }

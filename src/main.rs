@@ -189,11 +189,8 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
-        #[arg(
-            long,
-            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
-        )]
-        n_of_n_key: Option<String>,
+
+        n_of_n_key: String,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
     CreateSignedRecoveryTx {
@@ -209,11 +206,7 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
-        #[arg(
-            long,
-            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config, especially on airgapped devices."
-        )]
-        n_of_n_key: Option<String>,
+        n_of_n_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -228,11 +221,7 @@ enum DepositCommands {
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
-        #[arg(
-            long,
-            help = "Override N-of-N key (aggregated public key). Use this when the currently used N-of-N key differs from your config."
-        )]
-        n_of_n_key: Option<String>,
+        n_of_n_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -490,16 +479,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
-
-                        // Display individual N-of-N keys from config
-                        if !config.verifier_public_keys.is_empty() {
-                            println!("{} Individual verifier public keys that aggregate to the N-of-N key:", "INFO".bold());
-                            for (i, key) in config.verifier_public_keys.iter().enumerate() {
-                                println!("  {}. {}", i + 1, key);
-                            }
-                            println!();
-                        }
-
                         println!("After sending the funds, you can monitor the deposit status using:");
                         println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
                     }
