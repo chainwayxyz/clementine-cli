@@ -1,7 +1,6 @@
-use std::fs;
-use std::io::Write;
 use std::{
-    io,
+    fs, io,
+    io::Write,
     path::{Path, PathBuf},
     str::FromStr,
 };

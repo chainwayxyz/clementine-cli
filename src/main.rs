@@ -347,9 +347,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Init {} => {
-            handle_cli_command!(clementine_cli::cli::cli_init(), _ => {
-                println!("Clementine CLI initialized successfully.");
-            });
+            handle_cli_command!(clementine_cli::cli::cli_init());
         }
         Commands::UpdateConfig { network, yes, kv } => {
             let kv: Vec<(String, String)> = kv
