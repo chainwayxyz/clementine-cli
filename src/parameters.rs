@@ -230,13 +230,50 @@ pub(crate) fn get_citrea_deposit_params(
     Ok(data)
 }
 
+/// Structured return type for replace deposit parameters
+pub struct ReplaceDepositParams {
+    replace_tx: CitreaTransaction,
+    proof: CitreaMerkleProof,
+    id_to_replace: u64,
+    sha_script_pubkeys: [u8; 32],
+    encoded_data: Vec<u8>,
+}
+
+impl ReplaceDepositParams {
+    /// Returns the encoded calldata as bytes
+    pub fn encoded_data(&self) -> &[u8] {
+        &self.encoded_data
+    }
+
+    /// Returns the ID to replace
+    pub fn id_to_replace(&self) -> u64 {
+        self.id_to_replace
+    }
+
+    /// Returns the SHA256 of script pubkeys as hex string
+    pub fn sha_script_pubkeys_hex(&self) -> String {
+        hex::encode(self.sha_script_pubkeys)
+    }
+
+    /// Returns a formatted string representation of the decoded parameters
+    pub fn to_decoded_string(&self) -> String {
+        format!(
+            "Replace Transaction:\n{:#?}\n\nMerkle Proof:\n{:#?}\n\nID to Replace: {}\nSHA Script Pubkeys: 0x{}",
+            self.replace_tx,
+            self.proof,
+            self.id_to_replace,
+            hex::encode(self.sha_script_pubkeys)
+        )
+    }
+}
+
 pub(crate) fn get_citrea_replace_deposit_params(
     prevout: TxOut,
     replace_tx: &Transaction,
     replace_tx_block: &Block,
     replace_tx_block_height: u32,
     id_to_replace: u64,
-) -> Result<Vec<u8>, BridgeCliError> {
+) -> Result<ReplaceDepositParams, BridgeCliError> {
     let replace_tx_struct = get_transaction_details_for_citrea(replace_tx)?;
 
     let replace_tx_mp = get_transaction_merkle_proof_for_citrea(
@@ -266,7 +303,14 @@ pub(crate) fn get_citrea_replace_deposit_params(
         id_to_replace,
         sha_script_pks,
     );
-    Ok(data)
+
+    Ok(ReplaceDepositParams {
+        replace_tx: replace_tx_struct,
+        proof: replace_tx_mp,
+        id_to_replace,
+        sha_script_pubkeys: sha_script_pks,
+        encoded_data: data,
+    })
 }
 
 pub(crate) fn get_citrea_safe_withdraw_params(

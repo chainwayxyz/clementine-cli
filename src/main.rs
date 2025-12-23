@@ -610,7 +610,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 handle_cli_command!(async
                     get_replacement_deposit_params(&move_to_vault_txid, id_to_replace, &config),
                     params => {
-                        println!("Replacement deposit parameters hex: {}", hex::encode(params));
+                        println!("{} Replacement Deposit Parameters (Decoded)", "INFO".bold());
+                        println!();
+                        println!("{}", params.to_decoded_string());
+                        println!();
+                        println!("{} Replacement Deposit Parameters (Encoded Hex)", "INFO".bold());
+                        println!("{}", hex::encode(params.encoded_data()));
                     }
                 );
             }

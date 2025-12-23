@@ -22,6 +22,9 @@ pub use storage::{
     get_deposit_address_details_for_deposit_address,
 };
 
+// Re-export ReplaceDepositParams from parameters module
+pub use crate::parameters::ReplaceDepositParams;
+
 /// Parameters for creating a signed recovery transaction
 pub struct RecoveryTxParams {
     pub citrea_addr: CitreaAddress,
@@ -178,7 +181,7 @@ pub async fn get_replacement_deposit_params(
     move_to_vault_txid: &Txid,
     id_to_replace: u64,
     config: &BridgeCliConfig,
-) -> Result<Vec<u8>, BridgeCliError> {
+) -> Result<ReplaceDepositParams, BridgeCliError> {
     // Get the replacement tx details
     let (replace_tx, replace_tx_block, replace_tx_block_height) =
         get_tx_details(move_to_vault_txid, config).await?;
