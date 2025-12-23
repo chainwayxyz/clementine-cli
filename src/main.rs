@@ -189,7 +189,7 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
-
+        /// Clementine N-of-N aggregated public key
         n_of_n_key: String,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
@@ -206,6 +206,7 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
+        /// Clementine N-of-N aggregated public key
         n_of_n_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -221,6 +222,7 @@ enum DepositCommands {
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         #[arg(long)]
         amount: Option<f64>,
+        /// Clementine N-of-N aggregated public key
         n_of_n_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
