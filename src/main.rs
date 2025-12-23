@@ -6,7 +6,7 @@ use clementine_cli::cli::{
     cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
     cli_import_wallet_from_private_key, cli_list_all_recovery_taproot_addresses,
     cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
-    cli_verify_wallet_integrity, deposit_create_signed_recovery_tx, deposit_status,
+    deposit_create_signed_recovery_tx, deposit_status,
     send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
@@ -369,7 +369,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_create_wallet(network.into(), label, purpose),
+                    async cli_create_wallet(network.into(), label, purpose),
                     _ => {}
                 );
             }
@@ -392,7 +392,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let address = handle_simple_call!(
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
                 );
-                handle_cli_command!(cli_show_mnemonic(&address), "Mnemonic display completed");
+                handle_cli_command!(async cli_show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic {
                 label,
@@ -400,7 +400,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_mnemonic(network.into(), &label, purpose),
+                    async cli_import_wallet_from_mnemonic(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import completed for address: {}",
@@ -411,7 +411,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             WalletCommands::ImportFile { filename, label } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_file(&filename, label.as_deref()),
+                    async cli_import_wallet_from_file(&filename, label.as_deref()),
                     address => {
                         println!(
                             "Import from file completed for address: {}",
@@ -426,7 +426,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_private_key(network.into(), &label, purpose),
+                    async cli_import_wallet_from_private_key(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import from private key completed for address: {}",
@@ -440,14 +440,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             WalletCommands::List => {
-                handle_cli_command!(print_all_wallets_with_addresses());
+                handle_cli_command!(async print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
                 let address = handle_simple_call!(
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
                 );
                 handle_cli_command!(
-                    cli_show_private_key(&address),
+                    async cli_show_private_key(&address),
                     "Private key display completed"
                 );
             }
@@ -679,7 +679,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let network: Network = network.into();
 
                 handle_cli_command!(
-                    cli_generate_withdrawal_signatures(
+                    async cli_generate_withdrawal_signatures(
                         &signer_address,
                         &destination_address,
                         &withdrawal_outpoint,

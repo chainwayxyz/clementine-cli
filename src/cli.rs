@@ -755,7 +755,7 @@ pub fn cli_backup_wallet(
     Ok((address, final_dest))
 }
 
-pub fn cli_import_wallet_from_mnemonic(
+pub async fn cli_import_wallet_from_mnemonic(
     network: Network,
     label: &str,
     purpose: Purpose,
@@ -766,10 +766,10 @@ pub fn cli_import_wallet_from_mnemonic(
 
     let mnemonic = prompt_mnemonic()?;
 
-    import_wallet_from_mnemonic(network, label, purpose, mnemonic)
+    import_wallet_from_mnemonic(network, label, purpose, mnemonic).await
 }
 
-pub fn cli_import_wallet_from_file(
+pub async fn cli_import_wallet_from_file(
     file_path: &str,
     label: Option<&str>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
@@ -779,10 +779,10 @@ pub fn cli_import_wallet_from_file(
     parse_and_validate_imported_wallet(file_path, label)?;
 
     let passphrase = prompt_unlock_passphrase()?;
-    import_wallet_from_file(file_path, label, passphrase)
+    import_wallet_from_file(file_path, label, passphrase).await
 }
 
-pub fn cli_import_wallet_from_private_key(
+pub async fn cli_import_wallet_from_private_key(
     network: Network,
     label: &str,
     purpose: Purpose,
@@ -797,29 +797,29 @@ pub fn cli_import_wallet_from_private_key(
 
     let passphrase = prompt_passphrase(true)?;
 
-    import_wallet_from_private_key(network, label, purpose, secure_private_key, passphrase)
+    import_wallet_from_private_key(network, label, purpose, secure_private_key, passphrase).await
 }
 
 /// Show mnemonic securely for a wallet
-pub fn cli_show_mnemonic(
+pub async fn cli_show_mnemonic(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(address)?;
     let passphrase = prompt_unlock_passphrase()?;
-    let mnemonic = get_mnemonic_from_wallet(address, &passphrase)?;
+    let mnemonic = get_mnemonic_from_wallet(address, &passphrase).await?;
     crate::secure_display::display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
 
 /// Show private key securely for a wallet
-pub fn cli_show_private_key(
+pub async fn cli_show_private_key(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(address)?;
     let passphrase = prompt_unlock_passphrase()?;
-    let private_key = get_private_key_from_wallet(address, &passphrase)?;
+    let private_key = get_private_key_from_wallet(address, &passphrase).await?;
     crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
@@ -992,7 +992,7 @@ pub async fn deposit_create_signed_recovery_tx(
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
-    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
+    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit).await?;
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
@@ -1328,7 +1328,7 @@ pub async fn cli_scan_withdrawals(
     Ok(())
 }
 
-pub fn cli_generate_withdrawal_signatures(
+pub async fn cli_generate_withdrawal_signatures(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -1340,7 +1340,7 @@ pub fn cli_generate_withdrawal_signatures(
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
         Purpose::Withdrawal,
-    )?;
+    ).await?;
 
     generate_withdrawal_signatures(
         keypair,

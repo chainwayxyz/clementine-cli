@@ -20,6 +20,7 @@ use crate::secure_types::SecureKeypair;
 use crate::secure_types::SecureSecretKey;
 use crate::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::sqlite_db::wallet_db::WalletRaw;
 use crate::sqlite_db::wallet_db::{WalletData, WalletTable};
 use crate::structs::AddrDisplay;
 use crate::structs::TaprootAddressWithPrefix;
@@ -31,7 +32,6 @@ use crate::wallet::wallet_storage::load_wallet_data;
 use bip39::Mnemonic;
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
-use bitcoin::address::NetworkUnchecked;
 use bitcoin::address::NetworkValidation;
 use bitcoin::key::Keypair;
 use bitcoin::secp256k1::Secp256k1;
@@ -39,7 +39,6 @@ use bitcoin::secp256k1::SecretKey;
 use eyre::Context;
 use eyre::eyre;
 use secrecy::ExposeSecret;
-use std::collections::HashSet;
 use std::path::Path;
 use std::str::FromStr;
 
@@ -263,13 +262,15 @@ pub(crate) fn parse_and_validate_imported_wallet(
 
     // Read and parse the wallet file
     let wallet_content = fs::read_to_string(file_path)?;
-    let wallet_data: WalletData = serde_json::from_str(&wallet_content).map_err(|e| {
+    let wallet_data: WalletRaw = serde_json::from_str(&wallet_content).map_err(|e| {
         BridgeCliError::Eyre(eyre::eyre!(
             "Failed to parse wallet file '{}': {}",
             file_path.display(),
             e
         ))
     })?;
+
+    let wallet_data: WalletData = wallet_data.try_into()?;
 
     let network = wallet_data.network;
 
@@ -304,127 +305,6 @@ pub(crate) fn parse_and_validate_imported_wallet(
     }
 
     Ok(wallet_data)
-}
-
-pub(crate) fn report_integrity_results(
-    registry_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
-    file_wallets: &HashSet<TaprootAddressWithPrefix<NetworkUnchecked>>,
-) {
-    let registry_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
-        registry_wallets.difference(file_wallets).collect();
-    let files_only: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
-        file_wallets.difference(registry_wallets).collect();
-    let matching: HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>> =
-        registry_wallets.intersection(file_wallets).collect();
-
-    // Report results
-    println!("Integrity Verification Results:");
-    println!("  Total registered wallets: {}", registry_wallets.len());
-    println!("  Total wallet files found: {}", file_wallets.len());
-    println!("  Matching entries: {}", matching.len());
-    println!();
-
-    print_successful_matches(&matching);
-    let has_issues = print_integrity_issues(&registry_only, &files_only);
-
-    print_integrity_summary(
-        has_issues,
-        registry_wallets.is_empty() && file_wallets.is_empty(),
-        &registry_only,
-        &files_only,
-    );
-}
-
-/// Print successful wallet matches
-fn print_successful_matches(
-    matching: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-) {
-    if !matching.is_empty() {
-        print_wallet_list("Properly registered wallets:", matching, |address| {
-            format!("  - {}", address.address_with_prefix())
-        });
-    }
-}
-
-/// Print integrity issues (missing files and unregistered files)
-fn print_integrity_issues(
-    registry_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-    files_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-) -> bool {
-    let mut has_issues = false;
-
-    // Report wallets in registry but missing files
-    if !registry_only.is_empty() {
-        has_issues = true;
-        print_wallet_list(
-            "Wallets in registry but missing files:",
-            registry_only,
-            |address| {
-                format!(
-                    "  - {} (file: wallet_{}.json not found)",
-                    address.address_with_prefix(),
-                    address.address_without_prefix()
-                )
-            },
-        );
-    }
-
-    // Report wallet files not in registry
-    if !files_only.is_empty() {
-        has_issues = true;
-        print_wallet_list("Wallet files not in registry:", files_only, |address| {
-            format!(
-                "  - {} (wallet_{}.json exists but not registered)",
-                address.address_with_prefix(),
-                address.address_without_prefix()
-            )
-        });
-    }
-
-    has_issues
-}
-
-/// Print the final integrity summary
-fn print_integrity_summary(
-    has_issues: bool,
-    no_wallets: bool,
-    registry_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-    files_only: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-) {
-    use colored::Colorize;
-
-    if has_issues {
-        println!("{}", "Integrity issues found!".bold());
-        println!("Consider:");
-        if !registry_only.is_empty() {
-            println!("- Remove orphaned registry entries or restore missing wallet files");
-        }
-        if !files_only.is_empty() {
-            println!("- Register untracked wallet files or remove them if not needed");
-        }
-    } else if no_wallets {
-        println!("No wallets found (this is normal for new installations)");
-    } else {
-        println!(
-            "{}",
-            "All wallets are properly registered and files exist!".bold()
-        );
-    }
-}
-
-/// Generic function to print a list of wallets with custom formatting
-fn print_wallet_list<F>(
-    header: &str,
-    wallets: &std::collections::HashSet<&TaprootAddressWithPrefix<NetworkUnchecked>>,
-    formatter: F,
-) where
-    F: Fn(&TaprootAddressWithPrefix<NetworkUnchecked>) -> String,
-{
-    println!("{}", header);
-    for address in wallets {
-        println!("{}", formatter(address));
-    }
-    println!();
 }
 
 pub(crate) fn ensure_wallet_exists<T>(

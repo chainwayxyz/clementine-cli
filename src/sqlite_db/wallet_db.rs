@@ -25,7 +25,7 @@ pub(crate) struct WalletData {
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
-struct WalletRaw {
+pub(crate) struct WalletRaw {
     label: String,
     address: String,
     network: String,
@@ -33,7 +33,7 @@ struct WalletRaw {
     encrypted_private_key: Option<Json<EncryptedDataHex>>,
     created_at: String,
     encryption_method: String,
-    imported: Option<i64>,
+    imported: Option<bool>,
     import_method: Option<String>,
 }
 
@@ -66,7 +66,6 @@ impl TryFrom<WalletRaw> for WalletData {
             .with_timezone(&Utc);
         let encrypted_mnemonic = row.encrypted_mnemonic.map(|Json(v)| v);
         let encrypted_private_key = row.encrypted_private_key.map(|Json(v)| v);
-        let imported = row.imported.map(|v| v != 0);
 
         Ok(WalletData {
             label: row.label,
@@ -76,7 +75,7 @@ impl TryFrom<WalletRaw> for WalletData {
             encrypted_private_key,
             created_at,
             encryption_method: row.encryption_method,
-            imported,
+            imported: row.imported,
             import_method: row.import_method,
         })
     }
@@ -92,7 +91,7 @@ impl Into<WalletRaw> for WalletData {
             encrypted_private_key: self.encrypted_private_key.map(|v| Json(v)),
             created_at: self.created_at.to_rfc3339(),
             encryption_method: self.encryption_method,
-            imported: self.imported.map(|b| if b { 1 } else { 0 }),
+            imported: self.imported,
             import_method: self.import_method,
         }
     }
@@ -104,7 +103,7 @@ pub(crate) struct MinimalWalletData {
     pub address: String,
     pub network: String,
     pub created_at: String,
-    pub imported: i64,
+    pub imported: Option<bool>,
     pub import_method: Option<String>,
 }
 
@@ -130,7 +129,7 @@ impl SqliteTable for WalletTable {
 }
 
 impl WalletTable {
-    pub async fn insert_wallet(
+    pub(crate) async fn insert_wallet(
         pool: &Pool<Sqlite>,
         wallet: &WalletData,
     ) -> Result<(), BridgeCliError> {
@@ -163,7 +162,7 @@ impl WalletTable {
         Ok(())
     }
 
-    pub async fn get_all_wallets(
+    pub(crate) async fn get_all_wallets(
         pool: &Pool<Sqlite>,
     ) -> Result<Vec<MinimalWalletData>, BridgeCliError> {
         let rows = sqlx::query_as::<_, MinimalWalletData>(&format!(
@@ -177,7 +176,7 @@ impl WalletTable {
         Ok(rows)
     }
 
-    pub async fn get_wallet_by_address<T>(
+    pub(crate) async fn get_wallet_by_address<T>(
         pool: &Pool<Sqlite>,
         address: TaprootAddressWithPrefix<T>,
     ) -> Result<Option<WalletData>, BridgeCliError>
