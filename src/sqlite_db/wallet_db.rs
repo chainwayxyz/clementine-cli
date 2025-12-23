@@ -291,3 +291,93 @@ impl WalletTable {
         Ok(exists.is_some())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::TimeZone;
+    use sqlx::migrate::Migrator;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+
+    static MIGRATOR: Migrator = sqlx::migrate!();
+
+    async fn setup_db() -> Result<Pool<Sqlite>, BridgeCliError> {
+        let options = SqliteConnectOptions::new()
+            .filename(":memory:")
+            .create_if_missing(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .wrap_err("Failed to open in-memory SQLite database")?;
+
+        MIGRATOR.run(&pool).await.map_err(|e| {
+            tracing::error!("Failed to run database migrations: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to run database migrations"))
+        })?;
+
+        Ok(pool)
+    }
+
+    #[tokio::test]
+    async fn insert_and_fetch_wallet_roundtrip() -> Result<(), BridgeCliError> {
+        let pool = setup_db().await?;
+
+        let address = TaprootAddressWithPrefix::from_string_with_prefix(
+            "wittb1p6j7432u040m9xmpumtmjk0vn5mwkzhm8g6xaphkmmgjsj87r4p2sqje5p7",
+            Network::Testnet4,
+        )?;
+
+        let created_at = Utc.timestamp_opt(1_700_000_000, 0).unwrap();
+
+        let wallet = WalletData {
+            label: "test-wallet".to_string(),
+            address: address.clone(),
+            network: Network::Testnet4,
+            encrypted_mnemonic: Some(EncryptedDataHex {
+                ciphertext: "00".to_string(),
+                nonce: "00".to_string(),
+                salt: "00".to_string(),
+            }),
+            encrypted_private_key: Some(EncryptedDataHex {
+                ciphertext: "11".to_string(),
+                nonce: "11".to_string(),
+                salt: "11".to_string(),
+            }),
+            created_at,
+            encryption_method: "test-method".to_string(),
+            imported: Some(true),
+            import_method: Some("file_import".to_string()),
+        };
+
+        WalletTable::insert_wallet(&pool, &wallet).await?;
+
+        let fetched = WalletTable::get_wallet_by_address(&pool, address.clone())
+            .await?
+            .expect("wallet should exist");
+
+        assert_eq!(fetched.label, wallet.label);
+        assert_eq!(fetched.address.address_with_prefix(), wallet.address.address_with_prefix());
+        assert_eq!(fetched.network, wallet.network);
+        assert_eq!(fetched.encrypted_mnemonic, wallet.encrypted_mnemonic);
+        assert_eq!(fetched.encrypted_private_key, wallet.encrypted_private_key);
+        assert_eq!(fetched.created_at, wallet.created_at);
+        assert_eq!(fetched.encryption_method, wallet.encryption_method);
+        assert_eq!(fetched.imported, wallet.imported);
+        assert_eq!(fetched.import_method, wallet.import_method);
+
+        let export = WalletExport::from(&fetched);
+        let roundtrip = WalletData::try_from(export)?;
+        assert_eq!(roundtrip.label, wallet.label);
+        assert_eq!(roundtrip.address.address_with_prefix(), wallet.address.address_with_prefix());
+        assert_eq!(roundtrip.network, wallet.network);
+        assert_eq!(roundtrip.encrypted_mnemonic, wallet.encrypted_mnemonic);
+        assert_eq!(roundtrip.encrypted_private_key, wallet.encrypted_private_key);
+        assert_eq!(roundtrip.created_at, wallet.created_at);
+        assert_eq!(roundtrip.encryption_method, wallet.encryption_method);
+        assert_eq!(roundtrip.imported, wallet.imported);
+        assert_eq!(roundtrip.import_method, wallet.import_method);
+
+        Ok(())
+    }
+}

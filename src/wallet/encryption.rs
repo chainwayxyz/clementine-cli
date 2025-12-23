@@ -72,7 +72,7 @@ const ARGON2_MEMORY_COST: u32 = 65536; // 64MB
 const ARGON2_PARALLELISM: u32 = 1;
 
 /// Complete encrypted data package: ciphertext + nonce + salt
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct EncryptedData {
     pub ciphertext: Vec<u8>,
     pub nonce: [u8; 12], // AES-GCM nonce
@@ -80,7 +80,7 @@ pub(crate) struct EncryptedData {
 }
 
 /// Hex-encoded version of EncryptedData for JSON serialization
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
 pub struct EncryptedDataHex {
     pub ciphertext: String,
     pub nonce: String,
