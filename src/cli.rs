@@ -178,6 +178,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         "SUCCESS".bold(),
         config_file.display()
     );
+    println!("Clementine CLI initialized successfully.");
     Ok(())
 }
 
