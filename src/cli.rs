@@ -1127,17 +1127,9 @@ pub async fn cli_get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-    aggregated_public_key: String,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    // Parse and apply aggregated_public_key override if provided
-    let mut effective_config = config.clone();
-    let key =
-        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
-    effective_config.aggregated_public_key = key;
-
     let deposit_address =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, &effective_config)
-            .await?;
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, &config).await?;
     Ok(deposit_address)
 }
 

@@ -190,8 +190,6 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
-        /// Clementine aggregated public key
-        clementine_aggregated_key: String,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
     CreateSignedRecoveryTx {
@@ -468,7 +466,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             DepositCommands::GetDepositAddress {
                 recovery_taproot_address,
                 citrea_address,
-                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -479,7 +476,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config, clementine_aggregated_key),
+                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
