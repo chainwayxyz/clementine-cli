@@ -190,8 +190,8 @@ enum DepositCommands {
         recovery_taproot_address: String,
         /// Citrea address (EVM address to receive bridged BTC)
         citrea_address: String,
-        /// Clementine N-of-N aggregated public key
-        n_of_n_key: String,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
     },
     /// Creates a raw Bitcoin transaction that can collect funds back to the given address.
     CreateSignedRecoveryTx {
@@ -207,8 +207,8 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
-        /// Clementine N-of-N aggregated public key
-        n_of_n_key: String,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -222,8 +222,8 @@ enum DepositCommands {
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: Option<f64>,
-        /// Clementine N-of-N aggregated public key
-        n_of_n_key: String,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -470,7 +470,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             DepositCommands::GetDepositAddress {
                 recovery_taproot_address,
                 citrea_address,
-                n_of_n_key,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -481,7 +481,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config, n_of_n_key),
+                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config, clementine_aggregated_key),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
@@ -500,7 +500,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 fee_rate,
                 amount,
-                n_of_n_key,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -527,7 +527,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         fee_rate,
                         amount,
                         &config,
-                        n_of_n_key,
+                        clementine_aggregated_key,
                     )
                     .await
                 );
@@ -537,7 +537,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 recovery_taproot_address,
                 evm_address,
                 amount,
-                n_of_n_key,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -558,7 +558,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             amount,
                         },
                         &config,
-                        n_of_n_key,
+                        clementine_aggregated_key,
                     ),
                     (txid, address, amount) => {
                         println!("Recovery transaction verified!");
