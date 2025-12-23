@@ -44,6 +44,12 @@ sol! {
             bytes32 shaScriptPubkeys
         ) external;
 
+        function replaceDeposit(Transaction calldata replaceTx,
+            MerkleProof calldata proof,
+            uint256 idToReplace,
+            bytes32 shaScriptPubkeys
+        ) external;
+
         function safeWithdraw(
             Transaction calldata prepareTx,
             MerkleProof calldata prepareProof,
@@ -72,6 +78,26 @@ pub(crate) fn encode_citrea_deposit_params(
     // Return the encoded calldata (without the function selector)
     let data = call.abi_encode();
     tracing::debug!("data: {:?}", data);
+    data[4..].to_vec()
+}
+
+pub(crate) fn encode_citrea_replace_deposit_params(
+    replace_tx: &CitreaTransaction,
+    proof: &CitreaMerkleProof,
+    id_to_replace: u64,
+    sha_script_pubkeys: [u8; 32],
+) -> Vec<u8> {
+    // Create the replaceDeposit call
+    let call = BRIDGE_CONTRACT::replaceDepositCall {
+        replaceTx: replace_tx.into(),
+        proof: proof.into(),
+        idToReplace: private::U256::from(id_to_replace),
+        shaScriptPubkeys: private::FixedBytes::from(sha_script_pubkeys),
+    };
+
+    // Return the encoded calldata (without the function selector)
+    let data = call.abi_encode();
+    tracing::debug!("replaceDeposit data: {:?}", data);
     data[4..].to_vec()
 }
 

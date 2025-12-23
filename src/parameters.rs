@@ -2,7 +2,7 @@
 
 use crate::bitcoin_merkle::BitcoinMerkleTree;
 use crate::errors::BridgeCliError;
-use crate::types::encode_citrea_deposit_params;
+use crate::types::{encode_citrea_deposit_params, encode_citrea_replace_deposit_params};
 
 use eyre::Result;
 
@@ -225,6 +225,45 @@ pub(crate) fn get_citrea_deposit_params(
     let data = encode_citrea_deposit_params(
         &move_to_vault_tx_struct,
         &move_to_vault_tx_mp,
+        sha_script_pks,
+    );
+    Ok(data)
+}
+
+pub(crate) fn get_citrea_replace_deposit_params(
+    prevout: TxOut,
+    replace_tx: &Transaction,
+    replace_tx_block: &Block,
+    replace_tx_block_height: u32,
+    id_to_replace: u64,
+) -> Result<Vec<u8>, BridgeCliError> {
+    let replace_tx_struct = get_transaction_details_for_citrea(replace_tx)?;
+
+    let replace_tx_mp = get_transaction_merkle_proof_for_citrea(
+        replace_tx_block_height,
+        replace_tx_block,
+        replace_tx.compute_txid(),
+        true,
+    )?;
+
+    let mut enc_script_pubkeys = sha256::Hash::engine();
+
+    prevout
+        .script_pubkey
+        .consensus_encode(&mut enc_script_pubkeys)
+        .unwrap();
+    let sha_script_pubkeys = sha256::Hash::from_engine(enc_script_pubkeys);
+
+    let sha_script_pks: [u8; 32] = sha_script_pubkeys
+        .as_byte_array()
+        .to_vec()
+        .try_into()
+        .unwrap();
+
+    let data = encode_citrea_replace_deposit_params(
+        &replace_tx_struct,
+        &replace_tx_mp,
+        id_to_replace,
         sha_script_pks,
     );
     Ok(data)

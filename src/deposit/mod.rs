@@ -7,7 +7,7 @@ use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
-use crate::parameters::get_citrea_deposit_params;
+use crate::parameters::{get_citrea_deposit_params, get_citrea_replace_deposit_params};
 use crate::secure_types::SecureKeypair;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
@@ -169,6 +169,33 @@ pub async fn get_deposit_params(
         &move_to_vault_tx,
         &move_to_vault_block,
         move_to_vault_block_height,
+    )?;
+
+    Ok(deposit_params)
+}
+
+pub async fn get_replacement_deposit_params(
+    move_to_vault_txid: &Txid,
+    id_to_replace: u64,
+    config: &BridgeCliConfig,
+) -> Result<Vec<u8>, BridgeCliError> {
+    // Get the replacement tx details
+    let (replace_tx, replace_tx_block, replace_tx_block_height) =
+        get_tx_details(move_to_vault_txid, config).await?;
+
+    let replace_txout = get_txout_details(
+        config,
+        &replace_tx.input[0].previous_output.txid,
+        replace_tx.input[0].previous_output.vout,
+    )
+    .await?;
+
+    let deposit_params = get_citrea_replace_deposit_params(
+        replace_txout,
+        &replace_tx,
+        &replace_tx_block,
+        replace_tx_block_height,
+        id_to_replace,
     )?;
 
     Ok(deposit_params)

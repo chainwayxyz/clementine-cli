@@ -14,8 +14,8 @@ use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
     config::BridgeCliConfig,
-    deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
-    print_all_wallets_with_addresses,
+    deposit, get_deposit_params, get_replacement_deposit_params, handle_cli_command,
+    parse_citrea_address, print_all_wallets_with_addresses,
     structs::TaprootAddressWithPrefix,
     wallet::{Purpose, parse_address, parse_taproot_address},
     withdraw,
@@ -238,6 +238,15 @@ enum DepositCommands {
     GetDepositParams {
         /// Move-to-vault transaction ID (txid)
         move_to_vault_txid: String,
+        #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
+        network: CliNetwork,
+    },
+    /// Get replacement deposit parameters for a move-to-vault transaction that replaces an existing deposit.
+    GetReplacementDepositParams {
+        /// Move-to-vault transaction ID (txid)
+        move_to_vault_txid: String,
+        /// The deposit ID to replace (from the bridge contract)
+        id_to_replace: u64,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -588,6 +597,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     get_deposit_params(&move_to_vault_txid, &config),
                     params => {
                         println!("Deposit parameters hex: {}", hex::encode(params));
+                    }
+                );
+            }
+            DepositCommands::GetReplacementDepositParams {
+                move_to_vault_txid,
+                id_to_replace,
+                network,
+            } => {
+                let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
+                let move_to_vault_txid = handle_simple_call!(Txid::from_str(&move_to_vault_txid));
+                handle_cli_command!(async
+                    get_replacement_deposit_params(&move_to_vault_txid, id_to_replace, &config),
+                    params => {
+                        println!("Replacement deposit parameters hex: {}", hex::encode(params));
                     }
                 );
             }

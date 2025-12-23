@@ -36,7 +36,8 @@ pub use wallet::{
 
 // Deposit operations
 pub use deposit::{
-    RecoveryTxParams, create_signed_recovery_tx, get_deposit_params, verify_recovery_tx,
+    RecoveryTxParams, create_signed_recovery_tx, get_deposit_params, get_replacement_deposit_params,
+    verify_recovery_tx,
 };
 
 // Withdrawal operations
