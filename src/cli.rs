@@ -1,6 +1,5 @@
 use std::{
-    fs,
-    io,
+    fs, io,
     io::Write,
     path::{Path, PathBuf},
     str::FromStr,
