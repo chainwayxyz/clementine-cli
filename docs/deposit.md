@@ -117,7 +117,7 @@ Gather all necessary information on your online device:
 **AIRGAPPED DEVICE ONLY:** Transfer recovery data to airgapped device and generate signed recovery transaction:
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT>
+clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT> <CLEMENTINE_AGGREGATED_KEY>
 ```
 
 **Example:**
@@ -143,7 +143,7 @@ clementine-cli deposit create-signed-recovery-tx --network testnet deptb1pd... 0
 **Online Device:** Verify the recovery transaction details before broadcasting:
 
 ```sh
-clementine-cli deposit verify-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT]
+clementine-cli deposit verify-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TX> <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> [AMOUNT] <CLEMENTINE_AGGREGATED_KEY>
 ```
 
 ### Broadcast Recovery Transaction (Online Device)
