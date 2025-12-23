@@ -123,9 +123,9 @@ clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <
 **Example:**
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
+clementine-cli deposit create-signed-recovery-tx deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10 1e0f48f81dfa14...6bf7
 # For testnet4
-clementine-cli deposit create-signed-recovery-tx --network testnet deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10
+clementine-cli deposit create-signed-recovery-tx --network testnet deptb1pd... 0x742d35... abc123def456...:0 tb1qe... 1 10 1e0f48f81dfa14...6bf7
 ```
 
 > [!IMPORTANT]
