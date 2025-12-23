@@ -378,7 +378,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 address,
             } => {
                 handle_cli_command!(
-                    cli_backup_wallet(&address, &destination),
+                    async cli_backup_wallet(&address, &destination),
                     (addr, dest) => {
                         println!(
                             "Backup completed for address {} to destination {}",

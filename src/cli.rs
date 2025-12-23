@@ -44,7 +44,6 @@ use crate::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
-        wallet_storage::get_storage_dir,
         wallet_utils::{
             WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
             parse_and_validate_imported_wallet, validate_wallet_availability,
@@ -97,29 +96,6 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         "{} Storage directory initialized at: {}",
         "SUCCESS".bold(),
         clementine_home_dir.display()
-    );
-    let keys_dir = get_storage_dir()?;
-    std::fs::create_dir_all(&keys_dir).map_err(|e| {
-        tracing::error!(
-            "Failed to create keys directory {}: {}",
-            keys_dir.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre!(
-            "Failed to create keys directory {}",
-            keys_dir.display()
-        ))
-    })?;
-
-    #[cfg(unix)]
-    {
-        set_permissions(&keys_dir, 0o700)?;
-    }
-
-    println!(
-        "{} Keys directory initialized at: {}",
-        "SUCCESS".bold(),
-        keys_dir.display()
     );
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
@@ -740,7 +716,7 @@ pub async fn cli_create_wallet(
     Ok(address)
 }
 
-pub fn cli_backup_wallet(
+pub async fn cli_backup_wallet(
     address_with_prefix: &str,
     destination_path: &str,
 ) -> Result<(TaprootAddressWithPrefix<NetworkUnchecked>, PathBuf), BridgeCliError> {
@@ -750,7 +726,7 @@ pub fn cli_backup_wallet(
     ensure_wallet_exists(&address)?;
 
     let dest_path = Path::new(destination_path);
-    let final_dest = backup_wallet(&address, dest_path)?;
+    let final_dest = backup_wallet(&address, dest_path).await?;
 
     Ok((address, final_dest))
 }

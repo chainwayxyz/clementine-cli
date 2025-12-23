@@ -39,15 +39,14 @@ use bitcoin::Network;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
 use std::fs;
 use std::path::Path;
-use std::path::PathBuf;
 
 use crate::errors::BridgeCliError;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::sqlite_db::wallet_db::WalletData;
+use crate::sqlite_db::wallet_db::{WalletData, WalletRaw};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
-use crate::{get_clementine_home_dir, sqlite_db};
+use crate::sqlite_db;
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
@@ -98,46 +97,47 @@ where
     Ok(wallet_data)
 }
 
-/// Get the storage directory path
-pub(crate) fn get_storage_dir() -> Result<PathBuf, BridgeCliError> {
-    let home_dir = get_clementine_home_dir()?;
-    Ok(home_dir.join("keys"))
-}
-
-pub(crate) fn get_storage_dir_with_existence_check() -> Result<PathBuf, BridgeCliError> {
-    let storage_dir = get_storage_dir()?;
-    if !storage_dir.exists() {
-        return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Storage directory does not exist: {}, please run 'clementine-cli init' to create it.",
-            storage_dir.display()
-        )));
-    }
-    Ok(storage_dir)
-}
-
 /// Copy a wallet file to a destination, creating parent directories if needed.
-pub(crate) fn copy_wallet_file_to_destination(
+pub(crate) async fn extract_wallet_data_to_file(
     address: &TaprootAddressWithPrefix<NetworkUnchecked>,
     destination_path: &Path,
 ) -> Result<std::path::PathBuf, BridgeCliError> {
     let wallet_file_name = format!("wallet_{}.json", address.address_without_prefix());
-    let storage_dir = get_storage_dir_with_existence_check()?;
-    let wallet_file = storage_dir.join(wallet_file_name.clone());
 
-    // If destination is a directory, create the filename
+    let sqlite_client = SqliteDb::open_with_schema().await?;
+
+    let wallet_data: WalletRaw =  match sqlite_db::wallet_db::WalletTable::get_wallet_by_address(&sqlite_client.pool(), address.clone()).await? {
+        Some(wallet_data) => {
+            wallet_data.into()
+        },
+        None => {
+            return Err(BridgeCliError::Eyre(eyre::eyre!(
+                "Wallet with address {} not found in database.",
+                address.address_with_prefix()
+            )));
+        }
+    };
+    
     let final_dest = if destination_path.is_dir() {
         destination_path.join(wallet_file_name)
     } else {
         destination_path.to_path_buf()
     };
 
-    // Create parent directories if they don't exist
     if let Some(parent) = final_dest.parent() {
         fs::create_dir_all(parent)?;
     }
 
-    // Copy the wallet file
-    fs::copy(&wallet_file, &final_dest)?;
+    fs::write(
+        &final_dest,
+        serde_json::to_string_pretty(&wallet_data)?,
+    ).map_err(|e| {
+        tracing::error!("Failed to write wallet data to file {}: {}", final_dest.display(), e);
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to write wallet data to file {}",
+            final_dest.display(),
+        ))
+    })?;
 
     Ok(final_dest)
 }

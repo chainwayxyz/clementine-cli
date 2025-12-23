@@ -128,14 +128,12 @@ pub enum BridgeCliError {
     WalletStorageFailed,
     #[error("Network mismatch: wallet is {0}, expected {1}")]
     NetworkMismatch(String, String),
-    #[error("Invalid private key: {0}")]
-    InvalidPrivateKey(String),
-    #[error("Failed to parse wallets.json: {0}")]
-    WalletsJsonParseFailed(String),
     #[error("Wallet file does not exist: {0}")]
     WalletFileNotFound(String),
     #[error("Path is not a file: {0}")]
     PathNotAFile(String),
+    #[error("Invalid private key: {0}")]
+    InvalidPrivateKey(String),
     #[error("Invalid wallet file: missing network field")]
     MissingNetworkField,
     #[error("Invalid wallet file: missing encrypted_mnemonic field")]

@@ -52,7 +52,7 @@ use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
 use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::passphrase::prompt_passphrase;
-use crate::wallet::wallet_storage::copy_wallet_file_to_destination;
+use crate::wallet::wallet_storage::extract_wallet_data_to_file;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::wallet::wallet_utils::{
@@ -108,13 +108,13 @@ pub async fn create_encrypted_wallet(
 }
 
 /// Backup a wallet file to a specified destination
-pub fn backup_wallet(
+pub async fn backup_wallet(
     address: &TaprootAddressWithPrefix<NetworkUnchecked>,
     destination_path: &Path,
 ) -> Result<PathBuf, BridgeCliError> {
     ensure_wallet_exists(address)?;
 
-    let final_dest = copy_wallet_file_to_destination(address, destination_path)?;
+    let final_dest = extract_wallet_data_to_file(address, destination_path).await?;
 
     // Set secure file permissions on Unix systems
     #[cfg(unix)]
