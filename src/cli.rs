@@ -1,6 +1,6 @@
-use std::io::Write;
 use std::{
-    io,
+    fs, io,
+    io::Write,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -146,14 +146,39 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         }
     }
 
-    let mut default_cfgs = config::default_networks();
-    setup_networks(&mut default_cfgs)?;
-    config::write_config_to(&config_file, &default_cfgs)?;
+    let mut cfgs = if config_file.exists() {
+        let contents = fs::read_to_string(&config_file).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to read existing configuration '{}': {}",
+                config_file.display(),
+                e
+            ))
+        })?;
+
+        toml::from_str::<NetworkConfigs>(&contents).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to parse existing configuration '{}': {}",
+                config_file.display(),
+                e
+            ))
+        })?
+    } else {
+        config::default_networks()
+    };
+
+    // Reset mainnet/testnet4 to defaults before interactive network setup,
+    // while keeping other config sections intact.
+    cfgs.bitcoin = BridgeCliConfig::defaults_for(Network::Bitcoin);
+    cfgs.testnet4 = BridgeCliConfig::defaults_for(Network::Testnet4);
+
+    setup_networks(&mut cfgs)?;
+    config::write_config_to(&config_file, &cfgs)?;
     println!(
         "{} Default configuration file created at: {}",
         "SUCCESS".bold(),
         config_file.display()
     );
+    println!("Clementine CLI initialized successfully.");
     Ok(())
 }
 
