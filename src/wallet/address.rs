@@ -146,22 +146,21 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     }
 
     wallets.sort_by_key(|w| {
-        DateTime::parse_from_rfc3339(&w.created_at)
-            .unwrap_or_else(|_| {
-                tracing::warn!(
-                    "Failed to parse created_at timestamp '{}' for wallet '{}'",
-                    w.created_at,
-                    w.label
-                );
-                DateTime::<chrono::Utc>::from_timestamp(0, 0)
-                    .unwrap()
-                    .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-            })
+        DateTime::parse_from_rfc3339(&w.created_at).unwrap_or_else(|_| {
+            tracing::warn!(
+                "Failed to parse created_at timestamp '{}' for wallet '{}'",
+                w.created_at,
+                w.label
+            );
+            DateTime::<chrono::Utc>::from_timestamp(0, 0)
+                .unwrap()
+                .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
+        })
     });
 
     let (mainnet, others): (Vec<_>, Vec<_>) = wallets
         .into_iter()
-        .partition(|w| w.network.to_string() == "bitcoin");
+        .partition(|w| w.network == "bitcoin");
 
     fn print_wallet_section(
         section_title: &str,
@@ -181,13 +180,10 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             } else {
                 "".to_string()
             };
-            let network = format!("Network: {}", wallet.network.to_string());
+            let network = format!("Network: {}", wallet.network);
             println!(
                 "Label: {} -> Address: {}, {}{}",
-                &wallet.label,
-                &wallet.address,
-                network,
-                import_info,
+                &wallet.label, &wallet.address, network, import_info,
             );
         }
         Ok(())

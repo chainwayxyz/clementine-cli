@@ -41,12 +41,12 @@ use std::fs;
 use std::path::Path;
 
 use crate::errors::BridgeCliError;
+use crate::sqlite_db;
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
-use crate::sqlite_db;
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
@@ -59,12 +59,12 @@ pub(crate) async fn store_wallet_data(
     import_method: Option<&str>,
     label: &str,
 ) -> Result<(), BridgeCliError> {
-    validate_wallet_availability(Some(label), Some(address), WalletValidationMode::Both)?;
+    validate_wallet_availability(Some(label), Some(address), WalletValidationMode::Both).await?;
 
     let wallet_data = WalletData {
         label: label.to_string(),
         address: address.clone(),
-        network: network,
+        network,
         encrypted_mnemonic: Some(encrypted_data_to_hex(encrypted_mnemonic)),
         encrypted_private_key: Some(encrypted_data_to_hex(encrypted_private_key)),
         created_at: chrono::Utc::now(),
@@ -74,7 +74,7 @@ pub(crate) async fn store_wallet_data(
     };
 
     let sqlite_client = SqliteDb::open_with_schema().await?;
-    sqlite_db::wallet_db::WalletTable::insert_wallet(&sqlite_client.pool(), &wallet_data).await?;
+    sqlite_db::wallet_db::WalletTable::insert_wallet(sqlite_client.pool(), &wallet_data).await?;
 
     Ok(())
 }
@@ -89,7 +89,7 @@ where
 {
     let sqlite_client = SqliteDb::open_with_schema().await?;
     let wallet_data = sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
-        &sqlite_client.pool(),
+        sqlite_client.pool(),
         address.clone(),
     )
     .await?;
@@ -107,7 +107,7 @@ pub(crate) async fn extract_wallet_data_to_file(
     let sqlite_client = SqliteDb::open_with_schema().await?;
 
     let wallet_data: WalletExport = match sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
-        &sqlite_client.pool(),
+        sqlite_client.pool(),
         address.clone(),
     )
     .await?
@@ -120,7 +120,7 @@ pub(crate) async fn extract_wallet_data_to_file(
             )));
         }
     };
-    
+
     let final_dest = if destination_path.is_dir() {
         destination_path.join(wallet_file_name)
     } else {
@@ -131,11 +131,12 @@ pub(crate) async fn extract_wallet_data_to_file(
         fs::create_dir_all(parent)?;
     }
 
-    fs::write(
-        &final_dest,
-        serde_json::to_string_pretty(&wallet_data)?,
-    ).map_err(|e| {
-        tracing::error!("Failed to write wallet data to file {}: {}", final_dest.display(), e);
+    fs::write(&final_dest, serde_json::to_string_pretty(&wallet_data)?).map_err(|e| {
+        tracing::error!(
+            "Failed to write wallet data to file {}: {}",
+            final_dest.display(),
+            e
+        );
         BridgeCliError::Eyre(eyre::eyre!(
             "Failed to write wallet data to file {}",
             final_dest.display(),

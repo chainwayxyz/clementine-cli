@@ -31,8 +31,8 @@ pub mod sqlite_db;
 // Wallet operations
 pub use wallet::{
     backup_wallet, create_encrypted_wallet, get_mnemonic_from_wallet, get_private_key_from_wallet,
-    import_wallet_from_file, import_wallet_from_mnemonic,
-    import_wallet_from_private_key, print_all_wallets_with_addresses,
+    import_wallet_from_file, import_wallet_from_mnemonic, import_wallet_from_private_key,
+    print_all_wallets_with_addresses,
 };
 
 // Deposit operations

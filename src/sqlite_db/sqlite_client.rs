@@ -1,7 +1,8 @@
 use std::path::PathBuf;
 
 use eyre::Context;
-use sqlx::sqlite::SqlitePoolOptions;
+use sqlx::migrate::Migrator;
+use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 
 use crate::errors::BridgeCliError;
@@ -17,6 +18,8 @@ pub struct SqliteDb {
     pool: Pool<Sqlite>,
 }
 
+static MIGRATOR: Migrator = sqlx::migrate!();
+
 impl SqliteDb {
     pub async fn open() -> Result<Self, BridgeCliError> {
         let path = sqlite_db_path()?;
@@ -25,11 +28,13 @@ impl SqliteDb {
             std::fs::create_dir_all(parent).wrap_err("Failed to create DB directory")?;
         }
 
-        let url = format!("sqlite:{}", path.display());
+        let options = SqliteConnectOptions::new()
+            .filename(&path)
+            .create_if_missing(true);
 
         let pool = SqlitePoolOptions::new()
             .max_connections(5)
-            .connect(&url)
+            .connect_with(options)
             .await
             .wrap_err("Failed to open SQLite database with sqlx")?;
 
@@ -39,7 +44,10 @@ impl SqliteDb {
     pub async fn open_with_schema() -> Result<Self, BridgeCliError> {
         let db = Self::open().await?;
 
-        crate::sqlite_db::wallet_db::WalletTable::ensure_exists(db.pool()).await?;
+        MIGRATOR.run(db.pool()).await.map_err(|e| {
+            tracing::error!("Failed to run database migrations: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to run database migrations"))
+        })?;
 
         Ok(db)
     }
@@ -51,15 +59,4 @@ impl SqliteDb {
 
 pub trait SqliteTable {
     const TABLE_NAME: &'static str;
-
-    const CREATE_SQL: &'static str;
-
-    async fn ensure_exists(pool: &Pool<Sqlite>) -> Result<(), BridgeCliError> {
-        sqlx::query(Self::CREATE_SQL)
-            .execute(pool)
-            .await
-            .wrap_err_with(|| format!("Failed to create table {}", Self::TABLE_NAME))?;
-
-        Ok(())
-    }
 }

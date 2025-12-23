@@ -55,9 +55,7 @@ use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
-use crate::wallet::wallet_utils::{
-    WalletValidationMode, validate_wallet_availability,
-};
+use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
@@ -83,7 +81,7 @@ pub async fn create_encrypted_wallet(
         })?;
 
     // Validate that both wallet name and address don't already exist
-    validate_wallet_availability(Some(&label), Some(&address), WalletValidationMode::Both)?;
+    validate_wallet_availability(Some(&label), Some(&address), WalletValidationMode::Both).await?;
 
     // Encrypt mnemonic and private key separately with different nonces
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)?;
@@ -102,7 +100,8 @@ pub async fn create_encrypted_wallet(
         false,
         None,
         &label,
-    ).await?;
+    )
+    .await?;
 
     Ok((address, mnemonic))
 }
@@ -112,7 +111,7 @@ pub async fn backup_wallet(
     address: &TaprootAddressWithPrefix<NetworkUnchecked>,
     destination_path: &Path,
 ) -> Result<PathBuf, BridgeCliError> {
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address).await?;
 
     let final_dest = extract_wallet_data_to_file(address, destination_path).await?;
 
@@ -135,7 +134,7 @@ pub async fn import_wallet_from_mnemonic(
     purpose: Purpose,
     mnemonic: Mnemonic,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
+    validate_wallet_availability(Some(label), None, WalletValidationMode::Label).await?;
 
     // Generate address from mnemonic using helper function
     let address = generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
@@ -143,7 +142,7 @@ pub async fn import_wallet_from_mnemonic(
         BridgeCliError::AddressGenerationFromMnemonicFailed
     })?;
 
-    validate_wallet_availability(None, Some(&address), WalletValidationMode::Address)?;
+    validate_wallet_availability(None, Some(&address), WalletValidationMode::Address).await?;
     let _address_str = address.address_with_prefix();
 
     let passphrase = prompt_passphrase(true)?;
@@ -174,7 +173,8 @@ pub async fn import_wallet_from_mnemonic(
         true,
         Some("mnemonic_import"),
         label,
-    ).await?;
+    )
+    .await?;
 
     Ok(address)
 }
@@ -186,7 +186,7 @@ pub async fn import_wallet_from_file(
     passphrase: SecureString,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Parse and validate the wallet file using helper function
-    let wallet_data = parse_and_validate_imported_wallet(file_path, label)?;
+    let wallet_data = parse_and_validate_imported_wallet(file_path, label).await?;
 
     let encrypted_mnemonic_hex = wallet_data.encrypted_mnemonic.as_ref().unwrap();
     let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
@@ -260,7 +260,8 @@ pub async fn import_wallet_from_file(
         true,
         Some("file_import"),
         label,
-    ).await?;
+    )
+    .await?;
 
     Ok(wallet_address)
 }
@@ -328,7 +329,8 @@ pub async fn import_wallet_from_private_key(
         true,
         Some("private_key_import"),
         label,
-    ).await?;
+    )
+    .await?;
 
     Ok(address)
 }
@@ -341,7 +343,7 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address).await?;
 
     let mnemonic = load_mnemonic(address, passphrase).await?;
 
@@ -356,7 +358,7 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address).await?;
     let keypair = load_key(address, passphrase).await?;
 
     Ok(keypair.secret_key())

@@ -370,12 +370,12 @@ pub async fn get_deposit_params(
 
 /// Creates a signed raw transaction that can collect unminted funds from the
 /// deposit transaction after 200 blocks.
-pub fn create_signed_recovery_tx(
+pub async fn create_signed_recovery_tx(
     params: RecoveryTxParams,
     config: &BridgeCliConfig,
     keypair: SecureKeypair,
 ) -> Result<Transaction, BridgeCliError> {
-    ensure_wallet_exists(&params.recovery_taproot_address)?;
+    ensure_wallet_exists(&params.recovery_taproot_address).await?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = convert_btc_to_amount(params.amount)?;

@@ -51,7 +51,7 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address).await?;
 
     let wallet_data = load_wallet_data(address).await?.ok_or_else(|| {
         BridgeCliError::Eyre(eyre::eyre!(
@@ -170,26 +170,22 @@ pub(crate) fn validate_private_key_import(
     Ok(())
 }
 
-pub(crate) fn label_exists(label: &str) -> Result<bool, BridgeCliError> {
-    tokio::runtime::Handle::current().block_on(async move {
-        let db = SqliteDb::open_with_schema().await?;
+pub(crate) async fn label_exists(label: &str) -> Result<bool, BridgeCliError> {
+    let db = SqliteDb::open_with_schema().await?;
 
-        WalletTable::label_exists(db.pool(), label).await
-    })
+    WalletTable::label_exists(db.pool(), label).await
 }
 
-pub(crate) fn address_exists<T>(
+pub(crate) async fn address_exists<T>(
     address: &TaprootAddressWithPrefix<T>,
 ) -> Result<bool, BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
-    tokio::runtime::Handle::current().block_on(async move {
-        let db = SqliteDb::open_with_schema().await?;
+    let db = SqliteDb::open_with_schema().await?;
 
-        WalletTable::address_exists(db.pool(), address).await
-    })
+    WalletTable::address_exists(db.pool(), address).await
 }
 
 /// Validation options for wallet creation and import operations
@@ -204,7 +200,7 @@ pub enum WalletValidationMode {
 }
 
 /// Combined validation function to check for conflicts during wallet operations
-pub(crate) fn validate_wallet_availability(
+pub(crate) async fn validate_wallet_availability(
     label: Option<&str>,
     address: Option<&TaprootAddressWithPrefix<NetworkChecked>>,
     mode: WalletValidationMode,
@@ -222,7 +218,7 @@ pub(crate) fn validate_wallet_availability(
         let label = label.ok_or_else(|| {
             BridgeCliError::Eyre(eyre::eyre!("Wallet label is required for validation"))
         })?;
-        if label_exists(label)? {
+        if label_exists(label).await? {
             return Err(BridgeCliError::LabelAlreadyExists(label.to_string()));
         }
     }
@@ -231,7 +227,7 @@ pub(crate) fn validate_wallet_availability(
         let address = address.ok_or_else(|| {
             BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
         })?;
-        if address_exists(address)? {
+        if address_exists(address).await? {
             return Err(BridgeCliError::AddressAlreadyExists(
                 address.address_with_prefix(),
             ));
@@ -242,7 +238,7 @@ pub(crate) fn validate_wallet_availability(
 }
 
 /// Parse and validate an imported wallet file
-pub(crate) fn parse_and_validate_imported_wallet(
+pub(crate) async fn parse_and_validate_imported_wallet(
     file_path: &Path,
     label: Option<&str>,
 ) -> Result<WalletData, BridgeCliError> {
@@ -291,7 +287,8 @@ pub(crate) fn parse_and_validate_imported_wallet(
         Some(label),
         Some(&wallet_address),
         WalletValidationMode::Both,
-    )?;
+    )
+    .await?;
 
     // Check if encrypted data exists
     if wallet_data.encrypted_mnemonic.is_none() {
@@ -307,14 +304,14 @@ pub(crate) fn parse_and_validate_imported_wallet(
     Ok(wallet_data)
 }
 
-pub(crate) fn ensure_wallet_exists<T>(
+pub(crate) async fn ensure_wallet_exists<T>(
     address: &crate::structs::TaprootAddressWithPrefix<T>,
 ) -> Result<(), crate::errors::BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    if !address_exists(address)? {
+    if !address_exists(address).await? {
         return Err(crate::errors::BridgeCliError::WalletNotFound(
             address.address_without_prefix(),
         ));

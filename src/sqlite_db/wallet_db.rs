@@ -5,7 +5,7 @@ use crate::{errors::BridgeCliError, structs::TaprootAddressWithPrefix};
 use bitcoin::address::{NetworkChecked, NetworkValidation};
 use bitcoin::{Address, Network};
 use chrono::{DateTime, Utc};
-use eyre::{eyre, Context};
+use eyre::{Context, eyre};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
 use sqlx::{FromRow, Pool, Sqlite};
@@ -83,11 +83,11 @@ impl TryFrom<WalletExport> for WalletData {
 
         let address = TaprootAddressWithPrefix::from_string_with_prefix(&export.address, network)
             .map_err(|e| {
-                BridgeCliError::Eyre(eyre!(
-                    "Invalid address '{}' stored in wallet export: {e}",
-                    export.address
-                ))
-            })?;
+            BridgeCliError::Eyre(eyre!(
+                "Invalid address '{}' stored in wallet export: {e}",
+                export.address
+            ))
+        })?;
 
         let created_at = DateTime::parse_from_rfc3339(&export.created_at)
             .map_err(|e| {
@@ -156,18 +156,18 @@ impl TryFrom<WalletRaw> for WalletData {
     }
 }
 
-impl Into<WalletRaw> for WalletData {
-    fn into(self) -> WalletRaw {
+impl From<WalletData> for WalletRaw {
+    fn from(data: WalletData) -> WalletRaw {
         WalletRaw {
-            label: self.label,
-            address: self.address.address_with_prefix(),
-            network: self.network.to_string(),
-            encrypted_mnemonic: self.encrypted_mnemonic.map(|v| Json(v)),
-            encrypted_private_key: self.encrypted_private_key.map(|v| Json(v)),
-            created_at: self.created_at.to_rfc3339(),
-            encryption_method: self.encryption_method,
-            imported: self.imported,
-            import_method: self.import_method,
+            label: data.label,
+            address: data.address.address_with_prefix(),
+            network: data.network.to_string(),
+            encrypted_mnemonic: data.encrypted_mnemonic.map(Json),
+            encrypted_private_key: data.encrypted_private_key.map(Json),
+            created_at: data.created_at.to_rfc3339(),
+            encryption_method: data.encryption_method,
+            imported: data.imported,
+            import_method: data.import_method,
         }
     }
 }
@@ -186,21 +186,6 @@ pub struct WalletTable;
 
 impl SqliteTable for WalletTable {
     const TABLE_NAME: &'static str = "wallets";
-
-    const CREATE_SQL: &'static str = r#"
-        CREATE TABLE IF NOT EXISTS wallets (
-            id                     INTEGER PRIMARY KEY AUTOINCREMENT,
-            label                  TEXT    NOT NULL UNIQUE,
-            address                TEXT    NOT NULL UNIQUE,
-            network                TEXT    NOT NULL,
-            encrypted_mnemonic     TEXT,
-            encrypted_private_key  TEXT,
-            created_at             TEXT    NOT NULL,
-            encryption_method      TEXT    NOT NULL,
-            imported               INTEGER,
-            import_method          TEXT
-        );
-    "#;
 }
 
 impl WalletTable {
@@ -270,13 +255,10 @@ impl WalletTable {
         .await
         .wrap_err("Failed to fetch wallet by address from database")?;
 
-        Ok(row.map(WalletData::try_from).transpose()?)
+        row.map(WalletData::try_from).transpose()
     }
 
-    pub async fn label_exists(
-        pool: &Pool<Sqlite>,
-        label: &str,
-    ) -> Result<bool, BridgeCliError> {
+    pub async fn label_exists(pool: &Pool<Sqlite>, label: &str) -> Result<bool, BridgeCliError> {
         let exists: Option<i64> = sqlx::query_scalar(&format!(
             "SELECT 1 FROM {} WHERE label = ?1 LIMIT 1",
             Self::TABLE_NAME
