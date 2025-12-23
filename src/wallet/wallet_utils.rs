@@ -20,7 +20,7 @@ use crate::secure_types::SecureKeypair;
 use crate::secure_types::SecureSecretKey;
 use crate::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::sqlite_db::wallet_db::WalletRaw;
+use crate::sqlite_db::wallet_db::WalletExport;
 use crate::sqlite_db::wallet_db::{WalletData, WalletTable};
 use crate::structs::AddrDisplay;
 use crate::structs::TaprootAddressWithPrefix;
@@ -262,7 +262,7 @@ pub(crate) fn parse_and_validate_imported_wallet(
 
     // Read and parse the wallet file
     let wallet_content = fs::read_to_string(file_path)?;
-    let wallet_data: WalletRaw = serde_json::from_str(&wallet_content).map_err(|e| {
+    let wallet_export: WalletExport = serde_json::from_str(&wallet_content).map_err(|e| {
         BridgeCliError::Eyre(eyre::eyre!(
             "Failed to parse wallet file '{}': {}",
             file_path.display(),
@@ -270,7 +270,7 @@ pub(crate) fn parse_and_validate_imported_wallet(
         ))
     })?;
 
-    let wallet_data: WalletData = wallet_data.try_into()?;
+    let wallet_data: WalletData = wallet_export.try_into()?;
 
     let network = wallet_data.network;
 

@@ -42,7 +42,7 @@ use std::path::Path;
 
 use crate::errors::BridgeCliError;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::sqlite_db::wallet_db::{WalletData, WalletRaw};
+use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
@@ -97,7 +97,7 @@ where
     Ok(wallet_data)
 }
 
-/// Copy a wallet file to a destination, creating parent directories if needed.
+/// Export a wallet to JSON at the destination path.
 pub(crate) async fn extract_wallet_data_to_file(
     address: &TaprootAddressWithPrefix<NetworkUnchecked>,
     destination_path: &Path,
@@ -106,10 +106,13 @@ pub(crate) async fn extract_wallet_data_to_file(
 
     let sqlite_client = SqliteDb::open_with_schema().await?;
 
-    let wallet_data: WalletRaw =  match sqlite_db::wallet_db::WalletTable::get_wallet_by_address(&sqlite_client.pool(), address.clone()).await? {
-        Some(wallet_data) => {
-            wallet_data.into()
-        },
+    let wallet_data: WalletExport = match sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
+        &sqlite_client.pool(),
+        address.clone(),
+    )
+    .await?
+    {
+        Some(wallet_data) => WalletExport::from(&wallet_data),
         None => {
             return Err(BridgeCliError::Eyre(eyre::eyre!(
                 "Wallet with address {} not found in database.",

@@ -24,6 +24,23 @@ pub(crate) struct WalletData {
     pub import_method: Option<String>,
 }
 
+/// Stable on-disk export/import format for wallets.
+///
+/// This exists to decouple backup files from the SQLx row mapping and DB schema.
+/// The DB schema can evolve without breaking existing wallet backups.
+#[derive(Debug, Serialize, Deserialize)]
+pub(crate) struct WalletExport {
+    pub label: String,
+    pub address: String,
+    pub network: String,
+    pub encrypted_mnemonic: Option<EncryptedDataHex>,
+    pub encrypted_private_key: Option<EncryptedDataHex>,
+    pub created_at: String,
+    pub encryption_method: String,
+    pub imported: Option<bool>,
+    pub import_method: Option<String>,
+}
+
 #[derive(Debug, FromRow, Serialize, Deserialize)]
 pub(crate) struct WalletRaw {
     label: String,
@@ -35,6 +52,64 @@ pub(crate) struct WalletRaw {
     encryption_method: String,
     imported: Option<bool>,
     import_method: Option<String>,
+}
+
+impl From<&WalletData> for WalletExport {
+    fn from(wallet: &WalletData) -> Self {
+        WalletExport {
+            label: wallet.label.clone(),
+            address: wallet.address.address_with_prefix(),
+            network: wallet.network.to_string(),
+            encrypted_mnemonic: wallet.encrypted_mnemonic.clone(),
+            encrypted_private_key: wallet.encrypted_private_key.clone(),
+            created_at: wallet.created_at.to_rfc3339(),
+            encryption_method: wallet.encryption_method.clone(),
+            imported: wallet.imported,
+            import_method: wallet.import_method.clone(),
+        }
+    }
+}
+
+impl TryFrom<WalletExport> for WalletData {
+    type Error = BridgeCliError;
+
+    fn try_from(export: WalletExport) -> Result<Self, Self::Error> {
+        let network = Network::from_str(&export.network).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Invalid network '{}' stored in wallet export: {e}",
+                export.network
+            ))
+        })?;
+
+        let address = TaprootAddressWithPrefix::from_string_with_prefix(&export.address, network)
+            .map_err(|e| {
+                BridgeCliError::Eyre(eyre!(
+                    "Invalid address '{}' stored in wallet export: {e}",
+                    export.address
+                ))
+            })?;
+
+        let created_at = DateTime::parse_from_rfc3339(&export.created_at)
+            .map_err(|e| {
+                BridgeCliError::Eyre(eyre!(
+                    "Invalid timestamp '{}' stored in wallet export: {e}",
+                    export.created_at
+                ))
+            })?
+            .with_timezone(&Utc);
+
+        Ok(WalletData {
+            label: export.label,
+            address,
+            network,
+            encrypted_mnemonic: export.encrypted_mnemonic,
+            encrypted_private_key: export.encrypted_private_key,
+            created_at,
+            encryption_method: export.encryption_method,
+            imported: export.imported,
+            import_method: export.import_method,
+        })
+    }
 }
 
 impl TryFrom<WalletRaw> for WalletData {
