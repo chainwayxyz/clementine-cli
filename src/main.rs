@@ -94,7 +94,7 @@ enum Commands {
         /// Assume yes to all prompts, changes will be applied without confirmation
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
         yes: bool,
-        /// Key=value pairs to update, e.g. bridge_amount=123456 mempool_api_url=https://...
+        /// Key=value pairs to update, e.g. bridge_amount=123456 esplora_rest_api=https://...
         #[arg(required = true)]
         kv: Vec<String>,
     },
@@ -220,7 +220,6 @@ enum DepositCommands {
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
-        #[arg(long)]
         amount: Option<f64>,
         /// Clementine N-of-N aggregated public key
         n_of_n_key: String,
@@ -234,7 +233,7 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC.
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Bitcoin Esplora API or Bitcoin RPC.
     BroadcastRecoveryTx {
         /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,
@@ -247,6 +246,13 @@ enum DepositCommands {
         move_to_vault_txid: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
+    },
+    /// List all stored deposit addresses.
+    ListDepositAddresses,
+    /// Show stored details for a deposit address.
+    GetDepositAddressDetails {
+        /// Deposit address (taproot address funds were sent to)
+        deposit_address: String,
     },
 }
 
@@ -596,6 +602,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("Deposit parameters hex: {}", hex::encode(params));
                     }
                 );
+            }
+            DepositCommands::ListDepositAddresses => {
+                handle_cli_command!(cli_list_all_deposit_addresses());
+            }
+            DepositCommands::GetDepositAddressDetails { deposit_address } => {
+                handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
             }
         },
         Commands::Withdraw { command } => match command {

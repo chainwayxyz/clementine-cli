@@ -13,18 +13,19 @@ use bitcoin::{
 use colored::Colorize;
 use eyre::eyre;
 
-use dialoguer::{Input, Password, Select, theme::ColorfulTheme};
+use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::api_utils::get_block_height_for_tx;
-use crate::config::{BitcoinConfig, NetworkConfigs, ToSecretBox};
+use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
+use crate::config::NetworkConfigs;
+use crate::deposit::{
+    get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
+};
 use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
-    api_utils::{
-        MempoolTx, UtxoInfo, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
-    },
+    api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
     backend::{
         backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
     },
@@ -170,201 +171,94 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-/// Prompt the user for RPC connection inputs.
-///
-/// Returns a tuple of (url, user, password) as plain strings. The caller
-/// may reuse these values for validation or confirmation flows.
-fn collect_rpc_inputs(
-    theme: &ColorfulTheme,
-    net_name: &str,
-    existing: Option<&BitcoinConfig>,
-) -> Result<(String, String, String)> {
-    let url_s: String = Input::with_theme(theme)
-        .with_prompt(format!(
-            "[{}] RPC URL (Add `/wallet/name` if necessary)",
-            net_name
-        ))
-        .default(
-            existing
-                .map(|c| c.url.as_str())
-                .unwrap_or("http://127.0.0.1:18443/")
-                .to_string(),
-        )
-        .interact_text()?;
-
-    let user_s: String = Input::with_theme(theme)
-        .with_prompt(format!("[{}] RPC user", net_name))
-        .interact_text()?;
-
-    // allow empty password (user can hit Enter)
-    let pass_s: String = Password::with_theme(theme)
-        .with_prompt(format!("[{}] RPC password (may be empty)", net_name))
-        .allow_empty_password(true)
-        .interact()?;
-
-    Ok((url_s, user_s, pass_s))
-}
-
-/// Interactively review and (optionally) edit RPC inputs.
-///
-/// Presents a confirmation menu and returns a validated `BitcoinConfig`
-/// on success or an error if the user cancels or validation fails.
-fn review_rpc_inputs(
-    theme: &ColorfulTheme,
-    mut url_s: String,
-    mut user_s: String,
-    mut pass_s: String,
-) -> Result<BitcoinConfig> {
-    loop {
-        println!(
-            "\n✔ RPC URL · {}\n✔ RPC user · {}\n✔ RPC password · ********",
-            url_s, user_s
-        );
-
-        let choice = Select::with_theme(theme)
-            .with_prompt("Confirm details")
-            .items([
-                "Continue",
-                "Change URL",
-                "Change user",
-                "Show password",
-                "Change password",
-                "Cancel",
-            ])
-            .default(0)
-            .interact()?;
-
-        match choice {
-            0 => {
-                let url =
-                    Url::parse(&url_s).map_err(|e| eyre!("Invalid RPC URL '{}': {}", url_s, e))?;
-                if user_s.trim().is_empty() {
-                    return Err(eyre!("RPC user cannot be empty"));
-                }
-                return Ok(BitcoinConfig {
-                    url,
-                    user: user_s.to_secret_box(),
-                    password: pass_s.to_secret_box(),
-                });
-            }
-            1 => {
-                url_s = Input::with_theme(theme)
-                    .with_prompt("New RPC URL")
-                    .default(url_s.clone())
-                    .interact_text()?;
-            }
-            2 => {
-                user_s = Input::with_theme(theme)
-                    .with_prompt("New RPC user")
-                    .default(user_s.clone())
-                    .interact_text()?;
-            }
-            3 => {
-                println!(
-                    "Password is: {}",
-                    if pass_s.is_empty() {
-                        "(empty)"
-                    } else {
-                        &pass_s
-                    }
-                );
-            }
-            4 => {
-                pass_s = Password::with_theme(theme)
-                    .with_prompt("New RPC password (may be empty)")
-                    .allow_empty_password(true)
-                    .interact()?;
-            }
-            5 => return Err(eyre!("Cancelled by user")),
-            _ => unreachable!(),
-        }
-    }
-}
-
-/// Collect and confirm RPC fields, returning a ready-to-use `BitcoinConfig`.
-///
-/// This is a thin helper that runs `collect_rpc_inputs` then `review_rpc_inputs`.
-fn prompt_rpc_fields(
-    theme: &ColorfulTheme,
-    net_name: &str,
-    existing: Option<&BitcoinConfig>,
-) -> Result<BitcoinConfig> {
-    let (url_s, user_s, pass_s) = collect_rpc_inputs(theme, net_name, existing)?;
-    review_rpc_inputs(theme, url_s, user_s, pass_s)
-}
-
 /// Interactive setup for the known Bitcoin networks.
 ///
-/// Walks through `mainnet`, `testnet4` prompting the user to
-/// choose a backend (mempool, RPC or both) and filling the
-/// provided `NetworkConfigs` structure accordingly.
+/// Prompts users to choose Bitcoin Esplora API provider for mainnet and testnet4.
+/// Signet and regtest use their default configurations without prompting.
 pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
     let theme = ColorfulTheme::default();
 
-    for (name, net) in [
-        ("mainnet", &mut cfgs.bitcoin),
-        ("testnet", &mut cfgs.testnet4),
-    ] {
-        println!("\n== Configure '{name}' network ==");
+    // All networks use Bitcoin Esplora API only (no Bitcoin Core RPC)
+    for net in [&mut cfgs.bitcoin, &mut cfgs.testnet4] {
+        net.bitcoin_config = None;
+    }
+
+    // Only prompt for mainnet and testnet4 configurations
+    let networks = [
+        (
+            "mainnet",
+            &mut cfgs.bitcoin,
+            "https://blockstream.info/api/",
+            "https://mempool.space/api/",
+        ),
+        (
+            "testnet4",
+            &mut cfgs.testnet4,
+            "https://blockstream.info/testnet4/api/",
+            "https://mempool.space/testnet4/api/",
+        ),
+    ];
+
+    for (name, net, blockstream_url, mempool_url) in networks {
+        println!(
+            "\n== Configure Bitcoin Esplora API for '{}' network ==",
+            name
+        );
 
         let choice = Select::with_theme(&theme)
-            .with_prompt("Choose backend option")
-            .items(["Both (mempool + rpc)", "Mempool only", "RPC only"])
-            .default(0)
+            .with_prompt(format!("Choose Bitcoin Esplora API provider for {}", name))
+            .items([
+                &format!("Blockstream.info ({})", blockstream_url),
+                &format!("Mempool.space ({})", mempool_url),
+                "Custom URL",
+            ])
+            .default(1) // Default to Mempool.space
             .interact()?;
 
-        match choice {
+        let api_url = match choice {
             0 => {
-                // both
-                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
-                net.bitcoin_config = Some(btc);
+                // Blockstream.info
+                Url::parse(blockstream_url).map_err(|e| eyre!("Invalid Blockstream URL: {}", e))?
             }
             1 => {
-                // mempool only
-                net.bitcoin_config = None;
+                // Mempool.space (keep existing default)
+                net.esplora_rest_api.clone().unwrap_or_else(|| {
+                    Url::parse(mempool_url).expect("Default mempool URL should be valid")
+                })
             }
             2 => {
-                // rpc only
-                let btc = prompt_rpc_fields(&theme, name, net.bitcoin_config.as_ref())?;
-                net.bitcoin_config = Some(btc);
-                net.mempool_api_url = None;
+                // Custom URL
+                let custom_url: String = Input::with_theme(&theme)
+                    .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
+                    .validate_with(|input: &String| -> Result<(), String> {
+                        Url::parse(input)
+                            .map(|_| ())
+                            .map_err(|e| format!("Invalid URL: {}", e))
+                    })
+                    .interact_text()?;
+
+                Url::parse(&custom_url).map_err(|e| eyre!("Invalid custom URL: {}", e))?
             }
             _ => unreachable!(),
+        };
+
+        // Ensure the URL ends with a slash
+        let mut url_str = api_url.to_string();
+        if !url_str.ends_with('/') {
+            url_str.push('/');
         }
 
-        // Configure Citrea RPC URL for this network
-        let current_rpc_display = net
-            .citrea_rpc_url
-            .as_ref()
-            .map(|u| u.as_str().to_string())
-            .unwrap_or_else(|| "None (disabled)".to_string());
+        net.esplora_rest_api = Some(
+            Url::parse(&url_str)
+                .map_err(|e| eyre!("Failed to parse URL with trailing slash: {}", e))?,
+        );
 
-        println!("Current Citrea RPC URL for '{name}': {current_rpc_display}",);
-
-        let default_input = net
-            .citrea_rpc_url
-            .as_ref()
-            .map(|u| u.as_str().to_string())
-            .unwrap_or_default();
-
-        let input: String = Input::with_theme(&theme)
-            .with_prompt("Citrea RPC URL (press Enter to keep current, type 'none' to disable)")
-            .default(default_input)
-            .interact_text()?;
-
-        let trimmed = input.trim();
-
-        if trimmed.eq_ignore_ascii_case("none")
-            || (trimmed.is_empty() && net.citrea_rpc_url.is_none())
-        {
-            net.citrea_rpc_url = None;
-        } else if trimmed.is_empty() {
-            // keep existing value
-        } else {
-            let url = Url::parse(trimmed)
-                .map_err(|e| eyre!("Invalid Citrea RPC URL '{}': {}", trimmed, e))?;
-            net.citrea_rpc_url = Some(url);
-        }
+        println!(
+            "{} {} Bitcoin Esplora API set to: {}",
+            "✓".bold().green(),
+            name,
+            net.esplora_rest_api.as_ref().unwrap()
+        );
     }
 
     Ok(())
@@ -916,7 +810,7 @@ pub async fn deposit_status(
     let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
         Err(e) => {
-            eprintln!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
+            eprintln!("ERROR Failed to fetch UTXOs from Esplora API: {}", e);
             vec![]
         }
     };
@@ -1043,23 +937,26 @@ pub async fn deposit_status(
         println!("{} {}", deposit_status_with_vout, refund_msg);
     }
 
-    let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
-        Ok(txs) => txs,
-        Err(e) => {
-            eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
-            vec![]
-        }
-    };
+    // Mempool transaction checking is only available with Esplora API
+    if config.esplora_rest_api.is_some() {
+        let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
+            Ok(txs) => txs,
+            Err(e) => {
+                eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
+                vec![]
+            }
+        };
 
-    if !mempool_txs.is_empty() {
-        println!(
-            "\n{} Deposit transactions in mempool for address {}:",
-            "INFO".bold(),
-            taproot_address
-        );
+        if !mempool_txs.is_empty() {
+            println!(
+                "\n{} Deposit transactions in mempool for address {}:",
+                "INFO".bold(),
+                taproot_address
+            );
 
-        for tx in &mempool_txs {
-            print_mempool_tx(&taproot_address, tx);
+            for tx in &mempool_txs {
+                print_mempool_tx(&taproot_address, tx);
+            }
         }
     }
 
@@ -1467,4 +1364,66 @@ pub async fn cli_verify_recovery_tx_with_validation(
     effective_config.aggregated_public_key = effective_key;
 
     deposit::verify_recovery_tx(params, &effective_config)
+}
+
+pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
+    let deposits = get_all_deposit_address_details().map_err(|e| {
+        tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
+    })?;
+
+    if deposits.is_empty() {
+        println!("No stored deposit addresses found.");
+    } else {
+        println!("Stored Deposit Address(es):");
+        for d in deposits {
+            println!(
+                "- Deposit address: {} | Network: {:?}",
+                d.deposit_address, d.network
+            );
+        }
+    }
+
+    Ok(())
+}
+
+pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
+    // check if deposit_address is a valid Bitcoin address
+    let _ = BitcoinAddress::from_str(deposit_address).map_err(|e| {
+        tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
+        BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
+    })?;
+    let details =
+        get_deposit_address_details_for_deposit_address(deposit_address).map_err(|e| {
+            tracing::error!(
+                "Failed to retrieve details for deposit address {}: {}",
+                deposit_address,
+                e
+            );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to retrieve details for deposit address {}",
+                deposit_address
+            ))
+        })?;
+
+    match details {
+        None => {
+            println!(
+                "No stored details found for deposit address {}",
+                deposit_address
+            );
+        }
+        Some(d) => {
+            println!("Deposit address details:");
+            println!("  Deposit address: {}", d.deposit_address);
+            println!("  Aggregated public key: {}", d.aggregated_public_key);
+            println!("  Recovery taproot address: {}", d.recovery_taproot_address);
+            println!("  Citrea address: {}", d.citrea_address);
+            println!("  User takes after: {} blocks", d.user_takes_after);
+            println!("  Network: {:?}", d.network);
+            println!("  Created at (unix timestamp): {}", d.created_at);
+        }
+    }
+
+    Ok(())
 }

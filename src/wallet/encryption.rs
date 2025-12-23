@@ -60,7 +60,6 @@
 
 use crate::secure_types::{SecureByteVec, SecureString};
 use crate::{errors::BridgeCliError, wallet::passphrase::derive_key_from_passphrase};
-use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::{Aes256Gcm, KeyInit, aead::Aead};
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
@@ -121,8 +120,8 @@ pub(crate) fn aes_encrypt_secure(
     })?;
 
     // Encrypt with AES-256-GCM
-    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
-    let nonce = GenericArray::from_slice(&nonce_bytes);
+    let cipher = Aes256Gcm::new(secure_key.expose_secret().into());
+    let nonce = (&nonce_bytes).into();
 
     let ciphertext = cipher
         .encrypt(nonce, secure_plaintext.expose_secret().as_bytes())
@@ -159,8 +158,8 @@ pub(crate) fn aes_decrypt_secure(
     })?;
 
     // Decrypt with AES-256-GCM (verifies authentication)
-    let cipher = Aes256Gcm::new(GenericArray::from_slice(secure_key.expose_secret()));
-    let nonce = GenericArray::from_slice(&encrypted_data.nonce);
+    let cipher = Aes256Gcm::new(secure_key.expose_secret().into());
+    let nonce = (&encrypted_data.nonce).into();
 
     let plaintext = cipher
         .decrypt(nonce, encrypted_data.ciphertext.as_ref())
