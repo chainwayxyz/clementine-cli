@@ -28,12 +28,12 @@
           linux-x86_64 = {
             cargoTarget = "x86_64-unknown-linux-musl";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = null;
+            pkgsCross = pkgs.pkgsCross.musl64;
           };
           aarch64-linux-gnu = {
             cargoTarget = "aarch64-unknown-linux-musl";
             buildOn = [ "aarch64-linux" ];
-            pkgsCross = null;
+            pkgsCross = pkgs.pkgsCross.aarch64-multiplatform-musl;
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
@@ -92,8 +92,6 @@
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-
-
             crossEnv = if cfg.pkgsCross != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
@@ -110,11 +108,9 @@
                 -C embed-bitcode=no \
                 --remap-path-prefix=${srcFiltered}=/src \
                 --remap-path-prefix=$NIX_BUILD_TOP=/build";
-                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-                "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+              "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+              "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
-
-
           in
           (rustPlatform.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
@@ -150,7 +146,7 @@
               targetPkgs.stdenv.cc
             ];
 
-            cargoLock = { 
+            cargoLock = {
               lockFile = ./Cargo.lock;
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
@@ -237,7 +233,7 @@
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
-            ] else [  ])
+            ] else [ ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
           shellHook = ''
