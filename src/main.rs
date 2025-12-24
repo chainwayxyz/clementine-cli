@@ -5,8 +5,8 @@ use clementine_cli::cli::{
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
     cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
     cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
-    cli_start_withdrawal, deposit_create_signed_recovery_tx,
-    deposit_status, send_withdrawal_signature, withdrawal_status,
+    cli_start_withdrawal, deposit_create_signed_recovery_tx, deposit_status,
+    send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
