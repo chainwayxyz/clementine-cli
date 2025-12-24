@@ -17,7 +17,6 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
 use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
@@ -47,6 +46,10 @@ use crate::{
         },
     },
     withdraw::{self, start_withdrawal},
+};
+use crate::{
+    api_utils::{get_block_height_for_tx, get_mempool_txs},
+    deposit::storage::DepositAddressStorageResult,
 };
 use crate::{
     config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
@@ -1038,8 +1041,18 @@ pub async fn cli_get_deposit_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    let deposit_address =
+    let (deposit_address, storage_result) =
         deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+
+    if storage_result == DepositAddressStorageResult::Exists {
+        println!(
+            "{} Deposit address {} already exists, please check the details using 'get-deposit-address-details' command.",
+            "INFO".bold(),
+            deposit_address
+        );
+        println!();
+    }
+
     Ok(deposit_address)
 }
 
@@ -1295,8 +1308,8 @@ pub async fn cli_generate_withdrawal_signatures(
     .await
 }
 
-pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
-    let deposits = get_all_deposit_address_details().map_err(|e| {
+pub async fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
+    let deposits = get_all_deposit_address_details().await.map_err(|e| {
         tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
         BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
     })?;
@@ -1316,14 +1329,15 @@ pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
+pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
     // check if deposit_address is a valid Bitcoin address
     let _ = BitcoinAddress::from_str(deposit_address).map_err(|e| {
         tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
         BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
     })?;
-    let details =
-        get_deposit_address_details_for_deposit_address(deposit_address).map_err(|e| {
+    let details = get_deposit_address_details_for_deposit_address(deposit_address)
+        .await
+        .map_err(|e| {
             tracing::error!(
                 "Failed to retrieve details for deposit address {}: {}",
                 deposit_address,

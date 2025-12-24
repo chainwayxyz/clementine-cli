@@ -1,11 +1,12 @@
 // Deposit-related commands and logic for Clementine CLI
 
-mod storage;
+pub(crate) mod storage;
 
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
+use crate::deposit::storage::DepositAddressStorageResult;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
@@ -102,7 +103,7 @@ pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-) -> Result<BitcoinAddress, BridgeCliError> {
+) -> Result<(BitcoinAddress, DepositAddressStorageResult), BridgeCliError> {
     crate::wallet::wallet_utils::validate_address_purpose(
         recovery_taproot_address,
         Purpose::Deposit,
@@ -114,7 +115,14 @@ pub async fn get_deposit_address(
     // Because backend is not available for regtest, don't cross check.
     if config.network == bitcoin::Network::Regtest {
         tracing::debug!("Regtest network is being used, not checking address against backend...");
-        return Ok(calculated_deposit_address);
+        let storage_result = store_deposit_record(
+            &calculated_deposit_address,
+            recovery_taproot_address,
+            citrea_address,
+            config,
+        )
+        .await?;
+        return Ok((calculated_deposit_address, storage_result));
     }
 
     // Call backend to create deposit account
@@ -129,8 +137,25 @@ pub async fn get_deposit_address(
         ));
     }
 
+    let storage_result = store_deposit_record(
+        &calculated_deposit_address,
+        recovery_taproot_address,
+        citrea_address,
+        config,
+    )
+    .await?;
+
+    Ok((calculated_deposit_address, storage_result))
+}
+
+async fn store_deposit_record(
+    deposit_address: &BitcoinAddress,
+    recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    citrea_address: &CitreaAddress,
+    config: &BridgeCliConfig,
+) -> Result<DepositAddressStorageResult, BridgeCliError> {
     let deposit_data = DepositData {
-        deposit_address: calculated_deposit_address.clone(),
+        deposit_address: deposit_address.clone(),
         recovery_taproot_address: recovery_taproot_address.into(),
         aggregated_public_key: config.aggregated_public_key,
         citrea_address: *citrea_address,
@@ -138,15 +163,13 @@ pub async fn get_deposit_address(
         network: config.network,
     };
 
-    store_deposit_address(&deposit_data).map_err(|e| {
+    store_deposit_address(&deposit_data).await.map_err(|e| {
         tracing::error!("Failed to store deposit address: {}", e);
         BridgeCliError::Eyre(eyre::eyre!(
             "Failed to store deposit address for recovery taproot address '{}'",
             recovery_taproot_address.address_with_prefix()
         ))
-    })?;
-
-    Ok(calculated_deposit_address)
+    })
 }
 
 pub async fn get_deposit_params(

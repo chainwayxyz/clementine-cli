@@ -582,10 +582,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             DepositCommands::ListDepositAddresses => {
-                handle_cli_command!(cli_list_all_deposit_addresses());
+                handle_cli_command!(async cli_list_all_deposit_addresses());
             }
             DepositCommands::GetDepositAddressDetails { deposit_address } => {
-                handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
+                handle_cli_command!(async cli_get_deposit_address_details(&deposit_address));
             }
         },
         Commands::Withdraw { command } => match command {
