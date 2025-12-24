@@ -3,7 +3,7 @@
 use std::str::FromStr;
 
 use crate::errors::BridgeCliError;
-use crate::{BitcoinAddress, config::BridgeCliConfig};
+use crate::{BitcoinAddress, config::BridgeCliConfig, parse_transaction_hex};
 use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
 use bitcoincore_rpc::{Client, RpcApi};
@@ -11,6 +11,19 @@ use eyre::{Context, eyre};
 use serde::Deserialize;
 use serde_json::Value;
 use url::Url;
+
+/// Helper macro to reduce duplication in API selection logic
+macro_rules! with_api {
+    ($config:expr, esplora => $esplora:expr, rpc => $rpc:expr) => {
+        if $config.esplora_rest_api.is_some() {
+            $esplora
+        } else if $config.bitcoin_config.is_some() {
+            $rpc
+        } else {
+            Err(BridgeCliError::Eyre(eyre!("No Bitcoin API configured")))
+        }
+    };
+}
 
 #[derive(Debug)]
 pub struct UtxoInfo {
@@ -30,7 +43,7 @@ pub struct UtxoStatus {
 }
 
 #[derive(Debug, serde::Deserialize)]
-pub struct MempoolSpaceUtxo {
+pub struct EsploraUtxo {
     pub txid: String,
     pub vout: u32,
     pub status: UtxoStatus,
@@ -63,22 +76,22 @@ async fn get_block_height_for_tx_from_rpc(
     Ok(block_height as u64)
 }
 
-async fn get_block_info_for_tx_from_mempool_space(
+async fn get_block_info_for_tx_from_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(u64, String), BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{txid}"))
-        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
+        .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
         .wrap_err("Failed to fetch transaction data: {}")?;
@@ -101,41 +114,35 @@ pub async fn get_block_height_for_tx(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
-    match get_block_info_for_tx_from_mempool_space(txid, config).await {
-        Ok((block_height, _)) => Ok(block_height),
-        Err(mempool_error) => {
-            tracing::warn!(
-                "Mempool API failed for get_block_height_for_tx: {}, falling back to Bitcoin RPC",
-                mempool_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                let rpc = config.connect_to_bitcoin_rpc().await?;
-                get_block_height_for_tx_from_rpc(&rpc, txid).await
-            } else {
-                Err(mempool_error)
-            }
+    with_api!(
+        config,
+        esplora => get_block_info_for_tx_from_esplora_api(txid, config)
+            .await
+            .map(|(height, _)| height),
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            get_block_height_for_tx_from_rpc(&rpc, txid).await
         }
-    }
+    )
 }
 
-/// Get transaction details using mempool API
-pub async fn get_tx_details_from_mempool(
+/// Get transaction details using Bitcoin Esplora Api
+pub async fn get_tx_details_from_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{txid}/hex"))
-        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
+        .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| eyre!("Failed to fetch transaction hex for {txid}: {e}"))?;
@@ -143,19 +150,19 @@ pub async fn get_tx_details_from_mempool(
         .text()
         .await
         .map_err(|e| eyre!("Failed to read transaction hex response for {txid}: {e}"))?;
-    let tx: Transaction = bitcoin::consensus::deserialize(&hex::decode(tx_hex)?)?;
+    let tx: Transaction = parse_transaction_hex(&tx_hex)?;
     tracing::debug!("tx: {:?}", tx);
 
-    let (block_height, block_hash) = get_block_info_for_tx_from_mempool_space(txid, config).await?;
+    let (block_height, block_hash) = get_block_info_for_tx_from_esplora_api(txid, config).await?;
     tracing::debug!("block_hash: {:?}", block_hash);
     tracing::debug!("block_height: {:?}", block_height);
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("block/{block_hash}/raw"))
-        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
+        .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
         .map_err(|e| eyre!("Failed to fetch block raw data for {block_hash}: {e}"))?;
@@ -191,30 +198,22 @@ pub async fn get_tx_details_from_rpc(
     Ok((tx, block, block_height as u32))
 }
 
-/// Get transaction details with automatic fallback
+/// Get transaction details
 pub async fn get_tx_details(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<(Transaction, Block, u32), BridgeCliError> {
-    match get_tx_details_from_mempool(txid, config).await {
-        Ok(result) => Ok(result),
-        Err(mempool_error) => {
-            tracing::warn!(
-                "Mempool API failed for get_tx_details: {}, falling back to Bitcoin RPC",
-                mempool_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                let rpc = config.connect_to_bitcoin_rpc().await?;
-                get_tx_details_from_rpc(&rpc, txid).await
-            } else {
-                Err(mempool_error)
-            }
+    with_api!(
+        config,
+        esplora => get_tx_details_from_esplora_api(txid, config).await,
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            get_tx_details_from_rpc(&rpc, txid).await
         }
-    }
+    )
 }
 
-/// Get transaction output details with automatic fallback
+/// Get transaction output details
 pub async fn get_txout_details(
     config: &BridgeCliConfig,
     txid: &Txid,
@@ -229,49 +228,41 @@ pub async fn get_txout_details(
     Ok(txout.clone())
 }
 
-/// Triest to broadcast recovery transaction using Mempool API. If that fails,
-/// fallbacks to Bitcoin RPC. This is a basic wrapper and won't check if a tx
+/// Tries to broadcast recovery transaction. This is a basic wrapper and won't check if a tx
 /// is valid or encoded correctly.
 pub async fn broadcast_recovery_tx(
     config: &BridgeCliConfig,
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
-    let mempool_api_txid =
-        broadcast_recovery_tx_with_mempool(config.mempool_api_url.clone(), raw_tx.clone()).await;
-    match mempool_api_txid {
-        Ok(txid) => return Ok(txid),
-        Err(ref e) => tracing::warn!(
-            "Can't broadcast tx using Mempool API: {e}. Trying to do with Bitcoin RPC..."
-        ),
-    };
-
-    let rpc = config.connect_to_bitcoin_rpc().await?;
-    let txid = rpc.send_raw_transaction(raw_tx).await.map_err(|btc_err| {
-        BridgeCliError::CantBroadcastTransaction {
-            mempool_api_error: mempool_api_txid.err().unwrap().to_string(),
-            bitcoin_rpc_error: btc_err.to_string(),
+    with_api!(
+        config,
+        esplora => broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api.clone(), raw_tx).await,
+        rpc => {
+            let rpc = config.connect_to_bitcoin_rpc().await?;
+            let tx: Transaction = parse_transaction_hex(&raw_tx)?;
+            rpc.send_raw_transaction(&tx).await.map_err(|e| {
+                BridgeCliError::Eyre(eyre!("Failed to broadcast transaction via RPC: {}", e))
+            })
         }
-    })?;
-
-    Ok(txid)
+    )
 }
 
-async fn broadcast_recovery_tx_with_mempool(
-    mempool_url: Option<Url>,
+async fn broadcast_recovery_tx_with_esplora_api(
+    esplora_api: Option<Url>,
     raw_tx: String,
 ) -> Result<Txid, BridgeCliError> {
-    if mempool_url.is_none() {
+    if esplora_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let client = reqwest::Client::new();
 
-    let url = mempool_url
+    let url = esplora_api
         .expect("Checked above")
         .join("tx")
-        .wrap_err("Can't join url in get_tx_details_from_mempool")?;
+        .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
 
     let response = client.post(url.as_str()).body(raw_tx).send().await?;
 
@@ -313,42 +304,38 @@ pub(crate) async fn get_utxos(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
-    let utxos_to_info = |utxos: Vec<Utxo>| {
-        utxos
-            .into_iter()
-            .map(|utxo| UtxoInfo {
-                txid: utxo.txid,
-                vout: utxo.vout,
-                value: utxo.amount,
-                block_height: Some(utxo.height),
-            })
-            .collect::<Vec<_>>()
-    };
-
-    let utxos = match get_utxos_from_mempool_space_api(address, config).await {
-        Ok(utxos) => utxos,
-        Err(e) => {
-            tracing::debug!("ERROR Failed to fetch UTXOs from mempool.space: {}", e);
-            tracing::debug!("Falling back to Bitcoin RPC...");
+    with_api!(
+        config,
+        esplora => {
+            let utxos = get_utxos_from_esplora_api(address, config).await?;
+            let mut utxo_infos = Vec::new();
+            for utxo in utxos {
+                let txid = Txid::from_str(&utxo.txid).map_err(|e| {
+                    BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
+                })?;
+                utxo_infos.push(UtxoInfo {
+                    txid,
+                    vout: utxo.vout,
+                    value: Amount::from_sat(utxo.value),
+                    block_height: utxo.status.block_height,
+                });
+            }
+            Ok(utxo_infos)
+        },
+        rpc => {
             let utxos = get_utxos_from_rpc(address, config).await?;
-            return Ok(utxos_to_info(utxos));
+            let utxo_infos = utxos
+                .into_iter()
+                .map(|utxo| UtxoInfo {
+                    txid: utxo.txid,
+                    vout: utxo.vout,
+                    value: utxo.amount,
+                    block_height: Some(utxo.height),
+                })
+                .collect::<Vec<_>>();
+            Ok(utxo_infos)
         }
-    };
-
-    let mut utxo_infos = Vec::new();
-    for utxo in utxos {
-        let txid = Txid::from_str(&utxo.txid).map_err(|e| {
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
-        })?;
-        utxo_infos.push(UtxoInfo {
-            txid,
-            vout: utxo.vout,
-            value: Amount::from_sat(utxo.value),
-            block_height: utxo.status.block_height,
-        });
-    }
-
-    Ok(utxo_infos)
+    )
 }
 
 pub(crate) async fn get_utxos_from_rpc(
@@ -361,60 +348,50 @@ pub(crate) async fn get_utxos_from_rpc(
         .await?;
     Ok(res.unspents)
 }
-pub(crate) async fn get_utxos_from_mempool_space_api(
+pub(crate) async fn get_utxos_from_esplora_api(
     taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<Vec<MempoolSpaceUtxo>, BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+) -> Result<Vec<EsploraUtxo>, BridgeCliError> {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("address/{taproot_address}/utxo"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
-    let utxos: Vec<MempoolSpaceUtxo> = resp.json().await?;
+    let utxos: Vec<EsploraUtxo> = resp.json().await?;
     Ok(utxos)
 }
 
 pub async fn get_current_block_height(config: &BridgeCliConfig) -> Result<u64, BridgeCliError> {
-    match get_current_block_height_from_mempool_space_api(config).await {
-        Ok(height) => Ok(height),
-        Err(mempool_error) => {
-            tracing::warn!(
-                "Mempool API failed for get_current_block_height: {}, falling back to Bitcoin RPC",
-                mempool_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                get_current_block_height_from_rpc(config).await
-            } else {
-                Err(mempool_error)
-            }
-        }
-    }
+    with_api!(
+        config,
+        esplora => get_current_block_height_from_esplora_api(config).await,
+        rpc => get_current_block_height_from_rpc(config).await
+    )
 }
 
-async fn get_current_block_height_from_mempool_space_api(
+async fn get_current_block_height_from_esplora_api(
     config: &BridgeCliConfig,
 ) -> Result<u64, BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join("blocks/tip/height")
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let height: u64 = resp.json().await?;
     Ok(height)
@@ -433,61 +410,51 @@ pub async fn get_mempool_txs(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<MempoolTx>, BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("address/{address}/txs/mempool"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let txs: Vec<MempoolTx> = resp.json().await?;
     Ok(txs)
 }
 
 pub async fn is_tx_on_chain(txid: &Txid, config: &BridgeCliConfig) -> Result<bool, BridgeCliError> {
-    match is_tx_on_chain_mempool_space(txid, config).await {
-        Ok(is_confirmed) => Ok(is_confirmed),
-        Err(mempool_error) => {
-            tracing::warn!(
-                "Mempool API failed for is_tx_on_chain: {}, falling back to Bitcoin RPC",
-                mempool_error
-            );
-
-            if config.bitcoin_config.is_some() {
-                is_tx_on_chain_bitcoin_rpc(txid, config).await
-            } else {
-                Err(mempool_error)
-            }
-        }
-    }
+    with_api!(
+        config,
+        esplora => is_tx_on_chain_with_esplora_api(txid, config).await,
+        rpc => is_tx_on_chain_bitcoin_rpc(txid, config).await
+    )
 }
 
-async fn is_tx_on_chain_mempool_space(
+async fn is_tx_on_chain_with_esplora_api(
     txid: &Txid,
     config: &BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
-    if config.mempool_api_url.is_none() {
+    if config.esplora_rest_api.is_none() {
         return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Mempool API URL is not configured."
+            "Bitcoin Esplora API URL is not configured."
         )));
     }
 
     let url = config
-        .mempool_api_url
+        .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{}/status", txid))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join mempool_api_url: {e}")))?;
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
     let resp = reqwest::get(url).await?.error_for_status()?;
-    tracing::debug!("Is tx on chain from mempool.space response: {:?}", resp);
+    tracing::debug!("Is tx on chain from esplora api response: {:?}", resp);
     let status: UtxoStatus = resp.json().await?;
-    tracing::debug!("Is tx on chain from mempool.space status: {:?}", status);
+    tracing::debug!("Is tx on chain from esplora api status: {:?}", status);
     Ok(status.confirmed)
 }
 
@@ -508,7 +475,8 @@ async fn is_tx_on_chain_bitcoin_rpc(
 mod tests {
     use crate::{
         broadcast_recovery_tx,
-        config::{BitcoinConfig, BridgeCliConfig, ToSecretBox},
+        config::{BitcoinConfig, BridgeCliConfig},
+        parse_transaction_hex,
     };
     use bitcoin::{
         Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
@@ -560,11 +528,11 @@ mod tests {
         // WARNING: Change this to your own env.
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:18982/").unwrap(),
-            password: "admin".to_secret_box(),
-            user: "admin".to_secret_box(),
+            user: "admin".to_string(),
+            password: "admin".to_string(),
         });
         // Needs to be invalid.
-        config.mempool_api_url = Some(Url::from_str("http://127.0.0.1").unwrap());
+        config.esplora_rest_api = Some(Url::from_str("http://127.0.0.1").unwrap());
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
         let address = rpc
@@ -594,24 +562,19 @@ mod tests {
         let txid = broadcast_recovery_tx(&config, raw_tx.clone())
             .await
             .unwrap();
-        assert_eq!(
-            txid,
-            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 
     #[tokio::test]
     #[ignore = "No utils present to make this a regular test, run manually"]
-    async fn broadcast_recovery_tx_with_mempool() {
+    async fn broadcast_recovery_tx_with_esplora_api() {
         color_eyre::install().expect("Failed to install color-eyre");
 
         let mut config = BridgeCliConfig::from_network(bitcoin::Network::Testnet4);
         config.bitcoin_config = Some(BitcoinConfig {
             url: Url::parse("http://localhost:22443/").unwrap(),
-            password: "admin".to_secret_box(),
-            user: "admin".to_secret_box(),
+            user: "admin".to_string(),
+            password: "admin".to_string(),
         });
 
         let rpc = config.connect_to_bitcoin_rpc().await.unwrap();
@@ -636,15 +599,10 @@ mod tests {
         .await;
 
         let txid =
-            super::broadcast_recovery_tx_with_mempool(config.mempool_api_url, raw_tx.clone())
+            super::broadcast_recovery_tx_with_esplora_api(config.esplora_rest_api, raw_tx.clone())
                 .await
                 .unwrap();
 
-        assert_eq!(
-            txid,
-            bitcoin::consensus::deserialize::<Transaction>(&hex::decode(raw_tx).unwrap())
-                .unwrap()
-                .compute_txid()
-        );
+        assert_eq!(txid, parse_transaction_hex(&raw_tx).unwrap().compute_txid());
     }
 }

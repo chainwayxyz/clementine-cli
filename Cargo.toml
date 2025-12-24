@@ -5,17 +5,17 @@ edition = "2024"
 license = "GPL-3.0"
 authors = ["Chainway Labs <info@chainway.xyz>"]
 homepage = "https://citrea.xyz"
-publish = false
 repository = "https://github.com/chainwayxyz/clementine-cli"
+publish = false
+description = "Clementine CLI tool for interacting with Clementine bridge"
 
 [lib]
 name = "clementine_cli"
 path = "src/lib.rs"
 
-
 [dependencies]
 bitcoin = { version = "0.32.5", features = ["rand-std"] }
-reqwest = { version = "0.12.22", features = ["blocking", "json"] }
+reqwest = { version = "0.12.22", default-features = false, features = ["blocking", "json", "rustls-tls"] }
 clap = { version = "4.5.4", features = ["derive"] }
 serde = { version = "1.0.223", features = ["derive"] }
 serde_json = "1.0"
@@ -25,19 +25,8 @@ colored = "3.0"
 open = "5.0"
 eyre = "0.6.12"
 color-eyre = "0.6.5"
-secp256k1 = { version = "0.31.0", features = [
-  "serde",
-  "rand",
-  "std",
-  "global-context",
-] }
-tokio = { version = "1.36", features = [
-  "rt-multi-thread",
-  "macros",
-  "fs",
-  "io-util",
-  "time",
-] }
+secp256k1 = { version = "0.31.0", features = ["serde", "rand", "std", "global-context"] }
+tokio = { version = "1.36", features = ["rt-multi-thread", "macros", "fs", "io-util", "time"] }
 sha2 = "0.10.9"
 bitcoincore-rpc = { version = "0.18.0" }
 rand = { version = "0.9.2", features = ["os_rng"] }
@@ -51,13 +40,7 @@ dirs = "5.0"
 crossterm = "0.28"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
-alloy = { version = "1.0.41", features = [
-  "contract",
-  "sol-types",
-  "transports",
-  "json-rpc",
-  "providers",
-] }
+alloy = { version = "1.0.41", features = ["contract", "sol-types", "transports", "json-rpc", "providers"] }
 toml = "0.9.5"
 url = { version = "2.5", features = ["serde"] }
 secrecy = { version = "0.10.0", features = ["serde"] }
@@ -73,3 +56,11 @@ sqlx = { version = "0.8.6", default-features = false, features = ["runtime-tokio
 [patch.crates-io]
 secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc" }
 bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "5da45109a2de352472a6056ef90a517b66bc106f" }
+
+[profile.release]
+# Deterministic builds for reproducibility
+lto = "off"
+opt-level = 3
+codegen-units = 1
+strip = false
+debug = false

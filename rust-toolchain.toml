@@ -1,4 +1,5 @@
 [toolchain]
+# Exact version pinned for reproducible builds (must match flake.nix)
 channel = "1.89"
 components = ["rustfmt", "rust-src"]
 profile = "minimal"

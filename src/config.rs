@@ -7,7 +7,6 @@ use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};
 use reqwest::Url;
-use secrecy::{CloneableSecret, ExposeSecret, SecretBox};
 use serde::{Deserialize, Serialize};
 use std::{
     fs::{self, File},
@@ -17,7 +16,6 @@ use std::{
     sync::LazyLock,
 };
 use thiserror::Error;
-use zeroize::Zeroize;
 
 pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(|| {
     XOnlyPublicKey::from_str("50929b74c1a04954b78b4b6035e97a5e078a5a0f28ec96d547bfee9ace803ac0")
@@ -32,38 +30,13 @@ pub enum ConfigErrors {
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
     UnsupportedNetwork(Network),
+    #[error(
+        "Invalid configuration: You must configure exactly one of 'esplora_rest_api' or 'bitcoin_config', not both or neither"
+    )]
+    InvalidApiConfiguration,
 
     #[error(transparent)]
     Other(#[from] eyre::Report),
-}
-
-#[derive(Serialize, Deserialize, Zeroize, Clone)]
-#[zeroize(drop)]
-pub struct ApiSecret(pub String);
-
-impl secrecy::SerializableSecret for ApiSecret {}
-
-impl CloneableSecret for ApiSecret {}
-
-impl From<String> for ApiSecret {
-    fn from(value: String) -> Self {
-        ApiSecret(value)
-    }
-}
-
-pub trait ToSecretBox {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret>;
-}
-
-impl ToSecretBox for &str {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
-        secrecy::SecretBox::from(Box::new(ApiSecret(self.to_owned())))
-    }
-}
-impl ToSecretBox for String {
-    fn to_secret_box(self) -> secrecy::SecretBox<ApiSecret> {
-        secrecy::SecretBox::from(Box::new(ApiSecret(self)))
-    }
 }
 
 /// [`BridgeCliConfig`]s for each network.
@@ -71,17 +44,17 @@ impl ToSecretBox for String {
 pub struct NetworkConfigs {
     pub bitcoin: BridgeCliConfig,
     pub testnet4: BridgeCliConfig,
-    pub signet: BridgeCliConfig,
-    pub regtest: BridgeCliConfig,
+    pub signet: Option<BridgeCliConfig>,
+    pub regtest: Option<BridgeCliConfig>,
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BridgeCliConfig {
     pub network: Network,
     pub aggregated_public_key: XOnlyPublicKey,
-    pub mempool_api_url: Option<Url>,
+    pub esplora_rest_api: Option<Url>,
     pub citrea_chain_id: u64,
-    pub citrea_rpc_url: Url,
+    pub citrea_rpc_url: Option<Url>,
     pub citrea_backend_endpoint: Url,
     pub user_takes_after: u64,
     pub bridge_amount: Amount,
@@ -102,9 +75,9 @@ impl BridgeCliConfig {
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
                 )
                 .unwrap(),
-                mempool_api_url: Some(Url::parse("https://mempool.space/api/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
                 citrea_chain_id: 0,
-                citrea_rpc_url: Url::parse("https://rpc.citrea.xyz/").unwrap(),
+                citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://api.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -113,11 +86,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 6,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Testnet4 => Self {
@@ -126,9 +95,9 @@ impl BridgeCliConfig {
                     "1e0f48f81dfa14d114f5d942f1e2d50771a4b019fa942606bb1f258b4b326bf7",
                 )
                 .unwrap(),
-                mempool_api_url: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
                 citrea_chain_id: 5115,
-                citrea_rpc_url: Url::parse("https://rpc.testnet.citrea.xyz/").unwrap(),
+                citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://api.testnet.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -137,11 +106,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 100,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:18443/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Signet => Self {
@@ -150,11 +115,11 @@ impl BridgeCliConfig {
                     "359fa25e72d66cacd545a9d43f9757b8fed3f04fda0c665551fe093139e819dc",
                 )
                 .unwrap(),
-                mempool_api_url: Some(
+                esplora_rest_api: Some(
                     Url::parse("https://mempool.devnet.citrea.xyz/api/").unwrap(),
                 ),
                 citrea_chain_id: 62298,
-                citrea_rpc_url: Url::parse("https://rpc.devnet.citrea.xyz/").unwrap(),
+                citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://api.devnet.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -163,11 +128,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 5,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:38332/").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             Network::Regtest => Self {
@@ -176,9 +137,9 @@ impl BridgeCliConfig {
                     "30ff95ec2726938072a2009f3276cd8fba2363d9284a7eb01217b2f302eb8577",
                 )
                 .unwrap(),
-                mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
+                esplora_rest_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
                 citrea_chain_id: 5655,
-                citrea_rpc_url: Url::parse("https://127.0.0.1:12345/").unwrap(),
+                citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
@@ -187,11 +148,7 @@ impl BridgeCliConfig {
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
                 move_tx_finalization_blocks: 5,
-                bitcoin_config: Some(BitcoinConfig {
-                    url: Url::parse("http://127.0.0.1:20443/wallet/admin").unwrap(),
-                    user: "admin".to_secret_box(),
-                    password: "admin".to_secret_box(),
-                }),
+                bitcoin_config: None,
             },
 
             _ => panic!("Unsupported network in defaults: {network:?}"),
@@ -203,8 +160,8 @@ pub fn default_networks() -> NetworkConfigs {
     NetworkConfigs {
         bitcoin: BridgeCliConfig::defaults_for(Network::Bitcoin),
         testnet4: BridgeCliConfig::defaults_for(Network::Testnet4),
-        signet: BridgeCliConfig::defaults_for(Network::Signet),
-        regtest: BridgeCliConfig::defaults_for(Network::Regtest),
+        signet: None,
+        regtest: None,
     }
 }
 
@@ -233,8 +190,8 @@ pub fn write_config_to(path: &Path, cfgs: &NetworkConfigs) -> Result<(), BridgeC
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct BitcoinConfig {
     pub url: Url,
-    pub password: SecretBox<ApiSecret>,
-    pub user: SecretBox<ApiSecret>,
+    pub user: String,
+    pub password: String,
 }
 
 impl BridgeCliConfig {
@@ -244,6 +201,7 @@ impl BridgeCliConfig {
 
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
+        tracing::debug!("Trying to read and parse configuration file from home directory...");
         let config_path = get_clementine_config_path_with_existence_check().map_err(|_| {
             ConfigErrors::FileReadFailure(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
@@ -251,23 +209,31 @@ impl BridgeCliConfig {
             ))
         })?;
         let config = Self::try_parse_file(config_path.clone(), network);
-        if let Ok(config) = config {
-            tracing::debug!("Using home configuration file: {config_path:?}");
-            return Ok(config);
+        match config {
+            Ok(cfg) => {
+                tracing::debug!("Using home configuration file: {config_path:?}");
+                Ok(cfg)
+            }
+            Err(ConfigErrors::UnsupportedNetwork(_)) => {
+                tracing::error!(
+                    "Configuration file does not support the selected network at path: {config_path:?}"
+                );
+                Err(ConfigErrors::UnsupportedNetwork(network))
+            }
+            Err(e) => {
+                tracing::error!(
+                    "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
+                    e
+                );
+                Err(ConfigErrors::FileReadFailure(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    format!(
+                        "Configuration file is not parsable at path: {:?}",
+                        config_path
+                    ),
+                )))
+            }
         }
-
-        tracing::error!(
-            "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
-            config.err()
-        );
-
-        Err(ConfigErrors::FileReadFailure(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!(
-                "Configuration file is not parsable at path: {:?}",
-                config_path
-            ),
-        )))
     }
 
     /// Read contents of a TOML file and generate a [`CliConfig`].
@@ -282,22 +248,33 @@ impl BridgeCliConfig {
         let mut config = match network {
             Network::Bitcoin => network_configs.bitcoin,
             Network::Testnet4 => network_configs.testnet4,
-            Network::Signet => network_configs.signet,
-            Network::Regtest => network_configs.regtest,
+            Network::Signet => network_configs
+                .signet
+                .ok_or(ConfigErrors::UnsupportedNetwork(network))?,
+            Network::Regtest => network_configs
+                .regtest
+                .ok_or(ConfigErrors::UnsupportedNetwork(network))?,
             rest => return Err(ConfigErrors::UnsupportedNetwork(rest)),
         };
 
+        // Validate that exactly one API is configured
+        match (&config.esplora_rest_api, &config.bitcoin_config) {
+            (None, None) => return Err(ConfigErrors::InvalidApiConfiguration),
+            (Some(_), Some(_)) => return Err(ConfigErrors::InvalidApiConfiguration),
+            _ => {} // Exactly one is configured, which is valid
+        }
+
         // All of the URLs needs a trailing slash. If not present, add it.
-        if config.mempool_api_url.is_some()
+        if config.esplora_rest_api.is_some()
             && !config
-                .mempool_api_url
+                .esplora_rest_api
                 .as_ref()
                 .expect("Checked in the first condition")
                 .to_string()
                 .ends_with("/")
         {
-            let str_url = config.mempool_api_url.expect("Checked above").to_string() + "/";
-            config.mempool_api_url =
+            let str_url = config.esplora_rest_api.expect("Checked above").to_string() + "/";
+            config.esplora_rest_api =
                 Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
         if !config.citrea_backend_endpoint.to_string().ends_with("/") {
@@ -305,10 +282,20 @@ impl BridgeCliConfig {
             config.citrea_backend_endpoint =
                 Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
         }
-        if !config.citrea_rpc_url.to_string().ends_with("/") {
-            let str_url = config.citrea_rpc_url.to_string() + "/";
+
+        if config
+            .citrea_rpc_url
+            .as_ref()
+            .is_some_and(|url| !url.to_string().ends_with("/"))
+        {
+            let str_url = config
+                .citrea_rpc_url
+                .as_ref()
+                .expect("Cannot fail, checked above")
+                .to_string()
+                + "/";
             config.citrea_rpc_url =
-                Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?;
+                Some(Url::from_str(&str_url).wrap_err("Can't add trailing slash to URL")?);
         }
 
         Ok(config)
@@ -317,10 +304,7 @@ impl BridgeCliConfig {
     pub async fn connect_to_bitcoin_rpc(&self) -> Result<Client, BridgeCliError> {
         match self.bitcoin_config {
             Some(ref config) => {
-                let auth = Auth::UserPass(
-                    config.user.expose_secret().0.clone(),
-                    config.password.expose_secret().0.clone(),
-                );
+                let auth = Auth::UserPass(config.user.clone(), config.password.clone());
                 let rpc = Client::new(config.url.as_str(), auth).await?;
                 rpc.ping().await?;
                 Ok(rpc)
@@ -339,18 +323,15 @@ impl BridgeCliConfig {
 
         match network {
             Network::Regtest => {
-                config.bitcoin_config = Some(BitcoinConfig {
-                    url: Url::parse("http://localhost:18443/").expect("Valid url"),
-                    password: "admin".to_secret_box(),
-                    user: "admin".to_secret_box(),
-                });
+                // No bitcoin_config needed - using Bitcoin Esplora API only
             }
             Network::Bitcoin => {
                 config.citrea_chain_id = 1;
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.citrea.xyz/").expect("Valid url");
-                config.citrea_rpc_url = Url::parse("https://rpc.citrea.xyz/").expect("Valid url");
-                config.mempool_api_url =
+                config.citrea_rpc_url =
+                    Some(Url::parse("https://rpc.citrea.xyz/").expect("Valid url"));
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.space/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -362,8 +343,8 @@ impl BridgeCliConfig {
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.testnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
-                    Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url");
-                config.mempool_api_url =
+                    Some(Url::parse("https://rpc.testnet.citrea.xyz/").expect("Valid url"));
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.space/testnet4/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -375,8 +356,8 @@ impl BridgeCliConfig {
                 config.citrea_backend_endpoint =
                     Url::parse("https://api.devnet.citrea.xyz/").expect("Valid url");
                 config.citrea_rpc_url =
-                    Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url");
-                config.mempool_api_url =
+                    Some(Url::parse("https://rpc.devnet.citrea.xyz/").expect("Valid url"));
+                config.esplora_rest_api =
                     Some(Url::parse("https://mempool.devnet.citrea.xyz/api/").expect("Valid url"));
                 config.aggregated_public_key = XOnlyPublicKey::from_str(
                     "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
@@ -409,10 +390,10 @@ impl Default for BridgeCliConfig {
                 "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
             )
             .unwrap(),
-            mempool_api_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
+            esplora_rest_api: Some(Url::parse("https://127.0.0.1/").unwrap()),
             citrea_chain_id: 5655,
             citrea_backend_endpoint: Url::parse("https://127.0.0.1/").unwrap(),
-            citrea_rpc_url: Url::parse("https://127.0.0.1/").unwrap(),
+            citrea_rpc_url: Some(Url::parse("https://127.0.0.1/").unwrap()),
             user_takes_after: 200,
             bridge_amount: Amount::from_sat(1_000_000_000),
             optimistic_withdrawal_amount: Amount::from_sat(1_000_000_000),
@@ -442,36 +423,6 @@ mod tests {
     fn test_bridge_amount_conversion_to_btc() {
         let config = BridgeCliConfig::default();
         assert_eq!(config.bridge_amount.to_btc(), 10.0);
-    }
-
-    #[test]
-    fn parse_from_file() {
-        let file_name = "parse_from_file";
-
-        let invalid_content = "invalid file content";
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(invalid_content.as_bytes()).unwrap();
-        assert!(BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).is_err());
-
-        // Read first example test file use for this test.
-        let base_path = env!("CARGO_MANIFEST_DIR");
-        let config_path = format!("{}/bridge_cli_config.toml", base_path);
-        let content = fs::read_to_string(config_path).unwrap();
-        let mut file = File::create(file_name).unwrap();
-        file.write_all(content.as_bytes()).unwrap();
-
-        let read_config =
-            BridgeCliConfig::try_parse_file(file_name.into(), Network::Testnet4).unwrap();
-
-        // Check some of the fields.
-        assert_eq!(read_config.user_takes_after, 200);
-        assert_eq!(read_config.network, Network::Testnet4);
-        assert_eq!(
-            read_config.bitcoin_config.unwrap().url.as_str(),
-            "http://127.0.0.1:18443/"
-        );
-
-        fs::remove_file(file_name).unwrap();
     }
 
     #[test]

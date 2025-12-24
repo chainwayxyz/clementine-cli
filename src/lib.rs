@@ -49,6 +49,9 @@ pub use api_utils::broadcast_recovery_tx;
 // Constants
 pub use bitcoin_utils::SATS_TO_WEI_MULTIPLIER;
 
+// A basic parser utility
+pub use bitcoin_utils::parse_transaction_hex;
+
 pub use cli_macros::handle_err;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;

@@ -158,9 +158,8 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         })
     });
 
-    let (mainnet, others): (Vec<_>, Vec<_>) = wallets
-        .into_iter()
-        .partition(|w| w.network == "bitcoin");
+    let (mainnet, others): (Vec<_>, Vec<_>) =
+        wallets.into_iter().partition(|w| w.network == "bitcoin");
 
     fn print_wallet_section(
         section_title: &str,

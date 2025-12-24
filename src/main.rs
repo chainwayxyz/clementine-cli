@@ -1,17 +1,15 @@
-use bitcoin::{Network, OutPoint, Transaction, Txid, consensus::deserialize, taproot::Signature};
+use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
 use clap::{Parser, Subcommand};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
-    cli_get_deposit_address, cli_get_deposit_addresses_by_recovery_taproot_address,
-    cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
-    cli_import_wallet_from_private_key, cli_list_all_recovery_taproot_addresses,
-    cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
-    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
-    withdrawal_status,
+    cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
+    cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
+    cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
+    cli_start_withdrawal, deposit_create_signed_recovery_tx,
+    deposit_status, send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
-use clementine_cli::handle_simple_call;
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
@@ -22,6 +20,7 @@ use clementine_cli::{
     wallet::{Purpose, parse_address, parse_taproot_address},
     withdraw,
 };
+use clementine_cli::{handle_simple_call, parse_transaction_hex};
 use colored::Colorize;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
@@ -95,7 +94,7 @@ enum Commands {
         /// Assume yes to all prompts, changes will be applied without confirmation
         #[arg(short = 'y', long = "yes", action = clap::ArgAction::SetTrue)]
         yes: bool,
-        /// Key=value pairs to update, e.g. bridge_amount=123456 mempool_api_url=https://...
+        /// Key=value pairs to update, e.g. bridge_amount=123456 esplora_rest_api=https://...
         #[arg(required = true)]
         kv: Vec<String>,
     },
@@ -215,7 +214,6 @@ enum DepositCommands {
         /// Citrea address (EVM address to receive bridged BTC)
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
-        #[arg(long)]
         amount: Option<f64>,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -227,7 +225,7 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// Broadcasts raw recovery transaction to Bitcoin network either by Mempool API or Bitcoin RPC.
+    /// Broadcasts raw recovery transaction to Bitcoin network either by Bitcoin Esplora API or Bitcoin RPC.
     BroadcastRecoveryTx {
         /// Raw transaction to broadcast (hex-encoded)
         raw_tx: String,
@@ -241,12 +239,12 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
-    /// List all stored deposit recovery taproot addresses with their networks.
-    ListDepositRecoveryAddresses,
-    /// Retrieve stored deposit addresses for a specific recovery taproot address.
-    GetDepositAddressesForRecoveryTaprootAddress {
-        /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
-        recovery_taproot_address: String,
+    /// List all stored deposit addresses.
+    ListDepositAddresses,
+    /// Show stored details for a deposit address.
+    GetDepositAddressDetails {
+        /// Deposit address (taproot address funds were sent to)
+        deposit_address: String,
     },
 }
 
@@ -295,6 +293,7 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
+    #[command(hide = true)]
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -339,9 +338,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Init {} => {
-            handle_cli_command!(clementine_cli::cli::cli_init(), _ => {
-                println!("Clementine CLI initialized successfully.");
-            });
+            handle_cli_command!(clementine_cli::cli::cli_init());
         }
         Commands::UpdateConfig { network, yes, kv } => {
             let kv: Vec<(String, String)> = kv
@@ -523,8 +520,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
-                let tx_bytes = handle_simple_call!(hex::decode(&recovery_tx));
-                let recovery_tx: Transaction = handle_simple_call!(deserialize(&tx_bytes));
+                let recovery_tx = handle_simple_call!(parse_transaction_hex(&recovery_tx));
                 let citrea_address = handle_simple_call!(parse_citrea_address(&evm_address));
                 let recovery_taproot_address =
                     handle_simple_call!(TaprootAddressWithPrefix::from_string_with_prefix(
@@ -542,10 +538,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config,
                     ),
                     (txid, address, amount) => {
-                        println!("Recovery transaction verification completed!");
-                        println!("Txid: {}", txid);
-                        println!("Address: {}", address);
-                        println!("Amount: {}", amount);
+                        println!("Recovery transaction verified!");
+                        println!(
+                            "This transaction may be broadcast only after the transaction {} \
+                             has been confirmed on-chain for at least {} blocks.",
+                            txid, config.user_takes_after
+                        );
+                        println!(
+                            "Once this condition has been satisfied and the transaction is broadcast, \
+                             an amount of {} BTC ({} sats) will be sent to the address {}.",
+                            amount, amount.to_sat(), address
+                        );
                     }
                 );
             }
@@ -578,20 +581,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::ListDepositRecoveryAddresses => {
-                handle_cli_command!(cli_list_all_recovery_taproot_addresses());
+            DepositCommands::ListDepositAddresses => {
+                handle_cli_command!(cli_list_all_deposit_addresses());
             }
-            DepositCommands::GetDepositAddressesForRecoveryTaprootAddress {
-                recovery_taproot_address,
-            } => {
-                let recovery_taproot_address = handle_simple_call!(
-                    TaprootAddressWithPrefix::from_string_with_prefix_unchecked(
-                        &recovery_taproot_address,
-                    )
-                );
-                handle_cli_command!(cli_get_deposit_addresses_by_recovery_taproot_address(
-                    &recovery_taproot_address
-                ));
+            DepositCommands::GetDepositAddressDetails { deposit_address } => {
+                handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
             }
         },
         Commands::Withdraw { command } => match command {
@@ -751,16 +745,48 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &sig,
                         &config,
                     ),
-                    withdrawal_ui_url => {
+                    (withdrawal_ui_url, tx_json, params) => {
                         println!(
-                            "\n{} Opening withdrawal page {withdrawal_ui_url} in your default browser...",
-                            "INFO".bold()
+                            "\n{} Opening withdrawal page {} in your default browser...",
+                            "INFO".bold(),
+                            withdrawal_ui_url.0
                         );
-                        if let Err(e) = open::that(&withdrawal_ui_url) {
+
+                        println!("\nPress a key to continue...");
+                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        println!("\nPlease review the transaction details below:\n");
+
+
+                        let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
+                            .ok()
+                            .and_then(|json| serde_json::to_string_pretty(&json).ok())
+                            .unwrap_or_else(|| tx_json.0.clone());
+
+                        println!("Transaction JSON:\n{}", pretty_json);
+
+                        println!("\nDestination Address: {}\n", destination_address.to_string());
+
+                        println!("{:#?}\n", params);
+
+                        println!("Please double check the transaction details before proceeding in the browser.\n");
+
+                        println!("Press a key to continue...");
+                        let mut input = String::new();
+
+                        std::io::stdin().read_line(&mut input).map_err(|e| {
+                            tracing::error!("Failed to read input: {}", e);
+                            eyre::eyre!("Failed to read input.")
+                        })?;
+
+                        if let Err(e) = open::that(&withdrawal_ui_url.0) {
                             return Err(eyre::eyre!(
                             "Failed to open browser: {}. Please visit the following URL manually: {}",
                             e,
-                            withdrawal_ui_url
+                            withdrawal_ui_url.0
                             )
                             .into());
                         }

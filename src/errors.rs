@@ -161,19 +161,23 @@ pub enum BridgeCliError {
     )]
     CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
-    #[error(
-        "Can't broadcast raw transaction by either Mempool API or Bitcoin RPC: {mempool_api_error} and {bitcoin_rpc_error}"
-    )]
-    CantBroadcastTransaction {
-        mempool_api_error: String,
-        bitcoin_rpc_error: String,
-    },
-
     #[error("Can't find the UTXO {0} in withdrawals")]
     CantFindUTXO(OutPoint),
 
     #[error("Transaction {0} is not found on chain, maybe wait for confirmation")]
     TransactionNotOnChain(bitcoin::Txid),
+
+    // Transaction parsing errors
+    #[error("Failed to decode hex string '{hex_string}': {source}")]
+    HexDecodeError {
+        source: hex::FromHexError,
+        hex_string: String,
+    },
+    #[error("Failed to deserialize transaction from hex '{tx_hex}': {source}")]
+    TransactionDeserializeError {
+        source: bitcoin::consensus::encode::Error,
+        tx_hex: String,
+    },
 
     // Module specific errors
     #[error("Can't get configuration: {0}")]

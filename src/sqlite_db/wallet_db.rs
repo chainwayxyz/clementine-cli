@@ -357,7 +357,10 @@ mod tests {
             .expect("wallet should exist");
 
         assert_eq!(fetched.label, wallet.label);
-        assert_eq!(fetched.address.address_with_prefix(), wallet.address.address_with_prefix());
+        assert_eq!(
+            fetched.address.address_with_prefix(),
+            wallet.address.address_with_prefix()
+        );
         assert_eq!(fetched.network, wallet.network);
         assert_eq!(fetched.encrypted_mnemonic, wallet.encrypted_mnemonic);
         assert_eq!(fetched.encrypted_private_key, wallet.encrypted_private_key);
@@ -369,10 +372,16 @@ mod tests {
         let export = WalletExport::from(&fetched);
         let roundtrip = WalletData::try_from(export)?;
         assert_eq!(roundtrip.label, wallet.label);
-        assert_eq!(roundtrip.address.address_with_prefix(), wallet.address.address_with_prefix());
+        assert_eq!(
+            roundtrip.address.address_with_prefix(),
+            wallet.address.address_with_prefix()
+        );
         assert_eq!(roundtrip.network, wallet.network);
         assert_eq!(roundtrip.encrypted_mnemonic, wallet.encrypted_mnemonic);
-        assert_eq!(roundtrip.encrypted_private_key, wallet.encrypted_private_key);
+        assert_eq!(
+            roundtrip.encrypted_private_key,
+            wallet.encrypted_private_key
+        );
         assert_eq!(roundtrip.created_at, wallet.created_at);
         assert_eq!(roundtrip.encryption_method, wallet.encryption_method);
         assert_eq!(roundtrip.imported, wallet.imported);
