@@ -18,7 +18,7 @@ pub struct SqliteDb {
     pool: Pool<Sqlite>,
 }
 
-static MIGRATOR: Migrator = sqlx::migrate!();
+// static MIGRATOR: Migrator = sqlx::migrate!();
 
 impl SqliteDb {
     pub async fn open() -> Result<Self, BridgeCliError> {
@@ -44,10 +44,10 @@ impl SqliteDb {
     pub async fn open_with_schema() -> Result<Self, BridgeCliError> {
         let db = Self::open().await?;
 
-        MIGRATOR.run(db.pool()).await.map_err(|e| {
-            tracing::error!("Failed to run database migrations: {}", e);
-            BridgeCliError::Eyre(eyre::eyre!("Failed to run database migrations"))
-        })?;
+        // MIGRATOR.run(db.pool()).await.map_err(|e| {
+        //     tracing::error!("Failed to run database migrations: {}", e);
+        //     BridgeCliError::Eyre(eyre::eyre!("Failed to run database migrations"))
+        // })?;
 
         Ok(db)
     }
