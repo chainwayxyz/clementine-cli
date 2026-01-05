@@ -176,7 +176,6 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
         "{} Valid BIP-39 mnemonic phrase with 12 words",
         "SUCCESS".bold(),
     );
-    println!("Mnemonic will be handled securely and zeroized from memory");
 
     let mnemonic = Mnemonic::parse(secure_mnemonic_phrase.expose_secret()).map_err(|e| {
         tracing::error!("Error validating mnemonic: {}", e);

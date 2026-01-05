@@ -47,13 +47,12 @@ use crate::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::calculate_taproot_address;
-use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
 use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
 use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
-use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
+use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::wallet::wallet_utils::validate_wallet_availability;
@@ -137,18 +136,17 @@ pub async fn import_wallet_from_mnemonic(
     label: &str,
     purpose: Purpose,
     mnemonic: Mnemonic,
+    passphrase: SecureString,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    // Generate address from mnemonic using helper function
-    let address = generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
-        tracing::error!("Error generating address from mnemonic: {}", e);
-        BridgeCliError::AddressGenerationFromMnemonicFailed
-    })?;
-
-    validate_wallet_availability(Some(label), Some(&address), sqlite_client).await?;
-    let _address_str = address.address_with_prefix();
-
-    let passphrase = prompt_passphrase(true)?;
+    let address = derive_and_validate_mnemonic_import(
+        network,
+        Some(label),
+        purpose,
+        &mnemonic,
+        sqlite_client,
+    )
+    .await?;
 
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic).map_err(|e| {
         tracing::error!("Error deriving private key from mnemonic: {}", e);
