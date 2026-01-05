@@ -41,8 +41,8 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
-            parse_and_validate_imported_wallet, validate_wallet_availability,
+            ensure_wallet_exists, load_key_with_purpose_check, parse_and_validate_imported_wallet,
+            validate_wallet_availability,
         },
     },
     withdraw::{self, start_withdrawal},
@@ -631,7 +631,7 @@ pub async fn cli_create_wallet(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(&label), None, WalletValidationMode::Label, None).await?;
+    validate_wallet_availability(Some(&label), None, None).await?;
 
     let passphrase = prompt_passphrase(true)?;
 
@@ -702,7 +702,7 @@ pub async fn cli_import_wallet_from_mnemonic(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before mnemonic prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label, None).await?;
+    validate_wallet_availability(Some(label), None, None).await?;
     println!("{}", "Import Wallet with Mnemonic".bold());
 
     let mnemonic = prompt_mnemonic()?;
@@ -729,7 +729,7 @@ pub async fn cli_import_wallet_from_private_key(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label, None).await?;
+    validate_wallet_availability(Some(label), None, None).await?;
 
     let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;

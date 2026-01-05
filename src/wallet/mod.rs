@@ -56,7 +56,7 @@ use crate::wallet::passphrase::prompt_passphrase;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
-use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
+use crate::wallet::wallet_utils::validate_wallet_availability;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
 use crate::errors::BridgeCliError;
@@ -83,13 +83,7 @@ pub async fn create_encrypted_wallet(
         })?;
 
     // Validate that both wallet name and address don't already exist
-    validate_wallet_availability(
-        Some(&label),
-        Some(&address),
-        WalletValidationMode::Both,
-        sqlite_client,
-    )
-    .await?;
+    validate_wallet_availability(Some(&label), Some(&address), sqlite_client).await?;
 
     // Encrypt mnemonic and private key separately with different nonces
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic)?;
@@ -145,27 +139,13 @@ pub async fn import_wallet_from_mnemonic(
     mnemonic: Mnemonic,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    validate_wallet_availability(
-        Some(label),
-        None,
-        WalletValidationMode::Label,
-        sqlite_client,
-    )
-    .await?;
-
     // Generate address from mnemonic using helper function
     let address = generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
         tracing::error!("Error generating address from mnemonic: {}", e);
         BridgeCliError::AddressGenerationFromMnemonicFailed
     })?;
 
-    validate_wallet_availability(
-        None,
-        Some(&address),
-        WalletValidationMode::Address,
-        sqlite_client,
-    )
-    .await?;
+    validate_wallet_availability(Some(label), Some(&address), sqlite_client).await?;
     let _address_str = address.address_with_prefix();
 
     let passphrase = prompt_passphrase(true)?;

@@ -47,7 +47,7 @@ use crate::sqlite_db::sqlite_client::resolve_sqlite_client;
 use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
-use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
+use crate::wallet::wallet_utils::validate_wallet_availability;
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
@@ -63,13 +63,7 @@ pub(crate) async fn store_wallet_data(
 ) -> Result<(), BridgeCliError> {
     let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
 
-    validate_wallet_availability(
-        Some(label),
-        Some(address),
-        WalletValidationMode::Both,
-        Some(sqlite_client.as_ref()),
-    )
-    .await?;
+    validate_wallet_availability(Some(label), Some(address), Some(sqlite_client.as_ref())).await?;
 
     let wallet_data = WalletData {
         label: label.to_string(),
