@@ -200,7 +200,7 @@ impl WalletTable {
             "INSERT INTO wallets (label, address, network, encrypted_mnemonic, \
                  encrypted_private_key, created_at, encryption_method, imported, import_method) \
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
-                 ON CONFLICT DO NOTHING"
+                 ON CONFLICT DO NOTHING",
         )
         .bind(&wallet.label)
         .bind(wallet.address.address_with_prefix())
@@ -242,7 +242,7 @@ impl WalletTable {
         let row: Option<WalletRaw> = sqlx::query_as::<_, WalletRaw>(
             "SELECT label, address, network, encrypted_mnemonic, \
              encrypted_private_key, created_at, encryption_method, imported, import_method \
-             FROM wallets WHERE address = ?1"
+             FROM wallets WHERE address = ?1",
         )
         .bind(address.address_with_prefix())
         .fetch_optional(pool)

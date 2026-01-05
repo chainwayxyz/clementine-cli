@@ -106,13 +106,12 @@ impl DepositTable {
         pool: &Pool<Sqlite>,
         deposit_address: &str,
     ) -> Result<bool, BridgeCliError> {
-        let exists: Option<i64> = sqlx::query_scalar(
-            "SELECT 1 FROM deposits WHERE deposit_address = ?1 LIMIT 1"
-        )
-        .bind(deposit_address)
-        .fetch_optional(pool)
-        .await
-        .wrap_err("Failed to check deposit existence in database")?;
+        let exists: Option<i64> =
+            sqlx::query_scalar("SELECT 1 FROM deposits WHERE deposit_address = ?1 LIMIT 1")
+                .bind(deposit_address)
+                .fetch_optional(pool)
+                .await
+                .wrap_err("Failed to check deposit existence in database")?;
 
         Ok(exists.is_some())
     }
