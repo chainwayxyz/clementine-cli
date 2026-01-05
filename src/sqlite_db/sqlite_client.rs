@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use eyre::Context;
+use eyre::{Context, eyre};
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
@@ -54,5 +54,15 @@ impl SqliteDb {
 
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
+    }
+}
+
+/// Normalize optional SQLite clients into a usable reference, creating one when none is provided.
+pub async fn resolve_sqlite_client<'a>(
+    sqlite_client: Option<&'a SqliteDb>,
+) -> Result<Cow<'a, SqliteDb>, BridgeCliError> {
+    match sqlite_client {
+        Some(client) => Ok(Cow::Borrowed(client)),
+        None => Ok(Cow::Owned(SqliteDb::open_with_schema().await?)),
     }
 }
