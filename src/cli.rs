@@ -1129,7 +1129,7 @@ pub async fn cli_get_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     let deposit_address =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, &config).await?;
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
     Ok(deposit_address)
 }
 
