@@ -16,7 +16,7 @@ pub(crate) async fn is_wallet_address(
             Purpose::Withdrawal,
             config.network,
         )?;
-        return address_exists(&address).await;
+        return address_exists(&address, None).await;
     }
     Ok(false)
 }

@@ -19,7 +19,7 @@ use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::secure_types::SecureSecretKey;
 use crate::secure_types::SecureString;
-use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
 use crate::sqlite_db::wallet_db::WalletExport;
 use crate::sqlite_db::wallet_db::{WalletData, WalletTable};
 use crate::structs::AddrDisplay;
@@ -46,19 +46,22 @@ use std::str::FromStr;
 pub(crate) async fn load_key<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<SecureKeypair, BridgeCliError>
 where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    ensure_wallet_exists(address).await?;
+    ensure_wallet_exists(address, sqlite_client).await?;
 
-    let wallet_data = load_wallet_data(address).await?.ok_or_else(|| {
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Wallet data not found for address {}",
-            address.address_with_prefix()
-        ))
-    })?;
+    let wallet_data = load_wallet_data(address, sqlite_client)
+        .await?
+        .ok_or_else(|| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Wallet data not found for address {}",
+                address.address_with_prefix()
+            ))
+        })?;
 
     // Load the encrypted private key
     let encrypted_private_key = wallet_data
@@ -170,68 +173,44 @@ pub(crate) fn validate_private_key_import(
     Ok(())
 }
 
-pub(crate) async fn label_exists(label: &str) -> Result<bool, BridgeCliError> {
-    let db = SqliteDb::open_with_schema().await?;
-
-    WalletTable::label_exists(db.pool(), label).await
+pub(crate) async fn label_exists(
+    label: &str,
+    sqlite_client: Option<&SqliteDb>,
+) -> Result<bool, BridgeCliError> {
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+    WalletTable::label_exists(sqlite_client.as_ref().pool(), label).await
 }
 
 pub(crate) async fn address_exists<T>(
     address: &TaprootAddressWithPrefix<T>,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<bool, BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let db = SqliteDb::open_with_schema().await?;
-
-    WalletTable::address_exists(db.pool(), address).await
-}
-
-/// Validation options for wallet creation and import operations
-#[derive(Debug)]
-pub enum WalletValidationMode {
-    /// Check if wallet name already exists
-    Label,
-    /// Check if address already exists for the given network
-    Address,
-    /// Check both wallet name and address
-    Both,
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+    WalletTable::address_exists(sqlite_client.as_ref().pool(), address).await
 }
 
 /// Combined validation function to check for conflicts during wallet operations
 pub(crate) async fn validate_wallet_availability(
     label: Option<&str>,
     address: Option<&TaprootAddressWithPrefix<NetworkChecked>>,
-    mode: WalletValidationMode,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), BridgeCliError> {
-    let should_check_wallet = matches!(
-        mode,
-        WalletValidationMode::Label | WalletValidationMode::Both
-    );
-    let should_check_address = matches!(
-        mode,
-        WalletValidationMode::Address | WalletValidationMode::Both
-    );
-
-    if should_check_wallet {
-        let label = label.ok_or_else(|| {
-            BridgeCliError::Eyre(eyre::eyre!("Wallet label is required for validation"))
-        })?;
-        if label_exists(label).await? {
-            return Err(BridgeCliError::LabelAlreadyExists(label.to_string()));
-        }
+    if let Some(label) = label
+        && label_exists(label, sqlite_client).await?
+    {
+        return Err(BridgeCliError::LabelAlreadyExists(label.to_string()));
     }
 
-    if should_check_address {
-        let address = address.ok_or_else(|| {
-            BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
-        })?;
-        if address_exists(address).await? {
-            return Err(BridgeCliError::AddressAlreadyExists(
-                address.address_with_prefix(),
-            ));
-        }
+    if let Some(address) = address
+        && address_exists(address, sqlite_client).await?
+    {
+        return Err(BridgeCliError::AddressAlreadyExists(
+            address.address_with_prefix(),
+        ));
     }
 
     Ok(())
@@ -241,6 +220,7 @@ pub(crate) async fn validate_wallet_availability(
 pub(crate) async fn parse_and_validate_imported_wallet(
     file_path: &Path,
     label: Option<&str>,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<WalletData, BridgeCliError> {
     use std::fs;
 
@@ -283,12 +263,7 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     };
 
     // Validate that both wallet label and address don't already exist
-    validate_wallet_availability(
-        Some(label),
-        Some(&wallet_address),
-        WalletValidationMode::Both,
-    )
-    .await?;
+    validate_wallet_availability(Some(label), Some(&wallet_address), sqlite_client).await?;
 
     // Check if encrypted data exists
     if wallet_data.encrypted_mnemonic.is_none() {
@@ -306,12 +281,13 @@ pub(crate) async fn parse_and_validate_imported_wallet(
 
 pub(crate) async fn ensure_wallet_exists<T>(
     address: &crate::structs::TaprootAddressWithPrefix<T>,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), crate::errors::BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    if !address_exists(address).await? {
+    if !address_exists(address, sqlite_client).await? {
         return Err(crate::errors::BridgeCliError::WalletNotFound(
             address.address_without_prefix(),
         ));
@@ -341,6 +317,7 @@ where
 pub async fn load_key_with_purpose_check<T>(
     address: &TaprootAddressWithPrefix<T>,
     expected_purpose: Purpose,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<SecureKeypair, BridgeCliError>
 where
     T: NetworkValidation + Clone,
@@ -349,5 +326,5 @@ where
     validate_address_purpose(address, expected_purpose)?;
     let secure_passphrase = crate::wallet::passphrase::prompt_unlock_passphrase()?;
     tracing::debug!("Loading key for address {}", address.address_with_prefix());
-    load_key(address, &secure_passphrase).await
+    load_key(address, &secure_passphrase, sqlite_client).await
 }

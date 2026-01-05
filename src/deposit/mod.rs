@@ -10,6 +10,7 @@ use crate::deposit::storage::DepositAddressStorageResult;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
+use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
@@ -198,8 +199,9 @@ pub async fn create_signed_recovery_tx(
     params: RecoveryTxParams,
     config: &BridgeCliConfig,
     keypair: SecureKeypair,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<Transaction, BridgeCliError> {
-    ensure_wallet_exists(&params.recovery_taproot_address).await?;
+    ensure_wallet_exists(&params.recovery_taproot_address, sqlite_client).await?;
 
     // Convert BTC amount to satoshis if provided
     let deposit_amount = convert_btc_to_amount(params.amount)?;

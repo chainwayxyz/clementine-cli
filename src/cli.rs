@@ -41,8 +41,8 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
-            parse_and_validate_imported_wallet, validate_wallet_availability,
+            ensure_wallet_exists, load_key_with_purpose_check, parse_and_validate_imported_wallet,
+            validate_wallet_availability,
         },
     },
     withdraw::{self, start_withdrawal},
@@ -631,11 +631,12 @@ pub async fn cli_create_wallet(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(&label), None, WalletValidationMode::Label).await?;
+    validate_wallet_availability(Some(&label), None, None).await?;
 
     let passphrase = prompt_passphrase(true)?;
-    let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase).await?;
 
+    let (address, mnemonic) =
+        create_encrypted_wallet(network, label, purpose, passphrase, None).await?;
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
     print!(
@@ -687,10 +688,10 @@ pub async fn cli_backup_wallet(
     let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
 
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(&address).await?;
+    ensure_wallet_exists(&address, None).await?;
 
     let dest_path = Path::new(destination_path);
-    let final_dest = backup_wallet(&address, dest_path).await?;
+    let final_dest = backup_wallet(&address, dest_path, None).await?;
 
     Ok((address, final_dest))
 }
@@ -701,12 +702,12 @@ pub async fn cli_import_wallet_from_mnemonic(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before mnemonic prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label).await?;
+    validate_wallet_availability(Some(label), None, None).await?;
     println!("{}", "Import Wallet with Mnemonic".bold());
 
     let mnemonic = prompt_mnemonic()?;
 
-    import_wallet_from_mnemonic(network, label, purpose, mnemonic).await
+    import_wallet_from_mnemonic(network, label, purpose, mnemonic, None).await
 }
 
 pub async fn cli_import_wallet_from_file(
@@ -716,10 +717,10 @@ pub async fn cli_import_wallet_from_file(
     let file_path = Path::new(file_path);
 
     // Duplicate pre-check before passphrase prompt for better UX
-    parse_and_validate_imported_wallet(file_path, label).await?;
+    parse_and_validate_imported_wallet(file_path, label, None).await?;
 
     let passphrase = prompt_unlock_passphrase()?;
-    import_wallet_from_file(file_path, label, passphrase).await
+    import_wallet_from_file(file_path, label, passphrase, None).await
 }
 
 pub async fn cli_import_wallet_from_private_key(
@@ -728,7 +729,7 @@ pub async fn cli_import_wallet_from_private_key(
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label).await?;
+    validate_wallet_availability(Some(label), None, None).await?;
 
     let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
@@ -737,7 +738,15 @@ pub async fn cli_import_wallet_from_private_key(
 
     let passphrase = prompt_passphrase(true)?;
 
-    import_wallet_from_private_key(network, label, purpose, secure_private_key, passphrase).await
+    import_wallet_from_private_key(
+        network,
+        label,
+        purpose,
+        secure_private_key,
+        passphrase,
+        None,
+    )
+    .await
 }
 
 /// Show mnemonic securely for a wallet
@@ -745,9 +754,9 @@ pub async fn cli_show_mnemonic(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(address).await?;
+    ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
-    let mnemonic = get_mnemonic_from_wallet(address, &passphrase).await?;
+    let mnemonic = get_mnemonic_from_wallet(address, &passphrase, None).await?;
     crate::secure_display::display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
@@ -757,9 +766,9 @@ pub async fn cli_show_private_key(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(address).await?;
+    ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
-    let private_key = get_private_key_from_wallet(address, &passphrase).await?;
+    let private_key = get_private_key_from_wallet(address, &passphrase, None).await?;
     crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
@@ -933,9 +942,10 @@ pub async fn deposit_create_signed_recovery_tx(
     amount: f64,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    ensure_wallet_exists(recovery_taproot_address).await?;
+    ensure_wallet_exists(recovery_taproot_address, None).await?;
 
-    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit).await?;
+    let keypair =
+        load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit, None).await?;
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
@@ -946,7 +956,7 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair).await?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair, None).await?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
@@ -1289,10 +1299,11 @@ pub async fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
-    ensure_wallet_exists(signer_address).await?;
+    ensure_wallet_exists(signer_address, None).await?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
         Purpose::Withdrawal,
+        None,
     )
     .await?;
 
@@ -1304,6 +1315,7 @@ pub async fn cli_generate_withdrawal_signatures(
         optimistic_withdrawal_amount,
         operator_withdrawal_amount,
         config,
+        None,
     )
     .await
 }

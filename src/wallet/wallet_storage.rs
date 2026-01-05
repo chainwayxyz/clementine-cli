@@ -43,10 +43,11 @@ use std::path::Path;
 use crate::errors::BridgeCliError;
 use crate::sqlite_db;
 use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::sqlite_db::sqlite_client::resolve_sqlite_client;
 use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
-use crate::wallet::wallet_utils::{WalletValidationMode, validate_wallet_availability};
+use crate::wallet::wallet_utils::validate_wallet_availability;
 
 /// Generic function to store encrypted wallet data
 #[allow(clippy::too_many_arguments)]
@@ -58,8 +59,11 @@ pub(crate) async fn store_wallet_data(
     imported: bool,
     import_method: Option<&str>,
     label: &str,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), BridgeCliError> {
-    validate_wallet_availability(Some(label), Some(address), WalletValidationMode::Both).await?;
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+
+    validate_wallet_availability(Some(label), Some(address), Some(sqlite_client.as_ref())).await?;
 
     let wallet_data = WalletData {
         label: label.to_string(),
@@ -73,8 +77,8 @@ pub(crate) async fn store_wallet_data(
         import_method: import_method.map(|s| s.to_string()),
     };
 
-    let sqlite_client = SqliteDb::open_with_schema().await?;
-    sqlite_db::wallet_db::WalletTable::insert_wallet(sqlite_client.pool(), &wallet_data).await?;
+    sqlite_db::wallet_db::WalletTable::insert_wallet(sqlite_client.as_ref().pool(), &wallet_data)
+        .await?;
 
     Ok(())
 }
@@ -82,14 +86,16 @@ pub(crate) async fn store_wallet_data(
 /// Load generic wallet data from file
 pub async fn load_wallet_data<T>(
     address: &TaprootAddressWithPrefix<T>,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<Option<WalletData>, BridgeCliError>
 where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let sqlite_client = SqliteDb::open_with_schema().await?;
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+
     let wallet_data = sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
-        sqlite_client.pool(),
+        sqlite_client.as_ref().pool(),
         address.clone(),
     )
     .await?;
@@ -101,13 +107,14 @@ where
 pub(crate) async fn extract_wallet_data_to_file(
     address: &TaprootAddressWithPrefix<NetworkUnchecked>,
     destination_path: &Path,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<std::path::PathBuf, BridgeCliError> {
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+
     let wallet_file_name = format!("wallet_{}.json", address.address_without_prefix());
 
-    let sqlite_client = SqliteDb::open_with_schema().await?;
-
     let wallet_data: WalletExport = match sqlite_db::wallet_db::WalletTable::get_wallet_by_address(
-        sqlite_client.pool(),
+        sqlite_client.as_ref().pool(),
         address.clone(),
     )
     .await?
