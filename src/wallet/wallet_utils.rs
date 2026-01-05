@@ -193,51 +193,24 @@ where
     WalletTable::address_exists(sqlite_client.as_ref().pool(), address).await
 }
 
-/// Validation options for wallet creation and import operations
-#[derive(Debug)]
-pub enum WalletValidationMode {
-    /// Check if wallet name already exists
-    Label,
-    /// Check if address already exists for the given network
-    Address,
-    /// Check both wallet name and address
-    Both,
-}
-
 /// Combined validation function to check for conflicts during wallet operations
 pub(crate) async fn validate_wallet_availability(
     label: Option<&str>,
     address: Option<&TaprootAddressWithPrefix<NetworkChecked>>,
-    mode: WalletValidationMode,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), BridgeCliError> {
-    let should_check_wallet = matches!(
-        mode,
-        WalletValidationMode::Label | WalletValidationMode::Both
-    );
-    let should_check_address = matches!(
-        mode,
-        WalletValidationMode::Address | WalletValidationMode::Both
-    );
-
-    if should_check_wallet {
-        let label = label.ok_or_else(|| {
-            BridgeCliError::Eyre(eyre::eyre!("Wallet label is required for validation"))
-        })?;
-        if label_exists(label, sqlite_client).await? {
-            return Err(BridgeCliError::LabelAlreadyExists(label.to_string()));
-        }
+    if let Some(label) = label
+        && label_exists(label, sqlite_client).await?
+    {
+        return Err(BridgeCliError::LabelAlreadyExists(label.to_string()));
     }
 
-    if should_check_address {
-        let address = address.ok_or_else(|| {
-            BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
-        })?;
-        if address_exists(address, sqlite_client).await? {
-            return Err(BridgeCliError::AddressAlreadyExists(
-                address.address_with_prefix(),
-            ));
-        }
+    if let Some(address) = address
+        && address_exists(address, sqlite_client).await?
+    {
+        return Err(BridgeCliError::AddressAlreadyExists(
+            address.address_with_prefix(),
+        ));
     }
 
     Ok(())
@@ -290,13 +263,7 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     };
 
     // Validate that both wallet label and address don't already exist
-    validate_wallet_availability(
-        Some(label),
-        Some(&wallet_address),
-        WalletValidationMode::Both,
-        sqlite_client,
-    )
-    .await?;
+    validate_wallet_availability(Some(label), Some(&wallet_address), sqlite_client).await?;
 
     // Check if encrypted data exists
     if wallet_data.encrypted_mnemonic.is_none() {
