@@ -635,7 +635,8 @@ pub async fn cli_create_wallet(
 
     let passphrase = prompt_passphrase(true)?;
 
-    let (address, mnemonic) = create_encrypted_wallet(network, label, purpose, passphrase, None).await?;
+    let (address, mnemonic) =
+        create_encrypted_wallet(network, label, purpose, passphrase, None).await?;
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
     print!(
@@ -737,7 +738,15 @@ pub async fn cli_import_wallet_from_private_key(
 
     let passphrase = prompt_passphrase(true)?;
 
-    import_wallet_from_private_key(network, label, purpose, secure_private_key, passphrase, None).await
+    import_wallet_from_private_key(
+        network,
+        label,
+        purpose,
+        secure_private_key,
+        passphrase,
+        None,
+    )
+    .await
 }
 
 /// Show mnemonic securely for a wallet
@@ -935,7 +944,8 @@ pub async fn deposit_create_signed_recovery_tx(
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address, None).await?;
 
-    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit, None).await?;
+    let keypair =
+        load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit, None).await?;
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,

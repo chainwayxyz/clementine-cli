@@ -54,12 +54,14 @@ where
 {
     ensure_wallet_exists(address, sqlite_client).await?;
 
-    let wallet_data = load_wallet_data(address, sqlite_client).await?.ok_or_else(|| {
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Wallet data not found for address {}",
-            address.address_with_prefix()
-        ))
-    })?;
+    let wallet_data = load_wallet_data(address, sqlite_client)
+        .await?
+        .ok_or_else(|| {
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Wallet data not found for address {}",
+                address.address_with_prefix()
+            ))
+        })?;
 
     // Load the encrypted private key
     let encrypted_private_key = wallet_data
@@ -231,7 +233,7 @@ pub(crate) async fn validate_wallet_availability(
         let address = address.ok_or_else(|| {
             BridgeCliError::Eyre(eyre::eyre!("Address is required for validation"))
         })?;
-            if address_exists(address, sqlite_client).await? {
+        if address_exists(address, sqlite_client).await? {
             return Err(BridgeCliError::AddressAlreadyExists(
                 address.address_with_prefix(),
             ));

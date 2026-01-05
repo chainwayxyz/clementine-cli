@@ -1,6 +1,7 @@
+use std::borrow::Cow;
 use std::path::PathBuf;
 
-use eyre::{Context, eyre};
+use eyre::Context;
 use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};

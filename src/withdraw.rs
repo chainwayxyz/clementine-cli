@@ -114,6 +114,7 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid SECRET_KEY format: {}", e)))
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,

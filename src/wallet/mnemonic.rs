@@ -68,11 +68,12 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let wallet_data = load_wallet_data(address, sqlite_client)
-        .await?
-        .ok_or(BridgeCliError::WalletNotFound(
-            address.address_with_prefix(),
-        ))?;
+    let wallet_data =
+        load_wallet_data(address, sqlite_client)
+            .await?
+            .ok_or(BridgeCliError::WalletNotFound(
+                address.address_with_prefix(),
+            ))?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?
