@@ -224,4 +224,36 @@ mod tests {
 
         Ok(())
     }
+
+    #[tokio::test]
+    async fn insert_and_fetch_deposit_roundtrip() -> Result<(), BridgeCliError> {
+        let pool = setup_db().await?;
+
+        let deposit = DepositRecord {
+            deposit_address: "depb1qy9x5k2r6p4n8zzexampleexampleexample0000000".to_string(),
+            aggregated_public_key: "03123456abcd".to_string(),
+            recovery_taproot_address: "bcrt1p7roundtripaddress00000000000000000000000000".to_string(),
+            citrea_address: "citrea1roundtrip0000000000000000000000000".to_string(),
+            user_takes_after: 42,
+            network: Network::Signet,
+            created_at: Utc.timestamp_opt(1_700_100_000, 0).unwrap().timestamp() as u64,
+        };
+
+        DepositTable::insert_deposit(&pool, &deposit).await?;
+
+        let fetched = DepositTable
+            ::get_deposit_by_address(&pool, &deposit.deposit_address)
+            .await?
+            .expect("deposit should exist");
+
+        assert_eq!(fetched.deposit_address, deposit.deposit_address);
+        assert_eq!(fetched.aggregated_public_key, deposit.aggregated_public_key);
+        assert_eq!(fetched.recovery_taproot_address, deposit.recovery_taproot_address);
+        assert_eq!(fetched.citrea_address, deposit.citrea_address);
+        assert_eq!(fetched.user_takes_after, deposit.user_takes_after);
+        assert_eq!(fetched.network, deposit.network);
+        assert_eq!(fetched.created_at, deposit.created_at);
+
+        Ok(())
+    }
 }
