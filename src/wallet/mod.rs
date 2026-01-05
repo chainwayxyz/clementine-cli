@@ -52,9 +52,9 @@ use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
 use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
+use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
-use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
 use crate::wallet::wallet_utils::validate_wallet_availability;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 
@@ -139,8 +139,9 @@ pub async fn import_wallet_from_mnemonic(
     passphrase: SecureString,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    let address = derive_and_validate_mnemonic_import(network, label, purpose, &mnemonic, sqlite_client)
-        .await?;
+    let address =
+        derive_and_validate_mnemonic_import(network, label, purpose, &mnemonic, sqlite_client)
+            .await?;
 
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic).map_err(|e| {
         tracing::error!("Error deriving private key from mnemonic: {}", e);
