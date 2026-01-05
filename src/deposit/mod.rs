@@ -113,29 +113,24 @@ pub async fn get_deposit_address(
         calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
 
     // Because backend is not available for regtest, don't cross check.
-    if config.network == bitcoin::Network::Regtest {
+    let calculated_deposit_address = if config.network == bitcoin::Network::Regtest {
         tracing::debug!("Regtest network is being used, not checking address against backend...");
-        let storage_result = store_deposit_record(
-            &calculated_deposit_address,
-            recovery_taproot_address,
-            citrea_address,
-            config,
-        )
-        .await?;
-        return Ok((calculated_deposit_address, storage_result));
-    }
+        calculated_deposit_address
+    } else {
+        // Call backend to create deposit account
+        let deposit_address =
+            create_deposit_account(citrea_address, &recovery_taproot_address.address, config)
+                .await?;
+        tracing::info!("Deposit address fetched from backend: {}", deposit_address);
 
-    // Call backend to create deposit account
-    let deposit_address =
-        create_deposit_account(citrea_address, &recovery_taproot_address.address, config).await?;
-    tracing::info!("Deposit address fetched from backend: {}", deposit_address);
-
-    if deposit_address != calculated_deposit_address {
-        return Err(BridgeCliError::CalculatedRecoveryTaprootAddressMismatch(
-            calculated_deposit_address,
-            deposit_address,
-        ));
-    }
+        if deposit_address != calculated_deposit_address {
+            return Err(BridgeCliError::CalculatedRecoveryTaprootAddressMismatch(
+                calculated_deposit_address,
+                deposit_address,
+            ));
+        };
+        deposit_address
+    };
 
     let storage_result = store_deposit_record(
         &calculated_deposit_address,
