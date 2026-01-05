@@ -1,4 +1,3 @@
-use crate::sqlite_db::sqlite_client::SqliteTable;
 use crate::structs::AddrDisplay;
 use crate::wallet::encryption::EncryptedDataHex;
 use crate::{errors::BridgeCliError, structs::TaprootAddressWithPrefix};
@@ -185,10 +184,6 @@ pub(crate) struct MinimalWalletData {
 
 pub struct WalletTable;
 
-impl SqliteTable for WalletTable {
-    const TABLE_NAME: &'static str = "wallets";
-}
-
 impl WalletTable {
     pub(crate) async fn insert_wallet(
         pool: &Pool<Sqlite>,
@@ -201,13 +196,12 @@ impl WalletTable {
             .as_ref()
             .map(|e| Json(e.clone()));
 
-        sqlx::query(&format!(
-            "INSERT INTO {} (label, address, network, encrypted_mnemonic, \
+        sqlx::query(
+            "INSERT INTO wallets (label, address, network, encrypted_mnemonic, \
                  encrypted_private_key, created_at, encryption_method, imported, import_method) \
                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
-                 ON CONFLICT DO NOTHING",
-            Self::TABLE_NAME
-        ))
+                 ON CONFLICT DO NOTHING"
+        )
         .bind(&wallet.label)
         .bind(wallet.address.address_with_prefix())
         .bind(wallet.network.to_string())
@@ -227,10 +221,9 @@ impl WalletTable {
     pub(crate) async fn get_all_wallets(
         pool: &Pool<Sqlite>,
     ) -> Result<Vec<MinimalWalletData>, BridgeCliError> {
-        let rows = sqlx::query_as::<_, MinimalWalletData>(&format!(
-            "SELECT label, address, network, created_at, imported, import_method FROM {}",
-            Self::TABLE_NAME
-        ))
+        let rows = sqlx::query_as::<_, MinimalWalletData>(
+            "SELECT label, address, network, created_at, imported, import_method FROM wallets",
+        )
         .fetch_all(pool)
         .await
         .wrap_err("Failed to fetch wallets from database")?;
@@ -246,12 +239,11 @@ impl WalletTable {
         T: NetworkValidation,
         Address<T>: AddrDisplay,
     {
-        let row: Option<WalletRaw> = sqlx::query_as::<_, WalletRaw>(&format!(
+        let row: Option<WalletRaw> = sqlx::query_as::<_, WalletRaw>(
             "SELECT label, address, network, encrypted_mnemonic, \
              encrypted_private_key, created_at, encryption_method, imported, import_method \
-             FROM {} WHERE address = ?1",
-            Self::TABLE_NAME
-        ))
+             FROM wallets WHERE address = ?1"
+        )
         .bind(address.address_with_prefix())
         .fetch_optional(pool)
         .await
@@ -261,14 +253,12 @@ impl WalletTable {
     }
 
     pub async fn label_exists(pool: &Pool<Sqlite>, label: &str) -> Result<bool, BridgeCliError> {
-        let exists: Option<i64> = sqlx::query_scalar(&format!(
-            "SELECT 1 FROM {} WHERE label = ?1 LIMIT 1",
-            Self::TABLE_NAME
-        ))
-        .bind(label)
-        .fetch_optional(pool)
-        .await
-        .wrap_err("Failed to check wallet label existence in database")?;
+        let exists: Option<i64> =
+            sqlx::query_scalar("SELECT 1 FROM wallets WHERE label = ?1 LIMIT 1")
+                .bind(label)
+                .fetch_optional(pool)
+                .await
+                .wrap_err("Failed to check wallet label existence in database")?;
 
         Ok(exists.is_some())
     }
@@ -281,14 +271,12 @@ impl WalletTable {
         T: NetworkValidation,
         Address<T>: AddrDisplay,
     {
-        let exists: Option<i64> = sqlx::query_scalar(&format!(
-            "SELECT 1 FROM {} WHERE address = ?1 LIMIT 1",
-            Self::TABLE_NAME
-        ))
-        .bind(address.address_with_prefix())
-        .fetch_optional(pool)
-        .await
-        .wrap_err("Failed to check wallet address existence in database")?;
+        let exists: Option<i64> =
+            sqlx::query_scalar("SELECT 1 FROM wallets WHERE address = ?1 LIMIT 1")
+                .bind(address.address_with_prefix())
+                .fetch_optional(pool)
+                .await
+                .wrap_err("Failed to check wallet address existence in database")?;
 
         Ok(exists.is_some())
     }
@@ -426,11 +414,10 @@ mod tests {
         assert_eq!(wallets[0].label, wallet.label);
         assert_eq!(wallets[0].address, wallet.address.address_with_prefix());
 
-        let fetched = WalletTable
-            ::get_wallet_by_address(&pool, address)
+        let fetched = WalletTable::get_wallet_by_address(&pool, address)
             .await?
             .expect("wallet should exist");
-        
+
         assert_eq!(fetched.encryption_method, wallet.encryption_method);
         assert_eq!(fetched.imported, wallet.imported);
         assert_eq!(fetched.created_at, wallet.created_at);

@@ -1,5 +1,4 @@
 use crate::errors::BridgeCliError;
-use crate::sqlite_db::sqlite_client::SqliteTable;
 use bitcoin::Network;
 use eyre::{Context, eyre};
 use sqlx::{FromRow, Pool, Sqlite};
@@ -66,10 +65,6 @@ impl TryFrom<DepositRow> for DepositRecord {
 
 pub struct DepositTable;
 
-impl SqliteTable for DepositTable {
-    const TABLE_NAME: &'static str = "deposits";
-}
-
 impl DepositTable {
     pub(crate) async fn insert_deposit(
         pool: &Pool<Sqlite>,
@@ -88,12 +83,11 @@ impl DepositTable {
             ))
         })?;
 
-        sqlx::query(&format!(
-            "INSERT INTO {} (deposit_address, aggregated_public_key, \
+        sqlx::query(
+            "INSERT INTO deposits (deposit_address, aggregated_public_key, \
              recovery_taproot_address, citrea_address, user_takes_after, network, created_at) \
              VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT DO NOTHING",
-            Self::TABLE_NAME
-        ))
+        )
         .bind(&deposit.deposit_address)
         .bind(&deposit.aggregated_public_key)
         .bind(&deposit.recovery_taproot_address)
@@ -112,10 +106,9 @@ impl DepositTable {
         pool: &Pool<Sqlite>,
         deposit_address: &str,
     ) -> Result<bool, BridgeCliError> {
-        let exists: Option<i64> = sqlx::query_scalar(&format!(
-            "SELECT 1 FROM {} WHERE deposit_address = ?1 LIMIT 1",
-            Self::TABLE_NAME
-        ))
+        let exists: Option<i64> = sqlx::query_scalar(
+            "SELECT 1 FROM deposits WHERE deposit_address = ?1 LIMIT 1"
+        )
         .bind(deposit_address)
         .fetch_optional(pool)
         .await
@@ -127,12 +120,11 @@ impl DepositTable {
     pub(crate) async fn get_all_deposits(
         pool: &Pool<Sqlite>,
     ) -> Result<Vec<DepositRecord>, BridgeCliError> {
-        let rows = sqlx::query_as::<_, DepositRow>(&format!(
+        let rows = sqlx::query_as::<_, DepositRow>(
             "SELECT deposit_address, aggregated_public_key, recovery_taproot_address, \
-             citrea_address, user_takes_after, network, created_at FROM {} \
+             citrea_address, user_takes_after, network, created_at FROM deposits \
              ORDER BY created_at ASC, deposit_address ASC",
-            Self::TABLE_NAME
-        ))
+        )
         .fetch_all(pool)
         .await
         .wrap_err("Failed to fetch deposits from database")?;
@@ -146,12 +138,11 @@ impl DepositTable {
         pool: &Pool<Sqlite>,
         deposit_address: &str,
     ) -> Result<Option<DepositRecord>, BridgeCliError> {
-        let row: Option<DepositRow> = sqlx::query_as::<_, DepositRow>(&format!(
+        let row: Option<DepositRow> = sqlx::query_as::<_, DepositRow>(
             "SELECT deposit_address, aggregated_public_key, recovery_taproot_address, \
-             citrea_address, user_takes_after, network, created_at FROM {} \
+             citrea_address, user_takes_after, network, created_at FROM deposits \
              WHERE deposit_address = ?1",
-            Self::TABLE_NAME
-        ))
+        )
         .bind(deposit_address)
         .fetch_optional(pool)
         .await
@@ -193,9 +184,11 @@ mod tests {
         let pool = setup_db().await?;
 
         let deposit = DepositRecord {
-            deposit_address: "depb1qhf0k9x2e0et39wzu8h5qqqqqqqqqqqqqqqqqqqqqqqqqqqg0ftqv".to_string(),
+            deposit_address: "depb1qhf0k9x2e0et39wzu8h5qqqqqqqqqqqqqqqqqqqqqqqqqqqg0ftqv"
+                .to_string(),
             aggregated_public_key: "02abcdef".to_string(),
-            recovery_taproot_address: "bcrt1p7exampleaddress000000000000000000000000000".to_string(),
+            recovery_taproot_address: "bcrt1p7exampleaddress000000000000000000000000000"
+                .to_string(),
             citrea_address: "citrea1exampleaddress000000000000000000000000".to_string(),
             user_takes_after: 10,
             network: Network::Testnet4,
@@ -214,8 +207,7 @@ mod tests {
         assert_eq!(deposits.len(), 1);
         assert_eq!(deposits[0].deposit_address, deposit.deposit_address);
 
-        let fetched = DepositTable
-            ::get_deposit_by_address(&pool, &deposit.deposit_address)
+        let fetched = DepositTable::get_deposit_by_address(&pool, &deposit.deposit_address)
             .await?
             .expect("deposit should exist");
         assert_eq!(fetched.aggregated_public_key, deposit.aggregated_public_key);
@@ -232,7 +224,8 @@ mod tests {
         let deposit = DepositRecord {
             deposit_address: "depb1qy9x5k2r6p4n8zzexampleexampleexample0000000".to_string(),
             aggregated_public_key: "03123456abcd".to_string(),
-            recovery_taproot_address: "bcrt1p7roundtripaddress00000000000000000000000000".to_string(),
+            recovery_taproot_address: "bcrt1p7roundtripaddress00000000000000000000000000"
+                .to_string(),
             citrea_address: "citrea1roundtrip0000000000000000000000000".to_string(),
             user_takes_after: 42,
             network: Network::Signet,
@@ -241,14 +234,16 @@ mod tests {
 
         DepositTable::insert_deposit(&pool, &deposit).await?;
 
-        let fetched = DepositTable
-            ::get_deposit_by_address(&pool, &deposit.deposit_address)
+        let fetched = DepositTable::get_deposit_by_address(&pool, &deposit.deposit_address)
             .await?
             .expect("deposit should exist");
 
         assert_eq!(fetched.deposit_address, deposit.deposit_address);
         assert_eq!(fetched.aggregated_public_key, deposit.aggregated_public_key);
-        assert_eq!(fetched.recovery_taproot_address, deposit.recovery_taproot_address);
+        assert_eq!(
+            fetched.recovery_taproot_address,
+            deposit.recovery_taproot_address
+        );
         assert_eq!(fetched.citrea_address, deposit.citrea_address);
         assert_eq!(fetched.user_takes_after, deposit.user_takes_after);
         assert_eq!(fetched.network, deposit.network);

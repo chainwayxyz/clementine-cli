@@ -56,7 +56,3 @@ impl SqliteDb {
         &self.pool
     }
 }
-
-pub trait SqliteTable {
-    const TABLE_NAME: &'static str;
-}
