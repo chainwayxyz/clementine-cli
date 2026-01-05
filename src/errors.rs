@@ -159,7 +159,14 @@ pub enum BridgeCliError {
 
     // Deposit related errors
     #[error(
-        "Calculated recovery taproot {0} not matches with Citrea response {1}: Please check configuration file and CLI version"
+        "Calculated recovery taproot {0} does not match Citrea response {1}.\n\
+        \n\
+        This mismatch indicates that a signer set update has occurred.\n\
+        \n\
+        Please follow these steps:\n\
+        1. Update your CLI to the latest version\n\
+        2. Run 'clementine-cli init' to update your configuration with the new N-of-N key\n\
+        3. Retry your operation"
     )]
     CalculatedRecoveryTaprootAddressMismatch(BitcoinAddress, BitcoinAddress),
 
