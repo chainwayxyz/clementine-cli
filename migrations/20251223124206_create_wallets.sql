@@ -5,8 +5,8 @@ CREATE TABLE IF NOT EXISTS wallets (
     network                TEXT    NOT NULL,
     encrypted_mnemonic     TEXT,
     encrypted_private_key  TEXT,
-    created_at             TEXT    NOT NULL,
     encryption_method      TEXT    NOT NULL,
     imported               INTEGER,
-    import_method          TEXT
+    import_method          TEXT,
+    created_at             INTEGER NOT NULL
 );

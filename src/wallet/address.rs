@@ -33,7 +33,6 @@ use bip39::Mnemonic;
 use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
-use chrono::DateTime;
 use clap::ValueEnum;
 use colored::Colorize;
 use secrecy::ExposeSecret;
@@ -145,18 +144,7 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         return Ok(());
     }
 
-    wallets.sort_by_key(|w| {
-        DateTime::parse_from_rfc3339(&w.created_at).unwrap_or_else(|_| {
-            tracing::warn!(
-                "Failed to parse created_at timestamp '{}' for wallet '{}'",
-                w.created_at,
-                w.label
-            );
-            DateTime::<chrono::Utc>::from_timestamp(0, 0)
-                .unwrap()
-                .with_timezone(&chrono::FixedOffset::east_opt(0).unwrap())
-        })
-    });
+    wallets.sort_by_key(|w| w.created_at);
 
     let (mainnet, others): (Vec<_>, Vec<_>) =
         wallets.into_iter().partition(|w| w.network == "bitcoin");

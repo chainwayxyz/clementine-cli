@@ -4,7 +4,7 @@ use crate::wallet::encryption::EncryptedDataHex;
 use crate::{errors::BridgeCliError, structs::TaprootAddressWithPrefix};
 use bitcoin::address::{NetworkChecked, NetworkValidation};
 use bitcoin::{Address, Network};
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use eyre::{Context, eyre};
 use serde::{Deserialize, Serialize};
 use sqlx::types::Json;
@@ -48,7 +48,7 @@ pub(crate) struct WalletRaw {
     network: String,
     encrypted_mnemonic: Option<Json<EncryptedDataHex>>,
     encrypted_private_key: Option<Json<EncryptedDataHex>>,
-    created_at: String,
+    created_at: i64,
     encryption_method: String,
     imported: Option<bool>,
     import_method: Option<String>,
@@ -131,14 +131,15 @@ impl TryFrom<WalletRaw> for WalletData {
                 ))
             })?;
 
-        let created_at = DateTime::parse_from_rfc3339(&row.created_at)
-            .map_err(|e| {
+        let created_at = Utc
+            .timestamp_opt(row.created_at, 0)
+            .single()
+            .ok_or_else(|| {
                 BridgeCliError::Eyre(eyre!(
-                    "Invalid timestamp '{}' stored in wallets table: {e}",
+                    "Invalid created_at '{}' stored in wallets table",
                     row.created_at
                 ))
-            })?
-            .with_timezone(&Utc);
+            })?;
         let encrypted_mnemonic = row.encrypted_mnemonic.map(|Json(v)| v);
         let encrypted_private_key = row.encrypted_private_key.map(|Json(v)| v);
 
@@ -164,7 +165,7 @@ impl From<WalletData> for WalletRaw {
             network: data.network.to_string(),
             encrypted_mnemonic: data.encrypted_mnemonic.map(Json),
             encrypted_private_key: data.encrypted_private_key.map(Json),
-            created_at: data.created_at.to_rfc3339(),
+            created_at: data.created_at.timestamp(),
             encryption_method: data.encryption_method,
             imported: data.imported,
             import_method: data.import_method,
@@ -177,7 +178,7 @@ pub(crate) struct MinimalWalletData {
     pub label: String,
     pub address: String,
     pub network: String,
-    pub created_at: String,
+    pub created_at: i64,
     pub imported: Option<bool>,
     pub import_method: Option<String>,
 }
@@ -211,7 +212,7 @@ impl WalletTable {
         .bind(wallet.network.to_string())
         .bind(enc_mn)
         .bind(enc_pk)
-        .bind(wallet.created_at.to_rfc3339())
+        .bind(wallet.created_at.timestamp())
         .bind(&wallet.encryption_method)
         .bind(wallet.imported.map(|b| if b { 1 } else { 0 }))
         .bind(&wallet.import_method)
