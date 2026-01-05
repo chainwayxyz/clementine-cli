@@ -709,7 +709,7 @@ pub async fn cli_import_wallet_from_mnemonic(
 
     // Pre-check derived address before prompting for passphrase
     let _derived_address =
-        derive_and_validate_mnemonic_import(network, label, purpose, &mnemonic, None).await?;
+        derive_and_validate_mnemonic_import(network, None, purpose, &mnemonic, None).await?;
 
     let passphrase = prompt_passphrase(true)?;
 

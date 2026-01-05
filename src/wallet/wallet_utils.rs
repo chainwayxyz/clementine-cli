@@ -219,7 +219,7 @@ pub(crate) async fn validate_wallet_availability(
 /// Derive address from mnemonic and ensure both label and address are available
 pub(crate) async fn derive_and_validate_mnemonic_import(
     network: Network,
-    label: &str,
+    label: Option<&str>,
     purpose: Purpose,
     mnemonic: &Mnemonic,
     sqlite_client: Option<&SqliteDb>,
@@ -229,7 +229,7 @@ pub(crate) async fn derive_and_validate_mnemonic_import(
         BridgeCliError::AddressGenerationFromMnemonicFailed
     })?;
 
-    validate_wallet_availability(Some(label), Some(&address), sqlite_client).await?;
+    validate_wallet_availability(label, Some(&address), sqlite_client).await?;
 
     Ok(address)
 }

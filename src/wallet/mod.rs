@@ -139,9 +139,14 @@ pub async fn import_wallet_from_mnemonic(
     passphrase: SecureString,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
-    let address =
-        derive_and_validate_mnemonic_import(network, label, purpose, &mnemonic, sqlite_client)
-            .await?;
+    let address = derive_and_validate_mnemonic_import(
+        network,
+        Some(label),
+        purpose,
+        &mnemonic,
+        sqlite_client,
+    )
+    .await?;
 
     let master_private_key_secure = derive_private_key_from_mnemonic(&mnemonic).map_err(|e| {
         tracing::error!("Error deriving private key from mnemonic: {}", e);
