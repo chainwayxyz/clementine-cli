@@ -204,7 +204,8 @@ impl WalletTable {
         sqlx::query(&format!(
             "INSERT INTO {} (label, address, network, encrypted_mnemonic, \
                  encrypted_private_key, created_at, encryption_method, imported, import_method) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
+                 ON CONFLICT DO NOTHING",
             Self::TABLE_NAME
         ))
         .bind(&wallet.label)
@@ -387,6 +388,52 @@ mod tests {
         assert_eq!(roundtrip.encryption_method, wallet.encryption_method);
         assert_eq!(roundtrip.imported, wallet.imported);
         assert_eq!(roundtrip.import_method, wallet.import_method);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn insert_wallet_conflict_does_nothing() -> Result<(), BridgeCliError> {
+        let pool = setup_db().await?;
+
+        let address = TaprootAddressWithPrefix::from_string_with_prefix(
+            "wittb1p6j7432u040m9xmpumtmjk0vn5mwkzhm8g6xaphkmmgjsj87r4p2sqje5p7",
+            Network::Testnet4,
+        )?;
+
+        let wallet = WalletData {
+            label: "conflict-wallet".to_string(),
+            address: address.clone(),
+            network: Network::Testnet4,
+            encrypted_mnemonic: None,
+            encrypted_private_key: None,
+            created_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
+            encryption_method: "test-method".to_string(),
+            imported: Some(false),
+            import_method: None,
+        };
+
+        let mut wallet_conflict = wallet.clone();
+        wallet_conflict.encryption_method = "should-not-overwrite".to_string();
+        wallet_conflict.imported = Some(true);
+        wallet_conflict.created_at = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
+
+        WalletTable::insert_wallet(&pool, &wallet).await?;
+        WalletTable::insert_wallet(&pool, &wallet_conflict).await?; // should be ignored by ON CONFLICT
+
+        let wallets = WalletTable::get_all_wallets(&pool).await?;
+        assert_eq!(wallets.len(), 1);
+        assert_eq!(wallets[0].label, wallet.label);
+        assert_eq!(wallets[0].address, wallet.address.address_with_prefix());
+
+        let fetched = WalletTable
+            ::get_wallet_by_address(&pool, address)
+            .await?
+            .expect("wallet should exist");
+        
+        assert_eq!(fetched.encryption_method, wallet.encryption_method);
+        assert_eq!(fetched.imported, wallet.imported);
+        assert_eq!(fetched.created_at, wallet.created_at);
 
         Ok(())
     }

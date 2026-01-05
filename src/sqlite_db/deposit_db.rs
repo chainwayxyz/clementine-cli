@@ -91,7 +91,7 @@ impl DepositTable {
         sqlx::query(&format!(
             "INSERT INTO {} (deposit_address, aggregated_public_key, \
              recovery_taproot_address, citrea_address, user_takes_after, network, created_at) \
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7) ON CONFLICT DO NOTHING",
             Self::TABLE_NAME
         ))
         .bind(&deposit.deposit_address)
@@ -158,5 +158,70 @@ impl DepositTable {
         .wrap_err("Failed to fetch deposit by address from database")?;
 
         row.map(DepositRecord::try_from).transpose()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::{TimeZone, Utc};
+    use sqlx::migrate::Migrator;
+    use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+
+    static MIGRATOR: Migrator = sqlx::migrate!();
+
+    async fn setup_db() -> Result<Pool<Sqlite>, BridgeCliError> {
+        let options = SqliteConnectOptions::new()
+            .filename(":memory:")
+            .create_if_missing(true);
+        let pool = SqlitePoolOptions::new()
+            .max_connections(1)
+            .connect_with(options)
+            .await
+            .wrap_err("Failed to open in-memory SQLite database")?;
+
+        MIGRATOR.run(&pool).await.map_err(|e| {
+            tracing::error!("Failed to run database migrations: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to run database migrations"))
+        })?;
+
+        Ok(pool)
+    }
+
+    #[tokio::test]
+    async fn insert_deposit_conflict_does_nothing() -> Result<(), BridgeCliError> {
+        let pool = setup_db().await?;
+
+        let deposit = DepositRecord {
+            deposit_address: "depb1qhf0k9x2e0et39wzu8h5qqqqqqqqqqqqqqqqqqqqqqqqqqqg0ftqv".to_string(),
+            aggregated_public_key: "02abcdef".to_string(),
+            recovery_taproot_address: "bcrt1p7exampleaddress000000000000000000000000000".to_string(),
+            citrea_address: "citrea1exampleaddress000000000000000000000000".to_string(),
+            user_takes_after: 10,
+            network: Network::Testnet4,
+            created_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap().timestamp() as u64,
+        };
+
+        let mut deposit_conflict = deposit.clone();
+        deposit_conflict.aggregated_public_key = "02deadbeef".to_string();
+        deposit_conflict.citrea_address = "citrea1different".to_string();
+        deposit_conflict.created_at += 100;
+
+        DepositTable::insert_deposit(&pool, &deposit).await?;
+        DepositTable::insert_deposit(&pool, &deposit_conflict).await?; // should be ignored by ON CONFLICT
+
+        let deposits = DepositTable::get_all_deposits(&pool).await?;
+        assert_eq!(deposits.len(), 1);
+        assert_eq!(deposits[0].deposit_address, deposit.deposit_address);
+
+        let fetched = DepositTable
+            ::get_deposit_by_address(&pool, &deposit.deposit_address)
+            .await?
+            .expect("deposit should exist");
+        assert_eq!(fetched.aggregated_public_key, deposit.aggregated_public_key);
+        assert_eq!(fetched.citrea_address, deposit.citrea_address);
+        assert_eq!(fetched.created_at, deposit.created_at);
+
+        Ok(())
     }
 }
