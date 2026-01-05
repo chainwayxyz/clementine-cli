@@ -41,8 +41,8 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            ensure_wallet_exists, load_key_with_purpose_check, parse_and_validate_imported_wallet,
-            validate_wallet_availability,
+            derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+            parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
     withdraw::{self, start_withdrawal},
@@ -707,7 +707,13 @@ pub async fn cli_import_wallet_from_mnemonic(
 
     let mnemonic = prompt_mnemonic()?;
 
-    import_wallet_from_mnemonic(network, label, purpose, mnemonic, None).await
+    // Pre-check derived address before prompting for passphrase
+    let _derived_address =
+        derive_and_validate_mnemonic_import(network, None, purpose, &mnemonic, None).await?;
+
+    let passphrase = prompt_passphrase(true)?;
+
+    import_wallet_from_mnemonic(network, label, purpose, mnemonic, passphrase, None).await
 }
 
 pub async fn cli_import_wallet_from_file(
