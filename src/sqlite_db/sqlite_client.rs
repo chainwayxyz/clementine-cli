@@ -53,6 +53,33 @@ impl SqliteDb {
         Ok(db)
     }
 
+    #[cfg(test)]
+    pub async fn open_in_memory_with_schema(db_name: &str) -> Result<Self, BridgeCliError> {
+        // Use an isolated in-memory database for each pool
+
+        use std::str::FromStr;
+        let uri = format!("file:{db_name}?mode=memory&cache=shared");
+        let options = SqliteConnectOptions::from_str(&uri)
+            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse SQLite URI: {e}")))?
+            .create_if_missing(true)
+            .shared_cache(true);
+
+        let pool = SqlitePoolOptions::new()
+            .max_connections(5)
+            .connect_with(options)
+            .await
+            .wrap_err("Failed to open in-memory SQLite database with sqlx")?;
+
+        let db = Self { pool };
+
+        MIGRATOR.run(db.pool()).await.map_err(|e| {
+            tracing::error!("Failed to run database migrations for in-memory DB: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to run database migrations"))
+        })?;
+
+        Ok(db)
+    }
+
     pub fn pool(&self) -> &Pool<Sqlite> {
         &self.pool
     }
