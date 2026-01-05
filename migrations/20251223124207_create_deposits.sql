@@ -5,6 +5,6 @@ CREATE TABLE IF NOT EXISTS deposits (
     recovery_taproot_address TEXT    NOT NULL,
     citrea_address           TEXT    NOT NULL,
     user_takes_after         INTEGER NOT NULL,
-    network                  TEXT    NOT NULL,
+    network                  TEXT    NOT NULL CHECK (network IN ('bitcoin', 'testnet4', 'testnet', 'signet', 'regtest')),
     created_at               INTEGER NOT NULL
 );
