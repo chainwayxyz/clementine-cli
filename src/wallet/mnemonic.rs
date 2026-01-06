@@ -81,7 +81,20 @@ where
         return Err(BridgeCliError::MissingEncryptedMnemonic);
     };
 
-    let secure_mnemonic_str = aes_decrypt_secure(&encrypted_data, passphrase)?;
+    // Decrypt; map auth failure to incorrect passphrase, propagate other errors
+    let secure_mnemonic_str = match aes_decrypt_secure(&encrypted_data, passphrase) {
+        Ok(mnemonic_str) => mnemonic_str,
+        Err(BridgeCliError::DecryptionError) => {
+            tracing::warn!(
+                "Failed to decrypt mnemonic: authentication failed (wrong passphrase or corrupted data)",
+            );
+            return Err(BridgeCliError::IncorrectPassphrase);
+        }
+        Err(e) => {
+            tracing::error!("Failed to decrypt mnemonic: {}", e);
+            return Err(e);
+        }
+    };
 
     // Check if this wallet was imported from a private key
     if secure_mnemonic_str.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {

@@ -195,7 +195,7 @@ pub async fn import_wallet_from_file(
     let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
 
-    // Try to decrypt mnemonic to verify passphrase
+    // Try to decrypt mnemonic to verify passphrase; map auth failure to incorrect passphrase
     match aes_decrypt_secure(&encrypted_data, &passphrase) {
         Ok(decrypted_mnemonic) => {
             // Additional validation: check if decrypted content looks like a valid mnemonic
@@ -223,8 +223,15 @@ pub async fn import_wallet_from_file(
                 validate_mnemonic_import(&decrypted_mnemonic, &wallet_data)?;
             }
         }
-        Err(_) => {
+        Err(BridgeCliError::DecryptionError) => {
+            tracing::warn!(
+                "Failed to decrypt mnemonic during import: authentication failed (wrong passphrase or corrupted data)",
+            );
             return Err(BridgeCliError::IncorrectPassphrase);
+        }
+        Err(e) => {
+            tracing::error!("Failed to decrypt mnemonic during import: {}", e);
+            return Err(e);
         }
     }
 
@@ -418,7 +425,9 @@ mod tests {
             .expect("Failed to get last segment of thread name")
             .to_string();
 
-        SqliteDb::open_in_memory_with_schema(&test_name).await.unwrap()
+        SqliteDb::open_in_memory_with_schema(&test_name)
+            .await
+            .unwrap()
     }
 
     async fn insert_wallet_from_mnemonic(
@@ -657,7 +666,6 @@ mod tests {
         assert!(matches!(err, BridgeCliError::LabelAlreadyExists(_)));
     }
 
-    
     #[tokio::test]
     async fn backup_wallet_exports_file() {
         let db = fresh_db_with_test_name().await;
@@ -693,7 +701,7 @@ mod tests {
         assert_eq!(export.network, Network::Testnet.to_string());
         assert!(export.encrypted_mnemonic.is_some());
         assert!(export.encrypted_private_key.is_some());
-        
+
         dir.close().expect("Failed to close and delete temp dir");
     }
 
@@ -740,7 +748,6 @@ mod tests {
             imported: Some(true),
             import_method: Some("file_import".to_string()),
         };
-
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
         // end to surface issues; if the test fails before close, the destructor will still attempt cleanup.
@@ -791,7 +798,6 @@ mod tests {
             imported: Some(true),
             import_method: Some("file_import".to_string()),
         };
-
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
         // end to surface issues; if the test fails before close, the destructor will still attempt cleanup.
@@ -912,7 +918,7 @@ mod tests {
         let err = get_mnemonic_from_wallet(&address, &other_passphrase(), Some(&db))
             .await
             .unwrap_err();
-        assert!(matches!(err, BridgeCliError::DecryptionError));
+        assert!(matches!(err, BridgeCliError::IncorrectPassphrase));
     }
 
     #[tokio::test]
@@ -960,7 +966,7 @@ mod tests {
         .unwrap();
 
         let err = get_private_key_from_wallet(&address, &other_passphrase(), Some(&db)).await;
-        assert!(matches!(err, Err(BridgeCliError::DecryptionError)));
+        assert!(matches!(err, Err(BridgeCliError::IncorrectPassphrase)));
     }
 
     #[tokio::test]
