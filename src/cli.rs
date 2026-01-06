@@ -1058,7 +1058,8 @@ pub async fn cli_get_deposit_address(
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
     let (deposit_address, storage_result) =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
+            .await?;
 
     if storage_result == DepositAddressStorageResult::Exists {
         println!(
@@ -1327,7 +1328,7 @@ pub async fn cli_generate_withdrawal_signatures(
 }
 
 pub async fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
-    let deposits = get_all_deposit_address_details().await.map_err(|e| {
+    let deposits = get_all_deposit_address_details(None).await.map_err(|e| {
         tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
         BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
     })?;
@@ -1353,7 +1354,7 @@ pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<()
         tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
         BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
     })?;
-    let details = get_deposit_address_details_for_deposit_address(deposit_address)
+    let details = get_deposit_address_details_for_deposit_address(deposit_address, None)
         .await
         .map_err(|e| {
             tracing::error!(
