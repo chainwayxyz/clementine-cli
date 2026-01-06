@@ -143,14 +143,6 @@ Display the private key for a wallet (use with extreme caution):
 clementine-cli wallet show-private-key <WALLET_ADDRESS>
 ```
 
-### Verify Wallet Integrity
-
-Check the integrity of wallet registry and files:
-
-```sh
-clementine-cli wallet verify-integrity
-```
-
 ## Security Best Practices
 
 ### Critical Security Requirements
