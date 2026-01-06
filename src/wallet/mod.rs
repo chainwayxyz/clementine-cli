@@ -5,14 +5,12 @@
 //! - Importing wallets from mnemonics, private keys, or files
 //! - Secure storage and retrieval of wallet data
 //! - Backup and export operations
-//! - Wallet integrity verification and scanning
 //!
 //! ## Core Operations
 //!
 //! - **Wallet creation**: Generate new wallets with BIP-39 mnemonics
 //! - **Import/export methods**: Support mnemonic, private key, and file imports, and wallet backup
 //! - **Secure access**: All operations require passphrase authentication
-//! - **Data integrity**: Registry and file consistency verification
 //!
 
 pub(crate) mod address;
