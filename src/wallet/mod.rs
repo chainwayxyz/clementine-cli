@@ -382,6 +382,7 @@ where
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::sqlite_db::test_utils::fresh_db_with_test_name;
     use crate::sqlite_db::wallet_db::{WalletExport, WalletTable};
     use crate::wallet::address::generate_address_from_mnemonic;
     use crate::wallet::encryption::{aes_encrypt_secure, encrypted_data_to_hex};
@@ -414,20 +415,6 @@ mod tests {
 
     fn short_private_key_hex() -> SecureString {
         SecureString::init_with(|| "aa".repeat(15))
-    }
-
-    async fn fresh_db_with_test_name() -> SqliteDb {
-        let test_name = std::thread::current()
-            .name()
-            .expect("Failed to get current thread name for test database")
-            .split(':')
-            .next_back()
-            .expect("Failed to get last segment of thread name")
-            .to_string();
-
-        SqliteDb::open_in_memory_with_schema(&test_name)
-            .await
-            .unwrap()
     }
 
     async fn insert_wallet_from_mnemonic(

@@ -129,22 +129,10 @@ mod tests {
     use super::*;
     use crate::config::BridgeCliConfig;
     use crate::deposit::get_deposit_address;
+    use crate::sqlite_db::test_utils::fresh_db_with_test_name;
     use crate::wallet::Purpose;
     use bitcoin::key::TweakedPublicKey;
     use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, XOnlyPublicKey};
-    async fn fresh_db_with_test_name() -> SqliteDb {
-        let test_name = std::thread::current()
-            .name()
-            .expect("Failed to get current thread name for test database")
-            .split(':')
-            .next_back()
-            .expect("Failed to get last segment of thread name")
-            .to_string();
-
-        SqliteDb::open_in_memory_with_schema(&test_name)
-            .await
-            .expect("Failed to open in-memory test DB")
-    }
 
     fn sample_deposit_data(network: Network, seed: u8) -> DepositData {
         let secp = Secp256k1::new();
