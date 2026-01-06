@@ -139,7 +139,10 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
     let wallets = get_wallets_from_registry()?;
 
     if wallets.is_empty() {
-        println!("No wallets found.");
+        println!("{} No wallets found.", "INFO".bold());
+        println!("\nTo create a new wallet, use:");
+        println!("  clementine-cli wallet create <LABEL> <PURPOSE>");
+        println!("\nWhere <PURPOSE> is either 'deposit' or 'withdrawal'");
         return Ok(());
     }
 
@@ -161,7 +164,8 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             return Ok(());
         }
         println!("{}", section_title.bold().underline());
-        for wallet_entry in wallets {
+        println!();
+        for (idx, wallet_entry) in wallets.iter().enumerate() {
             let network = parse_network(&wallet_entry.network)?;
             let address = TaprootAddressWithPrefix::from_string_with_prefix(
                 &wallet_entry.addres_with_prefix,
@@ -169,28 +173,27 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             )?;
             let import_info = if let Some(true) = wallet_entry.imported {
                 if let Some(method) = &wallet_entry.import_method {
-                    format!(", (Imported via {})", method)
+                    format!(" (Imported via {})", method)
                 } else {
-                    ", (Imported)".to_string()
+                    " (Imported)".to_string()
                 }
             } else {
                 "".to_string()
             };
-            let network = format!("Network: {}", wallet_entry.network);
             println!(
-                "Label: {} -> Address: {}, {}{}",
-                &wallet_entry.label,
-                &address.address_with_prefix(),
-                network,
+                "{}. {} | Address: {} | Network: {}{}",
+                idx + 1,
+                wallet_entry.label.bold(),
+                address.address_with_prefix().bold(),
+                wallet_entry.network,
                 import_info,
             );
         }
+        println!();
         Ok(())
     }
 
     print_wallet_section("Wallets on networks other than Bitcoin mainnet:", &others)?;
-
-    println!();
 
     print_wallet_section("Wallets on Bitcoin mainnet:", &mainnet)?;
 
