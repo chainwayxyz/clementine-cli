@@ -68,7 +68,21 @@ where
 
     let encrypted_data =
         crate::wallet::encryption::encrypted_data_from_hex(&encrypted_private_key)?;
-    let decrypted_key = aes_decrypt_secure(&encrypted_data, passphrase)?;
+
+    // Decrypt; map auth failure to incorrect passphrase, propagate other errors
+    let decrypted_key = match aes_decrypt_secure(&encrypted_data, passphrase) {
+        Ok(key) => key,
+        Err(BridgeCliError::DecryptionError) => {
+            tracing::warn!(
+                "Failed to decrypt private key: authentication failed (wrong passphrase or corrupted data)",
+            );
+            return Err(BridgeCliError::IncorrectPassphrase);
+        }
+        Err(e) => {
+            tracing::error!("Failed to decrypt private key: {}", e);
+            return Err(e);
+        }
+    };
 
     let secp = Secp256k1::new();
     let secret_key = SecureSecretKey::new(SecretKey::from_str(decrypted_key.expose_secret())?);
@@ -153,15 +167,23 @@ pub(crate) fn validate_private_key_import(
                             return Err(BridgeCliError::AddressMismatch);
                         }
                     }
-                    Err(_) => {
+                    Err(e) => {
+                        tracing::error!("Invalid private key format: {}", e);
                         return Err(BridgeCliError::InvalidPrivateKey(
                             "Invalid private key format".to_string(),
                         ));
                     }
                 }
             }
-            Err(_) => {
+            Err(BridgeCliError::DecryptionError) => {
+                tracing::warn!(
+                    "Failed to decrypt private key: authentication failed (wrong passphrase or corrupted data)"
+                );
                 return Err(BridgeCliError::IncorrectPassphrase);
+            }
+            Err(e) => {
+                tracing::error!("Failed to decrypt private key: {}", e);
+                return Err(e);
             }
         }
     } else {

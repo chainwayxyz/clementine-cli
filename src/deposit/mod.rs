@@ -104,6 +104,7 @@ pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<(BitcoinAddress, DepositAddressStorageResult), BridgeCliError> {
     crate::wallet::wallet_utils::validate_address_purpose(
         recovery_taproot_address,
@@ -138,6 +139,7 @@ pub async fn get_deposit_address(
         recovery_taproot_address,
         citrea_address,
         config,
+        sqlite_client,
     )
     .await?;
 
@@ -149,6 +151,7 @@ async fn store_deposit_record(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     citrea_address: &CitreaAddress,
     config: &BridgeCliConfig,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<DepositAddressStorageResult, BridgeCliError> {
     let deposit_data = DepositData {
         deposit_address: deposit_address.clone(),
@@ -159,13 +162,15 @@ async fn store_deposit_record(
         network: config.network,
     };
 
-    store_deposit_address(&deposit_data).await.map_err(|e| {
-        tracing::error!("Failed to store deposit address: {}", e);
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to store deposit address for recovery taproot address '{}'",
-            recovery_taproot_address.address_with_prefix()
-        ))
-    })
+    store_deposit_address(&deposit_data, sqlite_client)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to store deposit address: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!(
+                "Failed to store deposit address for recovery taproot address '{}'",
+                recovery_taproot_address.address_with_prefix()
+            ))
+        })
 }
 
 pub async fn get_deposit_params(
