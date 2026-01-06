@@ -275,7 +275,7 @@ enum WithdrawCommands {
         /// Destination address for withdrawn BTC
         destination_address: String,
     },
-    /// Generate withdrawal signatures (for air-gapped use).
+    /// Generate a withdrawal signature (for air-gapped use).
     Sign {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -320,7 +320,7 @@ enum WithdrawCommands {
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo: String,
     },
-    /// Send withdrawal signatures to operators.
+    /// Send a withdrawal signature to operators.
     SubmitToOperators {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
