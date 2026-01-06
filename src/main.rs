@@ -183,7 +183,7 @@ enum WalletCommands {
 #[derive(Subcommand)]
 enum DepositCommands {
     /// Generate a deposit address for the given Citrea and recovery addresses.
-    GetDepositAddress {
+    GenerateAddress {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
@@ -226,7 +226,7 @@ enum DepositCommands {
         network: CliNetwork,
     },
     /// Check the status of a deposit.
-    Status {
+    CheckStatus {
         /// Deposit address (taproot address funds were sent to)
         deposit_address: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
@@ -247,9 +247,9 @@ enum DepositCommands {
         network: CliNetwork,
     },
     /// List all stored deposit addresses.
-    ListDepositAddresses,
+    ListAddresses,
     /// Show stored details for a deposit address.
-    GetDepositAddressDetails {
+    ShowAddressDetails {
         /// Deposit address (taproot address funds were sent to)
         deposit_address: String,
     },
@@ -267,7 +267,7 @@ enum WithdrawCommands {
         destination_address: String,
     },
     /// Scan for UTXOs to use in withdrawal.
-    Scan {
+    ScanUtxos {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
@@ -275,8 +275,8 @@ enum WithdrawCommands {
         /// Destination address for withdrawn BTC
         destination_address: String,
     },
-    /// Generate a withdrawal signature (for air-gapped use).
-    GenerateWithdrawalSignatures {
+    /// Generate withdrawal signatures (for air-gapped use).
+    Sign {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
@@ -314,14 +314,14 @@ enum WithdrawCommands {
         signature: String,
     },
     /// Check the status of a withdrawal.
-    Status {
+    CheckStatus {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo: String,
     },
     /// Send withdrawal signatures to operators.
-    SendWithdrawalSignatureToOperators {
+    SubmitToOperators {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
@@ -463,7 +463,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
         Commands::Deposit { command } => match command {
-            DepositCommands::GetDepositAddress {
+            DepositCommands::GenerateAddress {
                 recovery_taproot_address,
                 citrea_address,
                 network,
@@ -484,7 +484,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
                         println!("After sending the funds, you can monitor the deposit status using:");
-                        println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
+                        println!("clementine-cli deposit check-status --network {} {}", config.network, deposit_address.to_string());
                     }
                 );
             }
@@ -570,7 +570,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::Status {
+            DepositCommands::CheckStatus {
                 deposit_address,
                 network,
             } => {
@@ -599,10 +599,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            DepositCommands::ListDepositAddresses => {
+            DepositCommands::ListAddresses => {
                 handle_cli_command!(cli_list_all_deposit_addresses());
             }
-            DepositCommands::GetDepositAddressDetails { deposit_address } => {
+            DepositCommands::ShowAddressDetails { deposit_address } => {
                 handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
             }
         },
@@ -637,7 +637,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             signer_address.address_without_prefix(), config.dust_utxo_amount.to_btc());
                         println!("or a similar command from a wallet you are using");
                         println!("Then run:");
-                        println!("$ clementine-cli withdraw scan --network {} {} {}",
+                        println!("$ clementine-cli withdraw scan-utxos --network {} {} {}",
                             config.network, signer_address.address_with_prefix(), destination_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                         println!();
@@ -645,7 +645,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawCommands::Scan {
+            WithdrawCommands::ScanUtxos {
                 signer_address,
                 destination_address,
                 network,
@@ -666,7 +666,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     _ => { }
                 )
             }
-            WithdrawCommands::GenerateWithdrawalSignatures {
+            WithdrawCommands::Sign {
                 signer_address,
                 destination_address,
                 withdrawal_utxo_outpoint,
@@ -719,11 +719,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("on your online device to initiate optimistic withdrawal process on the Citrea network");
                         println!("Then monitor withdrawal status for 12 hours using:");
                         println!();
-                        println!("$ clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);
+                        println!("$ clementine-cli withdraw check-status --network {} {}", network, &withdrawal_outpoint);
                         println!();
                         println!("If the optimistic withdrawal does not complete in 12 hours, run:");
                         println!();
-                        println!("$ clementine-cli withdraw send-withdrawal-signature-to-operators --network {} {} {} {} {}",
+                        println!("$ clementine-cli withdraw submit-to-operators --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(operator_signature));
                         println!();
                         println!("to submit the operator-paid withdrawal signature to Clementine Operators");
@@ -851,7 +851,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawCommands::Status {
+            WithdrawCommands::CheckStatus {
                 withdrawal_utxo,
                 network,
             } => {
@@ -861,7 +861,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                 handle_cli_command!(async withdrawal_status(withdrawal_outpoint, &config));
             }
-            WithdrawCommands::SendWithdrawalSignatureToOperators {
+            WithdrawCommands::SubmitToOperators {
                 signer_address,
                 destination_address,
                 withdrawal_utxo_outpoint,

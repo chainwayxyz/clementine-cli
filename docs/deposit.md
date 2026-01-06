@@ -41,15 +41,15 @@ The deposit process consists of several stages:
 Create a deposit address using your Citrea (EVM) address and recovery taproot address:
 
 ```sh
-clementine-cli deposit get-deposit-address [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit generate-address [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli deposit get-deposit-address depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
+clementine-cli deposit generate-address depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 # For testnet4
-clementine-cli deposit get-deposit-address --network testnet depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
+clementine-cli deposit generate-address --network testnet depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 ```
 
 > [!IMPORTANT]
@@ -79,15 +79,15 @@ bitcoin-cli -testnet4 sendtoaddress "tb1pd..." 10
 **ONLINE DEVICE OPERATION:** Track the progress of your deposit throughout the bridging process:
 
 ```sh
-clementine-cli deposit status [--network <BITCOIN_NETWORK>] <DEPOSIT_ADDRESS>
+clementine-cli deposit check-status [--network <BITCOIN_NETWORK>] <DEPOSIT_ADDRESS>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli deposit status tb1pd...
+clementine-cli deposit check-status tb1pd...
 # For testnet4
-clementine-cli deposit status --network testnet tb1pd...
+clementine-cli deposit check-status --network testnet tb1pd...
 ```
 
 The status will show the response from the backend.
