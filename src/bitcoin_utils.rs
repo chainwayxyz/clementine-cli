@@ -483,7 +483,6 @@ mod tests {
                 move_tx_finalization_blocks: 5,
             }),
         };
-
         network_configs.regtest.unwrap()
     }
 

@@ -5,8 +5,9 @@ use clementine_cli::cli::{
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
     cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
     cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
-    cli_start_withdrawal, cli_verify_wallet_integrity, deposit_create_signed_recovery_tx,
-    deposit_status, send_withdrawal_signature, withdrawal_status,
+    cli_start_withdrawal, cli_verify_recovery_tx_with_validation, cli_verify_wallet_integrity,
+    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
+    withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -204,6 +205,8 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -217,6 +220,8 @@ enum DepositCommands {
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: Option<f64>,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -340,9 +345,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Init {} => {
-            handle_cli_command!(clementine_cli::cli::cli_init(), _ => {
-                println!("Clementine CLI initialized successfully.");
-            });
+            handle_cli_command!(clementine_cli::cli::cli_init());
         }
         Commands::UpdateConfig { network, yes, kv } => {
             let kv: Vec<(String, String)> = kv
@@ -492,6 +495,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 fee_rate,
                 amount,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -518,6 +522,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         fee_rate,
                         amount,
                         &config,
+                        clementine_aggregated_key,
                     )
                     .await
                 );
@@ -527,6 +532,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 recovery_taproot_address,
                 evm_address,
                 amount,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -538,7 +544,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(
-                    deposit::verify_recovery_tx(
+                    async
+                    cli_verify_recovery_tx_with_validation(
                         deposit::VerifyRecoveryTxParams {
                             recovery_tx,
                             citrea_address,
@@ -546,6 +553,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             amount,
                         },
                         &config,
+                        clementine_aggregated_key,
                     ),
                     (txid, address, amount) => {
                         println!("Recovery transaction verified!");

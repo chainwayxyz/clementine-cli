@@ -1,6 +1,6 @@
-use std::io::Write;
 use std::{
-    io,
+    fs, io,
+    io::Write,
     path::{Path, PathBuf},
     str::FromStr,
 };
@@ -57,6 +57,7 @@ use crate::{
     get_clementine_home_dir_with_existence_check,
 };
 
+use bitcoin::XOnlyPublicKey;
 use crossterm::cursor::{MoveToColumn, SavePosition};
 use crossterm::terminal::{Clear, ClearType};
 use crossterm::{
@@ -67,6 +68,34 @@ use crossterm::{
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
+
+/// Parse aggregated public key from hex string and warn if it differs from config
+fn parse_and_validate_aggregated_key(
+    key_hex: &str,
+    config_key: XOnlyPublicKey,
+) -> Result<XOnlyPublicKey, BridgeCliError> {
+    if key_hex.len() != 64 {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "aggregated_public_key must be exactly 64 hex characters, got {}",
+            key_hex.len()
+        )));
+    }
+
+    let key = XOnlyPublicKey::from_str(key_hex).map_err(|e| {
+        BridgeCliError::Eyre(eyre::eyre!("Failed to parse aggregated_public_key: {}", e))
+    })?;
+
+    if key != config_key {
+        println!(
+            "{} Using aggregated_public_key different from config",
+            "WARNING".bold()
+        );
+        println!("  Config key:   {}", config_key);
+        println!("  Provided key: {}", key);
+    }
+
+    Ok(key)
+}
 
 /// Initialize the Clementine CLI environment.
 ///
@@ -146,14 +175,39 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         }
     }
 
-    let mut default_cfgs = config::default_networks();
-    setup_networks(&mut default_cfgs)?;
-    config::write_config_to(&config_file, &default_cfgs)?;
+    let mut cfgs = if config_file.exists() {
+        let contents = fs::read_to_string(&config_file).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to read existing configuration '{}': {}",
+                config_file.display(),
+                e
+            ))
+        })?;
+
+        toml::from_str::<NetworkConfigs>(&contents).map_err(|e| {
+            BridgeCliError::Eyre(eyre!(
+                "Failed to parse existing configuration '{}': {}",
+                config_file.display(),
+                e
+            ))
+        })?
+    } else {
+        config::default_networks()
+    };
+
+    // Reset mainnet/testnet4 to defaults before interactive network setup,
+    // while keeping other config sections intact.
+    cfgs.bitcoin = BridgeCliConfig::defaults_for(Network::Bitcoin);
+    cfgs.testnet4 = BridgeCliConfig::defaults_for(Network::Testnet4);
+
+    setup_networks(&mut cfgs)?;
+    config::write_config_to(&config_file, &cfgs)?;
     println!(
         "{} Default configuration file created at: {}",
         "SUCCESS".bold(),
         config_file.display()
     );
+    println!("Clementine CLI initialized successfully.");
     Ok(())
 }
 
@@ -949,6 +1003,7 @@ pub async fn deposit_status(
     Ok(())
 }
 
+#[allow(clippy::too_many_arguments)]
 pub async fn deposit_create_signed_recovery_tx(
     citrea_addr: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
@@ -957,10 +1012,17 @@ pub async fn deposit_create_signed_recovery_tx(
     fee_rate: u64,
     amount: f64,
     config: &BridgeCliConfig,
+    aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
     ensure_wallet_exists(recovery_taproot_address)?;
 
     let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
+
+    // Parse and apply aggregated_public_key override if provided
+    let mut effective_config = config.clone();
+    let key =
+        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
+    effective_config.aggregated_public_key = key;
 
     let recovery_params = deposit::RecoveryTxParams {
         citrea_addr: *citrea_addr,
@@ -971,7 +1033,7 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, config, keypair)?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, &effective_config, keypair)?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
@@ -1319,6 +1381,21 @@ pub fn cli_generate_withdrawal_signatures(
         operator_withdrawal_amount,
         config,
     )
+}
+
+pub async fn cli_verify_recovery_tx_with_validation(
+    params: deposit::VerifyRecoveryTxParams,
+    config: &BridgeCliConfig,
+    aggregated_public_key: String,
+) -> Result<(bitcoin::Txid, BitcoinAddress, Amount), BridgeCliError> {
+    let effective_key =
+        parse_and_validate_aggregated_key(&aggregated_public_key, config.aggregated_public_key)?;
+
+    // Create effective config
+    let mut effective_config = config.clone();
+    effective_config.aggregated_public_key = effective_key;
+
+    deposit::verify_recovery_tx(params, &effective_config)
 }
 
 pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
