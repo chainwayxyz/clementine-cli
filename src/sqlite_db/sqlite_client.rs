@@ -3,7 +3,7 @@ use std::path::PathBuf;
 
 use eyre::Context;
 use sqlx::migrate::Migrator;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
+use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 
 use crate::errors::BridgeCliError;
@@ -30,6 +30,7 @@ impl SqliteDb {
         }
 
         let options = SqliteConnectOptions::new()
+            .journal_mode(SqliteJournalMode::Wal)
             .filename(&path)
             .create_if_missing(true);
 
