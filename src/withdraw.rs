@@ -5,6 +5,7 @@ use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signatur
 use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
+use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::utils::is_wallet_address;
@@ -113,7 +114,8 @@ fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
         .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid SECRET_KEY format: {}", e)))
 }
 
-pub fn generate_withdrawal_signatures(
+#[allow(clippy::too_many_arguments)]
+pub async fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
@@ -121,8 +123,9 @@ pub fn generate_withdrawal_signatures(
     optimistic_withdrawal_amount: &Amount,
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<(Signature, Signature), BridgeCliError> {
-    ensure_wallet_exists(signer_address)?;
+    ensure_wallet_exists(signer_address, sqlite_client).await?;
 
     if signer_address.purpose != Purpose::Withdrawal {
         return Err(BridgeCliError::PurposeMismatch {
@@ -132,7 +135,7 @@ pub fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if is_wallet_address(destination_address, config)? {
+    if is_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
@@ -276,12 +279,12 @@ pub async fn send_safe_withdrawal(
     Ok(receipt)
 }
 
-pub(crate) fn start_withdrawal(
+pub(crate) async fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    if is_wallet_address(destination_address, config)? {
+    if is_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;

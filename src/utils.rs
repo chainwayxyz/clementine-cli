@@ -6,7 +6,7 @@ use crate::{
     wallet::{Purpose, wallet_utils::address_exists},
 };
 
-pub(crate) fn is_wallet_address(
+pub(crate) async fn is_wallet_address(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
@@ -16,7 +16,7 @@ pub(crate) fn is_wallet_address(
             Purpose::Withdrawal,
             config.network,
         )?;
-        return address_exists(&address);
+        return address_exists(&address, None).await;
     }
     Ok(false)
 }

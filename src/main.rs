@@ -5,7 +5,7 @@ use clementine_cli::cli::{
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
     cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
     cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
-    cli_start_withdrawal, cli_verify_recovery_tx_with_validation, cli_verify_wallet_integrity,
+    cli_start_withdrawal, cli_verify_recovery_tx_with_validation,
     deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
     withdrawal_status,
 };
@@ -174,8 +174,6 @@ enum WalletCommands {
         /// Label for the imported wallet
         label: Option<String>,
     },
-    /// Verify integrity of wallet registry and files.
-    VerifyIntegrity,
     /// List all wallets with their addresses.
     List,
 }
@@ -373,7 +371,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_create_wallet(network.into(), label, purpose),
+                    async cli_create_wallet(network.into(), label, purpose),
                     _ => {}
                 );
             }
@@ -382,7 +380,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 address,
             } => {
                 handle_cli_command!(
-                    cli_backup_wallet(&address, &destination),
+                    async cli_backup_wallet(&address, &destination),
                     (addr, dest) => {
                         println!(
                             "Backup completed for address {} to destination {}",
@@ -396,7 +394,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let address = handle_simple_call!(
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
                 );
-                handle_cli_command!(cli_show_mnemonic(&address), "Mnemonic display completed");
+                handle_cli_command!(async cli_show_mnemonic(&address), "Mnemonic display completed");
             }
             WalletCommands::ImportMnemonic {
                 label,
@@ -404,7 +402,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_mnemonic(network.into(), &label, purpose),
+                    async cli_import_wallet_from_mnemonic(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import completed for address: {}",
@@ -415,7 +413,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
             WalletCommands::ImportFile { filename, label } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_file(&filename, label.as_deref()),
+                    async cli_import_wallet_from_file(&filename, label.as_deref()),
                     address => {
                         println!(
                             "Import from file completed for address: {}",
@@ -430,7 +428,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 network,
             } => {
                 handle_cli_command!(
-                    cli_import_wallet_from_private_key(network.into(), &label, purpose),
+                    async cli_import_wallet_from_private_key(network.into(), &label, purpose),
                     address => {
                         println!(
                             "Import from private key completed for address: {}",
@@ -443,21 +441,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WalletCommands::VerifyIntegrity => {
-                handle_cli_command!(
-                    cli_verify_wallet_integrity(),
-                    "Wallet integrity verification completed"
-                );
-            }
             WalletCommands::List => {
-                handle_cli_command!(print_all_wallets_with_addresses());
+                handle_cli_command!(async print_all_wallets_with_addresses());
             }
             WalletCommands::ShowPrivateKey { address } => {
                 let address = handle_simple_call!(
                     TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&address)
                 );
                 handle_cli_command!(
-                    cli_show_private_key(&address),
+                    async cli_show_private_key(&address),
                     "Private key display completed"
                 );
             }
@@ -600,10 +592,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
             DepositCommands::ListDepositAddresses => {
-                handle_cli_command!(cli_list_all_deposit_addresses());
+                handle_cli_command!(async cli_list_all_deposit_addresses());
             }
             DepositCommands::GetDepositAddressDetails { deposit_address } => {
-                handle_cli_command!(cli_get_deposit_address_details(&deposit_address));
+                handle_cli_command!(async cli_get_deposit_address_details(&deposit_address));
             }
         },
         Commands::Withdraw { command } => match command {
@@ -691,7 +683,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let network: Network = network.into();
 
                 handle_cli_command!(
-                    cli_generate_withdrawal_signatures(
+                    async cli_generate_withdrawal_signatures(
                         &signer_address,
                         &destination_address,
                         &withdrawal_outpoint,
