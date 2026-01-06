@@ -387,21 +387,38 @@ mod tests {
     use crate::wallet::address::generate_address_from_mnemonic;
     use crate::wallet::encryption::{aes_encrypt_secure, encrypted_data_to_hex};
     use crate::wallet::wallet_storage;
+    use bip39::Language;
+    use rand::TryRngCore;
+    use rand::distr::Alphanumeric;
+    use rand::{Rng, rngs::OsRng};
     use tempfile::tempdir;
 
     fn sample_passphrase() -> SecureString {
-        SecureString::init_with(|| "passphrase123".to_string())
+        let rng = rand::rng();
+        let pass: String = rng
+            .sample_iter(&Alphanumeric)
+            .take(24)
+            .map(char::from)
+            .collect();
+        SecureString::init_with(|| pass)
     }
 
     fn other_passphrase() -> SecureString {
-        SecureString::init_with(|| "wrong-passphrase".to_string())
+        let rng = rand::rng();
+        let mut pass: String = rng
+            .sample_iter(&Alphanumeric)
+            .take(24)
+            .map(char::from)
+            .collect();
+
+        // Ensure this differs from the common sample passphrase shape.
+        pass.push('!');
+
+        SecureString::init_with(|| pass)
     }
 
     fn sample_mnemonic() -> Mnemonic {
-        Mnemonic::parse(
-            "action action action action action action action action action action action action",
-        )
-        .unwrap()
+        Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT).unwrap()
     }
 
     fn alt_mnemonic() -> Mnemonic {
@@ -410,11 +427,21 @@ mod tests {
     }
 
     fn sample_private_key_hex() -> SecureString {
-        SecureString::init_with(|| "fe".repeat(32))
+        let mut bytes = [0u8; 32];
+        OsRng
+            .try_fill_bytes(&mut bytes)
+            .expect("Can not fail to generate random bytes");
+        let hex = hex::encode(bytes);
+        SecureString::init_with(|| hex)
     }
 
     fn short_private_key_hex() -> SecureString {
-        SecureString::init_with(|| "aa".repeat(15))
+        let mut bytes = [0u8; 15];
+        OsRng
+            .try_fill_bytes(&mut bytes)
+            .expect("Can not fail to generate random bytes");
+        let hex = hex::encode(bytes);
+        SecureString::init_with(|| hex)
     }
 
     async fn insert_wallet_from_mnemonic(
@@ -742,9 +769,14 @@ mod tests {
         let path = dir.path().join("wallet_file.json");
         std::fs::write(&path, serde_json::to_string(&export).unwrap()).unwrap();
 
-        let imported = import_wallet_from_file(&path, None, sample_passphrase(), Some(&db))
-            .await
-            .unwrap();
+        let imported = import_wallet_from_file(
+            &path,
+            None,
+            SecureString::init_with(|| passphrase.expose_secret().to_string()),
+            Some(&db),
+        )
+        .await
+        .unwrap();
 
         dir.close().expect("Failed to close and delete temp dir");
 
@@ -852,7 +884,7 @@ mod tests {
             "mnemonic_fetch",
             Purpose::Deposit,
             mnemonic.clone(),
-            sample_passphrase(),
+            SecureString::init_with(|| passphrase.expose_secret().to_string()),
             Some(&db),
         )
         .await
@@ -874,7 +906,7 @@ mod tests {
             "no_mnemonic",
             Purpose::Deposit,
             sample_private_key_hex(),
-            sample_passphrase(),
+            SecureString::init_with(|| passphrase.expose_secret().to_string()),
             Some(&db),
         )
         .await
@@ -919,7 +951,7 @@ mod tests {
             "pk_fetch",
             Purpose::Deposit,
             mnemonic.clone(),
-            sample_passphrase(),
+            SecureString::init_with(|| passphrase.expose_secret().to_string()),
             Some(&db),
         )
         .await
