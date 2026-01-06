@@ -27,6 +27,8 @@ use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
 
+const TERMS_OF_SERVICE_URL: &str = "https://www.citrea.xyz/clementine-bridge-terms-of-service";
+
 /// Initializes tracing to `Debug` level if verbose flag is given. If not,
 /// defaults to `RUST_LOG` env variable. If neither is set, logging is turned off.
 pub(crate) fn initialize_logger(is_verbose: bool) {
@@ -70,6 +72,14 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
     command.push_str(" -rpcwallet=<rpcwallet>");
 
     command
+}
+
+fn print_terms_notice() {
+    println!(
+        "By continuing to interact with the Clementine CLI, you are confirming that you have reviewed and have agreed to the terms of service for the Clementine bridge presented here: {}",
+        TERMS_OF_SERVICE_URL.underline()
+    );
+    println!();
 }
 
 #[derive(Parser)]
@@ -483,6 +493,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
+
+                        print_terms_notice();
                         println!("After sending the funds, you can monitor the deposit status using:");
                         println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
                     }
@@ -641,6 +653,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             config.network, signer_address.address_with_prefix(), destination_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                         println!();
+                        print_terms_notice();
                         println!("{} If your wallet cannot send exactly {} sats, you may send a higher supported amount. Be sure to update the config to match the amount you actually sent before proceeding.", "WARNING".bold(), config.dust_utxo_amount.to_sat());
                     }
                 );
