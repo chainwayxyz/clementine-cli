@@ -28,27 +28,27 @@
           linux-x86_64 = {
             cargoTarget = "x86_64-unknown-linux-musl";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = null;
+            targetPkgs = pkgs.pkgsStatic;
           };
           aarch64-linux-gnu = {
             cargoTarget = "aarch64-unknown-linux-musl";
             buildOn = [ "aarch64-linux" ];
-            pkgsCross = null;
+            targetPkgs = pkgs.pkgsStatic;
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
-            pkgsCross = null;
+            targetPkgs = pkgs;
           };
           darwin-aarch64 = {
             cargoTarget = "aarch64-apple-darwin";
             buildOn = [ "aarch64-darwin" ];
-            pkgsCross = null;
+            targetPkgs = pkgs;
           };
           windows-x86_64 = {
             cargoTarget = "x86_64-pc-windows-gnu";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = pkgs.pkgsCross.mingwW64;
+            targetPkgs = pkgs.pkgsCross.mingwW64;
           };
         };
 
@@ -76,7 +76,7 @@
                 ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
             };
 
-            targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
+            targetPkgs = cfg.targetPkgs;
 
             buildInputs =
               pkgs.lib.optionals isDarwin [
@@ -94,7 +94,7 @@
 
 
 
-            crossEnv = if cfg.pkgsCross != null then {
+            toolchainEnv = if cfg.targetPkgs != pkgs then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 "-C link-arg=-Wl,--no-insert-timestamp \
@@ -124,7 +124,7 @@
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
 
-            env = crossEnv // {
+            env = toolchainEnv // {
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
@@ -146,7 +146,7 @@
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
-            depsBuildBuild = pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
+            depsBuildBuild = pkgs.lib.optionals (cfg.targetPkgs != pkgs && isWindows) [
               targetPkgs.stdenv.cc
             ];
 
