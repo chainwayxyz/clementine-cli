@@ -38,12 +38,12 @@
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
-            targetPkgs = pkgs;
+            targetPkgs = null;
           };
           darwin-aarch64 = {
             cargoTarget = "aarch64-apple-darwin";
             buildOn = [ "aarch64-darwin" ];
-            targetPkgs = pkgs;
+            targetPkgs = null;
           };
           windows-x86_64 = {
             cargoTarget = "x86_64-pc-windows-gnu";
@@ -76,7 +76,7 @@
                 ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
             };
 
-            targetPkgs = cfg.targetPkgs;
+            targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
 
             buildInputs =
               pkgs.lib.optionals isDarwin [
@@ -94,7 +94,7 @@
 
 
 
-            toolchainEnv = if cfg.targetPkgs != pkgs then {
+            toolchainEnv = if cfg.targetPkgs != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 "-C link-arg=-Wl,--no-insert-timestamp \
@@ -146,7 +146,7 @@
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
-            depsBuildBuild = pkgs.lib.optionals (cfg.targetPkgs != pkgs && isWindows) [
+            depsBuildBuild = pkgs.lib.optionals (cfg.targetPkgs != null && isWindows) [
               targetPkgs.stdenv.cc
             ];
 
