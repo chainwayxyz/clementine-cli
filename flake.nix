@@ -78,6 +78,9 @@
 
             targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
 
+            _ = pkgs.lib.assertMsg (cfg.targetPkgs == null || !isLinux || targetPkgs.stdenv.hostPlatform.libc == "musl")
+              "pkgsStatic's libc is no longer musl; update the flake to explicitly select a musl toolchain for *-unknown-linux-musl targets.";
+
             buildInputs =
               pkgs.lib.optionals isDarwin [
                 pkgs.darwin.apple_sdk.frameworks.Security
