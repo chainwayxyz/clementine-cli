@@ -73,7 +73,7 @@
               src = ./.;
               filter = path: type:
                 let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md" || base == "artifacts" || base == "result" || base == "scripts" || base == "target" );
             };
 
             targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
