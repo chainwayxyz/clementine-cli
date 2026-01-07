@@ -28,27 +28,27 @@
           linux-x86_64 = {
             cargoTarget = "x86_64-unknown-linux-musl";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = pkgs.pkgsCross.musl64;
+            targetPkgs = pkgs.pkgsStatic;
           };
           aarch64-linux-gnu = {
             cargoTarget = "aarch64-unknown-linux-musl";
             buildOn = [ "aarch64-linux" ];
-            pkgsCross = pkgs.pkgsCross.aarch64-multiplatform-musl;
+            targetPkgs = pkgs.pkgsStatic;
           };
           darwin-x86_64 = {
             cargoTarget = "x86_64-apple-darwin";
             buildOn = [ "x86_64-darwin" ];
-            pkgsCross = null;
+            targetPkgs = null;
           };
           darwin-aarch64 = {
             cargoTarget = "aarch64-apple-darwin";
             buildOn = [ "aarch64-darwin" ];
-            pkgsCross = null;
+            targetPkgs = null;
           };
           windows-x86_64 = {
             cargoTarget = "x86_64-pc-windows-gnu";
             buildOn = [ "x86_64-linux" ];
-            pkgsCross = pkgs.pkgsCross.mingwW64;
+            targetPkgs = pkgs.pkgsCross.mingwW64;
           };
         };
 
@@ -76,7 +76,7 @@
                 ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md");
             };
 
-            targetPkgs = if cfg.pkgsCross != null then cfg.pkgsCross else pkgs;
+            targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
 
             buildInputs =
               pkgs.lib.optionals isDarwin [
@@ -92,7 +92,9 @@
 
             rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
 
-            crossEnv = if cfg.pkgsCross != null then {
+
+
+            toolchainEnv = if cfg.targetPkgs != null then {
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
                 "-C link-arg=-Wl,--no-insert-timestamp \
@@ -108,9 +110,11 @@
                 -C embed-bitcode=no \
                 --remap-path-prefix=${srcFiltered}=/src \
                 --remap-path-prefix=$NIX_BUILD_TOP=/build";
-              "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-              "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
             } else {};
+
+
           in
           (rustPlatform.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
@@ -120,7 +124,7 @@
 
             inherit nativeBuildInputs buildInputs cargoBuildFlags;
 
-            env = crossEnv // {
+            env = toolchainEnv // {
               SOURCE_DATE_EPOCH = "1";
               CARGO_INCREMENTAL = "0";
               ZERO_AR_DATE = "1";
@@ -142,11 +146,11 @@
               export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
-            depsBuildBuild = pkgs.lib.optionals (cfg.pkgsCross != null && isWindows) [
+            depsBuildBuild = pkgs.lib.optionals (cfg.targetPkgs != null && isWindows) [
               targetPkgs.stdenv.cc
             ];
 
-            cargoLock = {
+            cargoLock = { 
               lockFile = ./Cargo.lock;
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
@@ -233,7 +237,7 @@
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
-            ] else [ ])
+            ] else [  ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
           shellHook = ''
