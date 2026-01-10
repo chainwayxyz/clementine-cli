@@ -3,7 +3,6 @@
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-
     flake-utils.url = "github:numtide/flake-utils";
 
     rust-overlay = {
@@ -52,8 +51,10 @@
           };
         };
 
-        allowed = builtins.filter (name:
-          builtins.elem buildSystem allTargets.${name}.buildOn) (builtins.attrNames allTargets);
+        allowed =
+          builtins.filter
+            (name: builtins.elem buildSystem allTargets.${name}.buildOn)
+            (builtins.attrNames allTargets);
 
         rustWithTargets = rust.override {
           targets = builtins.map (n: allTargets.${n}.cargoTarget) allowed;
@@ -65,6 +66,7 @@
           let
             cfg = allTargets.${targetName};
             rustTarget = cfg.cargoTarget;
+
             isWindows = rustTarget == "x86_64-pc-windows-gnu";
             isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
             isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
@@ -73,67 +75,125 @@
               src = ./.;
               filter = path: type:
                 let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md" || base == "artifacts" || base == "result" || base == "scripts" || base == "target" );
+                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md" ||
+                   base == "artifacts" || base == "result" || base == "scripts" || base == "target");
             };
 
             targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
 
-            _ = pkgs.lib.assertMsg (cfg.targetPkgs == null || !isLinux || targetPkgs.stdenv.hostPlatform.libc == "musl")
+            _ = pkgs.lib.assertMsg
+              (cfg.targetPkgs == null || !isLinux || targetPkgs.stdenv.hostPlatform.libc == "musl")
               "pkgsStatic's libc is no longer musl; update the flake to explicitly select a musl toolchain for *-unknown-linux-musl targets.";
+
+            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
+            targetRustflagsVar = "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS";
+
+            winPkgs = pkgs.pkgsCross.mingwW64;
+            buildPkgs = winPkgs.buildPackages;
+
+            buildTriple = buildPkgs.stdenv.hostPlatform.config;
+            buildTripleEnv = builtins.replaceStrings ["-"] ["_"] buildTriple;
+            buildRustflagsVar = "CARGO_TARGET_${pkgs.lib.toUpper buildTripleEnv}_RUSTFLAGS";
+
+            rustPlatformFor =
+              if isWindows then
+                let
+                  rustWin =
+                    buildPkgs.rust-bin.stable.${rustVersion}.default.override {
+                      targets = [ rustTarget ];
+                    };
+                in
+                winPkgs.makeRustPlatform { cargo = rustWin; rustc = rustWin; }
+              else
+                rustPlatform;
+
+            nativeBuildInputs =
+              if isWindows then [ buildPkgs.pkg-config ] else [ pkgs.pkg-config ];
+
+            winpthreads = winPkgs.windows.mingw_w64_pthreads;
 
             buildInputs =
               pkgs.lib.optionals isDarwin [
                 pkgs.darwin.apple_sdk.frameworks.Security
                 pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
                 pkgs.libiconv
-              ] ++
-              pkgs.lib.optionals isLinux [ ];
+              ]
+              ++ pkgs.lib.optionals isWindows [ winpthreads ];
 
-            cargoBuildFlags = [ "--target" rustTarget ];
+            toolchainEnv =
+              if isWindows then {
+                "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
+                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}gcc";
+                "CC_${rustTargetEnv}" =
+                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}cc";
+                "AR_${rustTargetEnv}" =
+                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}ar";
 
-            nativeBuildInputs = [ pkgs.pkg-config ];
-
-            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
-
-
-
-            toolchainEnv = if cfg.targetPkgs != null then {
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
-              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                "-C link-arg=-Wl,--no-insert-timestamp \
-                -C link-arg=-Wl,--sort-section=name \
-                -C link-arg=-Wl,--sort-common \
-                -C link-arg=-Wl,--build-id=none \
-                -C link-arg=-Wl,-s \
-                ${pkgs.lib.optionalString isWindows "-C link-arg=-L${targetPkgs.windows.pthreads}/lib"} \
-                -C codegen-units=1 \
-                -C metadata=clementine-repro \
-                -C debuginfo=0 \
-                -C lto=off \
-                -C embed-bitcode=no \
-                --remap-path-prefix=${srcFiltered}=/src \
-                --remap-path-prefix=$NIX_BUILD_TOP=/build";
-                "CC_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-                "AR_${rustTargetEnv}" = "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-            } else {};
-
+                ${targetRustflagsVar} =
+                  "-C link-arg=-Wl,--no-insert-timestamp \
+                   -C link-arg=-Wl,--sort-section=name \
+                   -C link-arg=-Wl,--sort-common \
+                   -C link-arg=-Wl,--build-id=none \
+                   -C link-arg=-Wl,-s \
+                   -L native=${winpthreads}/lib \
+                   -C link-arg=-lwinpthread \
+                   -C codegen-units=1 \
+                   -C metadata=clementine-repro \
+                   -C debuginfo=0 \
+                   -C lto=off \
+                   -C embed-bitcode=no \
+                   --remap-path-prefix=${srcFiltered}=/src \
+                   --remap-path-prefix=${NIX_BUILD_TOP}=/build";
+              }
+              else if cfg.targetPkgs != null then {
+                "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
+                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
+                "CC_${rustTargetEnv}" =
+                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                "AR_${rustTargetEnv}" =
+                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+              }
+              else { };
 
           in
-          (rustPlatform.buildRustPackage rec {
+          (rustPlatformFor.buildRustPackage rec {
             pname = "clementine-cli-${targetName}";
             version = "0.1.0";
-
             src = srcFiltered;
 
-            inherit nativeBuildInputs buildInputs cargoBuildFlags;
+            inherit nativeBuildInputs buildInputs;
+            cargoBuildFlags = [ "--target" rustTarget ];
 
-            env = toolchainEnv // {
-              SOURCE_DATE_EPOCH = "1";
-              CARGO_INCREMENTAL = "0";
-              ZERO_AR_DATE = "1";
-            };
+            env =
+              toolchainEnv
+              // {
+                SOURCE_DATE_EPOCH = "1";
+                CARGO_INCREMENTAL = "0";
+                ZERO_AR_DATE = "1";
+              };
 
             preBuild = ''
+              export HOME="$TMPDIR"
+              export CARGO_HOME="$TMPDIR/cargo-home"
+              mkdir -p "$CARGO_HOME"
+
+              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=${NIX_BUILD_TOP}=/build -fdebug-prefix-map=${src}=/src"
+
+              ${pkgs.lib.optionalString isWindows ''
+              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${NIX_BUILD_TOP}=/build"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
+              export ${buildRustflagsVar}="$BASE_RUSTFLAGS"
+
+              echo OGUUUZ
+              echo ${buildRustflagsVar}
+              printenv "${buildRustflagsVar}"
+              echo "${targetRustflagsVar}"
+              printenv "${targetRustflagsVar}"
+              echo END
+
+              ''}
+
               ${pkgs.lib.optionalString (!isWindows) ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
               ${pkgs.lib.optionalString isDarwin ''
@@ -142,18 +202,16 @@
               ''}
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-
               export RUSTFLAGS="$BASE_RUSTFLAGS"
-
               ''}
-              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
             '';
 
-            depsBuildBuild = pkgs.lib.optionals (cfg.targetPkgs != null && isWindows) [
-              targetPkgs.stdenv.cc
+            # For pure-cross Windows builds, build tools must be from buildPkgs.
+            depsBuildBuild = pkgs.lib.optionals isWindows [
+              buildPkgs.stdenv.cc
             ];
 
-            cargoLock = { 
+            cargoLock = {
               lockFile = ./Cargo.lock;
               outputHashes = {
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
@@ -161,17 +219,31 @@
               };
             };
 
+            installPhase = ''
+              runHook preInstall
+              mkdir -p $out/bin
+              binName="clementine-cli"
+              exeSuffix="${pkgs.lib.optionalString isWindows ".exe"}"
+
+              if [ -f target/${rustTarget}/release/$binName$exeSuffix ]; then
+                cp target/${rustTarget}/release/$binName$exeSuffix $out/bin/
+              else
+                cp target/release/$binName$exeSuffix $out/bin/
+              fi
+
+              chmod 555 $out/bin/$binName$exeSuffix
+              runHook postInstall
+            '';
+
             postInstall =
               pkgs.lib.optionalString isWindows ''
-                # Strip symbol table completely for reproducibility
-                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}strip \
+                ${winPkgs.stdenv.cc.bintools.bintools}/bin/${winPkgs.stdenv.cc.targetPrefix}strip \
                   --strip-all \
                   --remove-section=.symtab \
                   --remove-section=.strtab \
                   $out/bin/clementine-cli.exe 2>/dev/null || true
 
-                # Also remove debug sections
-                ${targetPkgs.stdenv.cc.bintools.bintools}/bin/${targetPkgs.stdenv.cc.targetPrefix}objcopy \
+                ${winPkgs.stdenv.cc.bintools.bintools}/bin/${winPkgs.stdenv.cc.targetPrefix}objcopy \
                   --remove-section=.debug_info \
                   --remove-section=.debug_abbrev \
                   --remove-section=.debug_line \
@@ -179,22 +251,8 @@
                   $out/bin/clementine-cli.exe 2>/dev/null || true
               '';
 
-            installPhase = ''
-              runHook preInstall
-              mkdir -p $out/bin
-              binName="clementine-cli"
-              if [ -f target/${rustTarget}/release/$binName${pkgs.lib.optionalString isWindows ".exe"} ]; then
-                cp target/${rustTarget}/release/$binName${pkgs.lib.optionalString isWindows ".exe"} $out/bin/
-              else
-                cp target/release/$binName${pkgs.lib.optionalString isWindows ".exe"} $out/bin/
-              fi
-              chmod 555 $out/bin/$binName${pkgs.lib.optionalString isWindows ".exe"}
-              runHook postInstall
-            '';
-
             postFixup = pkgs.lib.optionalString isDarwin ''
               bin="$out/bin/clementine-cli"
-
               chmod +w "$bin"
 
               otool="${pkgs.darwin.cctools}/bin/otool"
@@ -204,14 +262,10 @@
 
               LIBICONV_PATH="$($otool -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
               if [ -n "$LIBICONV_PATH" ]; then
-                $install_name_tool \
-                  -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
-                  "$bin"
+                $install_name_tool -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib "$bin"
               fi
 
-              CODESIGN_ALLOCATE="$codesign_allocate" \
-                "$codesign" -f -s - "$bin"
-
+              CODESIGN_ALLOCATE="$codesign_allocate" "$codesign" -f -s - "$bin"
               chmod 555 "$bin"
             '';
 
@@ -240,14 +294,14 @@
               pkgs.darwin.apple_sdk.frameworks.Security
               pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
               pkgs.libiconv
-            ] else [  ])
+            ] else [ ])
             ++ [ rustWithTargets pkgs.pkg-config ];
 
           shellHook = ''
             echo "\nDev env ready for ${buildSystem}"
             echo "Rust ${rustVersion} with targets: ${builtins.concatStringsSep ", " (builtins.map (n: allTargets.${n}.cargoTarget) allowed)}"
             echo "Examples:"
-            echo "  nix build .#${defaultTarget}          "
+            echo "  nix build .#${defaultTarget}"
             for t in ${builtins.concatStringsSep " " allowed}; do
               echo "  nix build .#''${t}"
             done
