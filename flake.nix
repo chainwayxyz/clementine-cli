@@ -143,7 +143,7 @@
                    -C lto=off \
                    -C embed-bitcode=no \
                    --remap-path-prefix=${srcFiltered}=/src \
-                   --remap-path-prefix=${NIX_BUILD_TOP}=/build";
+                   --remap-path-prefix=$NIX_BUILD_TOP=/build";
               }
               else if cfg.targetPkgs != null then {
                 "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
@@ -177,11 +177,11 @@
               export CARGO_HOME="$TMPDIR/cargo-home"
               mkdir -p "$CARGO_HOME"
 
-              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=${NIX_BUILD_TOP}=/build -fdebug-prefix-map=${src}=/src"
+              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
 
               ${pkgs.lib.optionalString isWindows ''
               BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${NIX_BUILD_TOP}=/build"
+              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
               BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
               export ${buildRustflagsVar}="$BASE_RUSTFLAGS"
 
