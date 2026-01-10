@@ -1,311 +1,129 @@
 {
-  description = "Clementine CLI - Reproducible builds";
+  description = "Clementine CLI – Reproducible cross build for x86_64-pc-windows on x86_64-linux";
 
   inputs = {
-    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
-    flake-utils.url = "github:numtide/flake-utils";
-
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";          # Nixpkgs with relatively up-to-date packages
+    flake-utils.url = "github:numtide/flake-utils";            # Utilities for flake output structure
     rust-overlay = {
-      url = "github:oxalica/rust-overlay";
+      url = "github:oxalica/rust-overlay";                     # Rust toolchains overlay (Oxalica)
       inputs.nixpkgs.follows = "nixpkgs";
     };
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    let
-      buildSystems = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
-    in
-    flake-utils.lib.eachSystem buildSystems (buildSystem:
+    flake-utils.lib.eachSystem [ "x86_64-linux" ] (buildSystem:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
 
         rustVersion = "1.89.0";
-        rust = pkgs.rust-bin.stable.${rustVersion}.default;
+        targetTriple = "x86_64-pc-windows-gnu";
 
-        allTargets = {
-          linux-x86_64 = {
-            cargoTarget = "x86_64-unknown-linux-musl";
-            buildOn = [ "x86_64-linux" ];
-            targetPkgs = pkgs.pkgsStatic;
-          };
-          aarch64-linux-gnu = {
-            cargoTarget = "aarch64-unknown-linux-musl";
-            buildOn = [ "aarch64-linux" ];
-            targetPkgs = pkgs.pkgsStatic;
-          };
-          darwin-x86_64 = {
-            cargoTarget = "x86_64-apple-darwin";
-            buildOn = [ "x86_64-darwin" ];
-            targetPkgs = null;
-          };
-          darwin-aarch64 = {
-            cargoTarget = "aarch64-apple-darwin";
-            buildOn = [ "aarch64-darwin" ];
-            targetPkgs = null;
-          };
-          windows-x86_64 = {
-            cargoTarget = "x86_64-pc-windows-gnu";
-            buildOn = [ "x86_64-linux" ];
-            targetPkgs = pkgs.pkgsCross.mingwW64;
-          };
+        # Set up a cross-compilation Nix environment for the Windows target
+        crossPkgs = import nixpkgs {
+          system = buildSystem;
+          crossSystem = { config = "x86_64-w64-mingw32"; };
+          inherit overlays;
         };
 
-        allowed =
-          builtins.filter
-            (name: builtins.elem buildSystem allTargets.${name}.buildOn)
-            (builtins.attrNames allTargets);
+        buildPkgs = crossPkgs.buildPackages;  # native (Linux) packages
 
-        rustWithTargets = rust.override {
-          targets = builtins.map (n: allTargets.${n}.cargoTarget) allowed;
+        rust = buildPkgs.rust-bin.stable.${rustVersion}.default.override {
+          targets = [ targetTriple ];
         };
 
-        rustPlatform = pkgs.makeRustPlatform { cargo = rustWithTargets; rustc = rustWithTargets; };
+        rustPlatform = crossPkgs.makeRustPlatform {
+          cargo = rust;  # native tool
+          rustc  = rust; # native tool
+        };
 
-        mkPackageFor = targetName:
-          let
-            cfg = allTargets.${targetName};
-            rustTarget = cfg.cargoTarget;
+        # Cleaned source for stable hashing + less noise
+        srcFiltered = pkgs.lib.cleanSourceWith {
+          src = ./.;
+          filter = path: type:
+            let base = baseNameOf path; in
+            !(base == ".git"
+              || base == ".github"
+              || base == "docs"
+              || base == "README.md"
+              || base == "artifacts"
+              || base == "result"
+              || base == "scripts"
+              || base == "target");
+        };
 
-            isWindows = rustTarget == "x86_64-pc-windows-gnu";
-            isDarwin = builtins.match ".*-apple-darwin" rustTarget != null;
-            isLinux = builtins.match ".*-unknown-linux-musl" rustTarget != null;
-
-            srcFiltered = pkgs.lib.cleanSourceWith {
-              src = ./.;
-              filter = path: type:
-                let base = baseNameOf path; in
-                ! (base == ".git" || base == ".github" || base == "docs" || base == "README.md" ||
-                   base == "artifacts" || base == "result" || base == "scripts" || base == "target");
-            };
-
-            targetPkgs = if cfg.targetPkgs != null then cfg.targetPkgs else pkgs;
-
-            _ = pkgs.lib.assertMsg
-              (cfg.targetPkgs == null || !isLinux || targetPkgs.stdenv.hostPlatform.libc == "musl")
-              "pkgsStatic's libc is no longer musl; update the flake to explicitly select a musl toolchain for *-unknown-linux-musl targets.";
-
-            rustTargetEnv = builtins.replaceStrings ["-"] ["_"] rustTarget;
-            targetRustflagsVar = "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS";
-
-            winPkgs = pkgs.pkgsCross.mingwW64;
-            buildPkgs = winPkgs.buildPackages;
-
-            buildTriple = buildPkgs.stdenv.hostPlatform.config;
-            buildTripleEnv = builtins.replaceStrings ["-"] ["_"] buildTriple;
-            buildRustflagsVar = "CARGO_TARGET_${pkgs.lib.toUpper buildTripleEnv}_RUSTFLAGS";
-
-            rustPlatformFor =
-              if isWindows then
-                let
-                  rustWin =
-                    buildPkgs.rust-bin.stable.${rustVersion}.default.override {
-                      targets = [ rustTarget ];
-                    };
-                in
-                winPkgs.makeRustPlatform { cargo = rustWin; rustc = rustWin; }
-              else
-                rustPlatform;
-
-            nativeBuildInputs =
-              if isWindows then [ buildPkgs.pkg-config ] else [ pkgs.pkg-config ];
-
-            winpthreads = winPkgs.windows.mingw_w64_pthreads;
-
-            buildInputs =
-              pkgs.lib.optionals isDarwin [
-                pkgs.darwin.apple_sdk.frameworks.Security
-                pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-                pkgs.libiconv
-              ]
-              ++ pkgs.lib.optionals isWindows [ winpthreads ];
-
-            toolchainEnv =
-              if isWindows then {
-                "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}gcc";
-                "CC_${rustTargetEnv}" =
-                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}cc";
-                "AR_${rustTargetEnv}" =
-                  "${winPkgs.stdenv.cc}/bin/${winPkgs.stdenv.cc.targetPrefix}ar";
-
-                ${targetRustflagsVar} =
-                  "-C link-arg=-Wl,--no-insert-timestamp \
-                   -C link-arg=-Wl,--sort-section=name \
-                   -C link-arg=-Wl,--sort-common \
-                   -C link-arg=-Wl,--build-id=none \
-                   -C link-arg=-Wl,-s \
-                   -L native=${winpthreads}/lib \
-                   -C link-arg=-lwinpthread \
-                   -C codegen-units=1 \
-                   -C metadata=clementine-repro \
-                   -C debuginfo=0 \
-                   -C lto=off \
-                   -C embed-bitcode=no \
-                   --remap-path-prefix=${srcFiltered}=/src \
-                   --remap-path-prefix=$NIX_BUILD_TOP=/build";
-              }
-              else if cfg.targetPkgs != null then {
-                "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}gcc";
-                "CC_${rustTargetEnv}" =
-                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
-                "AR_${rustTargetEnv}" =
-                  "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
-              }
-              else { };
-
-          in
-          (rustPlatformFor.buildRustPackage rec {
-            pname = "clementine-cli-${targetName}";
+        rustTargetEnv = builtins.replaceStrings ["-"] ["_"] targetTriple;
+      in {
+        packages = {
+          # Define the Windows cross-compiled package
+          windows-x86_64 = rustPlatform.buildRustPackage rec {
+            pname = "clementine-cli";
             version = "0.1.0";
             src = srcFiltered;
 
-            inherit nativeBuildInputs buildInputs;
-            cargoBuildFlags = [ "--target" rustTarget ];
+            # Build inputs and dependencies
+            nativeBuildInputs = [ buildPkgs.pkg-config ];        # needed for build scripts that use pkg-config
 
-            env =
-              toolchainEnv
-              // {
-                SOURCE_DATE_EPOCH = "1";
-                CARGO_INCREMENTAL = "0";
-                ZERO_AR_DATE = "1";
-              };
+            buildInputs = [ crossPkgs.windows.mingw_w64_pthreads ];
 
-            preBuild = ''
-              export HOME="$TMPDIR"
-              export CARGO_HOME="$TMPDIR/cargo-home"
-              mkdir -p "$CARGO_HOME"
+            cargoBuildFlags = [ "--target=${targetTriple}" ];
 
-              export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
+            # Ensure Cargo uses the correct cross linker and set reproducibility flags
+            env = {
+              "CC_${rustTargetEnv}" =
+                  "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
+              "AR_${rustTargetEnv}" =
+                  "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
 
-              ${pkgs.lib.optionalString isWindows ''
-              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-              export ${buildRustflagsVar}="$BASE_RUSTFLAGS"
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${crossPkgs.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
+              # RUSTFLAGS for target: disable timestamp, set deterministic options
+              "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" = 
+               "-L native=${crossPkgs.windows.mingw_w64_pthreads}/lib \
+                -C link-arg=-lwinpthread \
+                -C link-arg=-Wl,--no-insert-timestamp \
+                -C link-arg=-Wl,--sort-section=name \
+                -C link-arg=-Wl,--sort-common \
+                -C link-arg=-Wl,--build-id=none \
+                -C link-arg=-Wl,-s \
+                -C codegen-units=1 \
+                -C metadata=clementine-repro \
+                -C debuginfo=0 \
+                -C lto=off \
+                -C embed-bitcode=no \
+                --remap-path-prefix=${srcFiltered}=/src \
+                --remap-path-prefix=$NIX_BUILD_TOP=/build";
+        
 
-              echo OGUUUZ
-              echo ${buildRustflagsVar}
-              printenv "${buildRustflagsVar}"
-              echo "${targetRustflagsVar}"
-              printenv "${targetRustflagsVar}"
-              echo END
+              # Environment for reproducible builds
+              SOURCE_DATE_EPOCH = "1";
+              CARGO_INCREMENTAL = "0";
+              ZERO_AR_DATE = "1";
+            };
 
-              ''}
-
-              ${pkgs.lib.optionalString (!isWindows) ''
-              BASE_RUSTFLAGS="-C codegen-units=1 -C debuginfo=0 -C lto=off -C embed-bitcode=no"
-              ${pkgs.lib.optionalString isDarwin ''
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C target-feature=+crt-static"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/"
-              ''}
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=$NIX_BUILD_TOP=/build"
-              BASE_RUSTFLAGS="$BASE_RUSTFLAGS --remap-path-prefix=${src}=/src"
-              export RUSTFLAGS="$BASE_RUSTFLAGS"
-              ''}
-            '';
-
-            # For pure-cross Windows builds, build tools must be from buildPkgs.
-            depsBuildBuild = pkgs.lib.optionals isWindows [
-              buildPkgs.stdenv.cc
-            ];
-
+            # Verify Cargo.lock dependencies with fixed hashes for reproducibility
             cargoLock = {
               lockFile = ./Cargo.lock;
               outputHashes = {
+                # (example of pinning specific crate outputs for reproducibility)
                 "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
-                "secp256k1-0.31.0"       = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
+                "secp256k1-0.31.0" = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
               };
             };
 
+            # Installation: copy the built .exe to $out/bin
             installPhase = ''
-              runHook preInstall
               mkdir -p $out/bin
-              binName="clementine-cli"
-              exeSuffix="${pkgs.lib.optionalString isWindows ".exe"}"
-
-              if [ -f target/${rustTarget}/release/$binName$exeSuffix ]; then
-                cp target/${rustTarget}/release/$binName$exeSuffix $out/bin/
-              else
-                cp target/release/$binName$exeSuffix $out/bin/
-              fi
-
-              chmod 555 $out/bin/$binName$exeSuffix
-              runHook postInstall
+              cp target/${targetTriple}/release/clementine-cli.exe $out/bin/
+              chmod 555 $out/bin/clementine-cli.exe
             '';
 
-            postInstall =
-              pkgs.lib.optionalString isWindows ''
-                ${winPkgs.stdenv.cc.bintools.bintools}/bin/${winPkgs.stdenv.cc.targetPrefix}strip \
-                  --strip-all \
-                  --remove-section=.symtab \
-                  --remove-section=.strtab \
-                  $out/bin/clementine-cli.exe 2>/dev/null || true
-
-                ${winPkgs.stdenv.cc.bintools.bintools}/bin/${winPkgs.stdenv.cc.targetPrefix}objcopy \
-                  --remove-section=.debug_info \
-                  --remove-section=.debug_abbrev \
-                  --remove-section=.debug_line \
-                  --remove-section=.debug_str \
-                  $out/bin/clementine-cli.exe 2>/dev/null || true
-              '';
-
-            postFixup = pkgs.lib.optionalString isDarwin ''
-              bin="$out/bin/clementine-cli"
-              chmod +w "$bin"
-
-              otool="${pkgs.darwin.cctools}/bin/otool"
-              install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
-              codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
-              codesign="${pkgs.darwin.sigtool}/bin/codesign"
-
-              LIBICONV_PATH="$($otool -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
-              if [ -n "$LIBICONV_PATH" ]; then
-                $install_name_tool -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib "$bin"
-              fi
-
-              CODESIGN_ALLOCATE="$codesign_allocate" "$codesign" -f -s - "$bin"
-              chmod 555 "$bin"
-            '';
-
-            doCheck = false;
-            auditable = false;
+            doCheck = false;    # skip tests for cross-compilation (optional)
+            auditable = false;  # do not include extra cargo audit metadata
             dontStrip = true;
-          });
+          };
 
-        pkgsForThisBuilder = pkgs.lib.genAttrs allowed mkPackageFor;
-
-        defaultTarget = {
-          "x86_64-linux" = "linux-x86_64";
-          "aarch64-linux" = "aarch64-linux-gnu";
-          "x86_64-darwin" = "darwin-x86_64";
-          "aarch64-darwin" = "darwin-aarch64";
-        }.${buildSystem};
-
-      in {
-        packages = pkgsForThisBuilder // {
-          default = pkgsForThisBuilder.${defaultTarget};
-        };
-
-        devShells.default = pkgs.mkShell {
-          buildInputs =
-            (if pkgs.stdenv.isDarwin then [
-              pkgs.darwin.apple_sdk.frameworks.Security
-              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-              pkgs.libiconv
-            ] else [ ])
-            ++ [ rustWithTargets pkgs.pkg-config ];
-
-          shellHook = ''
-            echo "\nDev env ready for ${buildSystem}"
-            echo "Rust ${rustVersion} with targets: ${builtins.concatStringsSep ", " (builtins.map (n: allTargets.${n}.cargoTarget) allowed)}"
-            echo "Examples:"
-            echo "  nix build .#${defaultTarget}"
-            for t in ${builtins.concatStringsSep " " allowed}; do
-              echo "  nix build .#''${t}"
-            done
-          '';
+          # Make this the default package output for convenience
+          default = self.packages.${buildSystem}.windows-x86_64;
         };
       }
     );
