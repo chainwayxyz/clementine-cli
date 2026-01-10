@@ -11,7 +11,7 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, rust-overlay }:
-    flake-utils.lib.eachSystem [ "x86_64-linux" ] (buildSystem:
+    flake-utils.lib.eachSystem [ "x86_64-linux" "aarch64-linux" ] (buildSystem:
       let
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
@@ -64,8 +64,6 @@
             # Build inputs and dependencies
             nativeBuildInputs = [ buildPkgs.pkg-config ];        # needed for build scripts that use pkg-config
 
-            buildInputs = [ crossPkgs.windows.mingw_w64_pthreads ];
-
             cargoBuildFlags = [ "--target=${targetTriple}" ];
 
             # Ensure Cargo uses the correct cross linker and set reproducibility flags
@@ -78,8 +76,8 @@
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" = "${crossPkgs.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
               # RUSTFLAGS for target: disable timestamp, set deterministic options
               "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" = 
-               "-L native=${crossPkgs.windows.mingw_w64_pthreads}/lib \
-                -C link-arg=-lwinpthread \
+               "-C target-feature=+crt-static \
+                -C link-arg=-static \
                 -C link-arg=-Wl,--no-insert-timestamp \
                 -C link-arg=-Wl,--sort-section=name \
                 -C link-arg=-Wl,--sort-common \
@@ -90,6 +88,7 @@
                 -C debuginfo=0 \
                 -C lto=off \
                 -C embed-bitcode=no \
+                -C target-cpu=x86-64 \
                 --remap-path-prefix=${srcFiltered}=/src \
                 --remap-path-prefix=$NIX_BUILD_TOP=/build";
         
