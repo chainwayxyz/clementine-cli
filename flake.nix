@@ -74,45 +74,54 @@
 
           mkTargetRUSTFLAGS = { targetTriple }:
             let
-              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
+              isTargetDarwin  = pkgs.lib.hasInfix "apple-darwin" targetTriple;
+              isTargetWindows = pkgs.lib.hasInfix "pc-windows-gnu" targetTriple;
+              isTargetMusl    = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
-              cpuFlag =
-                pkgs.lib.optionalString (pkgs.lib.hasInfix "x86_64" targetTriple) "-C target-cpu=x86-64"
-              + pkgs.lib.optionalString (pkgs.lib.hasInfix "aarch64" targetTriple) "-C target-cpu=generic";
+              cpuFlags =
+                pkgs.lib.optionals (pkgs.lib.hasInfix "x86_64" targetTriple) [ "-C" "target-cpu=x86-64" ]
+                ++ pkgs.lib.optionals (pkgs.lib.hasInfix "aarch64" targetTriple) [ "-C" "target-cpu=generic" ];
 
               common = [
-                "-C codegen-units=1"
-                "-C metadata=clementine-repro"
-                "-C debuginfo=0"
-                "-C lto=off"
-                "-C embed-bitcode=no"
+                "-C" "codegen-units=1"
+                "-C" "metadata=clementine-repro"
+                "-C" "debuginfo=0"
+                "-C" "lto=off"
+                "-C" "embed-bitcode=no"
                 "--remap-path-prefix=${srcFiltered}=/src"
-                "--remap-path-prefix=$NIX_BUILD_TOP=/build"
               ];
 
-              staticish = [
-                "-C target-feature=+crt-static"
-                "-C link-arg=-static"
-                "-C link-arg=-Wl,--no-insert-timestamp"
-                "-C link-arg=-Wl,--sort-section=name"
-                "-C link-arg=-Wl,--sort-common"
-                "-C link-arg=-Wl,--build-id=none"
-                "-C link-arg=-Wl,-s"
+              staticCommon = [
+                "-C" "target-feature=+crt-static"
+                "-C" "link-arg=-static"
+                "-C" "link-arg=-Wl,--sort-common"
+                "-C" "link-arg=-Wl,--build-id=none"
+                "-C" "link-arg=-Wl,-s"
               ];
 
-              darwinish = [
-                "-C link-arg=-Wl,-no_uuid"
+              linuxOnly = [
+                "-C" "link-arg=-Wl,--sort-section=name"
+              ];
+
+              windowsOnly = [
+                "-C" "link-arg=-Wl,--no-insert-timestamp"
+                "-C" "link-arg=-Wl,--sort-section=name"
+              ];
+
+              darwinOnly = [
+                "-C" "link-arg=-Wl,-no_uuid"
               ];
 
               flags =
                 common
-                ++ (pkgs.lib.optionals (!isTargetDarwin) staticish)
-                ++ (pkgs.lib.optionals isTargetDarwin darwinish)
-                ++ (pkgs.lib.optionals (cpuFlag != "") [ cpuFlag ]);
+                ++ (pkgs.lib.optionals (!isTargetDarwin && !isTargetWindows) (staticCommon ++ linuxOnly))
+                ++ (pkgs.lib.optionals isTargetWindows (staticCommon ++ windowsOnly))
+                ++ (pkgs.lib.optionals isTargetDarwin darwinOnly)
+                ++ cpuFlags;
             in
-              pkgs.lib.concatStringsSep " \\\n" flags;
+              pkgs.lib.concatStringsSep " " flags;
 
-          # Generic builder for non-windows targets (linux musl + darwin)
+
           mkTargetPackage = spec:
             let
               targetTriple = spec.rustTarget;
@@ -253,9 +262,7 @@
                         -C lto=off \
                         -C embed-bitcode=no \
                         -C target-cpu=x86-64 \
-                        --remap-path-prefix=${srcFiltered}=/src \
-                        --remap-path-prefix=$NIX_BUILD_TOP=/build";
-
+                        --remap-path-prefix=${srcFiltered}=/src";
                       SOURCE_DATE_EPOCH = "1";
                       CARGO_INCREMENTAL = "0";
                       ZERO_AR_DATE = "1";
