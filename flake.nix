@@ -42,15 +42,15 @@
             };
 
             linux-x86_64 = {
-              crossSystemConfig = "x86_64-unknown-linux-musl";
+              crossSystemConfig = null;
               rustTarget = "x86_64-unknown-linux-musl";
-              buildOn = [ "x86_64-linux" "aarch64-linux" ];
+              buildOn = [ "x86_64-linux" ];
             };
 
             linux-aarch64 = {
-              crossSystemConfig = "aarch64-unknown-linux-musl";
+              crossSystemConfig = null;
               rustTarget = "aarch64-unknown-linux-musl";
-              buildOn = [ "x86_64-linux" "aarch64-linux" ];
+              buildOn = [ "aarch64-linux" ];
             };
 
             darwin-x86_64 = {
@@ -105,7 +105,7 @@
               ];
 
               darwinOnly = [
-                "-C" "link-arg=-Wl,-no_uuid"
+                "-C" "target-feature=+crt-static"
               ];
 
               flags =
@@ -115,7 +115,6 @@
                 ++ (pkgs.lib.optionals isTargetDarwin darwinOnly);
             in
               pkgs.lib.concatStringsSep " " flags;
-
 
           mkTargetPackage = spec:
             let
@@ -149,6 +148,7 @@
                   rustc = rust;
                 };
 
+              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isHostDarwin = buildPkgs.stdenv.isDarwin;
               rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
             in
@@ -177,6 +177,14 @@
                   "CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS" = rustFlags;
                 };
 
+                preBuild = pkgs.lib.optionalString isTargetDarwin ''
+                  export CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS="$CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS \
+                    -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/ \
+                    --remap-path-prefix=$NIX_BUILD_TOP=/build"
+                  
+                  echo "Applied Darwin-specific reproducibility flags to ${upperTargetEnv}"
+                '';
+
               cargoLock = {
                 lockFile = ./Cargo.lock;
                 outputHashes = {
@@ -190,6 +198,30 @@
                 cp target/${targetTriple}/release/clementine-cli $out/bin/
                 chmod 555 $out/bin/clementine-cli
               '';
+
+              postFixup = pkgs.lib.optionalString (isHostDarwin && isTargetDarwin) ''
+                bin="$out/bin/clementine-cli"
+
+                chmod +w "$bin"
+
+                otool="${pkgs.darwin.cctools}/bin/otool"
+                install_name_tool="${pkgs.darwin.cctools}/bin/install_name_tool"
+                codesign_allocate="${pkgs.darwin.binutils.bintools}/bin/codesign_allocate"
+                codesign="${pkgs.darwin.sigtool}/bin/codesign"
+
+                LIBICONV_PATH="$($otool -L "$bin" | awk '/libiconv\.2\.dylib/{print $1; exit}')"
+                if [ -n "$LIBICONV_PATH" ]; then
+                  $install_name_tool \
+                    -change "$LIBICONV_PATH" /usr/lib/libiconv.2.dylib \
+                    "$bin"
+                fi
+
+                CODESIGN_ALLOCATE="$codesign_allocate" \
+                  "$codesign" -f -s - "$bin"
+
+                chmod 555 "$bin"
+              '';
+
 
               doCheck = false;
               auditable = false;
