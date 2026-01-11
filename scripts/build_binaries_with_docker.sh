@@ -94,4 +94,4 @@ if [[ "$(uname)" == "Darwin" ]]; then
   done
 fi
 
-echo "All requested builds finished. Darwin binaries require a macOS builder and are not built here."
+echo "All requested builds finished."
