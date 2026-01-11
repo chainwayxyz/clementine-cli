@@ -5,16 +5,14 @@ IMAGE_TAG="${IMAGE_TAG:-nixos/nix:2.32.1}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-artifacts}"
 PROJECT_NAME="${PROJECT_NAME:-clementine-cli}"
 
-# Added sandbox = true. 
-# We keep filter-syscalls = false which is often needed for Docker compat.
 NIX_CONFIG="${NIX_CONFIG:-extra-experimental-features = nix-command flakes
 filter-syscalls = false
 sandbox = true}"
 
 TARGET_MATRIX=(
-  # "linux-x86_64 linux/amd64"
+  "linux-x86_64 linux/amd64"
   "windows-x86_64 linux/amd64 .exe"
-  # "aarch64-linux-gnu linux/arm64"
+  "aarch64-linux-gnu linux/arm64"
 )
 
 MACOS_TARGET_MATRIX=(
@@ -49,8 +47,6 @@ mkdir -p /tmp && chmod 1777 /tmp
 outPath="$(
   nix build "path:/workspace#${ATTR}" --print-out-paths | tail -n1
 )"
-
-rm -rf artifacts
 
 binSrc="${outPath}/bin/${PROJECT_NAME}${SUFFIX}"
 destDir="/workspace/${ARTIFACTS_DIR}/${ATTR}"
