@@ -39,30 +39,35 @@
               crossSystemConfig = "x86_64-w64-mingw32";
               rustTarget = "x86_64-pc-windows-gnu";
               buildOn = [ "aarch64-linux" "x86_64-linux" ];
+              usePkgsStatic = false;
             };
 
             linux-x86_64 = {
               crossSystemConfig = null;
               rustTarget = "x86_64-unknown-linux-musl";
               buildOn = [ "x86_64-linux" ];
+              usePkgsStatic = true;
             };
 
             linux-aarch64 = {
               crossSystemConfig = null;
               rustTarget = "aarch64-unknown-linux-musl";
               buildOn = [ "aarch64-linux" ];
+              usePkgsStatic = true;
             };
 
             darwin-x86_64 = {
               crossSystemConfig = null;
               rustTarget = "x86_64-apple-darwin";
               buildOn = [ "x86_64-darwin" ];
+              usePkgsStatic = false;
             };
 
             darwin-aarch64 = {
               crossSystemConfig = null;
               rustTarget = "aarch64-apple-darwin";
               buildOn = [ "aarch64-darwin" ];
+              usePkgsStatic = false;
             };
           };
 
@@ -76,7 +81,6 @@
             let
               isTargetDarwin  = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isTargetWindows = pkgs.lib.hasInfix "pc-windows-gnu" targetTriple;
-              isTargetMusl    = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
               common = [
                 "-C" "codegen-units=1"
@@ -122,35 +126,32 @@
               rustTargetEnv = builtins.replaceStrings ["-"] ["_"] targetTriple;
               upperTargetEnv = pkgs.lib.toUpper rustTargetEnv;
 
-              crossPkgs =
-                if spec.crossSystemConfig == null
-                then pkgs
-                else import nixpkgs {
-                  system = buildSystem;
-                  crossSystem = { config = spec.crossSystemConfig; };
-                  inherit overlays;
-                };
+              targetPkgs = if spec.usePkgsStatic then pkgs.pkgsStatic else pkgs;
 
-              buildPkgs =
-                if spec.crossSystemConfig == null
-                then pkgs
-                else crossPkgs.buildPackages;
+              buildPkgs = pkgs;
 
               rust = buildPkgs.rust-bin.stable.${rustVersion}.default.override {
                 targets = [ targetTriple ];
               };
 
-              rustPlatform =
-                (if spec.crossSystemConfig == null
-                 then pkgs.makeRustPlatform
-                 else crossPkgs.makeRustPlatform) {
-                  cargo = rust;
-                  rustc = rust;
-                };
+              rustPlatform = targetPkgs.makeRustPlatform {
+                cargo = rust;
+                rustc = rust;
+              };
 
               isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isHostDarwin = buildPkgs.stdenv.isDarwin;
               rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
+
+              staticToolchainEnv =
+                pkgs.lib.optionalAttrs spec.usePkgsStatic {
+                  "CC_${rustTargetEnv}" =
+                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                  "AR_${rustTargetEnv}" =
+                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+                  "CARGO_TARGET_${upperTargetEnv}_LINKER" =
+                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                };
             in
             rustPlatform.buildRustPackage rec {
               pname = "clementine-cli";
@@ -165,25 +166,18 @@
 
               env =
                 mkReproEnv
-                // (pkgs.lib.optionalAttrs (spec.crossSystemConfig != null) {
-                  "CC_${rustTargetEnv}" =
-                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
-                  "AR_${rustTargetEnv}" =
-                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
-                  "CARGO_TARGET_${upperTargetEnv}_LINKER" =
-                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
-                })
+                // staticToolchainEnv
                 // {
                   "CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS" = rustFlags;
                 };
 
-                preBuild = pkgs.lib.optionalString isTargetDarwin ''
-                  export CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS="$CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS \
-                    -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/ \
-                    --remap-path-prefix=$NIX_BUILD_TOP=/build"
-                  
-                  echo "Applied Darwin-specific reproducibility flags to ${upperTargetEnv}"
-                '';
+              preBuild = pkgs.lib.optionalString isTargetDarwin ''
+                export CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS="$CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS \
+                  -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/ \
+                  --remap-path-prefix=$NIX_BUILD_TOP=/build"
+
+                echo "Applied Darwin-specific reproducibility flags to ${upperTargetEnv}"
+              '';
 
               cargoLock = {
                 lockFile = ./Cargo.lock;
@@ -221,7 +215,6 @@
 
                 chmod 555 "$bin"
               '';
-
 
               doCheck = false;
               auditable = false;
