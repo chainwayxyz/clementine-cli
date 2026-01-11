@@ -38,7 +38,7 @@
             windows-x86_64 = {
               crossSystemConfig = "x86_64-w64-mingw32";
               rustTarget = "x86_64-pc-windows-gnu";
-              buildOn = [ "x86_64-linux" "aarch64-linux" "x86_64-darwin" "aarch64-darwin" ];
+              buildOn = [ "aarch64-linux" "x86_64-linux" ];
             };
 
             linux-x86_64 = {
@@ -54,13 +54,13 @@
             };
 
             darwin-x86_64 = {
-              crossSystemConfig = null; # native on darwin
+              crossSystemConfig = null;
               rustTarget = "x86_64-apple-darwin";
               buildOn = [ "x86_64-darwin" ];
             };
 
             darwin-aarch64 = {
-              crossSystemConfig = null; # native on darwin
+              crossSystemConfig = null;
               rustTarget = "aarch64-apple-darwin";
               buildOn = [ "aarch64-darwin" ];
             };
@@ -72,9 +72,10 @@
             ZERO_AR_DATE = "1";
           };
 
-          mkTargetRUSTFLAGS = { targetTriple, isDarwin }:
+          mkTargetRUSTFLAGS = { targetTriple }:
             let
-              # Optional CPU pinning per-arch
+              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
+
               cpuFlag =
                 pkgs.lib.optionalString (pkgs.lib.hasInfix "x86_64" targetTriple) "-C target-cpu=x86-64"
               + pkgs.lib.optionalString (pkgs.lib.hasInfix "aarch64" targetTriple) "-C target-cpu=generic";
@@ -89,7 +90,6 @@
                 "--remap-path-prefix=$NIX_BUILD_TOP=/build"
               ];
 
-              # Static / GNU ld flags
               staticish = [
                 "-C target-feature=+crt-static"
                 "-C link-arg=-static"
@@ -100,15 +100,14 @@
                 "-C link-arg=-Wl,-s"
               ];
 
-              # Darwin-specific
               darwinish = [
                 "-C link-arg=-Wl,-no_uuid"
               ];
 
               flags =
                 common
-                ++ (pkgs.lib.optionals (!isDarwin) staticish)
-                ++ (pkgs.lib.optionals isDarwin darwinish)
+                ++ (pkgs.lib.optionals (!isTargetDarwin) staticish)
+                ++ (pkgs.lib.optionals isTargetDarwin darwinish)
                 ++ (pkgs.lib.optionals (cpuFlag != "") [ cpuFlag ]);
             in
               pkgs.lib.concatStringsSep " \\\n" flags;
@@ -146,20 +145,20 @@
                   rustc = rust;
                 };
 
-              isDarwin = (spec.crossSystemConfig == null) && pkgs.stdenv.isDarwin;
-              rustFlags = mkTargetRUSTFLAGS { inherit targetTriple isDarwin; };
+              isHostDarwin = buildPkgs.stdenv.isDarwin;
+
+              rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
             in
             rustPlatform.buildRustPackage rec {
               pname = "clementine-cli";
               version = "0.1.0";
               src = srcFiltered;
 
-              nativeBuildInputs = [ buildPkgs.pkg-config ];
-              cargoBuildFlags = [ "--target=${targetTriple}" ];
+              nativeBuildInputs =
+                [ buildPkgs.pkg-config ]
+                ++ pkgs.lib.optionals isHostDarwin [ buildPkgs.libiconv ];
 
-              buildInputs = buildPkgs.lib.optionals isDarwin [
-                buildPkgs.libincov
-              ];
+              cargoBuildFlags = [ "--target=${targetTriple}" ];
 
               env =
                 mkReproEnv
@@ -207,7 +206,7 @@
                     inherit overlays;
                   };
 
-                  buildPkgs = crossPkgs.buildPackages;  # native (host) packages
+                  buildPkgs = crossPkgs.buildPackages;
 
                   rust = buildPkgs.rust-bin.stable.${rustVersion}.default.override {
                     targets = [ targetTriple ];
@@ -225,7 +224,9 @@
                   version = "0.1.0";
                   src = srcFiltered;
 
-                  nativeBuildInputs = [ buildPkgs.pkg-config ];
+                  nativeBuildInputs =
+                    [ buildPkgs.pkg-config ]
+                    ++ pkgs.lib.optionals buildPkgs.stdenv.isDarwin [ buildPkgs.libiconv ];
                   cargoBuildFlags = [ "--target=${targetTriple}" ];
 
                   env = {
@@ -314,11 +315,10 @@
                 if buildSystem == "x86_64-darwin" then darwin-x86_64 else
                 if buildSystem == "aarch64-darwin" then darwin-aarch64 else
                 null;
-
-              in
-                cleaned // (pkgs.lib.optionalAttrs (defaultPkg != null) {
-                  default = defaultPkg;
-                });
+            in
+              cleaned // (pkgs.lib.optionalAttrs (defaultPkg != null) {
+                default = defaultPkg;
+              });
         }
       );
 }
