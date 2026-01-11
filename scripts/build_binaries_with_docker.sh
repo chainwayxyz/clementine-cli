@@ -12,7 +12,7 @@ sandbox = true}"
 TARGET_MATRIX=(
   "linux-x86_64 linux/amd64"
   "windows-x86_64 linux/amd64 .exe"
-  "aarch64-linux-gnu linux/arm64"
+  "linux-aarch64 linux/amd64"
 )
 
 MACOS_TARGET_MATRIX=(

@@ -78,10 +78,6 @@
               isTargetWindows = pkgs.lib.hasInfix "pc-windows-gnu" targetTriple;
               isTargetMusl    = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
-              cpuFlags =
-                pkgs.lib.optionals (pkgs.lib.hasInfix "x86_64" targetTriple) [ "-C" "target-cpu=x86-64" ]
-                ++ pkgs.lib.optionals (pkgs.lib.hasInfix "aarch64" targetTriple) [ "-C" "target-cpu=generic" ];
-
               common = [
                 "-C" "codegen-units=1"
                 "-C" "metadata=clementine-repro"
@@ -116,8 +112,7 @@
                 common
                 ++ (pkgs.lib.optionals (!isTargetDarwin && !isTargetWindows) (staticCommon ++ linuxOnly))
                 ++ (pkgs.lib.optionals isTargetWindows (staticCommon ++ windowsOnly))
-                ++ (pkgs.lib.optionals isTargetDarwin darwinOnly)
-                ++ cpuFlags;
+                ++ (pkgs.lib.optionals isTargetDarwin darwinOnly);
             in
               pkgs.lib.concatStringsSep " " flags;
 
