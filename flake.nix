@@ -18,6 +18,8 @@
           overlays = [ (import rust-overlay) ];
           pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
 
+          staticPkgs = pkgs.pkgsStatic;
+
           rustVersion = "1.89.0";
 
           srcFiltered = pkgs.lib.cleanSourceWith {
@@ -39,35 +41,35 @@
               crossSystemConfig = "x86_64-w64-mingw32";
               rustTarget = "x86_64-pc-windows-gnu";
               buildOn = [ "aarch64-linux" "x86_64-linux" ];
-              usePkgsStatic = false;
+              useStaticToolchain = false;
             };
 
             linux-x86_64 = {
               crossSystemConfig = null;
               rustTarget = "x86_64-unknown-linux-musl";
               buildOn = [ "x86_64-linux" ];
-              usePkgsStatic = true;
+              useStaticToolchain = true;
             };
 
             linux-aarch64 = {
               crossSystemConfig = null;
               rustTarget = "aarch64-unknown-linux-musl";
               buildOn = [ "aarch64-linux" ];
-              usePkgsStatic = true;
+              useStaticToolchain = true;
             };
 
             darwin-x86_64 = {
               crossSystemConfig = null;
               rustTarget = "x86_64-apple-darwin";
               buildOn = [ "x86_64-darwin" ];
-              usePkgsStatic = false;
+              useStaticToolchain = false;
             };
 
             darwin-aarch64 = {
               crossSystemConfig = null;
               rustTarget = "aarch64-apple-darwin";
               buildOn = [ "aarch64-darwin" ];
-              usePkgsStatic = false;
+              useStaticToolchain = false;
             };
           };
 
@@ -108,9 +110,7 @@
                 "-C" "link-arg=-Wl,--sort-section=name"
               ];
 
-              darwinOnly = [
-                "-C" "target-feature=+crt-static"
-              ];
+              darwinOnly = [ ];
 
               flags =
                 common
@@ -122,11 +122,12 @@
 
           mkTargetPackage = spec:
             let
-              targetTriple = spec.rustTarget;
-              rustTargetEnv = builtins.replaceStrings ["-"] ["_"] targetTriple;
+              targetTriple   = spec.rustTarget;
+              rustTargetEnv  = builtins.replaceStrings ["-"] ["_"] targetTriple;
               upperTargetEnv = pkgs.lib.toUpper rustTargetEnv;
 
-              targetPkgs = if spec.usePkgsStatic then pkgs.pkgsStatic else pkgs;
+              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
+              isTargetMusl   = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
               buildPkgs = pkgs;
 
@@ -134,24 +135,27 @@
                 targets = [ targetTriple ];
               };
 
-              rustPlatform = targetPkgs.makeRustPlatform {
-                cargo = rust;
-                rustc = rust;
-              };
+              rustPlatform = pkgs.makeRustPlatform { cargo = rust; rustc = rust; };
 
-              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isHostDarwin = buildPkgs.stdenv.isDarwin;
               rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
 
+              muslCC = staticPkgs.stdenv.cc;
+
               staticToolchainEnv =
-                pkgs.lib.optionalAttrs spec.usePkgsStatic {
+                pkgs.lib.optionalAttrs (spec.useStaticToolchain && isTargetMusl) {
                   "CC_${rustTargetEnv}" =
-                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                    "${muslCC}/bin/${muslCC.targetPrefix}cc";
                   "AR_${rustTargetEnv}" =
-                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}ar";
+                    "${muslCC}/bin/${muslCC.targetPrefix}ar";
                   "CARGO_TARGET_${upperTargetEnv}_LINKER" =
-                    "${targetPkgs.stdenv.cc}/bin/${targetPkgs.stdenv.cc.targetPrefix}cc";
+                    "${muslCC}/bin/${muslCC.targetPrefix}cc";
                 };
+
+              staticNativeBuildInputs =
+                pkgs.lib.optionals (spec.useStaticToolchain && isTargetMusl) [
+                  staticPkgs.sqlite
+                ];
             in
             rustPlatform.buildRustPackage rec {
               pname = "clementine-cli";
@@ -161,6 +165,8 @@
               nativeBuildInputs =
                 [ buildPkgs.pkg-config ]
                 ++ pkgs.lib.optionals isHostDarwin [ buildPkgs.libiconv ];
+
+              buildInputs = staticNativeBuildInputs;
 
               cargoBuildFlags = [ "--target=${targetTriple}" ];
 
