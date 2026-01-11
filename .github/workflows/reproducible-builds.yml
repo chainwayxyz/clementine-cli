@@ -15,6 +15,7 @@ jobs:
       fail-fast: false
       matrix:
         platform:
+          - linux-x86_64
           - windows-x86_64
     steps:
       - uses: actions/checkout@v4
@@ -61,3 +62,100 @@ jobs:
             echo "No binary found at $BINARY"
             exit 1
           fi
+
+      - name: Upload linux binary
+        if: ${{ matrix.platform == 'linux-x86_64' }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-linux-x86_64
+          path: result/bin/clementine-cli
+
+  aarch64-linux-gnu:
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Nix (2.32.1)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build aarch64-linux-gnu
+        run: nix build .#linux-aarch64
+
+      - name: Rebuild aarch64-linux-gnu to verify reproducibility
+        run: |
+          echo "Rebuilding aarch64-linux-gnu to confirm reproducibility..."
+          nix build .#linux-aarch64 --rebuild
+          echo "Rebuild for aarch64-linux-gnu completed"
+
+      - name: Hash result
+        id: hash
+        run: |
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "aarch64-linux-gnu hash: $H"
+
+      - name: SHA256 of binary
+        run: |
+          BINARY="./result/bin/clementine-cli"
+          if [ -f "$BINARY" ]; then
+            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
+            echo "aarch64-linux-gnu binary sha256: $SHA256"
+            echo "Binary path: $BINARY"
+          else
+            echo "No binary found at $BINARY"
+            exit 1
+          fi
+
+  macos-arm64:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      - name: Install Nix (2.32.1)
+        uses: cachix/install-nix-action@v31
+        with:
+          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+
+      - name: Build darwin-aarch64
+        run: nix build .#darwin-aarch64
+
+      - name: Rebuild darwin-aarch64 to verify reproducibility
+        run: |
+          echo "Rebuilding darwin-aarch64 to confirm reproducibility..."
+          nix build .#darwin-aarch64 --rebuild
+          echo "Rebuild for darwin-aarch64 completed"
+
+      - name: Hash result
+        id: hash
+        run: |
+          H=$(nix hash path ./result)
+          echo "hash=$H" >> "$GITHUB_OUTPUT"
+          echo "darwin-aarch64 hash: $H"
+
+      - name: SHA256 of binary
+        run: |
+          BINARY="./result/bin/clementine-cli"
+          if [ -f "$BINARY" ]; then
+            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
+            echo "darwin-aarch64 binary sha256: $SHA256"
+            echo "Binary path: $BINARY"
+          else
+            echo "No binary found at $BINARY"
+            exit 1
+          fi
+          
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: clementine-cli-darwin-aarch64
+          path: result/bin/clementine-cli
