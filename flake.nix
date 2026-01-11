@@ -181,7 +181,7 @@
                 export CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS="$CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS \
                   -C link-arg=-Wl,-oso_prefix,$(realpath $NIX_BUILD_TOP)/ \
                   --remap-path-prefix=$NIX_BUILD_TOP=/build"
-
+                export NIX_CFLAGS_COMPILE="$NIX_CFLAGS_COMPILE -fdebug-prefix-map=$NIX_BUILD_TOP=/build -fdebug-prefix-map=${src}=/src"
                 echo "Applied Darwin-specific reproducibility flags to ${upperTargetEnv}"
               '';
 
