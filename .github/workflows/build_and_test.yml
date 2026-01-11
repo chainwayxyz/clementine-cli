@@ -1,161 +1,85 @@
-name: Reproducible Builds
-
-permissions:
-  contents: read
+name: Build And Test
 
 on:
   push:
-    branches: [ main ]
+    branches:
+      - main
+      - cli-rust-rewrite
+      - "releases/*"
   pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ (github.ref != 'refs/heads/main') }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+  CARGOFLAGS: --workspace --all-targets
+  CARGOFLAGS_ALL_FEATURES: --workspace --all-targets --all-features
 
 jobs:
-  linux-and-win64-on-linux:
-    runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        platform:
-          - linux-x86_64
-          - windows-x86_64
+  debug_tests_all_features:
+    name: Debug | All features | Test
+    runs-on: ubicloud-standard-16
+
+    env:
+      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
+
     steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Install Nix (2.32.1)
-        uses: cachix/install-nix-action@v31
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+      - name: Create test log directories
+        run: mkdir -p test-logs/debug
 
-      - name: Build ${{ matrix.platform }}
-        run: nix build .#${{ matrix.platform }}
-
-      - name: Rebuild ${{ matrix.platform }} to verify reproducibility
+      - name: Run tests
         run: |
-          echo "Rebuilding ${{ matrix.platform }} to confirm reproducibility..."
-          nix build .#${{ matrix.platform }} --rebuild
-          echo "Rebuild for ${{ matrix.platform }} completed"
+          set -o pipefail
+          cargo test $CARGOFLAGS_ALL_FEATURES
 
-      - name: Hash result
-        id: hash
-        run: |
-          PLATFORM="${{ matrix.platform }}"
-          H=$(nix hash path ./result)
-          echo "hash=$H" >> "$GITHUB_OUTPUT"
-          echo "$PLATFORM hash: $H"
-
-      - name: SHA256 of binary
-        run: |
-          PLATFORM="${{ matrix.platform }}"
-          if [ "$PLATFORM" = "windows-x86_64" ]; then
-            BINARY="./result/bin/clementine-cli.exe"
-          else
-            BINARY="./result/bin/clementine-cli"
-          fi
-          if [ -f "$BINARY" ]; then
-            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
-            echo "${{ matrix.platform }} binary sha256: $SHA256"
-            echo "Binary path: $BINARY"
-          else
-            echo "No binary found at $BINARY"
-            exit 1
-          fi
-
-      - name: Upload linux binary
-        if: ${{ matrix.platform == 'linux-x86_64' }}
+      - name: Upload deposit state artifact
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: clementine-cli-linux-x86_64
-          path: result/bin/clementine-cli
+          name: deposit-state-debug
+          path: core/src/test/data/deposit_state_debug.bincode
+          if-no-files-found: ignore
+          retention-days: 1
 
-  aarch64-linux-gnu:
-    runs-on: ubuntu-24.04-arm
+  release_tests_all_features:
+    name: Release | All features | Test
+    runs-on: ubicloud-standard-16
+
+    env:
+      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
+
     steps:
+      - name: Collect Workflow Telemetry
+        uses: catchpoint/workflow-telemetry-action@v2
+        with:
+          comment_on_pr: false
+
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
 
-      - name: Install Nix (2.32.1)
-        uses: cachix/install-nix-action@v31
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
-          extra_nix_config: |
-            experimental-features = nix-command flakes
+      - name: Create test log directories
+        run: mkdir -p test-logs/debug
 
-      - name: Build aarch64-linux-gnu
-        run: nix build .#linux-aarch64
-
-      - name: Rebuild aarch64-linux-gnu to verify reproducibility
+      - name: Run tests
         run: |
-          echo "Rebuilding aarch64-linux-gnu to confirm reproducibility..."
-          nix build .#linux-aarch64 --rebuild
-          echo "Rebuild for aarch64-linux-gnu completed"
+          set -o pipefail
+          cargo test --release $CARGOFLAGS_ALL_FEATURES
 
-      - name: Hash result
-        id: hash
-        run: |
-          H=$(nix hash path ./result)
-          echo "hash=$H" >> "$GITHUB_OUTPUT"
-          echo "aarch64-linux-gnu hash: $H"
-
-      - name: SHA256 of binary
-        run: |
-          BINARY="./result/bin/clementine-cli"
-          if [ -f "$BINARY" ]; then
-            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
-            echo "aarch64-linux-gnu binary sha256: $SHA256"
-            echo "Binary path: $BINARY"
-          else
-            echo "No binary found at $BINARY"
-            exit 1
-          fi
-
-  macos-arm64:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-
-      - name: Install Nix (2.32.1)
-        uses: cachix/install-nix-action@v31
-        with:
-          install_url: https://releases.nixos.org/nix/nix-2.32.1/install
-          extra_nix_config: |
-            experimental-features = nix-command flakes
-
-      - name: Build darwin-aarch64
-        run: nix build .#darwin-aarch64
-
-      - name: Rebuild darwin-aarch64 to verify reproducibility
-        run: |
-          echo "Rebuilding darwin-aarch64 to confirm reproducibility..."
-          nix build .#darwin-aarch64 --rebuild
-          echo "Rebuild for darwin-aarch64 completed"
-
-      - name: Hash result
-        id: hash
-        run: |
-          H=$(nix hash path ./result)
-          echo "hash=$H" >> "$GITHUB_OUTPUT"
-          echo "darwin-aarch64 hash: $H"
-
-      - name: SHA256 of binary
-        run: |
-          BINARY="./result/bin/clementine-cli"
-          if [ -f "$BINARY" ]; then
-            SHA256=$(shasum -a 256 "$BINARY" | awk '{print $1}')
-            echo "darwin-aarch64 binary sha256: $SHA256"
-            echo "Binary path: $BINARY"
-          else
-            echo "No binary found at $BINARY"
-            exit 1
-          fi
-          
-      - name: Upload binary
+      - name: Upload deposit state artifact
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: clementine-cli-darwin-aarch64
-          path: result/bin/clementine-cli
+          name: deposit-state-debug
+          path: core/src/test/data/deposit_state_debug.bincode
+          if-no-files-found: ignore
+          retention-days: 1
