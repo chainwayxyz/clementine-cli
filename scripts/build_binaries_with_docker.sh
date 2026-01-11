@@ -4,13 +4,17 @@ set -euo pipefail
 IMAGE_TAG="${IMAGE_TAG:-nixos/nix:2.32.1}"
 ARTIFACTS_DIR="${ARTIFACTS_DIR:-artifacts}"
 PROJECT_NAME="${PROJECT_NAME:-clementine-cli}"
-NIX_CONFIG="${NIX_CONFIG:-filter-syscalls = false}"
 
+# Added sandbox = true. 
+# We keep filter-syscalls = false which is often needed for Docker compat.
+NIX_CONFIG="${NIX_CONFIG:-extra-experimental-features = nix-command flakes
+filter-syscalls = false
+sandbox = true}"
 
 TARGET_MATRIX=(
-  "linux-x86_64 linux/amd64"
+  # "linux-x86_64 linux/amd64"
   "windows-x86_64 linux/amd64 .exe"
-  "aarch64-linux-gnu linux/arm64"
+  # "aarch64-linux-gnu linux/arm64"
 )
 
 MACOS_TARGET_MATRIX=(
@@ -25,6 +29,7 @@ build_target() {
   echo "[build] $attr using $IMAGE_TAG on platform $platform"
 
   docker run --rm -i \
+    --privileged \
     --platform "$platform" \
     -v "$PWD:/workspace" \
     -v "nix-store-$attr:/nix" \
@@ -38,11 +43,14 @@ build_target() {
     bash -seu <<'EOF'
 set -o pipefail
 
+# Ensure /tmp exists and has correct permissions for the sandbox
+mkdir -p /tmp && chmod 1777 /tmp
+
 outPath="$(
-  nix --extra-experimental-features 'nix-command flakes' \
-      --accept-flake-config \
-      build ".#${ATTR}" --print-out-paths | tail -n1
+  nix build "path:/workspace#${ATTR}" --print-out-paths | tail -n1
 )"
+
+rm -rf artifacts
 
 binSrc="${outPath}/bin/${PROJECT_NAME}${SUFFIX}"
 destDir="/workspace/${ARTIFACTS_DIR}/${ATTR}"
@@ -59,8 +67,6 @@ echo "[done] ${ATTR} -> ${ARTIFACTS_DIR}/${ATTR}/${PROJECT_NAME}${SUFFIX}"
 EOF
 }
 
-
-
 for entry in "${TARGET_MATRIX[@]}"; do
   read -r attr platform suffix <<<"$entry"
   build_target "$attr" "$platform" "${suffix-}"
@@ -71,7 +77,9 @@ done
 if [[ "$(uname)" == "Darwin" ]]; then
   for entry in "${MACOS_TARGET_MATRIX[@]}"; do
     read -r attr system <<<"$entry"
+    # Safely get current system string
     host_nix_system=$(nix eval --impure --expr 'builtins.currentSystem' | tr -d '"')
+    
     if [[ "$host_nix_system" == "$system" ]]; then
       echo "[build] $attr natively on macOS ($system)"
       nix build ".#${attr}"
