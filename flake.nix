@@ -168,7 +168,10 @@
 
               buildInputs = staticNativeBuildInputs;
 
-              cargoBuildFlags = [ "--target=${targetTriple}" ];
+              cargoBuildFlags = [ 
+                "--target=${targetTriple}" 
+                "--locked"
+              ];
 
               env =
                 mkReproEnv
@@ -263,7 +266,10 @@
                       [ buildPkgs.pkg-config ]
                       ++ pkgs.lib.optionals buildPkgs.stdenv.isDarwin [ buildPkgs.libiconv ];
 
-                    cargoBuildFlags = [ "--target=${targetTriple}" ];
+                    cargoBuildFlags = [ 
+                      "--target=${targetTriple}" 
+                      "--locked"
+                    ];
 
                     env = {
                       "CC_${rustTargetEnv}" =
