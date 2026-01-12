@@ -26,14 +26,14 @@
             src = ./.;
             filter = path: type:
               let base = baseNameOf path; in
-              !(base == ".git"
-                || base == ".github"
-                || base == "docs"
-                || base == "README.md"
-                || base == "artifacts"
-                || base == "result"
-                || base == "scripts"
-                || base == "target");
+                !(base == ".git"
+                  || base == ".github"
+                  || base == "docs"
+                  || base == "README.md"
+                  || base == "artifacts"
+                  || base == "result"
+                  || base == "scripts"
+                  || base == "target");
           };
 
           targets = {
@@ -81,33 +81,46 @@
 
           mkTargetRUSTFLAGS = { targetTriple }:
             let
-              isTargetDarwin  = pkgs.lib.hasInfix "apple-darwin" targetTriple;
+              isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isTargetWindows = pkgs.lib.hasInfix "pc-windows-gnu" targetTriple;
 
               common = [
-                "-C" "codegen-units=1"
-                "-C" "metadata=clementine-repro"
-                "-C" "debuginfo=0"
-                "-C" "lto=off"
-                "-C" "embed-bitcode=no"
+                "-C"
+                "codegen-units=1"
+                "-C"
+                "metadata=clementine-repro"
+                "-C"
+                "debuginfo=0"
+                "-C"
+                "lto=off"
+                "-C"
+                "embed-bitcode=no"
                 "--remap-path-prefix=${srcFiltered}=/src"
               ];
 
               staticCommon = [
-                "-C" "target-feature=+crt-static"
-                "-C" "link-arg=-static"
-                "-C" "link-arg=-Wl,--sort-common"
-                "-C" "link-arg=-Wl,--build-id=none"
-                "-C" "link-arg=-Wl,-s"
+                "-C"
+                "target-feature=+crt-static"
+                "-C"
+                "link-arg=-static"
+                "-C"
+                "link-arg=-Wl,--sort-common"
+                "-C"
+                "link-arg=-Wl,--build-id=none"
+                "-C"
+                "link-arg=-Wl,-s"
               ];
 
               linuxOnly = [
-                "-C" "link-arg=-Wl,--sort-section=name"
+                "-C"
+                "link-arg=-Wl,--sort-section=name"
               ];
 
               windowsOnly = [
-                "-C" "link-arg=-Wl,--no-insert-timestamp"
-                "-C" "link-arg=-Wl,--sort-section=name"
+                "-C"
+                "link-arg=-Wl,--no-insert-timestamp"
+                "-C"
+                "link-arg=-Wl,--sort-section=name"
               ];
 
               darwinOnly = [ ];
@@ -118,16 +131,16 @@
                 ++ (pkgs.lib.optionals isTargetWindows (staticCommon ++ windowsOnly))
                 ++ (pkgs.lib.optionals isTargetDarwin darwinOnly);
             in
-              pkgs.lib.concatStringsSep " " flags;
+            pkgs.lib.concatStringsSep " " flags;
 
           mkTargetPackage = spec:
             let
-              targetTriple   = spec.rustTarget;
-              rustTargetEnv  = builtins.replaceStrings ["-"] ["_"] targetTriple;
+              targetTriple = spec.rustTarget;
+              rustTargetEnv = builtins.replaceStrings [ "-" ] [ "_" ] targetTriple;
               upperTargetEnv = pkgs.lib.toUpper rustTargetEnv;
 
               isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
-              isTargetMusl   = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
+              isTargetMusl = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
               buildPkgs = pkgs;
 
@@ -168,8 +181,8 @@
 
               buildInputs = staticNativeBuildInputs;
 
-              cargoBuildFlags = [ 
-                "--target=${targetTriple}" 
+              cargoBuildFlags = [
+                "--target=${targetTriple}"
                 "--locked"
               ];
 
@@ -230,7 +243,8 @@
               dontStrip = true;
             };
 
-        in {
+        in
+        {
           packages =
             let
               windows-x86_64 =
@@ -252,10 +266,10 @@
 
                     rustPlatform = crossPkgs.makeRustPlatform {
                       cargo = rust;
-                      rustc  = rust;
+                      rustc = rust;
                     };
 
-                    rustTargetEnv = builtins.replaceStrings ["-"] ["_"] targetTriple;
+                    rustTargetEnv = builtins.replaceStrings [ "-" ] [ "_" ] targetTriple;
                   in
                   rustPlatform.buildRustPackage rec {
                     pname = "clementine-cli";
@@ -266,22 +280,22 @@
                       [ buildPkgs.pkg-config ]
                       ++ pkgs.lib.optionals buildPkgs.stdenv.isDarwin [ buildPkgs.libiconv ];
 
-                    cargoBuildFlags = [ 
-                      "--target=${targetTriple}" 
+                    cargoBuildFlags = [
+                      "--target=${targetTriple}"
                       "--locked"
                     ];
 
                     env = {
                       "CC_${rustTargetEnv}" =
-                          "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
+                        "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
                       "AR_${rustTargetEnv}" =
-                          "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
+                        "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
 
                       "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
                         "${crossPkgs.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
 
                       "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                       "-C target-feature=+crt-static \
+                        "-C target-feature=+crt-static \
                         -C link-arg=-static \
                         -C link-arg=-Wl,--no-insert-timestamp \
                         -C link-arg=-Wl,--sort-section=name \
@@ -358,9 +372,13 @@
                 if buildSystem == "aarch64-darwin" then darwin-aarch64 else
                 null;
             in
-              cleaned // (pkgs.lib.optionalAttrs (defaultPkg != null) {
-                default = defaultPkg;
-              });
+            cleaned // (pkgs.lib.optionalAttrs (defaultPkg != null) {
+              default = defaultPkg;
+            });
+
+          formatter = pkgs.writeShellScriptBin "nixpkgs-fmt" ''
+            exec ${pkgs.nixpkgs-fmt}/bin/nixpkgs-fmt "''${@:-.}"
+          '';
         }
       );
 }
