@@ -58,13 +58,6 @@
               useStaticToolchain = true;
             };
 
-            darwin-x86_64 = {
-              crossSystemConfig = null;
-              rustTarget = "x86_64-apple-darwin";
-              buildOn = [ "x86_64-darwin" ];
-              useStaticToolchain = false;
-            };
-
             darwin-aarch64 = {
               crossSystemConfig = null;
               rustTarget = "aarch64-apple-darwin";
@@ -345,11 +338,6 @@
                 then mkTargetPackage targets.linux-aarch64
                 else null;
 
-              darwin-x86_64 =
-                if builtins.elem buildSystem targets.darwin-x86_64.buildOn
-                then mkTargetPackage targets.darwin-x86_64
-                else null;
-
               darwin-aarch64 =
                 if builtins.elem buildSystem targets.darwin-aarch64.buildOn
                 then mkTargetPackage targets.darwin-aarch64
@@ -361,14 +349,12 @@
                     windows-x86_64
                     linux-x86_64
                     linux-aarch64
-                    darwin-x86_64
                     darwin-aarch64;
                 };
 
               defaultPkg =
                 if buildSystem == "x86_64-linux" then linux-x86_64 else
                 if buildSystem == "aarch64-linux" then linux-aarch64 else
-                if buildSystem == "x86_64-darwin" then darwin-x86_64 else
                 if buildSystem == "aarch64-darwin" then darwin-aarch64 else
                 null;
             in
