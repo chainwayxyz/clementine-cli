@@ -366,3 +366,19 @@ where
     tracing::debug!("Loading key for address {}", address.address_with_prefix());
     load_key(address, &secure_passphrase, sqlite_client).await
 }
+
+/// Check if a Bitcoin address is a wallet address
+pub(crate) async fn is_wallet_address(
+    address: &crate::BitcoinAddress,
+    config: &crate::config::BridgeCliConfig,
+) -> Result<bool, BridgeCliError> {
+    if address.address_type() == Some(bitcoin::AddressType::P2tr) {
+        let address = TaprootAddressWithPrefix::from_string_without_prefix(
+            &address.to_string(),
+            Purpose::Withdrawal,
+            config.network,
+        )?;
+        return address_exists(&address, None).await;
+    }
+    Ok(false)
+}
