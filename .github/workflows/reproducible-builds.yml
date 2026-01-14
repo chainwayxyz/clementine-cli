@@ -63,13 +63,6 @@ jobs:
             exit 1
           fi
 
-      - name: Upload linux binary
-        if: ${{ matrix.platform == 'linux-x86_64' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-linux-x86_64
-          path: result/bin/clementine-cli
-
   aarch64-linux-gnu:
     runs-on: ubuntu-24.04-arm
     steps:
