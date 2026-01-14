@@ -5,8 +5,9 @@ use clementine_cli::cli::{
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
     cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
     cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
-    cli_start_withdrawal, deposit_create_signed_recovery_tx, deposit_status,
-    send_withdrawal_signature, withdrawal_status,
+    cli_start_withdrawal, cli_verify_recovery_tx_with_validation,
+    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
+    withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -25,6 +26,8 @@ use colored::Colorize;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
 use tracing_subscriber::{EnvFilter, fmt, layer::SubscriberExt};
+
+const TERMS_OF_SERVICE_URL: &str = "https://www.citrea.xyz/clementine-bridge-terms-of-service";
 
 /// Initializes tracing to `Debug` level if verbose flag is given. If not,
 /// defaults to `RUST_LOG` env variable. If neither is set, logging is turned off.
@@ -69,6 +72,14 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
     command.push_str(" -rpcwallet=<rpcwallet>");
 
     command
+}
+
+fn print_terms_notice() {
+    println!(
+        "By continuing to interact with the Clementine CLI, you are confirming that you have reviewed and have agreed to the terms of service for the Clementine bridge presented here: {}",
+        TERMS_OF_SERVICE_URL.underline()
+    );
+    println!();
 }
 
 #[derive(Parser)]
@@ -202,6 +213,8 @@ enum DepositCommands {
         fee_rate: u64,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: f64,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -215,6 +228,8 @@ enum DepositCommands {
         evm_address: String,
         /// Deposited output amount in BTC (e.g., 0.1 for 0.1 BTC)
         amount: Option<f64>,
+        /// Clementine aggregated public key
+        clementine_aggregated_key: String,
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
@@ -470,6 +485,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
                         println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
+                        print_terms_notice();
                         println!("After sending the funds, you can monitor the deposit status using:");
                         println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
                     }
@@ -482,6 +498,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 destination_address,
                 fee_rate,
                 amount,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -508,6 +525,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         fee_rate,
                         amount,
                         &config,
+                        clementine_aggregated_key,
                     )
                     .await
                 );
@@ -517,6 +535,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 recovery_taproot_address,
                 evm_address,
                 amount,
+                clementine_aggregated_key,
                 network,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
@@ -528,7 +547,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(
-                    deposit::verify_recovery_tx(
+                    async
+                    cli_verify_recovery_tx_with_validation(
                         deposit::VerifyRecoveryTxParams {
                             recovery_tx,
                             citrea_address,
@@ -536,6 +556,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             amount,
                         },
                         &config,
+                        clementine_aggregated_key,
                     ),
                     (txid, address, amount) => {
                         println!("Recovery transaction verified!");
@@ -623,6 +644,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             config.network, signer_address.address_with_prefix(), destination_address);
                         println!("to scan UTXOs that can be used for the withdrawal operation");
                         println!();
+                        print_terms_notice();
                         println!("{} If your wallet cannot send exactly {} sats, you may send a higher supported amount. Be sure to update the config to match the amount you actually sent before proceeding.", "WARNING".bold(), config.dust_utxo_amount.to_sat());
                     }
                 );
