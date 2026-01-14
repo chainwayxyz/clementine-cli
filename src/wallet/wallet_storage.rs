@@ -8,13 +8,6 @@
 //! - Handling wallet file operations and directory management
 //! - Supporting both generated and imported wallet workflows
 //!
-//! ## Storage Structure
-//!
-//! Wallets are stored in the `~/.clementine/keys/` directory:
-//! - **Individual wallet files**: `wallet_{address}.json` containing encrypted data
-//! - **Registry file**: `wallets.json` containing metadata for all wallets
-//! - **Secure permissions**: Unix file permissions set to 0o600 (owner read/write only)
-//!
 //! ## Data Structures
 //!
 //! - [`WalletRegistryEntry`]: Metadata stored in the centralized registry
