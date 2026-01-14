@@ -7,3 +7,5 @@ result-*
 .direnv
 
 .DS_Store
+
+artifacts

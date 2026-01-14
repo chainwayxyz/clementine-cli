@@ -85,12 +85,12 @@ jobs:
             experimental-features = nix-command flakes
 
       - name: Build aarch64-linux-gnu
-        run: nix build .#aarch64-linux-gnu
+        run: nix build .#linux-aarch64
 
       - name: Rebuild aarch64-linux-gnu to verify reproducibility
         run: |
           echo "Rebuilding aarch64-linux-gnu to confirm reproducibility..."
-          nix build .#aarch64-linux-gnu --rebuild
+          nix build .#linux-aarch64 --rebuild
           echo "Rebuild for aarch64-linux-gnu completed"
 
       - name: Hash result
