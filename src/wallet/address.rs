@@ -24,19 +24,19 @@
 use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
 use crate::secure_types::{SecureKeypair, SecureSecretKey};
+use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::sqlite_db::wallet_db::{MinimalWalletData, WalletTable};
 use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
-use crate::wallet::wallet_storage::get_wallets_from_registry;
-use crate::wallet::wallet_utils::parse_network;
 use crate::{BitcoinAddress, NetworkUnchecked};
 use bip39::Mnemonic;
 use bitcoin::address::NetworkChecked;
 use bitcoin::secp256k1::{Keypair, SecretKey};
 use bitcoin::{AddressType, Network};
-use chrono::{DateTime, TimeZone, Utc};
 use clap::ValueEnum;
 use colored::Colorize;
 use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 
 const DEPOSIT_PREFIX: &str = "dep";
 const WITHDRAWAL_PREFIX: &str = "wit";
@@ -45,7 +45,7 @@ const WITHDRAWAL_PREFIX: &str = "wit";
 /// This affects the prefix of the generated address.
 /// If `withdrawal`, the address will be prefixed with "wit".
 /// If `deposit`, it will be prefixed with "dep".
-#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum, Hash, Serialize, Deserialize)]
 pub enum Purpose {
     Deposit,
     Withdrawal,
@@ -135,40 +135,31 @@ pub fn parse_taproot_address(
 }
 
 /// Get all wallets with their names and addresses from storage and print them
-pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
-    let wallets = get_wallets_from_registry()?;
+pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
+    let db = SqliteDb::open_with_schema().await?;
+    let mut wallets: Vec<MinimalWalletData> = WalletTable::get_all_wallets(db.pool()).await?;
 
     if wallets.is_empty() {
         println!("No wallets found.");
         return Ok(());
     }
 
-    let mut wallets: Vec<_> = wallets.into_values().collect();
-    wallets.sort_by_key(|w| {
-        DateTime::parse_from_rfc3339(&w.created_at)
-            .map(|dt| dt.with_timezone(&Utc))
-            .unwrap_or_else(|_| Utc.timestamp_opt(0, 0).single().unwrap())
-    });
+    wallets.sort_by_key(|w| w.created_at);
 
     let (mainnet, others): (Vec<_>, Vec<_>) =
         wallets.into_iter().partition(|w| w.network == "bitcoin");
 
     fn print_wallet_section(
         section_title: &str,
-        wallets: &[crate::wallet::wallet_storage::WalletRegistryEntry],
+        wallets: &[MinimalWalletData],
     ) -> Result<(), BridgeCliError> {
         if wallets.is_empty() {
             return Ok(());
         }
         println!("{}", section_title.bold().underline());
-        for wallet_entry in wallets {
-            let network = parse_network(&wallet_entry.network)?;
-            let address = TaprootAddressWithPrefix::from_string_with_prefix(
-                &wallet_entry.addres_with_prefix,
-                network,
-            )?;
-            let import_info = if let Some(true) = wallet_entry.imported {
-                if let Some(method) = &wallet_entry.import_method {
+        for wallet in wallets {
+            let import_info = if let Some(true) = wallet.imported {
+                if let Some(method) = &wallet.import_method {
                     format!(", (Imported via {})", method)
                 } else {
                     ", (Imported)".to_string()
@@ -176,13 +167,10 @@ pub fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             } else {
                 "".to_string()
             };
-            let network = format!("Network: {}", wallet_entry.network);
+            let network = format!("Network: {}", wallet.network);
             println!(
                 "Label: {} -> Address: {}, {}{}",
-                &wallet_entry.label,
-                &address.address_with_prefix(),
-                network,
-                import_info,
+                &wallet.label, &wallet.address, network, import_info,
             );
         }
         Ok(())

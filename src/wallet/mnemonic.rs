@@ -31,6 +31,7 @@ use crate::errors::BridgeCliError;
 use crate::secure_types::{
     SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
 };
+use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
@@ -58,15 +59,21 @@ pub(crate) fn get_master_seed_from_mnemonic(mnemonic: &Mnemonic) -> SecureByteSl
     SecureByteSlice::new(Box::new(master_seed))
 }
 
-pub(crate) fn load_mnemonic<T>(
+pub(crate) async fn load_mnemonic<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<Mnemonic, BridgeCliError>
 where
-    T: NetworkValidation,
+    T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    let wallet_data = load_wallet_data(address)?;
+    let wallet_data =
+        load_wallet_data(address, sqlite_client)
+            .await?
+            .ok_or(BridgeCliError::WalletNotFound(
+                address.address_with_prefix(),
+            ))?;
 
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?
@@ -74,7 +81,20 @@ where
         return Err(BridgeCliError::MissingEncryptedMnemonic);
     };
 
-    let secure_mnemonic_str = aes_decrypt_secure(&encrypted_data, passphrase)?;
+    // Decrypt; map auth failure to incorrect passphrase, propagate other errors
+    let secure_mnemonic_str = match aes_decrypt_secure(&encrypted_data, passphrase) {
+        Ok(mnemonic_str) => mnemonic_str,
+        Err(BridgeCliError::DecryptionError) => {
+            tracing::warn!(
+                "Failed to decrypt mnemonic: authentication failed (wrong passphrase or corrupted data)",
+            );
+            return Err(BridgeCliError::IncorrectPassphrase);
+        }
+        Err(e) => {
+            tracing::error!("Failed to decrypt mnemonic: {}", e);
+            return Err(e);
+        }
+    };
 
     // Check if this wallet was imported from a private key
     if secure_mnemonic_str.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
@@ -169,7 +189,6 @@ pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
         "{} Valid BIP-39 mnemonic phrase with 12 words",
         "SUCCESS".bold(),
     );
-    println!("Mnemonic will be handled securely and zeroized from memory");
 
     let mnemonic = Mnemonic::parse(secure_mnemonic_phrase.expose_secret()).map_err(|e| {
         tracing::error!("Error validating mnemonic: {}", e);

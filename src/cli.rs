@@ -17,12 +17,10 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::api_utils::{get_block_height_for_tx, get_mempool_txs};
 use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
-use crate::wallet::wallet_storage::get_storage_dir_with_existence_check;
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
@@ -39,18 +37,19 @@ use crate::{
     secure_types::SecureString,
     structs::{DepositStatusWithVout, TaprootAddressWithPrefix},
     wallet::{
-        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet, get_registry_wallet_set,
+        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
-        scan_wallet_files,
-        wallet_storage::get_storage_dir,
         wallet_utils::{
-            WalletValidationMode, ensure_wallet_exists, load_key_with_purpose_check,
-            parse_and_validate_imported_wallet, report_integrity_results,
-            validate_wallet_availability,
+            derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+            parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
     withdraw::{self, start_withdrawal},
+};
+use crate::{
+    api_utils::{get_block_height_for_tx, get_mempool_txs},
+    deposit::storage::DepositAddressStorageResult,
 };
 use crate::{
     config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
@@ -126,29 +125,6 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         "{} Storage directory initialized at: {}",
         "SUCCESS".bold(),
         clementine_home_dir.display()
-    );
-    let keys_dir = get_storage_dir()?;
-    std::fs::create_dir_all(&keys_dir).map_err(|e| {
-        tracing::error!(
-            "Failed to create keys directory {}: {}",
-            keys_dir.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre!(
-            "Failed to create keys directory {}",
-            keys_dir.display()
-        ))
-    })?;
-
-    #[cfg(unix)]
-    {
-        set_permissions(&keys_dir, 0o700)?;
-    }
-
-    println!(
-        "{} Keys directory initialized at: {}",
-        "SUCCESS".bold(),
-        keys_dir.display()
     );
 
     let config_file = clementine_home_dir.join("bridge_cli_config.toml");
@@ -678,30 +654,24 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
 
     Ok(())
 }
-pub fn cli_create_wallet(
+pub async fn cli_create_wallet(
     network: Network,
     label: String,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(&label), None, WalletValidationMode::Label)?;
+    validate_wallet_availability(Some(&label), None, None).await?;
 
     let passphrase = prompt_passphrase(true)?;
-    let (address, mnemonic, wallet_file_path) =
-        create_encrypted_wallet(network, label, purpose, passphrase)?;
 
+    let (address, mnemonic) =
+        create_encrypted_wallet(network, label, purpose, passphrase, None).await?;
     let _ = crossterm::terminal::enable_raw_mode();
     print!("\r\n");
     print!(
         "{} Wallet created with address: {}\r\n",
         "SUCCESS".bold(),
         address.address_with_prefix()
-    );
-
-    print!(
-        "{} Wallet file saved to: {}\r\n",
-        "INFO".bold(),
-        wallet_file_path.display()
     );
 
     if purpose == Purpose::Deposit {
@@ -740,74 +710,61 @@ pub fn cli_create_wallet(
     Ok(address)
 }
 
-pub fn cli_backup_wallet(
+pub async fn cli_backup_wallet(
     address_with_prefix: &str,
     destination_path: &str,
 ) -> Result<(TaprootAddressWithPrefix<NetworkUnchecked>, PathBuf), BridgeCliError> {
     let address = TaprootAddressWithPrefix::from_string_with_prefix_unchecked(address_with_prefix)?;
 
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(&address)?;
+    ensure_wallet_exists(&address, None).await?;
 
     let dest_path = Path::new(destination_path);
-    let final_dest = backup_wallet(&address, dest_path)?;
+    let final_dest = backup_wallet(&address, dest_path, None).await?;
 
     Ok((address, final_dest))
 }
 
-pub fn cli_import_wallet_from_mnemonic(
+pub async fn cli_import_wallet_from_mnemonic(
     network: Network,
     label: &str,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before mnemonic prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
+    validate_wallet_availability(Some(label), None, None).await?;
     println!("{}", "Import Wallet with Mnemonic".bold());
 
     let mnemonic = prompt_mnemonic()?;
 
-    import_wallet_from_mnemonic(network, label, purpose, mnemonic)
+    // Pre-check derived address before prompting for passphrase
+    let _derived_address =
+        derive_and_validate_mnemonic_import(network, None, purpose, &mnemonic, None).await?;
+
+    let passphrase = prompt_passphrase(true)?;
+
+    import_wallet_from_mnemonic(network, label, purpose, mnemonic, passphrase, None).await
 }
 
-pub fn cli_verify_wallet_integrity() -> Result<(), BridgeCliError> {
-    let storage_dir = get_storage_dir_with_existence_check()?;
-
-    println!("{}", "Verifying Wallet Integrity".bold());
-    println!("Storage directory: {}", storage_dir.display());
-    println!();
-
-    // Load registered wallets from wallets.json
-    let registry_wallets = get_registry_wallet_set()?;
-
-    // Scan for actual wallet files in storage directory
-    let file_wallets = scan_wallet_files()?;
-
-    // Report integrity results
-    report_integrity_results(&registry_wallets, &file_wallets);
-
-    Ok(())
-}
-
-pub fn cli_import_wallet_from_file(
+pub async fn cli_import_wallet_from_file(
     file_path: &str,
     label: Option<&str>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     let file_path = Path::new(file_path);
 
     // Duplicate pre-check before passphrase prompt for better UX
-    parse_and_validate_imported_wallet(file_path, label)?;
+    parse_and_validate_imported_wallet(file_path, label, None).await?;
 
     let passphrase = prompt_unlock_passphrase()?;
-    import_wallet_from_file(file_path, label, passphrase)
+    import_wallet_from_file(file_path, label, passphrase, None).await
 }
 
-pub fn cli_import_wallet_from_private_key(
+pub async fn cli_import_wallet_from_private_key(
     network: Network,
     label: &str,
     purpose: Purpose,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     // Duplicate pre-check before passphrase prompt for better UX
-    validate_wallet_availability(Some(label), None, WalletValidationMode::Label)?;
+    validate_wallet_availability(Some(label), None, None).await?;
 
     let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
         .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
@@ -816,29 +773,37 @@ pub fn cli_import_wallet_from_private_key(
 
     let passphrase = prompt_passphrase(true)?;
 
-    import_wallet_from_private_key(network, label, purpose, secure_private_key, passphrase)
+    import_wallet_from_private_key(
+        network,
+        label,
+        purpose,
+        secure_private_key,
+        passphrase,
+        None,
+    )
+    .await
 }
 
 /// Show mnemonic securely for a wallet
-pub fn cli_show_mnemonic(
+pub async fn cli_show_mnemonic(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
-    let mnemonic = get_mnemonic_from_wallet(address, &passphrase)?;
+    let mnemonic = get_mnemonic_from_wallet(address, &passphrase, None).await?;
     crate::secure_display::display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
 
 /// Show private key securely for a wallet
-pub fn cli_show_private_key(
+pub async fn cli_show_private_key(
     address: &TaprootAddressWithPrefix<bitcoin::address::NetworkUnchecked>,
 ) -> Result<(), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
-    ensure_wallet_exists(address)?;
+    ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
-    let private_key = get_private_key_from_wallet(address, &passphrase)?;
+    let private_key = get_private_key_from_wallet(address, &passphrase, None).await?;
     crate::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
@@ -1014,9 +979,10 @@ pub async fn deposit_create_signed_recovery_tx(
     config: &BridgeCliConfig,
     aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
-    ensure_wallet_exists(recovery_taproot_address)?;
+    ensure_wallet_exists(recovery_taproot_address, None).await?;
 
-    let keypair = load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit)?;
+    let keypair =
+        load_key_with_purpose_check(recovery_taproot_address, Purpose::Deposit, None).await?;
 
     // Parse and apply aggregated_public_key override if provided
     let mut effective_config = config.clone();
@@ -1033,7 +999,8 @@ pub async fn deposit_create_signed_recovery_tx(
         amount: Some(amount),
     };
 
-    let tx = deposit::create_signed_recovery_tx(recovery_params, &effective_config, keypair)?;
+    let tx = deposit::create_signed_recovery_tx(recovery_params, &effective_config, keypair, None)
+        .await?;
 
     let raw_tx = hex::encode(bitcoin::consensus::serialize(&tx));
     println!("Raw transaction: {raw_tx}");
@@ -1128,8 +1095,19 @@ pub async fn cli_get_deposit_address(
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
 ) -> Result<BitcoinAddress, BridgeCliError> {
-    let deposit_address =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config).await?;
+    let (deposit_address, storage_result) =
+        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
+            .await?;
+
+    if storage_result == DepositAddressStorageResult::Exists {
+        println!(
+            "{} Deposit address {} already exists, please check the details using 'get-deposit-address-details' command.",
+            "INFO".bold(),
+            deposit_address
+        );
+        println!();
+    }
+
     Ok(deposit_address)
 }
 
@@ -1138,7 +1116,7 @@ pub async fn cli_start_withdrawal(
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    start_withdrawal(signer_address, destination_address, config)?;
+    start_withdrawal(signer_address, destination_address, config).await?;
     Ok(())
 }
 
@@ -1358,7 +1336,7 @@ pub async fn cli_scan_withdrawals(
     Ok(())
 }
 
-pub fn cli_generate_withdrawal_signatures(
+pub async fn cli_generate_withdrawal_signatures(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
     withdrawal_utxo: &OutPoint,
@@ -1366,11 +1344,13 @@ pub fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
-    ensure_wallet_exists(signer_address)?;
+    ensure_wallet_exists(signer_address, None).await?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
         Purpose::Withdrawal,
-    )?;
+        None,
+    )
+    .await?;
 
     generate_withdrawal_signatures(
         keypair,
@@ -1380,7 +1360,9 @@ pub fn cli_generate_withdrawal_signatures(
         optimistic_withdrawal_amount,
         operator_withdrawal_amount,
         config,
+        None,
     )
+    .await
 }
 
 pub async fn cli_verify_recovery_tx_with_validation(
@@ -1398,8 +1380,8 @@ pub async fn cli_verify_recovery_tx_with_validation(
     deposit::verify_recovery_tx(params, &effective_config)
 }
 
-pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
-    let deposits = get_all_deposit_address_details().map_err(|e| {
+pub async fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
+    let deposits = get_all_deposit_address_details(None).await.map_err(|e| {
         tracing::error!("Failed to retrieve stored deposit addresses: {}", e);
         BridgeCliError::Eyre(eyre!("Failed to retrieve stored deposit addresses"))
     })?;
@@ -1419,14 +1401,15 @@ pub fn cli_list_all_deposit_addresses() -> Result<(), BridgeCliError> {
     Ok(())
 }
 
-pub fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
+pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<(), BridgeCliError> {
     // check if deposit_address is a valid Bitcoin address
     let _ = BitcoinAddress::from_str(deposit_address).map_err(|e| {
         tracing::error!("Invalid bitcoin address '{}': {}", deposit_address, e);
         BridgeCliError::Eyre(eyre!("Invalid bitcoin address '{}'", deposit_address,))
     })?;
-    let details =
-        get_deposit_address_details_for_deposit_address(deposit_address).map_err(|e| {
+    let details = get_deposit_address_details_for_deposit_address(deposit_address, None)
+        .await
+        .map_err(|e| {
             tracing::error!(
                 "Failed to retrieve details for deposit address {}: {}",
                 deposit_address,

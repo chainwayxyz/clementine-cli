@@ -1,14 +1,11 @@
 use crate::errors::BridgeCliError;
+use crate::sqlite_db::deposit_db::{DepositRecord, DepositTable};
+use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
 use crate::structs::TaprootAddressWithPrefix;
-use crate::{BitcoinAddress, CitreaAddress, get_clementine_home_dir};
+use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::Network;
 use bitcoin::address::NetworkUnchecked;
 use bitcoin::secp256k1::XOnlyPublicKey;
-use eyre::Result;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::fs;
-use std::io::Write;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Data needed to store a deposit address.
@@ -20,29 +17,6 @@ pub struct DepositData {
     pub citrea_address: CitreaAddress,
     pub user_takes_after: u64,
     pub network: Network,
-}
-
-const DEPOSIT_ADDRESS_STORAGE_FILE: &str = "deposit_addresses.json";
-
-/// Map key for a stored deposit address.
-#[derive(Debug, Clone, Serialize, Deserialize, Eq, PartialEq, Hash)]
-pub struct StoredDepositAddress(pub String);
-
-/// Stored metadata for a deposit address.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct StoredDepositEntry {
-    pub aggregated_public_key: String,
-    pub recovery_taproot_address: String,
-    pub citrea_address: String,
-    pub user_takes_after: u64,
-}
-
-/// Internal record for a deposit address.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct StoredDepositDetails {
-    pub network: Network,
-    pub entry: StoredDepositEntry,
-    pub created_at: u64,
 }
 
 /// Public view of a stored deposit address.
@@ -57,27 +31,26 @@ pub struct DepositAddressDetails {
     pub created_at: u64,
 }
 
-type StoredDepositMap = HashMap<StoredDepositAddress, StoredDepositDetails>;
+#[derive(Debug, PartialEq, Eq)]
+pub enum DepositAddressStorageResult {
+    Exists,
+    NewlyStored,
+}
 
 /// Store a deposit address and its metadata.
 ///
 /// If the address already exists, the existing record is kept.
-/// Returns an error if the storage file cannot be read or written.
-pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+/// Returns an error if the database cannot be read or written.
+pub async fn store_deposit_address(
+    deposit_data: &DepositData,
+    sqlite_client: Option<&SqliteDb>,
+) -> Result<DepositAddressStorageResult, BridgeCliError> {
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+    let deposit_address = deposit_data.deposit_address.to_string();
 
-    let mut map: StoredDepositMap = if storage_path.exists() {
-        let contents = fs::read_to_string(&storage_path)?;
-        if contents.trim().is_empty() {
-            StoredDepositMap::new()
-        } else {
-            serde_json::from_str::<StoredDepositMap>(&contents)?
-        }
-    } else {
-        StoredDepositMap::new()
-    };
-
-    let key = StoredDepositAddress(deposit_data.deposit_address.to_string());
+    if DepositTable::deposit_exists(sqlite_client.pool(), &deposit_address).await? {
+        return Ok(DepositAddressStorageResult::Exists);
+    }
 
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
@@ -87,94 +60,42 @@ pub fn store_deposit_address(deposit_data: &DepositData) -> Result<(), BridgeCli
             0
         });
 
-    let entry = StoredDepositEntry {
+    let record = DepositRecord {
+        deposit_address,
         aggregated_public_key: deposit_data.aggregated_public_key.to_string(),
         recovery_taproot_address: deposit_data.recovery_taproot_address.address_with_prefix(),
         citrea_address: deposit_data.citrea_address.to_string(),
         user_takes_after: deposit_data.user_takes_after,
+        network: deposit_data.network,
+        created_at: now,
     };
 
-    map.entry(key).or_insert_with(|| StoredDepositDetails {
-        network: deposit_data.network,
-        entry: entry.clone(),
-        created_at: now,
-    });
+    DepositTable::insert_deposit(sqlite_client.pool(), &record).await?;
 
-    let tmp_path = storage_path.with_file_name(format!(
-        "{}.tmp",
-        storage_path
-            .file_name()
-            .expect("Storage path has a file name")
-            .to_string_lossy()
-    ));
-
-    let json = serde_json::to_string_pretty(&map)?;
-
-    {
-        let mut file = fs::File::create(&tmp_path)?;
-        file.write_all(json.as_bytes())?;
-        file.sync_all()?;
-    }
-
-    fs::rename(&tmp_path, &storage_path).map_err(|e| {
-        let _ = fs::remove_file(tmp_path);
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Failed to rename temp deposit address storage file: {}",
-            e
-        ))
-    })?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        let mut perms = fs::metadata(&storage_path)?.permissions();
-        perms.set_mode(0o600);
-        fs::set_permissions(&storage_path, perms)?;
-    }
-
-    Ok(())
+    Ok(DepositAddressStorageResult::NewlyStored)
 }
 
 /// List all stored deposits.
 ///
 /// Returns an empty vector if no deposits have been stored.
-pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+pub async fn get_all_deposit_address_details(
+    sqlite_client: Option<&SqliteDb>,
+) -> Result<Vec<DepositAddressDetails>, BridgeCliError> {
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+    let records = DepositTable::get_all_deposits(sqlite_client.pool()).await?;
 
-    if !storage_path.exists() {
-        return Ok(Vec::new());
-    }
-
-    let contents = fs::read_to_string(&storage_path)?;
-    if contents.trim().is_empty() {
-        return Ok(Vec::new());
-    }
-
-    let map: StoredDepositMap = serde_json::from_str::<StoredDepositMap>(&contents)?;
-
-    let mut records: Vec<DepositAddressDetails> = map
+    Ok(records
         .into_iter()
-        .map(
-            |(StoredDepositAddress(deposit_address), details)| DepositAddressDetails {
-                deposit_address,
-                aggregated_public_key: details.entry.aggregated_public_key,
-                recovery_taproot_address: details.entry.recovery_taproot_address,
-                citrea_address: details.entry.citrea_address,
-                user_takes_after: details.entry.user_takes_after,
-                network: details.network,
-                created_at: details.created_at,
-            },
-        )
-        .collect();
-
-    // Sort deterministically by creation time (and then by deposit address for tie-breaker)
-    records.sort_by(|a, b| {
-        a.created_at
-            .cmp(&b.created_at)
-            .then_with(|| a.deposit_address.cmp(&b.deposit_address))
-    });
-
-    Ok(records)
+        .map(|record| DepositAddressDetails {
+            deposit_address: record.deposit_address,
+            aggregated_public_key: record.aggregated_public_key,
+            recovery_taproot_address: record.recovery_taproot_address,
+            citrea_address: record.citrea_address,
+            user_takes_after: record.user_takes_after,
+            network: record.network,
+            created_at: record.created_at,
+        })
+        .collect())
 }
 
 /// Retrieves full deposit details for a specific deposit address.
@@ -184,36 +105,179 @@ pub fn get_all_deposit_address_details() -> Result<Vec<DepositAddressDetails>, B
 ///
 /// Returns `Ok(Some(..))` if the deposit address exists in storage, or
 /// `Ok(None)` if it is not found.
-pub fn get_deposit_address_details_for_deposit_address(
+pub async fn get_deposit_address_details_for_deposit_address(
     deposit_address: &str,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<Option<DepositAddressDetails>, BridgeCliError> {
-    let storage_path = get_clementine_home_dir()?.join(DEPOSIT_ADDRESS_STORAGE_FILE);
+    let sqlite_client = resolve_sqlite_client(sqlite_client).await?;
+    let record =
+        DepositTable::get_deposit_by_address(sqlite_client.pool(), deposit_address).await?;
 
-    if !storage_path.exists() {
-        return Ok(None);
+    Ok(record.map(|record| DepositAddressDetails {
+        deposit_address: record.deposit_address,
+        aggregated_public_key: record.aggregated_public_key,
+        recovery_taproot_address: record.recovery_taproot_address,
+        citrea_address: record.citrea_address,
+        user_takes_after: record.user_takes_after,
+        network: record.network,
+        created_at: record.created_at,
+    }))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::BridgeCliConfig;
+    use crate::deposit::get_deposit_address;
+    use crate::sqlite_db::test_utils::fresh_db_with_test_name;
+    use crate::wallet::Purpose;
+    use bitcoin::key::TweakedPublicKey;
+    use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, XOnlyPublicKey};
+
+    fn sample_deposit_data(network: Network, seed: u8) -> DepositData {
+        let secp = Secp256k1::new();
+        let secret_bytes = [seed; 32];
+        let secret_key = SecretKey::from_slice(&secret_bytes).expect("valid secret key");
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let (xonly, _) = XOnlyPublicKey::from_keypair(&keypair);
+        let tweaked = TweakedPublicKey::dangerous_assume_tweaked(xonly);
+
+        let deposit_address = BitcoinAddress::p2tr_tweaked(tweaked, network);
+
+        let purpose = Purpose::Deposit;
+        let recovery_prefixed = format!("{}{}", purpose.to_prefix(), deposit_address);
+        let recovery_taproot_address =
+            TaprootAddressWithPrefix::from_string_with_prefix_unchecked(&recovery_prefixed)
+                .expect("valid recovery address");
+
+        let citrea_address = CitreaAddress::from([seed; 20]);
+
+        DepositData {
+            deposit_address,
+            recovery_taproot_address,
+            aggregated_public_key: xonly,
+            citrea_address,
+            user_takes_after: 100 + seed as u64,
+            network,
+        }
     }
 
-    let contents = fs::read_to_string(&storage_path)?;
+    #[tokio::test]
+    async fn get_all_deposit_address_details_returns_inserted_records() {
+        let db = fresh_db_with_test_name().await;
+        let data1 = sample_deposit_data(Network::Regtest, 1);
+        let data2 = sample_deposit_data(Network::Regtest, 2);
 
-    if contents.trim().is_empty() {
-        return Ok(None);
+        store_deposit_address(&data1, Some(&db))
+            .await
+            .expect("store first deposit");
+        store_deposit_address(&data2, Some(&db))
+            .await
+            .expect("store second deposit");
+
+        let details = get_all_deposit_address_details(Some(&db))
+            .await
+            .expect("fetch deposits");
+
+        assert_eq!(details.len(), 2);
+
+        let first = details
+            .iter()
+            .find(|d| d.deposit_address == data1.deposit_address.to_string())
+            .expect("first deposit present");
+        assert_eq!(
+            first.aggregated_public_key,
+            data1.aggregated_public_key.to_string()
+        );
+        assert_eq!(
+            first.recovery_taproot_address,
+            data1.recovery_taproot_address.address_with_prefix()
+        );
+        assert_eq!(first.citrea_address, data1.citrea_address.to_string());
+
+        let second = details
+            .iter()
+            .find(|d| d.deposit_address == data2.deposit_address.to_string())
+            .expect("second deposit present");
+        assert_eq!(second.network, data2.network);
+        assert_eq!(second.user_takes_after, data2.user_takes_after);
     }
 
-    let map: StoredDepositMap = serde_json::from_str::<StoredDepositMap>(&contents)?;
+    #[tokio::test]
+    async fn get_deposit_address_details_returns_specific_record() {
+        let db = fresh_db_with_test_name().await;
+        let data = sample_deposit_data(Network::Signet, 9);
 
-    let key = StoredDepositAddress(deposit_address.to_string());
+        store_deposit_address(&data, Some(&db))
+            .await
+            .expect("store deposit");
 
-    if let Some(details) = map.get(&key) {
-        Ok(Some(DepositAddressDetails {
-            deposit_address: deposit_address.to_string(),
-            aggregated_public_key: details.entry.aggregated_public_key.clone(),
-            recovery_taproot_address: details.entry.recovery_taproot_address.clone(),
-            citrea_address: details.entry.citrea_address.clone(),
-            user_takes_after: details.entry.user_takes_after,
-            network: details.network,
-            created_at: details.created_at,
-        }))
-    } else {
-        Ok(None)
+        let details = get_deposit_address_details_for_deposit_address(
+            &data.deposit_address.to_string(),
+            Some(&db),
+        )
+        .await
+        .expect("fetch deposit")
+        .expect("deposit exists");
+
+        assert_eq!(details.deposit_address, data.deposit_address.to_string());
+        assert_eq!(
+            details.aggregated_public_key,
+            data.aggregated_public_key.to_string()
+        );
+        assert_eq!(
+            details.recovery_taproot_address,
+            data.recovery_taproot_address.address_with_prefix()
+        );
+        assert_eq!(details.citrea_address, data.citrea_address.to_string());
+        assert_eq!(details.user_takes_after, data.user_takes_after);
+        assert_eq!(details.network, data.network);
+
+        let missing =
+            get_deposit_address_details_for_deposit_address("depb1qmissingaddress", Some(&db))
+                .await
+                .expect("fetch missing");
+        assert!(missing.is_none());
+    }
+
+    #[tokio::test]
+    async fn get_deposit_address_stores_and_fetches_details() {
+        let db = fresh_db_with_test_name().await;
+
+        let secp = Secp256k1::new();
+        let secret_key = SecretKey::from_slice(&[7u8; 32]).expect("secret");
+        let keypair = Keypair::from_secret_key(&secp, &secret_key);
+        let (xonly, _parity) = XOnlyPublicKey::from_keypair(&keypair);
+        let tweaked = TweakedPublicKey::dangerous_assume_tweaked(xonly);
+        let recovery_address = BitcoinAddress::p2tr_tweaked(tweaked, Network::Regtest);
+        let recovery_taproot =
+            TaprootAddressWithPrefix::new(recovery_address, Purpose::Deposit).expect("taproot");
+
+        let config = BridgeCliConfig::defaults_for(Network::Regtest);
+        let citrea_address = CitreaAddress::from([5u8; 20]);
+
+        let (deposit_address, result) =
+            get_deposit_address(&citrea_address, &recovery_taproot, &config, Some(&db))
+                .await
+                .expect("get deposit address");
+
+        assert_eq!(result, DepositAddressStorageResult::NewlyStored);
+
+        let stored = get_deposit_address_details_for_deposit_address(
+            &deposit_address.to_string(),
+            Some(&db),
+        )
+        .await
+        .expect("fetch stored")
+        .expect("exists");
+
+        assert_eq!(stored.deposit_address, deposit_address.to_string());
+        assert_eq!(
+            stored.recovery_taproot_address,
+            recovery_taproot.address_with_prefix()
+        );
+        assert_eq!(stored.citrea_address, citrea_address.to_string());
+        assert_eq!(stored.network, Network::Regtest);
+        assert_eq!(stored.user_takes_after, config.user_takes_after);
     }
 }
