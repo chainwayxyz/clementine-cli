@@ -1,5 +1,5 @@
 {
-  description = "Clementine CLI – Reproducible cross build for x86_64-pc-windows on x86_64-linux";
+  description = "Clementine CLI – Reproducible builds";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-24.05";
@@ -16,24 +16,28 @@
       (buildSystem:
         let
           overlays = [ (import rust-overlay) ];
-          pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
+          pkgs = import nixpkgs { system = buildSystem; inherit overlays; config = { }; };
 
           staticPkgs = pkgs.pkgsStatic;
 
           rustVersion = "1.89.0";
 
           srcFiltered = pkgs.lib.cleanSourceWith {
+            name = "clementine-src";
+
             src = ./.;
+
             filter = path: type:
-              let base = baseNameOf path; in
-                !(base == ".git"
-                  || base == ".github"
-                  || base == "docs"
-                  || base == "README.md"
-                  || base == "artifacts"
-                  || base == "result"
-                  || base == "scripts"
-                  || base == "target");
+              let
+                base = baseNameOf path;
+                isGitIgnored = pkgs.nix-gitignore.gitignoreFilter "" ./. path type;
+                isManualExcluded = builtins.elem base [
+                  "docs"
+                  "README.md"
+                  ".github"
+                ];
+              in
+              isGitIgnored && !isManualExcluded;
           };
 
           targets = {
@@ -126,6 +130,7 @@
             in
             pkgs.lib.concatStringsSep " " flags;
 
+
           mkTargetPackage = spec:
             let
               targetTriple = spec.rustTarget;
@@ -135,21 +140,40 @@
               isTargetDarwin = pkgs.lib.hasInfix "apple-darwin" targetTriple;
               isTargetMusl = pkgs.lib.hasInfix "unknown-linux-musl" targetTriple;
 
-              buildPkgs = pkgs;
+              isWindows = pkgs.lib.hasInfix "pc-windows-gnu" targetTriple;
+
+              crossPkgs =
+                if isWindows then
+                  import nixpkgs
+                    {
+                      system = buildSystem;
+                      crossSystem = { config = spec.crossSystemConfig; };
+                      inherit overlays;
+                      config = { };
+                    }
+                else
+                  null;
+
+              buildPkgs = if isWindows then crossPkgs.buildPackages else pkgs;
 
               rust = buildPkgs.rust-bin.stable.${rustVersion}.default.override {
                 targets = [ targetTriple ];
               };
 
-              rustPlatform = pkgs.makeRustPlatform { cargo = rust; rustc = rust; };
+              rustPlatform =
+                if isWindows then
+                  crossPkgs.makeRustPlatform { cargo = rust; rustc = rust; }
+                else
+                  pkgs.makeRustPlatform { cargo = rust; rustc = rust; };
 
               isHostDarwin = buildPkgs.stdenv.isDarwin;
+
               rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
 
               muslCC = staticPkgs.stdenv.cc;
 
               staticToolchainEnv =
-                pkgs.lib.optionalAttrs (spec.useStaticToolchain && isTargetMusl) {
+                pkgs.lib.optionalAttrs (!isWindows && spec.useStaticToolchain && isTargetMusl) {
                   "CC_${rustTargetEnv}" =
                     "${muslCC}/bin/${muslCC.targetPrefix}cc";
                   "AR_${rustTargetEnv}" =
@@ -159,9 +183,20 @@
                 };
 
               staticNativeBuildInputs =
-                pkgs.lib.optionals (spec.useStaticToolchain && isTargetMusl) [
+                pkgs.lib.optionals (!isWindows && spec.useStaticToolchain && isTargetMusl) [
                   staticPkgs.sqlite
                 ];
+
+              windowsToolchainEnv =
+                pkgs.lib.optionalAttrs isWindows {
+                  "CC_${rustTargetEnv}" =
+                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
+                  "AR_${rustTargetEnv}" =
+                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
+
+                  "CARGO_TARGET_${upperTargetEnv}_LINKER" =
+                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
+                };
             in
             rustPlatform.buildRustPackage rec {
               pname = "clementine-cli";
@@ -181,6 +216,7 @@
 
               env =
                 mkReproEnv
+                // windowsToolchainEnv
                 // staticToolchainEnv
                 // {
                   "CARGO_TARGET_${upperTargetEnv}_RUSTFLAGS" = rustFlags;
@@ -202,11 +238,16 @@
                 };
               };
 
-              installPhase = ''
-                mkdir -p $out/bin
-                cp target/${targetTriple}/release/clementine-cli $out/bin/
-                chmod 555 $out/bin/clementine-cli
-              '';
+              installPhase =
+                if isWindows then ''
+                  mkdir -p $out/bin
+                  cp target/${targetTriple}/release/clementine-cli.exe $out/bin/
+                  chmod 555 $out/bin/clementine-cli.exe
+                '' else ''
+                  mkdir -p $out/bin
+                  cp target/${targetTriple}/release/clementine-cli $out/bin/
+                  chmod 555 $out/bin/clementine-cli
+                '';
 
               postFixup = pkgs.lib.optionalString (isHostDarwin && isTargetDarwin) ''
                 bin="$out/bin/clementine-cli"
@@ -241,92 +282,9 @@
           packages =
             let
               windows-x86_64 =
-                if builtins.elem buildSystem targets.windows-x86_64.buildOn then
-                  let
-                    targetTriple = "x86_64-pc-windows-gnu";
-
-                    crossPkgs = import nixpkgs {
-                      system = buildSystem;
-                      crossSystem = { config = "x86_64-w64-mingw32"; };
-                      inherit overlays;
-                    };
-
-                    buildPkgs = crossPkgs.buildPackages;
-
-                    rust = buildPkgs.rust-bin.stable.${rustVersion}.default.override {
-                      targets = [ targetTriple ];
-                    };
-
-                    rustPlatform = crossPkgs.makeRustPlatform {
-                      cargo = rust;
-                      rustc = rust;
-                    };
-
-                    rustTargetEnv = builtins.replaceStrings [ "-" ] [ "_" ] targetTriple;
-                  in
-                  rustPlatform.buildRustPackage rec {
-                    pname = "clementine-cli";
-                    version = "0.1.0";
-                    src = srcFiltered;
-
-                    nativeBuildInputs =
-                      [ buildPkgs.pkg-config ]
-                      ++ pkgs.lib.optionals buildPkgs.stdenv.isDarwin [ buildPkgs.libiconv ];
-
-                    cargoBuildFlags = [
-                      "--target=${targetTriple}"
-                      "--locked"
-                    ];
-
-                    env = {
-                      "CC_${rustTargetEnv}" =
-                        "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
-                      "AR_${rustTargetEnv}" =
-                        "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
-
-                      "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_LINKER" =
-                        "${crossPkgs.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
-
-                      "CARGO_TARGET_${pkgs.lib.toUpper rustTargetEnv}_RUSTFLAGS" =
-                        "-C target-feature=+crt-static \
-                        -C link-arg=-static \
-                        -C link-arg=-Wl,--no-insert-timestamp \
-                        -C link-arg=-Wl,--sort-section=name \
-                        -C link-arg=-Wl,--sort-common \
-                        -C link-arg=-Wl,--build-id=none \
-                        -C link-arg=-Wl,-s \
-                        -C codegen-units=1 \
-                        -C metadata=clementine-repro \
-                        -C debuginfo=0 \
-                        -C lto=off \
-                        -C embed-bitcode=no \
-                        -C target-cpu=x86-64 \
-                        --remap-path-prefix=${srcFiltered}=/src";
-                      SOURCE_DATE_EPOCH = "1";
-                      CARGO_INCREMENTAL = "0";
-                      ZERO_AR_DATE = "1";
-                    };
-
-                    cargoLock = {
-                      lockFile = ./Cargo.lock;
-                      outputHashes = {
-                        "bitcoincore-rpc-0.18.0" = "sha256-QYtvsul7MUFm/HUDAqiwxM4HoFyOcn31ERR8eu62LB4=";
-                        "secp256k1-0.31.0" = "sha256-jTdc0423m9lS4NunLCMwLM6AdkerSc/ovTSyO91KXa0=";
-                      };
-                    };
-
-                    installPhase = ''
-                      mkdir -p $out/bin
-                      cp target/${targetTriple}/release/clementine-cli.exe $out/bin/
-                      chmod 555 $out/bin/clementine-cli.exe
-                    '';
-
-                    doCheck = false;
-                    auditable = false;
-                    dontStrip = true;
-                  }
-                else
-                  null;
+                if builtins.elem buildSystem targets.windows-x86_64.buildOn
+                then mkTargetPackage targets.windows-x86_64
+                else null;
 
               linux-x86_64 =
                 if builtins.elem buildSystem targets.linux-x86_64.buildOn
