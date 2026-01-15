@@ -16,24 +16,28 @@
       (buildSystem:
         let
           overlays = [ (import rust-overlay) ];
-          pkgs = import nixpkgs { system = buildSystem; inherit overlays; };
+          pkgs = import nixpkgs { system = buildSystem; inherit overlays; config = { }; };
 
           staticPkgs = pkgs.pkgsStatic;
 
           rustVersion = "1.89.0";
 
           srcFiltered = pkgs.lib.cleanSourceWith {
+            name = "clementine-src";
+
             src = ./.;
+
             filter = path: type:
-              let base = baseNameOf path; in
-                !(base == ".git"
-                  || base == ".github"
-                  || base == "docs"
-                  || base == "README.md"
-                  || base == "artifacts"
-                  || base == "result"
-                  || base == "scripts"
-                  || base == "target");
+              let
+                base = baseNameOf path;
+                isGitIgnored = pkgs.nix-gitignore.gitignoreFilter "" ./. path type;
+                isManualExcluded = builtins.elem base [
+                  "docs"
+                  "README.md"
+                  ".github"
+                ];
+              in
+              isGitIgnored && !isManualExcluded;
           };
 
           targets = {
@@ -126,6 +130,7 @@
             in
             pkgs.lib.concatStringsSep " " flags;
 
+
           mkTargetPackage = spec:
             let
               targetTriple = spec.rustTarget;
@@ -162,24 +167,7 @@
 
               isHostDarwin = buildPkgs.stdenv.isDarwin;
 
-              rustFlags =
-                if isWindows then
-                  "-C target-feature=+crt-static \
-                  -C link-arg=-static \
-                  -C link-arg=-Wl,--no-insert-timestamp \
-                  -C link-arg=-Wl,--sort-section=name \
-                  -C link-arg=-Wl,--sort-common \
-                  -C link-arg=-Wl,--build-id=none \
-                  -C link-arg=-Wl,-s \
-                  -C codegen-units=1 \
-                  -C metadata=clementine-repro \
-                  -C debuginfo=0 \
-                  -C lto=off \
-                  -C embed-bitcode=no \
-                  -C target-cpu=x86-64 \
-                  --remap-path-prefix=${srcFiltered}=/src"
-                else
-                  mkTargetRUSTFLAGS { inherit targetTriple; };
+              rustFlags = mkTargetRUSTFLAGS { inherit targetTriple; };
 
               muslCC = staticPkgs.stdenv.cc;
 
@@ -206,7 +194,7 @@
                     "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}ar";
 
                   "CARGO_TARGET_${upperTargetEnv}_LINKER" =
-                    "${crossPkgs.stdenv.cc}/bin/x86_64-w64-mingw32-gcc";
+                    "${crossPkgs.stdenv.cc}/bin/${crossPkgs.stdenv.cc.targetPrefix}gcc";
                 };
             in
             rustPlatform.buildRustPackage rec {
