@@ -149,6 +149,7 @@
                       system = buildSystem;
                       crossSystem = { config = spec.crossSystemConfig; };
                       inherit overlays;
+                      config = { };
                     }
                 else
                   null;
