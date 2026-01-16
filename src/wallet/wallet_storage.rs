@@ -1,17 +1,17 @@
 //! Secure wallet data storage and registry management for Clementine CLI.
 //!
 //! This module handles persistent storage of encrypted wallet data and maintains
-//! a centralized registry of all wallets:
+//! a centralized registry of all wallets using SQLite:
 //! - Storing encrypted wallet data with secure file permissions
-//! - Managing a centralized wallet registry (wallets.json)
+//! - Persisting wallet metadata and encrypted secrets in SQLite
 //! - Loading and retrieving stored wallet information
-//! - Handling wallet file operations and directory management
+//! - Exporting wallet backups to JSON files
 //! - Supporting both generated and imported wallet workflows
 //!
 //! ## Data Structures
 //!
-//! - [`WalletRegistryEntry`]: Metadata stored in the centralized registry
-//! - [`GenericWalletData`]: Complete wallet data with encrypted secrets
+//! - [`WalletData`]: Database model for stored wallet data
+//! - [`WalletExport`]: Serialized wallet export format
 //!
 //! ## Encryption Standards
 //!
@@ -76,7 +76,7 @@ pub(crate) async fn store_wallet_data(
     Ok(())
 }
 
-/// Load generic wallet data from file
+/// Load wallet data from database by address.
 pub async fn load_wallet_data<T>(
     address: &TaprootAddressWithPrefix<T>,
     sqlite_client: Option<&SqliteDb>,
