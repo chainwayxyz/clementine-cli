@@ -6,13 +6,13 @@ Reproducible builds ensure bit-for-bit identical binaries, allowing you to verif
 
 ## Platform Support
 
-**5 platforms** are fully supported and reproducible:
+**4 platforms** are fully supported and reproducible:
 
 | Platform | Architecture |
 |----------|--------------|
 | Linux | x86_64, ARM64 |
 | Windows | x86_64 |
-| macOS | Intel, Apple Silicon |
+| macOS | Apple Silicon |
 
 ### What You Can Build
 
@@ -20,11 +20,10 @@ Reproducible builds ensure bit-for-bit identical binaries, allowing you to verif
 |-------------|---------------|
 | **Linux (x86_64)** | Linux x86_64, Windows |
 | **Linux (ARM64)** | Linux ARM64 |
-| **macOS (Intel)** | macOS Intel |
 | **macOS (Apple Silicon)** | macOS Apple Silicon |
 
 > [!NOTE]
-> Cross-compilation is supported for Windows from Linux x86_64. For reproducibility, all other platforms (Linux ARM64, macOS Intel, macOS Apple Silicon) must be built on their native architecture; cross-compilation is not supported for these.
+> Cross-compilation is supported for Windows from Linux x86_64. For reproducibility, Linux ARM64 and macOS Apple Silicon must be built on their native architecture; cross-compilation is not supported for these.
 
 ## Install Nix
 
@@ -55,9 +54,8 @@ nix build
 
 # Or specify a platform:
 nix build .#linux-x86_64          # Linux x86_64
-nix build .#aarch64-linux-gnu     # Linux ARM64
+nix build .#linux-aarch64         # Linux ARM64
 nix build .#windows-x86_64        # Windows 64-bit
-nix build .#darwin-x86_64         # macOS Intel
 nix build .#darwin-aarch64        # macOS Apple Silicon
 
 # Binary location:
@@ -76,10 +74,9 @@ Build commands for all working platforms:
 ```bash
 # Linux
 nix build .#linux-x86_64            # Intel/AMD 64-bit
-nix build .#aarch64-linux-gnu       # ARM 64-bit
+nix build .#linux-aarch64           # ARM 64-bit
 
-# macOS
-nix build .#darwin-x86_64           # Intel Macs
+# macOS (Apple Silicon)
 nix build .#darwin-aarch64          # Apple Silicon (M1/M2/M3/M4)
 
 # Windows (cross-compile from Linux)
@@ -105,12 +102,12 @@ nix build .#linux-x86_64            # Intel/AMD 64-bit
 nix build .#windows-x86_64          # 64-bit
 
 # Linux ARM64 (on ARM64 system)
-nix build .#aarch64-linux-gnu       # ARM 64-bit
+nix build .#linux-aarch64           # ARM 64-bit
 ```
 
 ### From macOS
 
-Each Mac architecture can build for its native platform:
+Apple Silicon Macs can build for their native platform. macOS Intel builds are not supported by the current flake targets.
 
 ```bash
 # Check your Mac architecture
@@ -119,15 +116,12 @@ uname -m  # "x86_64" = Intel, "arm64" = Apple Silicon
 # Build for your current Mac architecture
 nix build                           # Automatically selects your architecture
 
-# Intel Macs can build:
-nix build .#darwin-x86_64           # macOS Intel
-
 # Apple Silicon Macs can build:
 nix build .#darwin-aarch64          # macOS Apple Silicon (M1/M2/M3/M4)
 ```
 
 > [!NOTE]
-> Each macOS architecture must build on its native platform for reproducibility.
+> macOS Intel builds are not supported by the current Nix flake targets.
 
 > [!NOTE]
 > We assume that `/usr/lib/libiconv.2.dylib` is
@@ -226,9 +220,8 @@ git checkout v0.1.0  # Use the version from your downloaded binary
 ```bash
 # Build for the same platform as your downloaded binary
 nix build .#linux-x86_64          # For Linux x86_64
-nix build .#aarch64-linux-gnu     # For Linux ARM64
+nix build .#linux-aarch64         # For Linux ARM64
 nix build .#windows-x86_64        # For Windows
-nix build .#darwin-x86_64         # For macOS Intel
 nix build .#darwin-aarch64        # For macOS Apple Silicon
 
 # Add --rebuild to force a fresh build (useful for debugging)
