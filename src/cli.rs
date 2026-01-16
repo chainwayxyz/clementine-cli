@@ -464,7 +464,7 @@ fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), Bridg
 /// Parameters:
 /// - `network`: Which network table to update (e.g. `bitcoin`, `testnet4`).
 /// - `values`: Vec of `(key, new_value)` pairs. Keys may be dot-separated to
-///   address nested tables (e.g. `rpc.username`).
+///   address nested tables.
 /// - `assume_yes`: If true, skip interactive confirmation and apply changes.
 ///
 /// Returns `Ok(())` on success. Errors are returned if the config cannot be
