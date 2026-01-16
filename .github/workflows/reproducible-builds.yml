@@ -10,6 +10,7 @@ on:
 
 jobs:
   linux-and-win64-on-linux:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -64,6 +65,7 @@ jobs:
           fi
 
   aarch64-linux-gnu:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -106,6 +108,7 @@ jobs:
           fi
 
   macos-arm64:
+    if: ${{ github.event.pull_request.draft == false }}
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
