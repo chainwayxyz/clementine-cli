@@ -269,7 +269,7 @@ enum WithdrawCommands {
     Start {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -278,7 +278,7 @@ enum WithdrawCommands {
     Scan {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -287,7 +287,7 @@ enum WithdrawCommands {
     GenerateWithdrawalSignatures {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -298,7 +298,7 @@ enum WithdrawCommands {
     SafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -312,7 +312,7 @@ enum WithdrawCommands {
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -332,7 +332,7 @@ enum WithdrawCommands {
     SendWithdrawalSignatureToOperators {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
