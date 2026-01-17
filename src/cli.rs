@@ -21,6 +21,7 @@ use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
+
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
@@ -808,6 +809,16 @@ pub async fn cli_show_private_key(
     Ok(())
 }
 
+/// Send a safe withdrawal transaction with prompted secret key
+pub async fn cli_send_safe_withdrawal(
+    params: withdraw::SafeWithdrawalParams,
+    config: &BridgeCliConfig,
+) -> Result<alloy::rpc::types::TransactionReceipt, BridgeCliError> {
+    let secret_key = prompt_secret_key()?;
+
+    withdraw::send_safe_withdrawal(params, secret_key, config).await
+}
+
 pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
@@ -1441,4 +1452,22 @@ pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<()
     }
 
     Ok(())
+}
+
+/// Prompt user for a secret key (private key for Citrea transactions)
+pub(crate) fn prompt_secret_key() -> Result<SecureString, BridgeCliError> {
+    let secret_key = rpassword::prompt_password("Enter secret key: ").map_err(|e| {
+        tracing::error!("Error reading secret key: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to read secret key."))
+    })?;
+
+    let trimmed = secret_key.trim();
+    if trimmed.len() != 64 {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Invalid secret key length. Expected 64 hex characters, got {}",
+            trimmed.len()
+        )));
+    }
+
+    Ok(SecureString::init_with(|| trimmed.to_string()))
 }
