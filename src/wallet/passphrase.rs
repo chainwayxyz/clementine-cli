@@ -43,6 +43,7 @@
 use argon2::Argon2;
 use colored::Colorize;
 use secrecy::ExposeSecret;
+use subtle::ConstantTimeEq;
 
 use crate::{
     errors::BridgeCliError,
@@ -95,6 +96,8 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
         BridgeCliError::Eyre(eyre::eyre!("Failed to read passphrase."))
     })?;
 
+    let secure_passphrase = SecureString::init_with(|| passphrase);
+
     // Confirm passphrase
     if confirm {
         let confirm_input = rpassword::prompt_password("Confirm passphrase: ").map_err(|e| {
@@ -103,12 +106,15 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
         })?;
         let secure_confirm = SecureString::init_with(|| confirm_input);
 
-        if passphrase != *secure_confirm.expose_secret() {
+        let passphrases_match: bool = secure_passphrase
+            .expose_secret()
+            .as_bytes()
+            .ct_eq(secure_confirm.expose_secret().as_bytes())
+            .into();
+        if !passphrases_match {
             return Err(BridgeCliError::PassphraseMismatch);
         }
     }
-
-    let secure_passphrase = SecureString::init_with(|| passphrase);
 
     Ok(secure_passphrase)
 }

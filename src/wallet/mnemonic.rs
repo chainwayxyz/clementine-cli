@@ -97,7 +97,14 @@ where
     };
 
     // Check if this wallet was imported from a private key
-    if secure_mnemonic_str.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
+    // Use constant-time comparison to prevent timing attacks
+    use subtle::ConstantTimeEq;
+    let is_imported_key: bool = secure_mnemonic_str
+        .expose_secret()
+        .as_bytes()
+        .ct_eq(b"IMPORTED_FROM_PRIVATE_KEY")
+        .into();
+    if is_imported_key {
         return Err(BridgeCliError::NoMnemonicAvailable);
     }
 

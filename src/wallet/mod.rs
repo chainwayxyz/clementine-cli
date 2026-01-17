@@ -61,6 +61,7 @@ use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, validate_mnemonic_import, validate_private_key_import,
 };
+use subtle::ConstantTimeEq;
 
 pub async fn create_encrypted_wallet(
     network: Network,
@@ -200,18 +201,23 @@ pub async fn import_wallet_from_file(
             let mnemonic_str = decrypted_mnemonic.expose_secret();
 
             // Basic validation: should have words separated by spaces
-            let words: Vec<&str> = mnemonic_str.split_whitespace().collect();
-            if words.len() != MNEMONIC_WORD_COUNT {
+            let word_count = mnemonic_str.split_whitespace().count();
+            if word_count != MNEMONIC_WORD_COUNT {
                 tracing::error!(
                     "Decrypted mnemonic has invalid word count: expected {}, got {}",
                     MNEMONIC_WORD_COUNT,
-                    words.len()
+                    word_count
                 );
                 return Err(BridgeCliError::MnemonicParseError);
             }
 
             // Validate wallet data based on import type
-            if mnemonic_str == "IMPORTED_FROM_PRIVATE_KEY" {
+            // Use constant-time comparison to prevent timing attacks
+            let is_imported_key: bool = mnemonic_str
+                .as_bytes()
+                .ct_eq(b"IMPORTED_FROM_PRIVATE_KEY")
+                .into();
+            if is_imported_key {
                 validate_private_key_import(
                     &wallet_data,
                     &passphrase,
