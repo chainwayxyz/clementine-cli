@@ -67,17 +67,17 @@ use crate::wallet::wallet_utils::{
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub(crate) enum ImportMethod {
-    MnemonicImport,
-    FileImport,
-    PrivateKeyImport,
+    Mnemonic,
+    File,
+    PrivateKey,
 }
 
 impl ImportMethod {
     pub fn as_str(&self) -> &str {
         match self {
-            ImportMethod::MnemonicImport => "mnemonic_import",
-            ImportMethod::FileImport => "file_import",
-            ImportMethod::PrivateKeyImport => "private_key_import",
+            ImportMethod::Mnemonic => "mnemonic_import",
+            ImportMethod::File => "file_import",
+            ImportMethod::PrivateKey => "private_key_import",
         }
     }
 }
@@ -93,9 +93,9 @@ impl std::str::FromStr for ImportMethod {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "mnemonic_import" => Ok(ImportMethod::MnemonicImport),
-            "file_import" => Ok(ImportMethod::FileImport),
-            "private_key_import" => Ok(ImportMethod::PrivateKeyImport),
+            "mnemonic_import" => Ok(ImportMethod::Mnemonic),
+            "file_import" => Ok(ImportMethod::File),
+            "private_key_import" => Ok(ImportMethod::PrivateKey),
             _ => Err("invalid import method"),
         }
     }
@@ -210,8 +210,8 @@ pub async fn import_wallet_from_mnemonic(
         Some(&encrypted_mnemonic),
         &encrypted_private_key,
         true,
-        Some(ImportMethod::MnemonicImport),
-        Some(ImportMethod::MnemonicImport),
+        Some(ImportMethod::Mnemonic),
+        Some(ImportMethod::Mnemonic),
         label,
         sqlite_client,
     )
@@ -230,14 +230,12 @@ pub async fn import_wallet_from_file(
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label, sqlite_client).await?;
 
-    let is_private_key_import = matches!(
-        wallet_data.import_method,
-        Some(ImportMethod::PrivateKeyImport)
-    ) || wallet_data.encrypted_mnemonic.is_none();
+    let is_private_key_import = matches!(wallet_data.import_method, Some(ImportMethod::PrivateKey))
+        || wallet_data.encrypted_mnemonic.is_none();
 
     if let Some(encrypted_mnemonic_hex) = &wallet_data.encrypted_mnemonic {
-        let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
-            .map_err(|e| {
+        let encrypted_data =
+            encryption::encrypted_data_from_hex(encrypted_mnemonic_hex).map_err(|e| {
                 BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e))
             })?;
 
@@ -283,19 +281,17 @@ pub async fn import_wallet_from_file(
 
     // Convert encrypted data from the original wallet
     let encrypted_mnemonic_data = if let Some(hex) = wallet_data.encrypted_mnemonic.as_ref() {
-        Some(
-            encryption::encrypted_data_from_hex(hex).map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
-            })?,
-        )
+        Some(encryption::encrypted_data_from_hex(hex).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
+        })?)
     } else {
         None
     };
 
-    let encrypted_private_key_data = encryption::encrypted_data_from_hex(
-        &wallet_data.encrypted_private_key,
-    )
-    .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e)))?;
+    let encrypted_private_key_data =
+        encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
+        })?;
 
     let network = wallet_data.network;
 
@@ -322,7 +318,7 @@ pub async fn import_wallet_from_file(
         &encrypted_private_key_data,
         true,
         original_import_method,
-        Some(ImportMethod::FileImport),
+        Some(ImportMethod::File),
         label,
         sqlite_client,
     )
@@ -385,8 +381,8 @@ pub async fn import_wallet_from_private_key(
         None,
         &encrypted_private_key,
         true,
-        Some(ImportMethod::PrivateKeyImport),
-        Some(ImportMethod::PrivateKeyImport),
+        Some(ImportMethod::PrivateKey),
+        Some(ImportMethod::PrivateKey),
         label,
         sqlite_client,
     )
@@ -657,7 +653,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(wallet.label, "import_label");
-        assert_eq!(wallet.import_method, Some(ImportMethod::MnemonicImport));
+        assert_eq!(wallet.import_method, Some(ImportMethod::Mnemonic));
         assert!(wallet.imported);
     }
 
@@ -809,8 +805,8 @@ mod tests {
             created_at: chrono::Utc::now().to_rfc3339(),
             encryption_method: "aes256_gcm_argon2id_secure".to_string(),
             imported: true,
-            original_import_method: Some(ImportMethod::FileImport),
-            import_method: Some(ImportMethod::FileImport),
+            original_import_method: Some(ImportMethod::File),
+            import_method: Some(ImportMethod::File),
         };
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
@@ -839,7 +835,7 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(fetched.import_method, Some(ImportMethod::FileImport));
+        assert_eq!(fetched.import_method, Some(ImportMethod::File));
         assert!(fetched.imported);
     }
 
@@ -865,8 +861,8 @@ mod tests {
             created_at: chrono::Utc::now().to_rfc3339(),
             encryption_method: "aes256_gcm_argon2id_secure".to_string(),
             imported: true,
-            original_import_method: Some(ImportMethod::FileImport),
-            import_method: Some(ImportMethod::FileImport),
+            original_import_method: Some(ImportMethod::File),
+            import_method: Some(ImportMethod::File),
         };
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
@@ -903,7 +899,7 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(wallet.label, "pk_label");
-        assert_eq!(wallet.import_method, Some(ImportMethod::PrivateKeyImport));
+        assert_eq!(wallet.import_method, Some(ImportMethod::PrivateKey));
         assert!(wallet.imported);
     }
 

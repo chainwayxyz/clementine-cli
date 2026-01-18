@@ -39,8 +39,8 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::sqlite_client::resolve_sqlite_client;
 use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
-use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::ImportMethod;
+use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::validate_wallet_availability;
 
 /// Generic function to store encrypted wallet data

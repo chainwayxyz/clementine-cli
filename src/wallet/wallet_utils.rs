@@ -54,10 +54,11 @@ where
         .await?
         .ok_or_else(|| BridgeCliError::WalletNotFound(address.address_with_prefix()))?;
 
-    let encrypted_private_data = crate::wallet::encryption::encrypted_data_from_hex(
-        &wallet_data.encrypted_private_key,
-    )
-    .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+    let encrypted_private_data =
+        crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
+            .map_err(|e| {
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
+            })?;
 
     let decrypted_key = match aes_decrypt_secure(&encrypted_private_data, passphrase) {
         Ok(key) => key,
@@ -126,10 +127,11 @@ pub(crate) fn validate_private_key_import(
     passphrase: &SecureString,
     wallet_address: &str,
 ) -> Result<(), BridgeCliError> {
-    let encrypted_private_data = crate::wallet::encryption::encrypted_data_from_hex(
-        &wallet_data.encrypted_private_key,
-    )
-    .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+    let encrypted_private_data =
+        crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
+            .map_err(|e| {
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
+            })?;
 
     // Decrypt and validate the private key
     match aes_decrypt_secure(&encrypted_private_data, passphrase) {
@@ -288,7 +290,7 @@ pub(crate) async fn parse_and_validate_imported_wallet(
         .as_ref()
         .or(wallet_data.import_method.as_ref());
     let is_private_key_import =
-        matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKeyImport));
+        matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKey));
 
     // Check if encrypted data exists
     if wallet_data.encrypted_mnemonic.is_none() && !is_private_key_import {

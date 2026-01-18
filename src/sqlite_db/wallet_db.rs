@@ -1,6 +1,6 @@
 use crate::structs::AddrDisplay;
-use crate::wallet::encryption::EncryptedDataHex;
 use crate::wallet::ImportMethod;
+use crate::wallet::encryption::EncryptedDataHex;
 use crate::{errors::BridgeCliError, structs::TaprootAddressWithPrefix};
 use bitcoin::address::{NetworkChecked, NetworkValidation};
 use bitcoin::{Address, Network};
@@ -161,8 +161,10 @@ impl TryFrom<WalletRaw> for WalletData {
         let encrypted_mnemonic = row.encrypted_mnemonic.map(|Json(v)| v);
         let encrypted_private_key = row.encrypted_private_key.0;
 
-        let original_import_method =
-            parse_import_method(row.original_import_method.as_deref(), "original_import_method")?;
+        let original_import_method = parse_import_method(
+            row.original_import_method.as_deref(),
+            "original_import_method",
+        )?;
         let import_method = parse_import_method(row.import_method.as_deref(), "import_method")?;
 
         Ok(WalletData {
@@ -361,8 +363,8 @@ mod tests {
             created_at,
             encryption_method: "test-method".to_string(),
             imported: true,
-            original_import_method: Some(ImportMethod::FileImport),
-            import_method: Some(ImportMethod::FileImport),
+            original_import_method: Some(ImportMethod::File),
+            import_method: Some(ImportMethod::File),
         };
 
         WalletTable::insert_wallet(&pool, &wallet).await?;
@@ -382,7 +384,10 @@ mod tests {
         assert_eq!(fetched.created_at, wallet.created_at);
         assert_eq!(fetched.encryption_method, wallet.encryption_method);
         assert_eq!(fetched.imported, wallet.imported);
-        assert_eq!(fetched.original_import_method, wallet.original_import_method);
+        assert_eq!(
+            fetched.original_import_method,
+            wallet.original_import_method
+        );
         assert_eq!(fetched.import_method, wallet.import_method);
 
         let export = WalletExport::from(&fetched);
@@ -401,7 +406,10 @@ mod tests {
         assert_eq!(roundtrip.created_at, wallet.created_at);
         assert_eq!(roundtrip.encryption_method, wallet.encryption_method);
         assert_eq!(roundtrip.imported, wallet.imported);
-        assert_eq!(roundtrip.original_import_method, wallet.original_import_method);
+        assert_eq!(
+            roundtrip.original_import_method,
+            wallet.original_import_method
+        );
         assert_eq!(roundtrip.import_method, wallet.import_method);
 
         Ok(())

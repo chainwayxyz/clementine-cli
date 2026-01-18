@@ -75,14 +75,13 @@ where
                 address.address_with_prefix(),
             ))?;
 
-
     let import_method = wallet_data
         .original_import_method
         .as_ref()
         .or(wallet_data.import_method.as_ref());
 
     // Check if this wallet was imported from a private key (no mnemonic stored)
-    if matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKeyImport)) {
+    if matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKey)) {
         return Err(BridgeCliError::NoMnemonicAvailable);
     }
 
@@ -106,7 +105,6 @@ where
             return Err(e);
         }
     };
-
 
     let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret()).map_err(|e| {
         tracing::error!("Error parsing mnemonic: {}", e);
