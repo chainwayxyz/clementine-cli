@@ -1,5 +1,6 @@
 use crate::structs::AddrDisplay;
 use crate::wallet::encryption::EncryptedDataHex;
+use crate::wallet::ImportMethod;
 use crate::{errors::BridgeCliError, structs::TaprootAddressWithPrefix};
 use bitcoin::address::{NetworkChecked, NetworkValidation};
 use bitcoin::{Address, Network};
@@ -16,11 +17,12 @@ pub(crate) struct WalletData {
     pub address: TaprootAddressWithPrefix<NetworkChecked>,
     pub network: Network,
     pub encrypted_mnemonic: Option<EncryptedDataHex>,
-    pub encrypted_private_key: Option<EncryptedDataHex>,
+    pub encrypted_private_key: EncryptedDataHex,
     pub created_at: DateTime<Utc>,
     pub encryption_method: String,
-    pub imported: Option<bool>,
-    pub import_method: Option<String>,
+    pub imported: bool,
+    pub original_import_method: Option<ImportMethod>,
+    pub import_method: Option<ImportMethod>,
 }
 
 /// Stable on-disk export/import format for wallets.
@@ -33,11 +35,12 @@ pub(crate) struct WalletExport {
     pub address: String,
     pub network: String,
     pub encrypted_mnemonic: Option<EncryptedDataHex>,
-    pub encrypted_private_key: Option<EncryptedDataHex>,
+    pub encrypted_private_key: EncryptedDataHex,
     pub created_at: String,
     pub encryption_method: String,
-    pub imported: Option<bool>,
-    pub import_method: Option<String>,
+    pub imported: bool,
+    pub original_import_method: Option<ImportMethod>,
+    pub import_method: Option<ImportMethod>,
 }
 
 #[derive(Debug, FromRow, Serialize, Deserialize)]
@@ -46,10 +49,11 @@ pub(crate) struct WalletRaw {
     address: String,
     network: String,
     encrypted_mnemonic: Option<Json<EncryptedDataHex>>,
-    encrypted_private_key: Option<Json<EncryptedDataHex>>,
+    encrypted_private_key: Json<EncryptedDataHex>,
     created_at: i64,
     encryption_method: String,
-    imported: Option<bool>,
+    imported: bool,
+    original_import_method: Option<String>,
     import_method: Option<String>,
 }
 
@@ -64,6 +68,7 @@ impl From<&WalletData> for WalletExport {
             created_at: wallet.created_at.to_rfc3339(),
             encryption_method: wallet.encryption_method.clone(),
             imported: wallet.imported,
+            original_import_method: wallet.original_import_method.clone(),
             import_method: wallet.import_method.clone(),
         }
     }
@@ -106,9 +111,23 @@ impl TryFrom<WalletExport> for WalletData {
             created_at,
             encryption_method: export.encryption_method,
             imported: export.imported,
+            original_import_method: export.original_import_method,
             import_method: export.import_method,
         })
     }
+}
+
+fn parse_import_method(
+    value: Option<&str>,
+    field: &str,
+) -> Result<Option<ImportMethod>, BridgeCliError> {
+    value
+        .map(|s| {
+            ImportMethod::from_str(s).map_err(|_| {
+                BridgeCliError::Eyre(eyre!("Invalid {} '{}' stored in wallets table", field, s))
+            })
+        })
+        .transpose()
 }
 
 impl TryFrom<WalletRaw> for WalletData {
@@ -140,7 +159,11 @@ impl TryFrom<WalletRaw> for WalletData {
                 ))
             })?;
         let encrypted_mnemonic = row.encrypted_mnemonic.map(|Json(v)| v);
-        let encrypted_private_key = row.encrypted_private_key.map(|Json(v)| v);
+        let encrypted_private_key = row.encrypted_private_key.0;
+
+        let original_import_method =
+            parse_import_method(row.original_import_method.as_deref(), "original_import_method")?;
+        let import_method = parse_import_method(row.import_method.as_deref(), "import_method")?;
 
         Ok(WalletData {
             label: row.label,
@@ -151,23 +174,26 @@ impl TryFrom<WalletRaw> for WalletData {
             created_at,
             encryption_method: row.encryption_method,
             imported: row.imported,
-            import_method: row.import_method,
+            original_import_method,
+            import_method,
         })
     }
 }
 
 impl From<WalletData> for WalletRaw {
     fn from(data: WalletData) -> WalletRaw {
+        let import_method = data.import_method.map(|m| m.to_string());
         WalletRaw {
             label: data.label,
             address: data.address.address_with_prefix(),
             network: data.network.to_string(),
             encrypted_mnemonic: data.encrypted_mnemonic.map(Json),
-            encrypted_private_key: data.encrypted_private_key.map(Json),
+            encrypted_private_key: Json(data.encrypted_private_key),
             created_at: data.created_at.timestamp(),
             encryption_method: data.encryption_method,
             imported: data.imported,
-            import_method: data.import_method,
+            original_import_method: data.original_import_method.map(|m| m.to_string()),
+            import_method,
         }
     }
 }
@@ -178,7 +204,7 @@ pub(crate) struct MinimalWalletData {
     pub address: String,
     pub network: String,
     pub created_at: i64,
-    pub imported: Option<bool>,
+    pub imported: bool,
     pub import_method: Option<String>,
 }
 
@@ -191,16 +217,13 @@ impl WalletTable {
     ) -> Result<(), BridgeCliError> {
         let enc_mn = wallet.encrypted_mnemonic.as_ref().map(|e| Json(e.clone()));
 
-        let enc_pk = wallet
-            .encrypted_private_key
-            .as_ref()
-            .map(|e| Json(e.clone()));
+        let enc_pk = Json(wallet.encrypted_private_key.clone());
 
         sqlx::query(
-            "INSERT INTO wallets (label, address, network, encrypted_mnemonic, \
-                 encrypted_private_key, created_at, encryption_method, imported, import_method) \
-                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9) \
-                 ON CONFLICT DO NOTHING",
+              "INSERT INTO wallets (label, address, network, encrypted_mnemonic, \
+                  encrypted_private_key, created_at, encryption_method, imported, original_import_method, import_method) \
+                  VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10) \
+                  ON CONFLICT DO NOTHING",
         )
         .bind(&wallet.label)
         .bind(wallet.address.address_with_prefix())
@@ -209,8 +232,9 @@ impl WalletTable {
         .bind(enc_pk)
         .bind(wallet.created_at.timestamp())
         .bind(&wallet.encryption_method)
-        .bind(wallet.imported.map(|b| if b { 1 } else { 0 }))
-        .bind(&wallet.import_method)
+        .bind(if wallet.imported { 1 } else { 0 })
+           .bind(wallet.original_import_method.as_ref().map(|m| m.to_string()))
+        .bind(wallet.import_method.as_ref().map(|m| m.to_string()))
         .execute(pool)
         .await
         .wrap_err("Failed to insert wallet into database")?;
@@ -241,7 +265,7 @@ impl WalletTable {
     {
         let row: Option<WalletRaw> = sqlx::query_as::<_, WalletRaw>(
             "SELECT label, address, network, encrypted_mnemonic, \
-             encrypted_private_key, created_at, encryption_method, imported, import_method \
+                             encrypted_private_key, created_at, encryption_method, imported, original_import_method, import_method \
              FROM wallets WHERE address = ?1",
         )
         .bind(address.address_with_prefix())
@@ -329,15 +353,16 @@ mod tests {
                 nonce: "00".to_string(),
                 salt: "00".to_string(),
             }),
-            encrypted_private_key: Some(EncryptedDataHex {
+            encrypted_private_key: EncryptedDataHex {
                 ciphertext: "11".to_string(),
                 nonce: "11".to_string(),
                 salt: "11".to_string(),
-            }),
+            },
             created_at,
             encryption_method: "test-method".to_string(),
-            imported: Some(true),
-            import_method: Some("file_import".to_string()),
+            imported: true,
+            original_import_method: Some(ImportMethod::FileImport),
+            import_method: Some(ImportMethod::FileImport),
         };
 
         WalletTable::insert_wallet(&pool, &wallet).await?;
@@ -357,6 +382,7 @@ mod tests {
         assert_eq!(fetched.created_at, wallet.created_at);
         assert_eq!(fetched.encryption_method, wallet.encryption_method);
         assert_eq!(fetched.imported, wallet.imported);
+        assert_eq!(fetched.original_import_method, wallet.original_import_method);
         assert_eq!(fetched.import_method, wallet.import_method);
 
         let export = WalletExport::from(&fetched);
@@ -375,6 +401,7 @@ mod tests {
         assert_eq!(roundtrip.created_at, wallet.created_at);
         assert_eq!(roundtrip.encryption_method, wallet.encryption_method);
         assert_eq!(roundtrip.imported, wallet.imported);
+        assert_eq!(roundtrip.original_import_method, wallet.original_import_method);
         assert_eq!(roundtrip.import_method, wallet.import_method);
 
         Ok(())
@@ -394,16 +421,21 @@ mod tests {
             address: address.clone(),
             network: Network::Testnet4,
             encrypted_mnemonic: None,
-            encrypted_private_key: None,
+            encrypted_private_key: EncryptedDataHex {
+                ciphertext: "22".to_string(),
+                nonce: "22".to_string(),
+                salt: "22".to_string(),
+            },
             created_at: Utc.timestamp_opt(1_700_000_000, 0).unwrap(),
             encryption_method: "test-method".to_string(),
-            imported: Some(false),
+            imported: false,
+            original_import_method: None,
             import_method: None,
         };
 
         let mut wallet_conflict = wallet.clone();
         wallet_conflict.encryption_method = "should-not-overwrite".to_string();
-        wallet_conflict.imported = Some(true);
+        wallet_conflict.imported = true;
         wallet_conflict.created_at = Utc.timestamp_opt(1_800_000_000, 0).unwrap();
 
         WalletTable::insert_wallet(&pool, &wallet).await?;

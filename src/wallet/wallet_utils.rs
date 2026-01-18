@@ -40,7 +40,7 @@ use secrecy::ExposeSecret;
 use std::path::Path;
 use std::str::FromStr;
 
-/// Securely load a key from wallet storage and check address validity - always requires a passphrase
+/// Load and decrypt a wallet's private key.
 pub(crate) async fn load_key<T>(
     address: &TaprootAddressWithPrefix<T>,
     passphrase: &SecureString,
@@ -50,27 +50,16 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: AddrDisplay,
 {
-    ensure_wallet_exists(address, sqlite_client).await?;
-
     let wallet_data = load_wallet_data(address, sqlite_client)
         .await?
-        .ok_or_else(|| {
-            BridgeCliError::Eyre(eyre::eyre!(
-                "Wallet data not found for address {}",
-                address.address_with_prefix()
-            ))
-        })?;
+        .ok_or_else(|| BridgeCliError::WalletNotFound(address.address_with_prefix()))?;
 
-    // Load the encrypted private key
-    let encrypted_private_key = wallet_data
-        .encrypted_private_key
-        .ok_or_else(|| BridgeCliError::NoEncryptedPrivateKeyFound)?;
+    let encrypted_private_data = crate::wallet::encryption::encrypted_data_from_hex(
+        &wallet_data.encrypted_private_key,
+    )
+    .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
 
-    let encrypted_data =
-        crate::wallet::encryption::encrypted_data_from_hex(&encrypted_private_key)?;
-
-    // Decrypt; map auth failure to incorrect passphrase, propagate other errors
-    let decrypted_key = match aes_decrypt_secure(&encrypted_data, passphrase) {
+    let decrypted_key = match aes_decrypt_secure(&encrypted_private_data, passphrase) {
         Ok(key) => key,
         Err(BridgeCliError::DecryptionError) => {
             tracing::warn!(
@@ -78,19 +67,14 @@ where
             );
             return Err(BridgeCliError::IncorrectPassphrase);
         }
-        Err(e) => {
-            tracing::error!("Failed to decrypt private key: {}", e);
-            return Err(e);
-        }
+        Err(e) => return Err(e),
     };
 
     let secp = Secp256k1::new();
     let secret_key = SecureSecretKey::new(SecretKey::from_str(decrypted_key.expose_secret())?);
-
     let keypair = Keypair::from_secret_key(&secp, secret_key.as_ref_inner());
-    let secure_keypair = SecureKeypair::new(keypair);
 
-    Ok(secure_keypair)
+    Ok(SecureKeypair::new(keypair))
 }
 
 /// Helper function to validate mnemonic imports during wallet import
@@ -142,52 +126,48 @@ pub(crate) fn validate_private_key_import(
     passphrase: &SecureString,
     wallet_address: &str,
 ) -> Result<(), BridgeCliError> {
-    if let Some(encrypted_private_key_hex) = &wallet_data.encrypted_private_key {
-        let encrypted_private_data = crate::wallet::encryption::encrypted_data_from_hex(
-            encrypted_private_key_hex,
-        )
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
+    let encrypted_private_data = crate::wallet::encryption::encrypted_data_from_hex(
+        &wallet_data.encrypted_private_key,
+    )
+    .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e)))?;
 
-        // Decrypt and validate the private key
-        match aes_decrypt_secure(&encrypted_private_data, passphrase) {
-            Ok(decrypted_private_key) => {
-                let network = parse_network(&wallet_data.network.to_string())?;
+    // Decrypt and validate the private key
+    match aes_decrypt_secure(&encrypted_private_data, passphrase) {
+        Ok(decrypted_private_key) => {
+            let network = parse_network(&wallet_data.network.to_string())?;
 
-                // Validate the private key format and derive address to verify
-                match SecretKey::from_str(decrypted_private_key.expose_secret()) {
-                    Ok(private_key) => {
-                        let secure_secret_key = SecureSecretKey::new(private_key);
-                        let keypair = SecureKeypair::new(Keypair::from_secret_key(
-                            &crate::bitcoin_utils::SECP,
-                            secure_secret_key.as_ref_inner(),
-                        ));
-                        let derived_address = calculate_taproot_address(&keypair, network);
+            // Validate the private key format and derive address to verify
+            match SecretKey::from_str(decrypted_private_key.expose_secret()) {
+                Ok(private_key) => {
+                    let secure_secret_key = SecureSecretKey::new(private_key);
+                    let keypair = SecureKeypair::new(Keypair::from_secret_key(
+                        &crate::bitcoin_utils::SECP,
+                        secure_secret_key.as_ref_inner(),
+                    ));
+                    let derived_address = calculate_taproot_address(&keypair, network);
 
-                        if derived_address.to_string() != wallet_address {
-                            return Err(BridgeCliError::AddressMismatch);
-                        }
-                    }
-                    Err(e) => {
-                        tracing::error!("Invalid private key format: {}", e);
-                        return Err(BridgeCliError::InvalidPrivateKey(
-                            "Invalid private key format".to_string(),
-                        ));
+                    if derived_address.to_string() != wallet_address {
+                        return Err(BridgeCliError::AddressMismatch);
                     }
                 }
-            }
-            Err(BridgeCliError::DecryptionError) => {
-                tracing::warn!(
-                    "Failed to decrypt private key: authentication failed (wrong passphrase or corrupted data)"
-                );
-                return Err(BridgeCliError::IncorrectPassphrase);
-            }
-            Err(e) => {
-                tracing::error!("Failed to decrypt private key: {}", e);
-                return Err(e);
+                Err(e) => {
+                    tracing::error!("Invalid private key format: {}", e);
+                    return Err(BridgeCliError::InvalidPrivateKey(
+                        "Invalid private key format".to_string(),
+                    ));
+                }
             }
         }
-    } else {
-        return Err(BridgeCliError::MissingEncryptedPrivateKeyField);
+        Err(BridgeCliError::DecryptionError) => {
+            tracing::warn!(
+                "Failed to decrypt private key: authentication failed (wrong passphrase or corrupted data)"
+            );
+            return Err(BridgeCliError::IncorrectPassphrase);
+        }
+        Err(e) => {
+            tracing::error!("Failed to decrypt private key: {}", e);
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -303,15 +283,16 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     // Validate that both wallet label and address don't already exist
     validate_wallet_availability(Some(label), Some(&wallet_address), sqlite_client).await?;
 
-    // Check if encrypted data exists
-    if wallet_data.encrypted_mnemonic.is_none() {
-        return Err(BridgeCliError::MissingEncryptedMnemonicField);
-    }
+    let import_method = wallet_data
+        .original_import_method
+        .as_ref()
+        .or(wallet_data.import_method.as_ref());
+    let is_private_key_import =
+        matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKeyImport));
 
-    if wallet_data.encrypted_private_key.is_none() {
-        return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Missing encrypted private key field"
-        )));
+    // Check if encrypted data exists
+    if wallet_data.encrypted_mnemonic.is_none() && !is_private_key_import {
+        return Err(BridgeCliError::MissingEncryptedMnemonicField);
     }
 
     Ok(wallet_data)

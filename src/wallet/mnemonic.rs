@@ -75,6 +75,17 @@ where
                 address.address_with_prefix(),
             ))?;
 
+
+    let import_method = wallet_data
+        .original_import_method
+        .as_ref()
+        .or(wallet_data.import_method.as_ref());
+
+    // Check if this wallet was imported from a private key (no mnemonic stored)
+    if matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKeyImport)) {
+        return Err(BridgeCliError::NoMnemonicAvailable);
+    }
+
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?
     } else {
@@ -96,17 +107,6 @@ where
         }
     };
 
-    // Check if this wallet was imported from a private key
-    // Use constant-time comparison to prevent timing attacks
-    use subtle::ConstantTimeEq;
-    let is_imported_key: bool = secure_mnemonic_str
-        .expose_secret()
-        .as_bytes()
-        .ct_eq(b"IMPORTED_FROM_PRIVATE_KEY")
-        .into();
-    if is_imported_key {
-        return Err(BridgeCliError::NoMnemonicAvailable);
-    }
 
     let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret()).map_err(|e| {
         tracing::error!("Error parsing mnemonic: {}", e);
