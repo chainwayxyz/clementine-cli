@@ -68,7 +68,7 @@ use crossterm::{
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 /// Parse aggregated public key from hex string and warn if it differs from config
 fn parse_and_validate_aggregated_key(
@@ -1471,18 +1471,6 @@ pub(crate) fn prompt_secret_key() -> Result<SecureString, BridgeCliError> {
             trimmed.len()
         )));
     }
-
-    // Decode into a stack buffer and zeroize it to avoid keeping the key in memory.
-    let mut bytes = [0u8; 32];
-    if let Err(e) = hex::decode_to_slice(trimmed, &mut bytes) {
-        bytes.zeroize();
-        tracing::error!("Invalid secret key hex: {}", e);
-        return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Invalid secret key format: {}",
-            e
-        )));
-    }
-    bytes.zeroize();
 
     Ok(SecureString::init_with(|| trimmed.to_string()))
 }
