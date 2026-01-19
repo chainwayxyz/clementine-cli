@@ -9,7 +9,7 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
-use crate::wallet::wallet_utils::is_wallet_address;
+use crate::wallet::wallet_utils::is_withdrawal_address_wallet_address;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
@@ -126,7 +126,7 @@ pub async fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if is_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
@@ -279,7 +279,7 @@ pub(crate) async fn start_withdrawal(
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    if is_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
