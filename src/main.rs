@@ -4,10 +4,10 @@ use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
     cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
-    cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_show_mnemonic, cli_show_private_key,
-    cli_start_withdrawal, cli_verify_recovery_tx_with_validation,
-    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
-    withdrawal_status,
+    cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_send_safe_withdrawal,
+    cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
+    cli_verify_recovery_tx_with_validation, deposit_create_signed_recovery_tx, deposit_status,
+    send_withdrawal_signature, withdrawal_status,
 };
 use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
@@ -269,7 +269,7 @@ enum WithdrawCommands {
     Start {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -278,7 +278,7 @@ enum WithdrawCommands {
     Scan {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -287,7 +287,7 @@ enum WithdrawCommands {
     GenerateWithdrawalSignatures {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -298,7 +298,7 @@ enum WithdrawCommands {
     SafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -312,7 +312,7 @@ enum WithdrawCommands {
     SendSafeWithdraw {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -332,7 +332,7 @@ enum WithdrawCommands {
     SendWithdrawalSignatureToOperators {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
-        /// Clementine wallet address for signing withdrawals (wit-prefixed, taproot)
+        /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
         signer_address: String,
         /// Destination address for withdrawn BTC
         destination_address: String,
@@ -838,8 +838,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signature_bytes = handle_simple_call!(hex::decode(signature));
                 let sig =
                     handle_simple_call!(bitcoin::taproot::Signature::from_slice(&signature_bytes));
+
                 handle_cli_command!(async
-                    withdraw::send_safe_withdrawal(
+                    cli_send_safe_withdrawal(
                         withdraw::SafeWithdrawalParams {
                             signer_address,
                             destination_address,

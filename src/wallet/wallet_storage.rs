@@ -1,17 +1,17 @@
 //! Secure wallet data storage and registry management for Clementine CLI.
 //!
 //! This module handles persistent storage of encrypted wallet data and maintains
-//! a centralized registry of all wallets:
+//! a centralized registry of all wallets using SQLite:
 //! - Storing encrypted wallet data with secure file permissions
-//! - Managing a centralized wallet registry (wallets.json)
+//! - Persisting wallet metadata and encrypted secrets in SQLite
 //! - Loading and retrieving stored wallet information
-//! - Handling wallet file operations and directory management
+//! - Exporting wallet backups to JSON files
 //! - Supporting both generated and imported wallet workflows
 //!
 //! ## Data Structures
 //!
-//! - [`WalletRegistryEntry`]: Metadata stored in the centralized registry
-//! - [`GenericWalletData`]: Complete wallet data with encrypted secrets
+//! - [`WalletData`]: Database model for stored wallet data
+//! - [`WalletExport`]: Serialized wallet export format
 //!
 //! ## Encryption Standards
 //!
@@ -39,6 +39,7 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::sqlite_client::resolve_sqlite_client;
 use crate::sqlite_db::wallet_db::{WalletData, WalletExport};
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
+use crate::wallet::ImportMethod;
 use crate::wallet::encryption::{EncryptedData, encrypted_data_to_hex};
 use crate::wallet::wallet_utils::validate_wallet_availability;
 
@@ -47,10 +48,11 @@ use crate::wallet::wallet_utils::validate_wallet_availability;
 pub(crate) async fn store_wallet_data(
     address: &TaprootAddressWithPrefix<NetworkChecked>,
     network: Network,
-    encrypted_mnemonic: &EncryptedData,
+    encrypted_mnemonic: Option<&EncryptedData>,
     encrypted_private_key: &EncryptedData,
     imported: bool,
-    import_method: Option<&str>,
+    original_import_method: Option<ImportMethod>,
+    import_method: Option<ImportMethod>,
     label: &str,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), BridgeCliError> {
@@ -62,12 +64,13 @@ pub(crate) async fn store_wallet_data(
         label: label.to_string(),
         address: address.clone(),
         network,
-        encrypted_mnemonic: Some(encrypted_data_to_hex(encrypted_mnemonic)),
-        encrypted_private_key: Some(encrypted_data_to_hex(encrypted_private_key)),
+        encrypted_mnemonic: encrypted_mnemonic.map(encrypted_data_to_hex),
+        encrypted_private_key: encrypted_data_to_hex(encrypted_private_key),
         created_at: chrono::Utc::now(),
         encryption_method: "aes256_gcm_argon2id_secure".to_string(),
-        imported: if imported { Some(true) } else { None },
-        import_method: import_method.map(|s| s.to_string()),
+        imported,
+        original_import_method,
+        import_method,
     };
 
     sqlite_db::wallet_db::WalletTable::insert_wallet(sqlite_client.as_ref().pool(), &wallet_data)
@@ -76,7 +79,7 @@ pub(crate) async fn store_wallet_data(
     Ok(())
 }
 
-/// Load generic wallet data from file
+/// Load wallet data from database by address.
 pub async fn load_wallet_data<T>(
     address: &TaprootAddressWithPrefix<T>,
     sqlite_client: Option<&SqliteDb>,

@@ -65,6 +65,7 @@ clementine-cli deposit get-deposit-address --network testnet <RECOVERY_TAPROOT_A
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
 clementine-cli deposit status --network testnet <DEPOSIT_ADDRESS>
+```
 
 ## Two-Device Security
 

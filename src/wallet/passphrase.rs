@@ -95,6 +95,8 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
         BridgeCliError::Eyre(eyre::eyre!("Failed to read passphrase."))
     })?;
 
+    let secure_passphrase = SecureString::init_with(|| passphrase);
+
     // Confirm passphrase
     if confirm {
         let confirm_input = rpassword::prompt_password("Confirm passphrase: ").map_err(|e| {
@@ -103,12 +105,11 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
         })?;
         let secure_confirm = SecureString::init_with(|| confirm_input);
 
-        if passphrase != *secure_confirm.expose_secret() {
+        let passphrases_match = secure_passphrase.expose_secret() == secure_confirm.expose_secret();
+        if !passphrases_match {
             return Err(BridgeCliError::PassphraseMismatch);
         }
     }
-
-    let secure_passphrase = SecureString::init_with(|| passphrase);
 
     Ok(secure_passphrase)
 }

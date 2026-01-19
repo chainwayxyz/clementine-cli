@@ -160,7 +160,7 @@ The command will:
 ### Generate Signature
 
 > [!IMPORTANT]
-> This command will generate two signatures: one for `optimistic` withdrawal (which has an exact amount of 999999760 satoshis, or 9.9999976 BTC), and one for `operator-paid` withdrawal (which hash an exact amount of 997000000 satoshis, or 9.97 BTC).
+> This command will generate two signatures: one for `optimistic` withdrawal (which has an exact amount of 999999760 satoshis, or 9.9999976 BTC), and one for `operator-paid` withdrawal (which has an exact amount of 997000000 satoshis, or 9.97 BTC).
 
 ```sh
 clementine-cli withdraw generate-withdrawal-signatures [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO>
@@ -232,7 +232,7 @@ The status will show the response from the backend.
 
 ## Step 8: Send the Signature to the Operators
 
-**ONLINE DEVICE OPERATION:** If Step 5 fails (Clementine Signers fail to provide `optimistic` withdrawal in 12 hours), submit the generated `operator-paid` withdrawal signature to bridge operators for `operator-paid` withdrawal processing:
+**ONLINE DEVICE OPERATION:** If the optimistic withdrawal does not complete within 12 hours, submit the generated `operator-paid` withdrawal signature to bridge operators for `operator-paid` withdrawal processing:
 
 ```sh
 clementine-cli withdraw send-withdrawal-signature-to-operators [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPERATOR_PAID_SIGNATURE>

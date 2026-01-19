@@ -17,10 +17,11 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
+use crate::{config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
+
 use crate::{
     BitcoinAddress, CitreaAddress,
     api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
@@ -41,7 +42,7 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+            derive_and_validate_mnemonic_import, load_key_with_purpose_check,
             parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
@@ -67,6 +68,7 @@ use crossterm::{
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
+use zeroize::Zeroizing;
 
 /// Parse aggregated public key from hex string and warn if it differs from config
 fn parse_and_validate_aggregated_key(
@@ -464,7 +466,7 @@ fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), Bridg
 /// Parameters:
 /// - `network`: Which network table to update (e.g. `bitcoin`, `testnet4`).
 /// - `values`: Vec of `(key, new_value)` pairs. Keys may be dot-separated to
-///   address nested tables (e.g. `rpc.username`).
+///   address nested tables.
 /// - `assume_yes`: If true, skip interactive confirmation and apply changes.
 ///
 /// Returns `Ok(())` on success. Errors are returned if the config cannot be
@@ -808,6 +810,16 @@ pub async fn cli_show_private_key(
     Ok(())
 }
 
+/// Send a safe withdrawal transaction with prompted secret key
+pub async fn cli_send_safe_withdrawal(
+    params: withdraw::SafeWithdrawalParams,
+    config: &BridgeCliConfig,
+) -> Result<alloy::rpc::types::TransactionReceipt, BridgeCliError> {
+    let secret_key = prompt_secret_key()?;
+
+    withdraw::send_safe_withdrawal(params, secret_key, config).await
+}
+
 pub async fn deposit_status(
     taproot_address: Address,
     config: &BridgeCliConfig,
@@ -979,6 +991,7 @@ pub async fn deposit_create_signed_recovery_tx(
     config: &BridgeCliConfig,
     aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(recovery_taproot_address, None).await?;
 
     let keypair =
@@ -1344,6 +1357,7 @@ pub async fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(signer_address, None).await?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
@@ -1441,4 +1455,24 @@ pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<()
     }
 
     Ok(())
+}
+
+/// Prompt user for a secret key (private key for Citrea transactions)
+pub(crate) fn prompt_secret_key() -> Result<SecureString, BridgeCliError> {
+    let secret_key = rpassword::prompt_password("Enter secret key: ").map_err(|e| {
+        tracing::error!("Error reading secret key: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to read secret key."))
+    })?;
+
+    let secret_key = Zeroizing::new(secret_key);
+    let trimmed = secret_key.trim();
+
+    if trimmed.len() != 64 {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Invalid secret key length. Expected 64 hex characters, got {}",
+            trimmed.len()
+        )));
+    }
+
+    Ok(SecureString::init_with(|| trimmed.to_string()))
 }

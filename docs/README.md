@@ -93,7 +93,6 @@ clementine-cli --help
 
 | Option | Description | Required |
 |--------|-------------|----------|
-| `--config-file` | Custom config file path | No |
 | `--verbose` | Enable detailed logging | No |
 
 ### Main Commands
@@ -102,7 +101,7 @@ clementine-cli --help
 |---------|---------|-------|
 | `wallet` | Wallet management | [→ Wallet Guide](wallet.md) |
 | `deposit` | Bitcoin to Citrea | [→ Deposit Guide](deposit.md) |
-| `withdrawal` | Citrea to Bitcoin | [→ Withdrawal Guide](withdraw.md) |
+| `withdraw` | Citrea to Bitcoin | [→ Withdrawal Guide](withdraw.md) |
 
 ## Security Framework
 
