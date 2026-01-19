@@ -235,7 +235,7 @@ impl WalletTable {
         .bind(wallet.created_at.timestamp())
         .bind(&wallet.encryption_method)
         .bind(if wallet.imported { 1 } else { 0 })
-           .bind(wallet.original_import_method.as_ref().map(|m| m.to_string()))
+        .bind(wallet.original_import_method.as_ref().map(|m| m.to_string()))
         .bind(wallet.import_method.as_ref().map(|m| m.to_string()))
         .execute(pool)
         .await
