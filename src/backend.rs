@@ -50,7 +50,12 @@ pub(crate) async fn create_deposit_account(
             serde_json::to_string_pretty(&response_body)?
         );
         // parse the json and get the taproot_addr and parse it to an address
-        let taproot_addr = response_body["taproot_addr"].as_str().unwrap();
+        let taproot_addr = response_body
+            .get("taproot_addr")
+            .and_then(|value| value.as_str())
+            .ok_or_else(|| {
+                BridgeCliError::Eyre(eyre::eyre!("Backend response missing taproot_addr"))
+            })?;
         let taproot_addr = parse_taproot_address(taproot_addr, config.network)?;
 
         Ok(taproot_addr)

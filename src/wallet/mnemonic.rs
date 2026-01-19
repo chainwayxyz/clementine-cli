@@ -35,6 +35,7 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
+use crate::wallet::wallet_utils::effective_import_method;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
@@ -75,6 +76,13 @@ where
                 address.address_with_prefix(),
             ))?;
 
+    let import_method = effective_import_method(&wallet_data);
+
+    // Check if this wallet was imported from a private key (no mnemonic stored)
+    if matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKey)) {
+        return Err(BridgeCliError::NoMnemonicAvailable);
+    }
+
     let encrypted_data = if let Some(encrypted_mnemonic) = &wallet_data.encrypted_mnemonic {
         encrypted_data_from_hex(encrypted_mnemonic)?
     } else {
@@ -95,11 +103,6 @@ where
             return Err(e);
         }
     };
-
-    // Check if this wallet was imported from a private key
-    if secure_mnemonic_str.expose_secret() == "IMPORTED_FROM_PRIVATE_KEY" {
-        return Err(BridgeCliError::NoMnemonicAvailable);
-    }
 
     let mnemonic = Mnemonic::parse(secure_mnemonic_str.expose_secret()).map_err(|e| {
         tracing::error!("Error parsing mnemonic: {}", e);

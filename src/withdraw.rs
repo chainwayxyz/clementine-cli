@@ -9,7 +9,7 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
-use crate::wallet::wallet_utils::is_wallet_address;
+use crate::wallet::wallet_utils::is_withdrawal_address_wallet_address;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
 use alloy::primitives::U256;
@@ -20,6 +20,7 @@ use alloy::signers::local::PrivateKeySigner;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, OutPoint, TxOut};
 use eyre::Context;
+use secrecy::ExposeSecret;
 use serde_json::json;
 use urlencoding::encode;
 
@@ -104,16 +105,6 @@ fn create_bridge_contract(
     Ok(contract)
 }
 
-/// Helper function to securely load environment variable with better error handling
-fn get_secret_key_from_env() -> Result<PrivateKeySigner, BridgeCliError> {
-    let secret_key = std::env::var("SECRET_KEY")
-        .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("SECRET_KEY environment variable not found. Please set SECRET_KEY to proceed with this operation")))?;
-
-    secret_key
-        .parse::<PrivateKeySigner>()
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid SECRET_KEY format: {}", e)))
-}
-
 #[allow(clippy::too_many_arguments)]
 pub async fn generate_withdrawal_signatures(
     keypair: SecureKeypair,
@@ -135,7 +126,7 @@ pub async fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if is_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
@@ -220,10 +211,14 @@ pub async fn safe_withdraw(
 
 pub async fn send_safe_withdrawal(
     params: SafeWithdrawalParams,
+    secret_key: crate::secure_types::SecureString,
     config: &BridgeCliConfig,
 ) -> Result<TransactionReceipt, BridgeCliError> {
-    // get the secret key from env with improved error handling
-    let signer = get_secret_key_from_env()?;
+    // Parse the secret key with improved error handling
+    let signer = secret_key
+        .expose_secret()
+        .parse::<PrivateKeySigner>()
+        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid secret key format: {}", e)))?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();
@@ -284,7 +279,7 @@ pub(crate) async fn start_withdrawal(
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    if is_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;

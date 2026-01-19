@@ -48,7 +48,7 @@ fn get_block_merkle_proof(
         })
         .collect::<Vec<_>>();
 
-    let merkle_tree = BitcoinMerkleTree::new(txids.clone());
+    let merkle_tree = BitcoinMerkleTree::new(txids.clone())?;
     let witness_idx_path = merkle_tree.get_idx_path(txid_index.try_into().unwrap());
 
     let _root = merkle_tree.calculate_root_with_merkle_proof(
