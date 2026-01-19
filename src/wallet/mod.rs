@@ -274,11 +274,7 @@ pub async fn import_wallet_from_file(
             }
         }
     } else if is_private_key_import {
-        validate_private_key_import(
-            &wallet_data,
-            &passphrase,
-            &wallet_data.address.address,
-        )?;
+        validate_private_key_import(&wallet_data, &passphrase, &wallet_data.address.address)?;
     } else {
         return Err(BridgeCliError::MissingEncryptedMnemonicField);
     }
