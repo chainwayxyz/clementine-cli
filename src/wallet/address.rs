@@ -158,7 +158,7 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
         }
         println!("{}", section_title.bold().underline());
         for wallet in wallets {
-            let import_info = if let Some(true) = wallet.imported {
+            let import_info = if wallet.imported {
                 if let Some(method) = &wallet.import_method {
                     format!(", (Imported via {})", method)
                 } else {

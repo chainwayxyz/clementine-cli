@@ -1,3 +1,5 @@
+use crate::errors::BridgeCliError;
+use eyre::eyre;
 use sha2::{Digest, Sha256};
 
 #[derive(Debug, Clone)]
@@ -15,7 +17,13 @@ fn calculate_double_sha256(input: &[u8]) -> [u8; 32] {
 }
 
 impl BitcoinMerkleTree {
-    pub fn new(transactions: Vec<[u8; 32]>) -> Self {
+    pub fn new(transactions: Vec<[u8; 32]>) -> Result<Self, BridgeCliError> {
+        if transactions.is_empty() {
+            return Err(BridgeCliError::Eyre(eyre!(
+                "Merkle tree requires at least one transaction"
+            )));
+        }
+
         let depth = (transactions.len() - 1).ilog(2) + 1;
         let mut tree = BitcoinMerkleTree {
             depth,
@@ -62,7 +70,7 @@ impl BitcoinMerkleTree {
             prev_level_size = prev_level_size.div_ceil(2);
             prev_level_index_offset = 0;
         }
-        tree
+        Ok(tree)
     }
 
     // Returns the Merkle root
@@ -135,7 +143,7 @@ mod tests {
             let tx = [i; 32];
             transactions.push(tx);
         }
-        let tree = BitcoinMerkleTree::new(transactions.clone());
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
         let root = tree.root();
         let idx_path = tree.get_idx_path(0);
         let calculated_root = tree.calculate_root_with_merkle_proof(transactions[0], 0, idx_path);

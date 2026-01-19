@@ -33,6 +33,7 @@ use bitcoin::address::NetworkUnchecked;
 use bitcoin::address::NetworkValidation;
 use eyre::eyre;
 use secrecy::ExposeSecret;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
@@ -51,17 +52,57 @@ use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
 use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
+use crate::wallet::wallet_utils::effective_import_method;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::wallet::wallet_utils::validate_wallet_availability;
 use bitcoin::secp256k1::{Keypair, SecretKey};
+use std::fmt;
 
 use crate::errors::BridgeCliError;
 use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, validate_mnemonic_import, validate_private_key_import,
 };
-use subtle::ConstantTimeEq;
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub(crate) enum ImportMethod {
+    #[serde(rename = "mnemonic_import")]
+    Mnemonic,
+    #[serde(rename = "file_import")]
+    File,
+    #[serde(rename = "private_key_import")]
+    PrivateKey,
+}
+
+impl ImportMethod {
+    pub fn as_str(&self) -> &str {
+        match self {
+            ImportMethod::Mnemonic => "mnemonic_import",
+            ImportMethod::File => "file_import",
+            ImportMethod::PrivateKey => "private_key_import",
+        }
+    }
+}
+
+impl fmt::Display for ImportMethod {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.as_str())
+    }
+}
+
+impl std::str::FromStr for ImportMethod {
+    type Err = &'static str;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "mnemonic_import" => Ok(ImportMethod::Mnemonic),
+            "file_import" => Ok(ImportMethod::File),
+            "private_key_import" => Ok(ImportMethod::PrivateKey),
+            _ => Err("invalid import method"),
+        }
+    }
+}
 
 pub async fn create_encrypted_wallet(
     network: Network,
@@ -95,9 +136,10 @@ pub async fn create_encrypted_wallet(
     wallet_storage::store_wallet_data(
         &address,
         network,
-        &encrypted_mnemonic,
+        Some(&encrypted_mnemonic),
         &encrypted_private_key,
         false,
+        None,
         None,
         &label,
         sqlite_client,
@@ -168,10 +210,11 @@ pub async fn import_wallet_from_mnemonic(
     wallet_storage::store_wallet_data(
         &address,
         network,
-        &encrypted_mnemonic,
+        Some(&encrypted_mnemonic),
         &encrypted_private_key,
         true,
-        Some("mnemonic_import"),
+        Some(ImportMethod::Mnemonic),
+        Some(ImportMethod::Mnemonic),
         label,
         sqlite_client,
     )
@@ -190,67 +233,65 @@ pub async fn import_wallet_from_file(
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label, sqlite_client).await?;
 
-    let encrypted_mnemonic_hex = wallet_data.encrypted_mnemonic.as_ref().unwrap();
-    let encrypted_data = encryption::encrypted_data_from_hex(encrypted_mnemonic_hex)
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e)))?;
+    let import_method = effective_import_method(&wallet_data);
 
-    // Try to decrypt mnemonic to verify passphrase; map auth failure to incorrect passphrase
-    match aes_decrypt_secure(&encrypted_data, &passphrase) {
-        Ok(decrypted_mnemonic) => {
-            // Additional validation: check if decrypted content looks like a valid mnemonic
-            let mnemonic_str = decrypted_mnemonic.expose_secret();
+    let is_private_key_import = matches!(import_method, Some(ImportMethod::PrivateKey));
 
-            // Basic validation: should have words separated by spaces
-            let word_count = mnemonic_str.split_whitespace().count();
-            if word_count != MNEMONIC_WORD_COUNT {
-                tracing::error!(
-                    "Decrypted mnemonic has invalid word count: expected {}, got {}",
-                    MNEMONIC_WORD_COUNT,
-                    word_count
-                );
-                return Err(BridgeCliError::MnemonicParseError);
-            }
+    if let Some(encrypted_mnemonic_hex) = &wallet_data.encrypted_mnemonic {
+        let encrypted_data =
+            encryption::encrypted_data_from_hex(encrypted_mnemonic_hex).map_err(|e| {
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e))
+            })?;
 
-            // Validate wallet data based on import type
-            // Use constant-time comparison to prevent timing attacks
-            let is_imported_key: bool = mnemonic_str
-                .as_bytes()
-                .ct_eq(b"IMPORTED_FROM_PRIVATE_KEY")
-                .into();
-            if is_imported_key {
-                validate_private_key_import(
-                    &wallet_data,
-                    &passphrase,
-                    &wallet_data.address.address_with_prefix(),
-                )?;
-            } else {
+        // Try to decrypt mnemonic to verify passphrase; map auth failure to incorrect passphrase
+        match aes_decrypt_secure(&encrypted_data, &passphrase) {
+            Ok(decrypted_mnemonic) => {
+                // Additional validation: check if decrypted content looks like a valid mnemonic
+                let mnemonic_str = decrypted_mnemonic.expose_secret();
+
+                // Basic validation: should have words separated by spaces
+                let word_count = mnemonic_str.split_whitespace().count();
+                if word_count != MNEMONIC_WORD_COUNT {
+                    tracing::error!(
+                        "Decrypted mnemonic has invalid word count: expected {}, got {}",
+                        MNEMONIC_WORD_COUNT,
+                        word_count
+                    );
+                    return Err(BridgeCliError::MnemonicParseError);
+                }
+
                 validate_mnemonic_import(&decrypted_mnemonic, &wallet_data)?;
             }
+            Err(BridgeCliError::DecryptionError) => {
+                tracing::warn!(
+                    "Failed to decrypt mnemonic during import: authentication failed (wrong passphrase or corrupted data)",
+                );
+                return Err(BridgeCliError::IncorrectPassphrase);
+            }
+            Err(e) => {
+                tracing::error!("Failed to decrypt mnemonic during import: {}", e);
+                return Err(e);
+            }
         }
-        Err(BridgeCliError::DecryptionError) => {
-            tracing::warn!(
-                "Failed to decrypt mnemonic during import: authentication failed (wrong passphrase or corrupted data)",
-            );
-            return Err(BridgeCliError::IncorrectPassphrase);
-        }
-        Err(e) => {
-            tracing::error!("Failed to decrypt mnemonic during import: {}", e);
-            return Err(e);
-        }
+    } else if is_private_key_import {
+        validate_private_key_import(&wallet_data, &passphrase, &wallet_data.address.address)?;
+    } else {
+        return Err(BridgeCliError::MissingEncryptedMnemonicField);
     }
 
     // Convert encrypted data from the original wallet
-    let encrypted_mnemonic_data =
-        encryption::encrypted_data_from_hex(wallet_data.encrypted_mnemonic.as_ref().unwrap())
-            .map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
-            })?;
+    let encrypted_mnemonic_data = if let Some(hex) = wallet_data.encrypted_mnemonic.as_ref() {
+        Some(encryption::encrypted_data_from_hex(hex).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
+        })?)
+    } else {
+        None
+    };
 
     let encrypted_private_key_data =
-        encryption::encrypted_data_from_hex(wallet_data.encrypted_private_key.as_ref().unwrap())
-            .map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
-            })?;
+        encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key).map_err(|e| {
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
+        })?;
 
     let network = wallet_data.network;
 
@@ -265,14 +306,17 @@ pub async fn import_wallet_from_file(
         &wallet_data.label
     };
 
+    let original_import_method = effective_import_method(&wallet_data).cloned();
+
     // Use store_wallet_data function for consistent storage
     wallet_storage::store_wallet_data(
         &wallet_address,
         network,
-        &encrypted_mnemonic_data,
+        encrypted_mnemonic_data.as_ref(),
         &encrypted_private_key_data,
         true,
-        Some("file_import"),
+        original_import_method,
+        Some(ImportMethod::File),
         label,
         sqlite_client,
     )
@@ -316,20 +360,12 @@ pub async fn import_wallet_from_private_key(
 
     let address = TaprootAddressWithPrefix::new(address, purpose)?;
 
-    let placeholder_mnemonic = SecureString::init_with(|| "IMPORTED_FROM_PRIVATE_KEY".to_string());
-
     let master_private_key_secure = SecureString::init_with(|| {
         master_private_key
             .as_ref_inner()
             .display_secret()
             .to_string()
     });
-
-    let encrypted_mnemonic =
-        aes_encrypt_secure(&placeholder_mnemonic, &passphrase).map_err(|e| {
-            tracing::error!("Error encrypting placeholder mnemonic: {}", e);
-            BridgeCliError::PlaceholderMnemonicEncryptionFailed
-        })?;
 
     let encrypted_private_key = aes_encrypt_secure(&master_private_key_secure, &passphrase)
         .map_err(|e| {
@@ -340,10 +376,11 @@ pub async fn import_wallet_from_private_key(
     wallet_storage::store_wallet_data(
         &address,
         network,
-        &encrypted_mnemonic,
+        None,
         &encrypted_private_key,
         true,
-        Some("private_key_import"),
+        Some(ImportMethod::PrivateKey),
+        Some(ImportMethod::PrivateKey),
         label,
         sqlite_client,
     )
@@ -361,8 +398,6 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address, sqlite_client).await?;
-
     let mnemonic = load_mnemonic(address, passphrase, sqlite_client).await?;
 
     Ok(mnemonic)
@@ -377,7 +412,6 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address, sqlite_client).await?;
     let keypair = load_key(address, passphrase, sqlite_client).await?;
 
     Ok(keypair.secret_key())
@@ -455,7 +489,7 @@ mod tests {
         purpose: Purpose,
         passphrase: &SecureString,
         imported: bool,
-        import_method: Option<&str>,
+        import_method: Option<ImportMethod>,
     ) -> TaprootAddressWithPrefix<NetworkChecked> {
         let network = Network::Testnet;
         let address = generate_address_from_mnemonic(mnemonic, network, purpose).unwrap();
@@ -467,9 +501,10 @@ mod tests {
         wallet_storage::store_wallet_data(
             &address,
             network,
-            &encrypted_mnemonic,
+            Some(&encrypted_mnemonic),
             &encrypted_private_key,
             imported,
+            import_method.clone(),
             import_method,
             label,
             Some(db),
@@ -510,7 +545,7 @@ mod tests {
         assert_eq!(wallet.label, "label_create");
         assert_eq!(wallet.network, Network::Testnet);
         assert!(wallet.created_at.timestamp() > 0);
-        assert_eq!(wallet.imported, None);
+        assert!(!wallet.imported);
         assert_eq!(wallet.import_method, None);
         assert!(!wallet.encryption_method.is_empty());
     }
@@ -572,9 +607,10 @@ mod tests {
         let err = wallet_storage::store_wallet_data(
             &address,
             Network::Testnet,
-            &encrypted_mnemonic,
+            Some(&encrypted_mnemonic),
             &encrypted_private_key,
             false,
+            None,
             None,
             "dup_addr_two",
             Some(&db),
@@ -612,8 +648,8 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(wallet.label, "import_label");
-        assert_eq!(wallet.import_method.as_deref(), Some("mnemonic_import"));
-        assert_eq!(wallet.imported, Some(true));
+        assert_eq!(wallet.import_method, Some(ImportMethod::Mnemonic));
+        assert!(wallet.imported);
     }
 
     #[tokio::test]
@@ -718,7 +754,7 @@ mod tests {
         assert_eq!(export.address, address.address_with_prefix());
         assert_eq!(export.network, Network::Testnet.to_string());
         assert!(export.encrypted_mnemonic.is_some());
-        assert!(export.encrypted_private_key.is_some());
+        assert!(!export.encrypted_private_key.ciphertext.is_empty());
 
         dir.close().expect("Failed to close and delete temp dir");
     }
@@ -760,11 +796,12 @@ mod tests {
             address: address.address_with_prefix(),
             network: network.to_string(),
             encrypted_mnemonic: Some(encrypted_data_to_hex(&encrypted_mnemonic)),
-            encrypted_private_key: Some(encrypted_data_to_hex(&encrypted_private_key)),
+            encrypted_private_key: encrypted_data_to_hex(&encrypted_private_key),
             created_at: chrono::Utc::now().to_rfc3339(),
             encryption_method: "aes256_gcm_argon2id_secure".to_string(),
-            imported: Some(true),
-            import_method: Some("file_import".to_string()),
+            imported: true,
+            original_import_method: Some(ImportMethod::File),
+            import_method: Some(ImportMethod::File),
         };
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
@@ -793,8 +830,8 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        assert_eq!(fetched.import_method.as_deref(), Some("file_import"));
-        assert_eq!(fetched.imported, Some(true));
+        assert_eq!(fetched.import_method, Some(ImportMethod::File));
+        assert!(fetched.imported);
     }
 
     #[tokio::test]
@@ -815,11 +852,12 @@ mod tests {
             address: address.address_with_prefix(),
             network: network.to_string(),
             encrypted_mnemonic: Some(encrypted_data_to_hex(&encrypted_mnemonic)),
-            encrypted_private_key: Some(encrypted_data_to_hex(&encrypted_private_key)),
+            encrypted_private_key: encrypted_data_to_hex(&encrypted_private_key),
             created_at: chrono::Utc::now().to_rfc3339(),
             encryption_method: "aes256_gcm_argon2id_secure".to_string(),
-            imported: Some(true),
-            import_method: Some("file_import".to_string()),
+            imported: true,
+            original_import_method: Some(ImportMethod::File),
+            import_method: Some(ImportMethod::File),
         };
 
         // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
@@ -856,8 +894,8 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(wallet.label, "pk_label");
-        assert_eq!(wallet.import_method.as_deref(), Some("private_key_import"));
-        assert_eq!(wallet.imported, Some(true));
+        assert_eq!(wallet.import_method, Some(ImportMethod::PrivateKey));
+        assert!(wallet.imported);
     }
 
     #[tokio::test]

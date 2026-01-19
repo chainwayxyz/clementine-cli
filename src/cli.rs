@@ -17,10 +17,10 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
+use crate::{config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
 
 use crate::{
     BitcoinAddress, CitreaAddress,
@@ -42,7 +42,7 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+            derive_and_validate_mnemonic_import, load_key_with_purpose_check,
             parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
@@ -68,7 +68,7 @@ use crossterm::{
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use toml_edit::{DocumentMut, Item, Value, value};
-use zeroize::{Zeroize, Zeroizing};
+use zeroize::Zeroizing;
 
 /// Parse aggregated public key from hex string and warn if it differs from config
 fn parse_and_validate_aggregated_key(
@@ -991,6 +991,7 @@ pub async fn deposit_create_signed_recovery_tx(
     config: &BridgeCliConfig,
     aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(recovery_taproot_address, None).await?;
 
     let keypair =
@@ -1356,6 +1357,7 @@ pub async fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(signer_address, None).await?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
@@ -1471,18 +1473,6 @@ pub(crate) fn prompt_secret_key() -> Result<SecureString, BridgeCliError> {
             trimmed.len()
         )));
     }
-
-    // Decode into a stack buffer and zeroize it to avoid keeping the key in memory.
-    let mut bytes = [0u8; 32];
-    if let Err(e) = hex::decode_to_slice(trimmed, &mut bytes) {
-        bytes.zeroize();
-        tracing::error!("Invalid secret key hex: {}", e);
-        return Err(BridgeCliError::Eyre(eyre::eyre!(
-            "Invalid secret key format: {}",
-            e
-        )));
-    }
-    bytes.zeroize();
 
     Ok(SecureString::init_with(|| trimmed.to_string()))
 }
