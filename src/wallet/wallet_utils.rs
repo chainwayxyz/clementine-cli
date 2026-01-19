@@ -28,6 +28,7 @@ use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
 use crate::wallet::wallet_storage::load_wallet_data;
 use bip39::Mnemonic;
+use bitcoin::Address;
 use bitcoin::Network;
 use bitcoin::address::NetworkChecked;
 use bitcoin::address::NetworkValidation;
@@ -125,7 +126,7 @@ pub(crate) fn parse_network(network_str: &str) -> Result<Network, BridgeCliError
 pub(crate) fn validate_private_key_import(
     wallet_data: &WalletData,
     passphrase: &SecureString,
-    wallet_address: &str,
+    wallet_address: &Address,
 ) -> Result<(), BridgeCliError> {
     let encrypted_private_data =
         crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
@@ -148,7 +149,7 @@ pub(crate) fn validate_private_key_import(
                     ));
                     let derived_address = calculate_taproot_address(&keypair, network);
 
-                    if derived_address.to_string() != wallet_address {
+                    if &derived_address != wallet_address {
                         return Err(BridgeCliError::AddressMismatch);
                     }
                 }
@@ -356,8 +357,8 @@ where
     load_key(address, &secure_passphrase, sqlite_client).await
 }
 
-/// Check if a Bitcoin address is a wallet address
-pub(crate) async fn is_wallet_address(
+/// Check if a Bitcoin address is a withdrawal wallet address
+pub(crate) async fn is_withdrawal_address_wallet_address(
     address: &crate::BitcoinAddress,
     config: &crate::config::BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
