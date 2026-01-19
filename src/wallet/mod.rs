@@ -402,8 +402,6 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address, sqlite_client).await?;
-
     let mnemonic = load_mnemonic(address, passphrase, sqlite_client).await?;
 
     Ok(mnemonic)
@@ -418,7 +416,6 @@ where
     T: NetworkValidation + Clone,
     bitcoin::Address<T>: crate::structs::AddrDisplay,
 {
-    ensure_wallet_exists(address, sqlite_client).await?;
     let keypair = load_key(address, passphrase, sqlite_client).await?;
 
     Ok(keypair.secret_key())

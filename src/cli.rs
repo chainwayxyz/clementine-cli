@@ -17,10 +17,10 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::config::NetworkConfigs;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
+use crate::{config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
 
 use crate::{
     BitcoinAddress, CitreaAddress,
@@ -42,7 +42,7 @@ use crate::{
         mnemonic::prompt_mnemonic,
         passphrase::{prompt_passphrase, prompt_unlock_passphrase},
         wallet_utils::{
-            derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+            derive_and_validate_mnemonic_import, load_key_with_purpose_check,
             parse_and_validate_imported_wallet, validate_wallet_availability,
         },
     },
@@ -991,6 +991,7 @@ pub async fn deposit_create_signed_recovery_tx(
     config: &BridgeCliConfig,
     aggregated_public_key: String,
 ) -> Result<(), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(recovery_taproot_address, None).await?;
 
     let keypair =
@@ -1356,6 +1357,7 @@ pub async fn cli_generate_withdrawal_signatures(
     operator_withdrawal_amount: &Amount,
     config: &BridgeCliConfig,
 ) -> Result<(Signature, Signature), BridgeCliError> {
+    // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(signer_address, None).await?;
     let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
         signer_address,
