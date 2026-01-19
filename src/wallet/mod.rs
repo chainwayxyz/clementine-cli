@@ -52,6 +52,7 @@ use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
 use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
+use crate::wallet::wallet_utils::effective_import_method;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::wallet::wallet_utils::validate_wallet_availability;
@@ -232,12 +233,9 @@ pub async fn import_wallet_from_file(
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label, sqlite_client).await?;
 
-    let effective_import_method = wallet_data
-        .original_import_method
-        .as_ref()
-        .or(wallet_data.import_method.as_ref());
+    let import_method = effective_import_method(&wallet_data);
 
-    let is_private_key_import = matches!(effective_import_method, Some(ImportMethod::PrivateKey));
+    let is_private_key_import = matches!(import_method, Some(ImportMethod::PrivateKey));
 
     if let Some(encrypted_mnemonic_hex) = &wallet_data.encrypted_mnemonic {
         let encrypted_data =
@@ -312,9 +310,7 @@ pub async fn import_wallet_from_file(
         &wallet_data.label
     };
 
-    let original_import_method = wallet_data
-        .original_import_method
-        .or(wallet_data.import_method);
+    let original_import_method = effective_import_method(&wallet_data).cloned();
 
     // Use store_wallet_data function for consistent storage
     wallet_storage::store_wallet_data(
