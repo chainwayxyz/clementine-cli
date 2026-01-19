@@ -93,8 +93,18 @@ impl std::fmt::Debug for CitreaTransaction {
 fn get_transaction_details_for_citrea(
     transaction: &Transaction,
 ) -> Result<CitreaTransaction, BridgeCliError> {
+    // See variable length integer encoding in Bitcoin protocol for details
+    const VARINT_U8_MAX: usize = 0xFC;
+
     let version = (transaction.version.0 as u32).to_le_bytes();
     let flag: u16 = 1;
+
+    // NOTE: We only support 1-byte varint lengths (<= 0xFC) for input/output counts.
+    if transaction.input.len() > VARINT_U8_MAX || transaction.output.len() > VARINT_U8_MAX {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Transaction has too many inputs/outputs for 1-byte varint encoding"
+        )));
+    }
 
     let vin = [
         vec![transaction.input.len() as u8],
