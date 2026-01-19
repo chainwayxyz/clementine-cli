@@ -96,10 +96,16 @@ pub(crate) fn sign_recovery_tx(
     let recovery_script =
         create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
 
+    let sequence_height = u16::try_from(config.user_takes_after).map_err(|_| {
+        BridgeCliError::Eyre(eyre::eyre!(
+            "user_takes_after exceeds CSV limit of 65535 blocks"
+        ))
+    })?;
+
     let txin = TxIn {
         previous_output: *deposit_outpoint,
         script_sig: ScriptBuf::default(),
-        sequence: Sequence::from_height(config.user_takes_after as u16),
+        sequence: Sequence::from_height(sequence_height),
         witness: Witness::default(),
     };
 
@@ -406,7 +412,16 @@ fn create_withdrawal_prevout(signer_address: &BitcoinAddress, config: &BridgeCli
 fn extract_xonly_pubkey_from_address(
     address: &BitcoinAddress,
 ) -> Result<XOnlyPublicKey, BridgeCliError> {
-    XOnlyPublicKey::from_slice(&address.script_pubkey().to_bytes()[2..34])
+    if address.address_type() != Some(bitcoin::AddressType::P2tr) {
+        return Err(BridgeCliError::NotTaprootAddress(address.to_string()));
+    }
+
+    let script_bytes = address.script_pubkey().to_bytes();
+    if script_bytes.len() < 34 {
+        return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
+    }
+
+    XOnlyPublicKey::from_slice(&script_bytes[2..34])
         .map_err(|e| eyre::eyre!("Failed to extract XOnly public key: {e}").into())
 }
 
