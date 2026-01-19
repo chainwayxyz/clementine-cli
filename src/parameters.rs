@@ -24,7 +24,7 @@ fn get_block_merkle_proof(
     target_txid: Txid,
     is_witness_merkle_proof: bool,
 ) -> Result<(usize, Vec<u8>), BridgeCliError> {
-    let mut txid_index = 0;
+    let mut txid_index = None;
     let txids = block
         .txdata
         .iter()
@@ -32,7 +32,7 @@ fn get_block_merkle_proof(
         .map(|(i, tx)| {
             let txid = tx.compute_txid();
             if txid == target_txid {
-                txid_index = i;
+                txid_index = Some(i);
             }
 
             if is_witness_merkle_proof {
@@ -47,6 +47,10 @@ fn get_block_merkle_proof(
             }
         })
         .collect::<Vec<_>>();
+
+    let txid_index = txid_index.ok_or_else(|| {
+        BridgeCliError::Eyre(eyre::eyre!("Transaction {target_txid} not found in block"))
+    })?;
 
     let merkle_tree = BitcoinMerkleTree::new(txids.clone())?;
     let witness_idx_path = merkle_tree.get_idx_path(txid_index.try_into().unwrap());
