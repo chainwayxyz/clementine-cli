@@ -232,8 +232,12 @@ pub async fn import_wallet_from_file(
     // Parse and validate the wallet file using helper function
     let wallet_data = parse_and_validate_imported_wallet(file_path, label, sqlite_client).await?;
 
-    let is_private_key_import = matches!(wallet_data.import_method, Some(ImportMethod::PrivateKey))
-        || wallet_data.encrypted_mnemonic.is_none();
+    let effective_import_method = wallet_data
+        .original_import_method
+        .as_ref()
+        .or(wallet_data.import_method.as_ref());
+
+    let is_private_key_import = matches!(effective_import_method, Some(ImportMethod::PrivateKey));
 
     if let Some(encrypted_mnemonic_hex) = &wallet_data.encrypted_mnemonic {
         let encrypted_data =
