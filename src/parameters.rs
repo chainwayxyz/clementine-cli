@@ -102,7 +102,6 @@ fn get_transaction_details_for_citrea(
         )));
     }
 
-    // Input/output counts are encoded as a single byte (varint <= 0xFC).
     let vin = [
         vec![transaction.input.len() as u8],
         transaction
@@ -116,7 +115,6 @@ fn get_transaction_details_for_citrea(
     ]
     .concat();
 
-    // Input/output counts are encoded as a single byte (varint <= 0xFC).
     let vout = [
         vec![transaction.output.len() as u8],
         transaction
