@@ -196,15 +196,6 @@ where
     WalletTable::address_exists(sqlite_client.as_ref().pool(), address).await
 }
 
-pub(crate) fn effective_import_method(
-    wallet_data: &WalletData,
-) -> Option<&crate::wallet::ImportMethod> {
-    wallet_data
-        .original_import_method
-        .as_ref()
-        .or(wallet_data.import_method.as_ref())
-}
-
 /// Combined validation function to check for conflicts during wallet operations
 pub(crate) async fn validate_wallet_availability(
     label: Option<&str>,
@@ -295,7 +286,7 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     // Validate that both wallet label and address don't already exist
     validate_wallet_availability(Some(label), Some(&wallet_address), sqlite_client).await?;
 
-    let import_method = effective_import_method(&wallet_data);
+    let import_method = wallet_data.effective_import_method();
     let is_private_key_import =
         matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKey));
 

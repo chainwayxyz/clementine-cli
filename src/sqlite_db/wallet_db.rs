@@ -25,6 +25,14 @@ pub(crate) struct WalletData {
     pub import_method: Option<ImportMethod>,
 }
 
+impl WalletData {
+    pub(crate) fn effective_import_method(&self) -> Option<&ImportMethod> {
+        self.original_import_method
+            .as_ref()
+            .or(self.import_method.as_ref())
+    }
+}
+
 /// Stable on-disk export/import format for wallets.
 ///
 /// This exists to decouple backup files from the SQLx row mapping and DB schema.
