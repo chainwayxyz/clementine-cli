@@ -65,10 +65,12 @@ use crate::wallet::wallet_utils::{
 };
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(rename_all = "snake_case")]
 pub(crate) enum ImportMethod {
+    #[serde(rename = "mnemonic_import")]
     Mnemonic,
+    #[serde(rename = "file_import")]
     File,
+    #[serde(rename = "private_key_import")]
     PrivateKey,
 }
 
