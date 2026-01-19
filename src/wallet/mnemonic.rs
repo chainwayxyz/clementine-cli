@@ -35,7 +35,6 @@ use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
-use crate::wallet::wallet_utils::effective_import_method;
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 
@@ -76,7 +75,7 @@ where
                 address.address_with_prefix(),
             ))?;
 
-    let import_method = effective_import_method(&wallet_data);
+    let import_method = wallet_data.effective_import_method();
 
     // Check if this wallet was imported from a private key (no mnemonic stored)
     if matches!(import_method, Some(crate::wallet::ImportMethod::PrivateKey)) {
