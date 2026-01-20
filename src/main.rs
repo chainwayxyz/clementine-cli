@@ -294,8 +294,8 @@ enum WithdrawCommands {
         /// Withdrawal UTXO outpoint (format: <txid>:<vout>)
         withdrawal_utxo_outpoint: String,
     },
-    /// Initiate a safe withdrawal by opening browser interface.
-    SafeWithdraw {
+    /// Initiate a withdrawal by opening browser interface.
+    Send {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Clementine-CLI wallet address for signing withdrawals (wit-prefixed, taproot)
@@ -717,7 +717,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("If the transaction that created your withdrawal UTXO is not yet confirmed, please wait for it to be confirmed before proceeding.");
                         println!("After its confirmation run:");
                         println!();
-                        println!("$ clementine-cli withdraw safe-withdraw --network {} {} {} {} {}",
+                        println!("$ clementine-cli withdraw send --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(optimistic_signature));
                         println!();
                         println!("on your online device to initiate optimistic withdrawal process on the Citrea network");
@@ -734,7 +734,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     }
                 );
             }
-            WithdrawCommands::SafeWithdraw {
+            WithdrawCommands::Send {
                 signer_address,
                 destination_address,
                 withdrawal_utxo_outpoint,
