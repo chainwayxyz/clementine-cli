@@ -1,103 +1,33 @@
 // Deposit-related commands and logic for Clementine CLI
 
+mod params;
+mod status;
 pub(crate) mod storage;
+
+pub use params::{RecoveryTxParams, VerifyRecoveryTxParams};
+pub use status::{DepositStatus, DepositStatusWithVout};
 
 use crate::api_utils::{get_tx_details, get_txout_details};
 use crate::backend::create_deposit_account;
 use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::config::BridgeCliConfig;
-use crate::deposit::storage::DepositAddressStorageResult;
 use crate::errors::BridgeCliError;
 use crate::parameters::get_citrea_deposit_params;
 use crate::secure_types::SecureKeypair;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::Purpose;
+use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use crate::{BitcoinAddress, CitreaAddress};
-use bitcoin::{Amount, FeeRate, OutPoint, Transaction, Txid};
+use bitcoin::{Amount, FeeRate, Transaction, Txid};
 use eyre::Result;
-use storage::{DepositData, store_deposit_address};
+use storage::DepositData;
+use storage::store_deposit_address;
 
 pub use storage::{
-    DepositAddressDetails, get_all_deposit_address_details,
+    DepositAddressDetails, DepositAddressStorageResult, get_all_deposit_address_details,
     get_deposit_address_details_for_deposit_address,
 };
-
-/// Parameters for creating a signed recovery transaction
-pub struct RecoveryTxParams {
-    pub citrea_addr: CitreaAddress,
-    pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    pub outpoint: OutPoint,
-    pub destination_addr: BitcoinAddress,
-    pub fee_rate: Option<u64>,
-    pub amount: Option<f64>,
-}
-
-/// Parameters for verifying a recovery transaction
-#[derive(Debug)]
-pub struct VerifyRecoveryTxParams {
-    pub recovery_tx: Transaction,
-    pub citrea_address: CitreaAddress,
-    pub recovery_taproot_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    pub amount: Option<f64>,
-}
-
-pub(crate) enum DepositStatusEnum {
-    New,
-    InProgress,
-    MoveTxSent,
-    Completed,
-    Unknown,
-}
-
-impl DepositStatusEnum {
-    pub(crate) fn from_status(status: &str) -> Self {
-        match status {
-            "new" => DepositStatusEnum::New,
-            "minted" => DepositStatusEnum::Completed,
-            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" => {
-                DepositStatusEnum::InProgress
-            }
-            "sent" => DepositStatusEnum::MoveTxSent,
-            _ => DepositStatusEnum::Unknown,
-        }
-    }
-
-    pub fn as_string(&self) -> String {
-        match self {
-            DepositStatusEnum::New => "New".to_string(),
-            DepositStatusEnum::InProgress => "In Progress".to_string(),
-            DepositStatusEnum::Completed => "Completed".to_string(),
-            DepositStatusEnum::MoveTxSent => "Move To Vault Transaction Sent".to_string(),
-            DepositStatusEnum::Unknown => "Unknown".to_string(),
-        }
-    }
-
-    /// Returns the progress position (current step, total steps)
-    pub fn progress(&self) -> (usize, usize) {
-        match self {
-            DepositStatusEnum::New => (1, 4),
-            DepositStatusEnum::InProgress => (2, 4),
-            DepositStatusEnum::MoveTxSent => (3, 4),
-            DepositStatusEnum::Completed => (4, 4),
-            DepositStatusEnum::Unknown => (0, 4),
-        }
-    }
-
-    /// Returns a description of the current step
-    pub fn step_description(&self) -> &str {
-        match self {
-            DepositStatusEnum::New => "Deposit detected on Bitcoin network",
-            DepositStatusEnum::InProgress => "The deposit is being processed",
-            DepositStatusEnum::MoveTxSent => {
-                "Move transaction broadcasted, waiting for confirmation and minting"
-            }
-            DepositStatusEnum::Completed => "Funds minted on Citrea network",
-            DepositStatusEnum::Unknown => "Status unknown",
-        }
-    }
-}
 
 /// Get deposit address from backend
 pub async fn get_deposit_address(
