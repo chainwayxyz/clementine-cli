@@ -3,6 +3,8 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::status_format::{Row, write_rows};
+
 pub(crate) enum DepositStatusEnum {
     New,
     InProgress,
@@ -60,6 +62,9 @@ impl DepositStatusEnum {
 }
 
 const PROGRESS_BAR_WIDTH: usize = 40;
+const KV_INDENT: &str = "  ";
+const KV_GAP: &str = " ";
+
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
@@ -67,10 +72,17 @@ pub struct DepositStatus {
     pub status: String,
     pub txid: String,
     pub evm_addr: String,
-    pub move_tx_raw: String,
-    pub move_txid: String,
+    pub move_tx_raw: Option<String>,
+    pub move_txid: Option<String>,
     pub created_at: String,
-    pub mint_txid: String,
+    pub mint_txid: Option<String>,
+    pub block_height: u64,
+    pub block_hash: String,
+    pub vout: u32,
+    pub taproot_addr: String,
+    pub recovery_taproot_addr: String,
+    pub move_wtxid: Option<String>,
+    pub deposit_log: Option<String>,
 }
 
 pub struct DepositStatusWithVout<'a> {
@@ -88,23 +100,27 @@ fn format_deposit_status(
     txid: &str,
     vout: Option<u32>,
     evm_addr: &str,
-    move_txid: &str,
+    move_txid: Option<&str>,
     move_tx_finalization_blocks: Option<u64>,
-    move_tx_raw: &str,
-    mint_txid: &str,
+    move_tx_raw: Option<&str>,
+    mint_txid: Option<&str>,
     print_na_for_vout: bool,
 ) -> std::fmt::Result {
-    let display_or = |v: &str| {
-        if v.is_empty() {
-            "--".to_string()
-        } else {
-            v.to_string()
-        }
+    let display_or = |v: Option<&str>| match v {
+        Some(value) if !value.is_empty() => value.to_string(),
+        _ => "--".to_string(),
     };
 
     writeln!(f, "\nDeposit Info")?;
-    writeln!(f, "  ID:                 {}", id)?;
-    writeln!(f, "  Status:             {}", status)?;
+    let mut rows = Vec::new();
+    rows.push(Row {
+        label: "ID:",
+        value: id.to_string(),
+    });
+    rows.push(Row {
+        label: "Status:",
+        value: status.to_string(),
+    });
 
     // Add progress bar using the raw backend status
     let status_enum = DepositStatusEnum::from_status(raw_status);
@@ -128,24 +144,41 @@ fn format_deposit_status(
             )
         };
 
-        writeln!(f, "  Progress:           {}", bar)?;
-        writeln!(
-            f,
-            "  Current Step:       {}",
-            status_enum.step_description()
-        )?;
+        rows.push(Row {
+            label: "Progress:",
+            value: bar,
+        });
+        rows.push(Row {
+            label: "Current Step:",
+            value: status_enum.step_description().to_string(),
+        });
     }
 
-    writeln!(f, "  TXID:               {}", display_or(txid))?;
+    rows.push(Row {
+        label: "TXID:",
+        value: display_or(Some(txid)),
+    });
     match vout {
         Some(v) => {
-            writeln!(f, "  Vout:               {}", v)?;
-            writeln!(f, "  UTXO Outpoint:      {}:{}", txid, v)?;
+            rows.push(Row {
+                label: "Vout:",
+                value: v.to_string(),
+            });
+            rows.push(Row {
+                label: "UTXO Outpoint:",
+                value: format!("{txid}:{v}"),
+            });
         }
         None => {
             if print_na_for_vout {
-                writeln!(f, "  Vout:               N/A")?;
-                writeln!(f, "  UTXO Outpoint:      N/A")?;
+                rows.push(Row {
+                    label: "Vout:",
+                    value: "N/A".to_string(),
+                });
+                rows.push(Row {
+                    label: "UTXO Outpoint:",
+                    value: "N/A".to_string(),
+                });
             }
         }
     }
@@ -156,15 +189,27 @@ fn format_deposit_status(
         None => "N/A".to_string(),
     };
 
-    writeln!(f, "  EVM Addr:           {}", display_or(evm_addr))?;
-    writeln!(f, "  Move TXID:          {}", display_or(move_txid))?;
-    writeln!(
-        f,
-        "  Move Tx Status:     {}",
-        display_or(&remaining_blocks_msg)
-    )?;
-    writeln!(f, "  Mint TXID:          {}", display_or(mint_txid))?;
-    writeln!(f, "  Raw MoveToVault TX: {}", display_or(move_tx_raw))
+    rows.push(Row {
+        label: "EVM Addr:",
+        value: display_or(Some(evm_addr)),
+    });
+    rows.push(Row {
+        label: "Move TXID:",
+        value: display_or(move_txid),
+    });
+    rows.push(Row {
+        label: "Move Tx Status:",
+        value: display_or(Some(&remaining_blocks_msg)),
+    });
+    rows.push(Row {
+        label: "Mint TXID:",
+        value: display_or(mint_txid),
+    });
+    rows.push(Row {
+        label: "Raw MoveToVault TX:",
+        value: display_or(move_tx_raw),
+    });
+    write_rows(f, KV_INDENT, KV_GAP, &rows)
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -174,10 +219,10 @@ fn format_deposit_status_default(
     status: &str,
     raw_status: &str,
     txid: &str,
-    move_tx_raw: &str,
+    move_tx_raw: Option<&str>,
     evm_addr: &str,
-    move_txid: &str,
-    mint_txid: &str,
+    move_txid: Option<&str>,
+    mint_txid: Option<&str>,
 ) -> std::fmt::Result {
     format_deposit_status(
         f,
@@ -208,10 +253,10 @@ impl Display for DepositStatus {
             &status,
             &self.status, // Pass raw status for progress bar
             &self.txid,
-            &self.move_tx_raw,
+            self.move_tx_raw.as_deref(),
             &self.evm_addr,
-            &self.move_txid,
-            &self.mint_txid,
+            self.move_txid.as_deref(),
+            self.mint_txid.as_deref(),
         )
     }
 }
@@ -231,10 +276,10 @@ impl Display for DepositStatusWithVout<'_> {
             &self.deposit_status.txid,
             self.vout,
             &self.deposit_status.evm_addr,
-            &self.deposit_status.move_txid,
+            self.deposit_status.move_txid.as_deref(),
             self.remaining_finalization_blocks,
-            &self.deposit_status.move_tx_raw,
-            &self.deposit_status.mint_txid,
+            self.deposit_status.move_tx_raw.as_deref(),
+            self.deposit_status.mint_txid.as_deref(),
             true,
         )
     }

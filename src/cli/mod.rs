@@ -934,8 +934,13 @@ pub async fn deposit_status(
             Err(_) => (0, false),
         };
 
-        let move_block_height = if !status.move_txid.is_empty() {
-            get_block_height_for_tx(&bitcoin::Txid::from_str(&status.move_txid)?, config)
+        let move_txid = status
+            .move_txid
+            .as_deref()
+            .filter(|value| !value.is_empty());
+
+        let move_block_height = if let Some(txid) = move_txid {
+            get_block_height_for_tx(&bitcoin::Txid::from_str(txid)?, config)
                 .await
                 .ok()
         } else {
@@ -954,7 +959,7 @@ pub async fn deposit_status(
             remaining_finalization_blocks,
         };
 
-        let refund_msg = refund_info(block_height, status.move_txid.is_empty());
+        let refund_msg = refund_info(block_height, move_txid.is_some());
         println!("{} {}", deposit_status_with_vout, refund_msg);
     }
 

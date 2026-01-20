@@ -3,6 +3,14 @@ use std::fmt::Display;
 
 use serde::{Deserialize, Serialize};
 
+use crate::core::status_format::{Row, write_rows};
+
+const KV_INDENT: &str = "  ";
+const KV_GAP: &str = "    ";
+const SUB_KV_INDENT: &str = "    ";
+const SUB_KV_GAP: &str = " ";
+
+
 pub(crate) enum WithdrawStatusEnum {
     New,
     InProgress,
@@ -74,10 +82,6 @@ impl Display for WithdrawStatus {
             }
         }
 
-        fn display_t<T: ToString + Display>(v: &T) -> String {
-            v.to_string()
-        }
-
         let status = if self.status.is_empty() {
             Cow::Borrowed("--")
         } else {
@@ -85,40 +89,53 @@ impl Display for WithdrawStatus {
         };
 
         writeln!(f, "\nWithdrawal Info")?;
-        writeln!(f, "  Index:                 {}", self.idx)?;
-        writeln!(f, "  Status:                {}", status)?;
-        writeln!(
-            f,
-            "  BTC Payment TXID:      {}",
-            display_or(&self.btc_payment_txid)
-        )?;
-        writeln!(
-            f,
-            "  From Safe Withdraw:    {}",
-            display_t(&self.from_safe_withdraw)
-        )?;
-        writeln!(
-            f,
-            "  Payout Started:        {}",
-            display_option_or(&self.optimistic_payout_started_at)
-        )?;
-        writeln!(
-            f,
-            "  Payout Deadline:       {}",
-            display_option_or(&self.optimistic_payout_deadline_at)
-        )?;
-        writeln!(
-            f,
-            "  Created:               {}",
-            display_or(&self.created_at)
-        )?;
+        let rows = [
+            Row {
+                label: "Index:",
+                value: self.idx.to_string(),
+            },
+            Row {
+                label: "Status:",
+                value: status.to_string(),
+            },
+            Row {
+                label: "BTC Payment TXID:",
+                value: display_or(&self.btc_payment_txid).to_string(),
+            },
+            Row {
+                label: "From Safe Withdraw:",
+                value: self.from_safe_withdraw.to_string(),
+            },
+            Row {
+                label: "Payout Started:",
+                value: display_option_or(&self.optimistic_payout_started_at),
+            },
+            Row {
+                label: "Payout Deadline:",
+                value: display_option_or(&self.optimistic_payout_deadline_at),
+            },
+            Row {
+                label: "Created:",
+                value: display_or(&self.created_at).to_string(),
+            },
+        ];
+        write_rows(f, KV_INDENT, KV_GAP, &rows)?;
         writeln!(f, "  Optimistic Payout Info")?;
         let (raw_tx, txid) = match &self.optimistic_payout_payment {
             Some(payout) => (display_or(&payout.tx_raw), display_or(&payout.txid)),
             None => ("--", "--"),
         };
-        writeln!(f, "    Raw TX: {}", raw_tx)?;
-        writeln!(f, "    TXID:   {}", txid)?;
+        let sub_rows = [
+            Row {
+                label: "Raw TX:",
+                value: raw_tx.to_string(),
+            },
+            Row {
+                label: "TXID:",
+                value: txid.to_string(),
+            },
+        ];
+        write_rows(f, SUB_KV_INDENT, SUB_KV_GAP, &sub_rows)?;
         Ok(())
     }
 }
