@@ -302,12 +302,11 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
                 &wallet.label, &wallet.address, network, import_info,
             );
         }
+        println!();
         Ok(())
     }
 
     print_wallet_section("Wallets on networks other than Bitcoin mainnet:", &others)?;
-
-    println!();
 
     print_wallet_section("Wallets on Bitcoin mainnet:", &mainnet)?;
 
