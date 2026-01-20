@@ -53,7 +53,7 @@ impl WithdrawStatusEnum {
 pub struct WithdrawStatus {
     pub idx: u64,
     pub status: String,
-    pub btc_payment_txid: String,
+    pub btc_payment_txid: Option<String>,
     pub from_safe_withdraw: bool,
     pub optimistic_payout_started_at: Option<String>,
     pub optimistic_payout_deadline_at: Option<String>,
@@ -99,7 +99,7 @@ impl Display for WithdrawStatus {
             },
             Row {
                 label: "BTC Payment TXID:",
-                value: display_or(&self.btc_payment_txid).to_string(),
+                value: display_option_or(&self.btc_payment_txid),
             },
             Row {
                 label: "From Safe Withdraw:",
