@@ -246,6 +246,7 @@ enum DepositCommands {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
     },
+    #[command(hide = true)]
     /// Get deposit parameters for a move-to-vault transaction.
     GetDepositParams {
         /// Move-to-vault transaction ID (txid)
