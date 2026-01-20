@@ -1,9 +1,10 @@
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
+use crate::deposit::CitreaAddress;
 use crate::deposit::DepositStatus;
+use crate::wallet::BitcoinAddress;
 use crate::wallet::address::parse_taproot_address;
 use crate::withdraw::WithdrawStatus;
-use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Address, OutPoint};
 use colored::*;
 use eyre::{Context, Result};
@@ -75,7 +76,7 @@ pub(crate) async fn create_deposit_account(
     }
 }
 
-pub(crate) async fn backend_deposit_status(
+pub async fn backend_deposit_status(
     taproot_address: &Address,
     config: &BridgeCliConfig,
 ) -> Result<Vec<DepositStatus>, BridgeCliError> {
@@ -120,7 +121,7 @@ pub(crate) async fn backend_deposit_status(
     }
 }
 
-pub(crate) async fn backend_withdrawal_status(
+pub async fn backend_withdrawal_status(
     withdrawal_outpoint: OutPoint,
     config: &BridgeCliConfig,
 ) -> Result<Vec<WithdrawStatus>, BridgeCliError> {
@@ -165,7 +166,7 @@ pub(crate) async fn backend_withdrawal_status(
     }
 }
 
-pub(crate) async fn send_withdrawal_signature_to_operators(
+pub async fn send_withdrawal_signature_to_operators(
     _signer_address: &str,
     destination_address: &str,
     withdrawal_outpoint: OutPoint,

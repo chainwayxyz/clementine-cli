@@ -1,7 +1,7 @@
-use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
-use clap::{Parser, Subcommand};
-use clementine_cli::cli::network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
-use clementine_cli::cli::{
+mod cli;
+
+use crate::cli::network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
+use crate::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address_details, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
     cli_import_wallet_from_private_key, cli_list_all_deposit_addresses, cli_scan_withdrawals,
@@ -10,17 +10,17 @@ use clementine_cli::cli::{
     deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
     withdrawal_status,
 };
+use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
+use clap::{Parser, Subcommand};
 
-use clementine_cli::wallet::should_not_have_purpose;
-use clementine_cli::{
-    BitcoinAddress, broadcast_recovery_tx,
-    core::config::BridgeCliConfig,
-    deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
-    print_all_wallets_with_addresses,
-    wallet::{Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address},
-    withdraw,
+use clementine_cli::config::BridgeCliConfig;
+use clementine_cli::deposit::{get_deposit_params, parse_citrea_address};
+use clementine_cli::wallet::{
+    BitcoinAddress, Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address,
+    print_all_wallets_with_addresses, should_not_have_purpose,
 };
-use clementine_cli::{handle_simple_call, parse_transaction_hex};
+use clementine_cli::{broadcast_recovery_tx, parse_transaction_hex};
+use clementine_cli::{deposit, withdraw};
 use colored::Colorize;
 use std::str::FromStr;
 use tracing::level_filters::LevelFilter;
@@ -353,7 +353,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     match cli.command {
         Commands::Init {} => {
-            handle_cli_command!(clementine_cli::cli::cli_init());
+            handle_cli_command!(cli::cli_init());
         }
         Commands::UpdateConfig { network, yes, kv } => {
             let kv: Vec<(String, String)> = kv
@@ -365,14 +365,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     (key.to_string(), value.to_string())
                 })
                 .collect();
-            handle_cli_command!(clementine_cli::cli::update_config_with_confirm(
-                network.into(),
-                kv,
-                yes
-            ));
+            handle_cli_command!(cli::update_config_with_confirm(network.into(), kv, yes));
         }
         Commands::ShowConfig { network } => {
-            handle_cli_command!(clementine_cli::cli::cli_show_config(network.into()));
+            handle_cli_command!(cli::cli_show_config(network.into()));
         }
         Commands::Wallet { command } => match command {
             WalletCommands::Create {

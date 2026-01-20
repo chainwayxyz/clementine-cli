@@ -1,3 +1,5 @@
+#![allow(clippy::result_large_err)]
+
 pub mod macros;
 pub mod network;
 
@@ -20,44 +22,27 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use crate::deposit::{
+use clementine_cli::config::{self, BridgeCliConfig, NetworkConfigs};
+use clementine_cli::deposit::{
+    self, CitreaAddress, DepositAddressStorageResult, DepositStatusWithVout,
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
-use crate::{core::config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
-
-use crate::{
-    BitcoinAddress, CitreaAddress, backup_wallet,
-    core::config::BridgeCliConfig,
-    core::errors::BridgeCliError,
-    core::secure_display::display_mnemonic_securely,
-    core::secure_types::SecureString,
-    create_encrypted_wallet, deposit,
-    deposit::DepositStatusWithVout,
-    generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
-    import_wallet_from_private_key,
-    services::api::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
-    services::backend::{
-        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
-    },
-    wallet::TaprootAddressWithPrefix,
-    wallet::{
-        Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
-        mnemonic::prompt_mnemonic,
-        passphrase::{prompt_passphrase, prompt_unlock_passphrase},
-        wallet_utils::{
-            derive_and_validate_mnemonic_import, load_key_with_purpose_check,
-            parse_and_validate_imported_wallet, validate_wallet_availability,
-        },
-    },
-    withdraw::{self, start_withdrawal},
+use clementine_cli::errors::BridgeCliError;
+use clementine_cli::secure_display::{display_mnemonic_securely, display_private_key_securely};
+use clementine_cli::secure_types::SecureString;
+use clementine_cli::wallet::{
+    BitcoinAddress, Purpose, TaprootAddressWithPrefix, backup_wallet, create_encrypted_wallet,
+    derive_and_validate_mnemonic_import, ensure_wallet_exists, get_mnemonic_from_wallet,
+    get_private_key_from_wallet, import_wallet_from_file, import_wallet_from_mnemonic,
+    import_wallet_from_private_key, load_key_with_purpose_check, prompt_mnemonic,
+    prompt_passphrase, prompt_unlock_passphrase, validate_imported_wallet_file,
+    validate_wallet_availability,
 };
-use crate::{
-    core::config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
-    get_clementine_home_dir_with_existence_check,
-};
-use crate::{
-    deposit::DepositAddressStorageResult,
-    services::api::{get_block_height_for_tx, get_mempool_txs},
+use clementine_cli::withdraw::{self, generate_withdrawal_signatures, start_withdrawal};
+use clementine_cli::{
+    MempoolTx, UtxoInfo, backend_deposit_status, backend_withdrawal_status,
+    get_block_height_for_tx, get_current_block_height, get_mempool_txs, get_tx_details, get_utxos,
+    send_withdrawal_signature_to_operators,
 };
 
 use bitcoin::XOnlyPublicKey;
@@ -757,7 +742,7 @@ pub async fn cli_import_wallet_from_file(
     let file_path = Path::new(file_path);
 
     // Duplicate pre-check before passphrase prompt for better UX
-    parse_and_validate_imported_wallet(file_path, label, None).await?;
+    validate_imported_wallet_file(file_path, label, None).await?;
 
     let passphrase = prompt_unlock_passphrase()?;
     import_wallet_from_file(file_path, label, passphrase, None).await
@@ -797,7 +782,7 @@ pub async fn cli_show_mnemonic(
     ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
     let mnemonic = get_mnemonic_from_wallet(address, &passphrase, None).await?;
-    crate::core::secure_display::display_mnemonic_securely(&mnemonic)?;
+    display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
 
@@ -809,7 +794,7 @@ pub async fn cli_show_private_key(
     ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
     let private_key = get_private_key_from_wallet(address, &passphrase, None).await?;
-    crate::core::secure_display::display_private_key_securely(&private_key)?;
+    display_private_key_securely(&private_key)?;
     Ok(())
 }
 
@@ -1367,12 +1352,7 @@ pub async fn cli_generate_withdrawal_signatures(
 ) -> Result<(Signature, Signature), BridgeCliError> {
     // Pre-check to ensure wallet exists before prompting for passphrase for better UX
     ensure_wallet_exists(signer_address, None).await?;
-    let keypair = crate::wallet::wallet_utils::load_key_with_purpose_check(
-        signer_address,
-        Purpose::Withdrawal,
-        None,
-    )
-    .await?;
+    let keypair = load_key_with_purpose_check(signer_address, Purpose::Withdrawal, None).await?;
 
     generate_withdrawal_signatures(
         keypair,
@@ -1483,4 +1463,32 @@ pub(crate) fn prompt_secret_key() -> Result<SecureString, BridgeCliError> {
     }
 
     Ok(SecureString::init_with(|| trimmed.to_string()))
+}
+
+fn get_clementine_home_dir_with_existence_check() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = get_clementine_home_dir()?;
+    if !home_dir.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Clementine home directory not found at {:?}. Please run 'clementine-cli init' to create one.",
+            home_dir
+        )));
+    }
+    Ok(home_dir)
+}
+
+fn get_clementine_home_dir() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = dirs::home_dir().ok_or(BridgeCliError::HomeDirectoryNotFound)?;
+    Ok(home_dir.join(".clementine"))
+}
+
+fn get_clementine_config_path_with_existence_check() -> Result<PathBuf, BridgeCliError> {
+    let home_dir = get_clementine_home_dir()?;
+    let config_path = home_dir.join("bridge_cli_config.toml");
+    if !config_path.exists() {
+        return Err(BridgeCliError::Eyre(eyre::eyre!(
+            "Configuration file not found at {:?}. Please run 'clementine-cli init' to create one.",
+            config_path
+        )));
+    }
+    Ok(config_path)
 }

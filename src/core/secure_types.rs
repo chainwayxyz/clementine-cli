@@ -2,7 +2,7 @@ use bitcoin::secp256k1::{Keypair, SecretKey};
 use secrecy::SecretBox;
 use zeroize::Zeroize;
 
-pub(crate) type SecureString = SecretBox<String>;
+pub type SecureString = SecretBox<String>;
 pub(crate) type SecureByteSlice = SecretBox<[u8; 32]>;
 pub(crate) type SecureByteVec = SecretBox<Vec<u8>>;
 pub(crate) type SecureSeed = SecretBox<[u8; 64]>;

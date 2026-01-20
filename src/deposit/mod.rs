@@ -4,8 +4,14 @@ mod params;
 mod status;
 pub(crate) mod storage;
 
+pub type CitreaAddress = alloy::primitives::Address;
+
 pub use params::{RecoveryTxParams, VerifyRecoveryTxParams};
 pub use status::{DepositStatus, DepositStatusWithVout};
+pub use storage::{
+    DepositAddressDetails, DepositAddressStorageResult, get_all_deposit_address_details,
+    get_deposit_address_details_for_deposit_address,
+};
 
 use crate::btc::utils::{calculate_deposit_address, convert_btc_to_amount};
 use crate::core::config::BridgeCliConfig;
@@ -15,19 +21,20 @@ use crate::core::secure_types::SecureKeypair;
 use crate::services::api::{get_tx_details, get_txout_details};
 use crate::services::backend::create_deposit_account;
 use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::wallet::BitcoinAddress;
 use crate::wallet::Purpose;
 use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
-use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Amount, FeeRate, Transaction, Txid};
 use eyre::Result;
+use std::str::FromStr;
 use storage::DepositData;
 use storage::store_deposit_address;
 
-pub use storage::{
-    DepositAddressDetails, DepositAddressStorageResult, get_all_deposit_address_details,
-    get_deposit_address_details_for_deposit_address,
-};
+pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
+    CitreaAddress::from_str(citrea_address)
+        .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format")))
+}
 
 /// Get deposit address from backend
 pub async fn get_deposit_address(

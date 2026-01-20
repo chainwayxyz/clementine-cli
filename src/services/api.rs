@@ -2,8 +2,10 @@
 
 use std::str::FromStr;
 
+use crate::btc::utils::parse_transaction_hex;
+use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
-use crate::{BitcoinAddress, core::config::BridgeCliConfig, parse_transaction_hex};
+use crate::wallet::BitcoinAddress;
 use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
 use bitcoincore_rpc::{Client, RpcApi};
@@ -300,7 +302,7 @@ async fn broadcast_recovery_tx_with_esplora_api(
     }
 }
 
-pub(crate) async fn get_utxos(
+pub async fn get_utxos(
     address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<Vec<UtxoInfo>, BridgeCliError> {
@@ -473,11 +475,9 @@ async fn is_tx_on_chain_bitcoin_rpc(
 
 #[cfg(test)]
 mod tests {
-    use crate::{
-        broadcast_recovery_tx,
-        core::config::{BitcoinConfig, BridgeCliConfig},
-        parse_transaction_hex,
-    };
+    use super::broadcast_recovery_tx;
+    use crate::btc::utils::parse_transaction_hex;
+    use crate::core::config::{BitcoinConfig, BridgeCliConfig};
     use bitcoin::{
         Address, Amount, OutPoint, Transaction, TxIn, TxOut, Txid, transaction::Version,
     };

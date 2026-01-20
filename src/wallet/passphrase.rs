@@ -44,10 +44,8 @@ use argon2::Argon2;
 use colored::Colorize;
 use secrecy::ExposeSecret;
 
-use crate::{
-    core::errors::BridgeCliError,
-    core::secure_types::{SecureByteSlice, SecureString},
-};
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::{SecureByteSlice, SecureString};
 
 /// Derives a 256-bit AES key from passphrase using Argon2id
 ///
@@ -87,7 +85,7 @@ pub(crate) fn derive_key_from_passphrase(
 /// Prompt user for a passphrase with confirmation for new keys. The passphrase can be
 /// empty; however, it is recommended to use a non-empty passphrase for security, since
 /// it protects your private key from unauthorized access.
-pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
+pub fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCliError> {
     println!("{}", "Passphrase Protection".bold());
 
     let passphrase = rpassword::prompt_password("Enter passphrase: ").map_err(|e| {
@@ -115,7 +113,7 @@ pub(crate) fn prompt_passphrase(confirm: bool) -> Result<SecureString, BridgeCli
 }
 
 /// Prompt user for a passphrase to unlock existing encrypted key
-pub(crate) fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
+pub fn prompt_unlock_passphrase() -> Result<SecureString, BridgeCliError> {
     let passphrase =
         rpassword::prompt_password("Enter passphrase to unlock key: ").map_err(|e| {
             tracing::error!("Error reading passphrase: {}", e);

@@ -4,7 +4,7 @@ use bitcoin::{
     script::Builder,
 };
 
-use crate::CitreaAddress;
+use crate::deposit::CitreaAddress;
 
 pub(crate) fn recover_script(
     recovery_taproot_address: XOnlyPublicKey,

@@ -23,12 +23,12 @@
 
 use std::str::FromStr;
 
-use crate::BitcoinAddress;
 use crate::btc::utils::SECP;
 use crate::core::errors::BridgeCliError;
 use crate::core::secure_types::{SecureKeypair, SecureSecretKey};
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::wallet_db::{MinimalWalletData, WalletTable};
+use crate::wallet::BitcoinAddress;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
 use bip39::Mnemonic;
 use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
