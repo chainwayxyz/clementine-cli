@@ -18,7 +18,8 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::{BitcoinAddress, core::config::ConfigErrors, wallet::Purpose};
+use crate::core::config::ConfigErrors;
+use crate::wallet::{BitcoinAddress, Purpose};
 use bitcoin::Network;
 use bitcoin::OutPoint;
 use bitcoin::address::ParseError;
@@ -244,54 +245,6 @@ pub enum BridgeCliError {
     Eyre(#[from] eyre::Report),
 }
 
-/// Extension traits for errors to easily convert them to [`eyre::Report`]  
-/// through [`BridgeCliError`].
-pub trait ErrorExt: Sized {
-    /// Converts the error into an [`eyre::Report`], first wrapping in
-    /// [`BridgeCliError`] if necessary. It does not rewrap in
-    /// [`eyre::Report`] if the given error is already an [`eyre::Report`].
-    fn into_eyre(self) -> eyre::Report;
-}
-
-/// Extension traits for results to easily convert them to [`eyre::Report`] and
-/// through [`BridgeCliError`].
-pub trait ResultExt: Sized {
-    type Output;
-
-    fn map_to_eyre(self) -> Result<Self::Output, eyre::Report>;
-}
-
-/// Extension for printing errors on any Result.
-pub trait PrintErr {
-    fn print_err(self) -> Self;
-}
-
-impl<T, E: std::fmt::Display> PrintErr for Result<T, E> {
-    fn print_err(self) -> Self {
-        if let Err(e) = &self {
-            eprintln!("{}", e);
-        }
-        self
-    }
-}
-
-impl<T: Into<BridgeCliError>> ErrorExt for T {
-    fn into_eyre(self) -> eyre::Report {
-        match self.into() {
-            BridgeCliError::Eyre(report) => report,
-            other => eyre::eyre!(other),
-        }
-    }
-}
-
-impl<U: Sized, T: Into<BridgeCliError>> ResultExt for Result<U, T> {
-    type Output = U;
-
-    fn map_to_eyre(self) -> Result<Self::Output, eyre::Report> {
-        self.map_err(ErrorExt::into_eyre)
-    }
-}
-
 impl From<bitcoin::address::ParseError> for BridgeCliError {
     fn from(err: bitcoin::address::ParseError) -> Self {
         match err {
@@ -301,25 +254,5 @@ impl From<bitcoin::address::ParseError> for BridgeCliError {
             // For other variants, use the default error message
             _ => Self::BitcoinParseError(err.to_string())
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_downcast() {
-        assert_eq!(
-            BridgeCliError::UnsupportedNetwork(Network::Testnet)
-                .into_eyre()
-                .wrap_err("Some other error")
-                .into_eyre()
-                .wrap_err("some other")
-                .downcast_ref::<BridgeCliError>()
-                .unwrap()
-                .to_string(),
-            BridgeCliError::UnsupportedNetwork(Network::Testnet).to_string()
-        );
     }
 }

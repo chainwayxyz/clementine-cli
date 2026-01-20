@@ -571,13 +571,13 @@ impl<'a> Drop for SecureMnemonicDisplay<'a> {
 }
 
 /// Convenience function to display a mnemonic securely
-pub(crate) fn display_mnemonic_securely(mnemonic: &Mnemonic) -> Result<()> {
+pub fn display_mnemonic_securely(mnemonic: &Mnemonic) -> Result<()> {
     let mut display = SecureMnemonicDisplay::new(mnemonic);
     display.display_securely()
 }
 
 /// Simple secure display for private keys
-pub(crate) fn display_private_key_securely(private_key: &SecureSecretKey) -> Result<()> {
+pub fn display_private_key_securely(private_key: &SecureSecretKey) -> Result<()> {
     // Check if terminal supports alternate screen
     if !std::io::stdout().is_terminal() {
         return display_private_key_fallback(private_key);

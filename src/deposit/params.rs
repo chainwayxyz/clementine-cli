@@ -1,5 +1,6 @@
+use crate::deposit::CitreaAddress;
+use crate::wallet::BitcoinAddress;
 use crate::wallet::TaprootAddressWithPrefix;
-use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{OutPoint, Transaction};
 
 /// Parameters for creating a signed recovery transaction

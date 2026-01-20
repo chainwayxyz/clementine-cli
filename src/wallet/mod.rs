@@ -20,9 +20,17 @@ pub(crate) mod passphrase;
 pub(crate) mod wallet_storage;
 pub(crate) mod wallet_utils;
 
+pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
+
 pub use address::{
     AddrDisplay, Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address,
     print_all_wallets_with_addresses, should_not_have_purpose,
+};
+pub use mnemonic::prompt_mnemonic;
+pub use passphrase::{prompt_passphrase, prompt_unlock_passphrase};
+pub use wallet_utils::{
+    derive_and_validate_mnemonic_import, ensure_wallet_exists, load_key_with_purpose_check,
+    validate_imported_wallet_file, validate_wallet_availability,
 };
 
 use bip39::Mnemonic;
@@ -41,9 +49,7 @@ use std::path::PathBuf;
 use crate::btc::utils::SECP;
 use crate::core::errors::BridgeCliError;
 use crate::core::secure_types::SecureByteVec;
-use crate::core::secure_types::SecureKeypair;
-use crate::core::secure_types::SecureSecretKey;
-use crate::core::secure_types::SecureString;
+use crate::core::secure_types::{SecureKeypair, SecureSecretKey, SecureString};
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
@@ -52,10 +58,7 @@ use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
 use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
 use crate::wallet::wallet_storage::extract_wallet_data_to_file;
-use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
-use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
-use crate::wallet::wallet_utils::validate_wallet_availability;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, validate_mnemonic_import, validate_private_key_import,
 };

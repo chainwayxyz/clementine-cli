@@ -5,14 +5,14 @@ mod status;
 pub use params::{SafeWithdrawalParams, TxJson, WithdrawalParams, WithdrawalUrl};
 pub use status::{OptimisticPayoutStatus, WithdrawStatus};
 
-use crate::BitcoinAddress;
 use crate::btc::utils::{sign_withdrawal_signature, verify_withdrawal_signature};
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
-use crate::core::secure_types::SecureKeypair;
+use crate::core::secure_types::{SecureKeypair, SecureString};
 use crate::core::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
-use crate::services::api::{get_tx_details, get_utxos, is_tx_on_chain};
+use crate::services::api::{UtxoInfo, get_tx_details, get_utxos, is_tx_on_chain};
 use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::wallet::BitcoinAddress;
 use crate::wallet::Purpose;
 use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::wallet_utils::is_withdrawal_address_wallet_address;
@@ -163,7 +163,7 @@ pub async fn safe_withdraw(
 
 pub async fn send_safe_withdrawal(
     params: SafeWithdrawalParams,
-    secret_key: crate::core::secure_types::SecureString,
+    secret_key: SecureString,
     config: &BridgeCliConfig,
 ) -> Result<TransactionReceipt, BridgeCliError> {
     // Parse the secret key with improved error handling
@@ -226,7 +226,7 @@ pub async fn send_safe_withdrawal(
     Ok(receipt)
 }
 
-pub(crate) async fn start_withdrawal(
+pub async fn start_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
@@ -242,7 +242,7 @@ pub async fn scan_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     _destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<Vec<crate::services::api::UtxoInfo>, BridgeCliError> {
+) -> Result<Vec<UtxoInfo>, BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let utxos = get_utxos(&signer_address.address, config).await?;

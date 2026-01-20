@@ -1,4 +1,5 @@
-use crate::{core::config::ConfigErrors, core::errors::BridgeCliError};
+use clementine_cli::config::ConfigErrors;
+use clementine_cli::errors::BridgeCliError;
 use colored::Colorize;
 use std::{any::Any, error::Error};
 
@@ -10,7 +11,7 @@ macro_rules! handle_cli_command {
         match $expr.await {
             Ok($pattern) => { $($body)* }
             Err(e) => {
-                $crate::handle_err(e);
+                $crate::cli::macros::handle_err(e);
             }
         }
     };
@@ -32,7 +33,7 @@ macro_rules! handle_cli_command {
         match $expr {
             Ok($pattern) => { $($body)* }
             Err(e) => {
-                $crate::handle_err(e);
+                $crate::cli::macros::handle_err(e);
             }
         }
     };
@@ -50,17 +51,17 @@ macro_rules! handle_cli_command {
     };
 }
 
-pub fn report_config_error(e: &ConfigErrors) {
+fn report_config_error(e: &ConfigErrors) {
     tracing::error!(error = ?e);
     eprintln!("{} {}", "Error:".bold().red(), e);
 }
 
-pub fn report_bridge(e: &BridgeCliError) {
+fn report_bridge(e: &BridgeCliError) {
     tracing::error!(error = ?e);
     eprintln!("{} {}", "Error:".bold().red(), e);
 }
 
-pub fn report_any(err: &(dyn Error + 'static)) {
+fn report_any(err: &(dyn Error + 'static)) {
     tracing::error!(error = ?err);
     eprintln!("{} {}", "Error:".bold().red(), err);
 }
@@ -80,7 +81,7 @@ where
         report_any(err_obj);
     }
 }
-pub fn handle_err<E>(e: E) -> !
+pub(crate) fn handle_err<E>(e: E) -> !
 where
     E: Error + 'static,
 {
@@ -94,7 +95,7 @@ macro_rules! handle_simple_call {
         match $expr {
             Ok(val) => val,
             Err(e) => {
-                $crate::handle_err(e);
+                $crate::cli::macros::handle_err(e);
             }
         }
     };

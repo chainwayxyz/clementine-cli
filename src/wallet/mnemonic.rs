@@ -131,7 +131,7 @@ pub(crate) fn derive_private_key_from_mnemonic(
 }
 
 /// Securely prompt for mnemonic phrase word by word with validation
-pub(crate) fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
+pub fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     println!("{}", "Secure Mnemonic Input".bold());
     println!(
         "Enter your {}-word mnemonic phrase word by word.",

@@ -197,7 +197,7 @@ where
 }
 
 /// Combined validation function to check for conflicts during wallet operations
-pub(crate) async fn validate_wallet_availability(
+pub async fn validate_wallet_availability(
     label: Option<&str>,
     address: Option<&TaprootAddressWithPrefix<NetworkChecked>>,
     sqlite_client: Option<&SqliteDb>,
@@ -220,7 +220,7 @@ pub(crate) async fn validate_wallet_availability(
 }
 
 /// Derive address from mnemonic and ensure both label and address are available
-pub(crate) async fn derive_and_validate_mnemonic_import(
+pub async fn derive_and_validate_mnemonic_import(
     network: Network,
     label: Option<&str>,
     purpose: Purpose,
@@ -298,16 +298,26 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     Ok(wallet_data)
 }
 
-pub(crate) async fn ensure_wallet_exists<T>(
+pub async fn validate_imported_wallet_file(
+    file_path: &Path,
+    label: Option<&str>,
+    sqlite_client: Option<&SqliteDb>,
+) -> Result<(), BridgeCliError> {
+    parse_and_validate_imported_wallet(file_path, label, sqlite_client)
+        .await
+        .map(|_| ())
+}
+
+pub async fn ensure_wallet_exists<T>(
     address: &TaprootAddressWithPrefix<T>,
     sqlite_client: Option<&SqliteDb>,
-) -> Result<(), crate::core::errors::BridgeCliError>
+) -> Result<(), BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
     if !address_exists(address, sqlite_client).await? {
-        return Err(crate::core::errors::BridgeCliError::WalletNotFound(
+        return Err(BridgeCliError::WalletNotFound(
             address.address_without_prefix(),
         ));
     }
@@ -350,7 +360,7 @@ where
 
 /// Check if a Bitcoin address is a withdrawal wallet address
 pub(crate) async fn is_withdrawal_address_wallet_address(
-    address: &crate::BitcoinAddress,
+    address: &crate::wallet::BitcoinAddress,
     config: &crate::core::config::BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
     if address.address_type() == Some(bitcoin::AddressType::P2tr) {
