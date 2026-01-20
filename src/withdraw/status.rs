@@ -10,7 +10,6 @@ const KV_GAP: &str = "    ";
 const SUB_KV_INDENT: &str = "    ";
 const SUB_KV_GAP: &str = " ";
 
-
 pub(crate) enum WithdrawStatusEnum {
     New,
     InProgress,

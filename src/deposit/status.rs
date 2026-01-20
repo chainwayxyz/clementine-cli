@@ -65,7 +65,6 @@ const PROGRESS_BAR_WIDTH: usize = 40;
 const KV_INDENT: &str = "  ";
 const KV_GAP: &str = " ";
 
-
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
