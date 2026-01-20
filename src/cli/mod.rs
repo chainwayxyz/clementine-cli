@@ -1,3 +1,6 @@
+pub mod macros;
+pub mod network;
+
 use std::{
     fs, io,
     io::Write,
@@ -36,7 +39,8 @@ use crate::{
     import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
     secure_types::SecureString,
-    structs::{DepositStatusWithVout, TaprootAddressWithPrefix},
+    deposit::DepositStatusWithVout,
+    wallet::TaprootAddressWithPrefix,
     wallet::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
         mnemonic::prompt_mnemonic,
@@ -50,7 +54,7 @@ use crate::{
 };
 use crate::{
     api_utils::{get_block_height_for_tx, get_mempool_txs},
-    deposit::storage::DepositAddressStorageResult,
+    deposit::DepositAddressStorageResult,
 };
 use crate::{
     config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
