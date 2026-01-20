@@ -1,7 +1,8 @@
 use crate::config::BridgeCliConfig;
+use crate::deposit::DepositStatus;
 use crate::errors::BridgeCliError;
-use crate::structs::{DepositStatus, WithdrawStatus};
 use crate::wallet::address::parse_taproot_address;
+use crate::withdraw::WithdrawStatus;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::{Address, OutPoint};
 use colored::*;

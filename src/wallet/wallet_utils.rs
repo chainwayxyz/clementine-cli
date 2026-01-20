@@ -20,9 +20,9 @@ use crate::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
 use crate::sqlite_db::wallet_db::WalletExport;
 use crate::sqlite_db::wallet_db::{WalletData, WalletTable};
-use crate::structs::AddrDisplay;
-use crate::structs::TaprootAddressWithPrefix;
+use crate::wallet::AddrDisplay;
 use crate::wallet::Purpose;
+use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::address::generate_address_from_mnemonic;
 use crate::wallet::encryption::aes_decrypt_secure;
@@ -299,12 +299,12 @@ pub(crate) async fn parse_and_validate_imported_wallet(
 }
 
 pub(crate) async fn ensure_wallet_exists<T>(
-    address: &crate::structs::TaprootAddressWithPrefix<T>,
+    address: &TaprootAddressWithPrefix<T>,
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<(), crate::errors::BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
+    bitcoin::Address<T>: AddrDisplay,
 {
     if !address_exists(address, sqlite_client).await? {
         return Err(crate::errors::BridgeCliError::WalletNotFound(

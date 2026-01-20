@@ -23,8 +23,8 @@ use bitcoin::Network;
 use bitcoin::OutPoint;
 use bitcoin::address::ParseError;
 use clap::builder::StyledStr;
-use core::fmt::Debug;
 use hex::FromHexError;
+use std::fmt::Debug;
 use thiserror::Error;
 
 /// Errors returned by the Clementine CLI.

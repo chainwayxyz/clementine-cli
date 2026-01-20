@@ -1,7 +1,7 @@
 use crate::errors::BridgeCliError;
 use crate::sqlite_db::deposit_db::{DepositRecord, DepositTable};
 use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
-use crate::structs::TaprootAddressWithPrefix;
+use crate::wallet::TaprootAddressWithPrefix;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::Network;
 use bitcoin::address::NetworkUnchecked;
@@ -131,6 +131,8 @@ mod tests {
     use crate::deposit::get_deposit_address;
     use crate::sqlite_db::test_utils::fresh_db_with_test_name;
     use crate::wallet::Purpose;
+    use crate::wallet::TaprootAddressWithPrefix;
+    use crate::{BitcoinAddress, CitreaAddress};
     use bitcoin::key::TweakedPublicKey;
     use bitcoin::secp256k1::{Keypair, Secp256k1, SecretKey, XOnlyPublicKey};
 

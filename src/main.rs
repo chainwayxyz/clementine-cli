@@ -17,8 +17,7 @@ use clementine_cli::{
     config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
     print_all_wallets_with_addresses,
-    structs::TaprootAddressWithPrefix,
-    wallet::{Purpose, parse_address, parse_taproot_address},
+    wallet::{Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address},
     withdraw,
 };
 use clementine_cli::{handle_simple_call, parse_transaction_hex};

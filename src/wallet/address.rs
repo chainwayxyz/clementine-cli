@@ -21,18 +21,19 @@
 //! - **Withdrawal addresses**: Prefixed with "wit"
 //!
 
+use std::str::FromStr;
+
+use crate::BitcoinAddress;
 use crate::bitcoin_utils::SECP;
 use crate::errors::BridgeCliError;
 use crate::secure_types::{SecureKeypair, SecureSecretKey};
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::wallet_db::{MinimalWalletData, WalletTable};
-use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;
-use crate::{BitcoinAddress, NetworkUnchecked};
 use bip39::Mnemonic;
-use bitcoin::address::NetworkChecked;
+use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
 use bitcoin::secp256k1::{Keypair, SecretKey};
-use bitcoin::{AddressType, Network};
+use bitcoin::{Address, AddressType, Network};
 use clap::ValueEnum;
 use colored::Colorize;
 use secrecy::ExposeSecret;
@@ -65,6 +66,134 @@ impl Purpose {
             WITHDRAWAL_PREFIX => Ok(Purpose::Withdrawal),
             _ => Err(BridgeCliError::InvalidPrefix(s.to_string())),
         }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct TaprootAddressWithPrefix<T: NetworkValidation> {
+    pub address: Address<T>,
+    pub purpose: Purpose,
+}
+
+impl TaprootAddressWithPrefix<NetworkChecked> {
+    pub fn new(address: Address<NetworkChecked>, purpose: Purpose) -> Result<Self, BridgeCliError> {
+        let address_type = if let Some(t) = address.address_type() {
+            t
+        } else {
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
+        };
+
+        if address_type != bitcoin::AddressType::P2tr {
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
+        }
+
+        Ok(Self { address, purpose })
+    }
+
+    pub fn from_string_with_prefix(
+        address: &str,
+        network: bitcoin::Network,
+    ) -> Result<Self, BridgeCliError> {
+        if address.len() < 3 {
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
+        }
+
+        let purpose = Purpose::purpose_from_str(&address[0..3])?;
+
+        let addr_str = &address[3..];
+
+        let bitcoin_address = parse_taproot_address(addr_str, network)?;
+
+        let taproot_address_with_prefix = Self::new(bitcoin_address, purpose)?;
+
+        Ok(taproot_address_with_prefix)
+    }
+
+    pub fn from_string_without_prefix(
+        address: &str,
+        purpose: Purpose,
+        network: bitcoin::Network,
+    ) -> Result<Self, BridgeCliError> {
+        let bitcoin_address = parse_taproot_address(address, network)?;
+        let taproot_address_with_prefix = Self::new(bitcoin_address, purpose)?;
+        Ok(taproot_address_with_prefix)
+    }
+}
+
+impl TaprootAddressWithPrefix<NetworkUnchecked> {
+    pub fn from_string_with_prefix_unchecked(address: &str) -> Result<Self, BridgeCliError> {
+        if address.len() < 4 {
+            return Err(BridgeCliError::InvalidAddressFormat(address.to_string()));
+        }
+
+        let purpose = Purpose::purpose_from_str(&address[0..3])?;
+
+        let addr_str = &address[3..];
+
+        let unchecked_address: BitcoinAddress<NetworkUnchecked> =
+            addr_str.parse().map_err(|e| {
+                BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e))
+            })?;
+
+        let taproot_address_with_prefix = Self {
+            address: unchecked_address,
+            purpose,
+        };
+
+        Ok(taproot_address_with_prefix)
+    }
+
+    pub fn assume_checked(&self) -> TaprootAddressWithPrefix<NetworkChecked> {
+        TaprootAddressWithPrefix {
+            address: self.address.clone().assume_checked(),
+            purpose: self.purpose,
+        }
+    }
+}
+
+impl From<&TaprootAddressWithPrefix<NetworkChecked>>
+    for TaprootAddressWithPrefix<NetworkUnchecked>
+{
+    fn from(val: &TaprootAddressWithPrefix<NetworkChecked>) -> Self {
+        TaprootAddressWithPrefix {
+            address: Address::from_str(&val.address.to_string())
+                .expect("Cannot fail since address is valid"),
+            purpose: val.purpose,
+        }
+    }
+}
+
+pub trait AddrDisplay {
+    fn as_display_str(&self) -> String;
+}
+
+impl AddrDisplay for Address<NetworkChecked> {
+    fn as_display_str(&self) -> String {
+        self.to_string()
+    }
+}
+
+impl AddrDisplay for Address<NetworkUnchecked> {
+    fn as_display_str(&self) -> String {
+        self.clone().assume_checked().to_string()
+    }
+}
+
+impl<T> TaprootAddressWithPrefix<T>
+where
+    T: NetworkValidation,
+    Address<T>: AddrDisplay,
+{
+    pub fn address_without_prefix(&self) -> String {
+        self.address.as_display_str()
+    }
+
+    pub fn address_with_prefix(&self) -> String {
+        format!(
+            "{}{}",
+            self.purpose.to_prefix(),
+            self.address_without_prefix()
+        )
     }
 }
 

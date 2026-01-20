@@ -1,4 +1,10 @@
 // Withdrawal-related commands and logic for Clementine CLI
+mod params;
+mod status;
+
+pub use params::{SafeWithdrawalParams, TxJson, WithdrawalParams, WithdrawalUrl};
+pub use status::{OptimisticPayoutStatus, WithdrawStatus};
+
 use crate::BitcoinAddress;
 use crate::api_utils::{get_tx_details, get_utxos, is_tx_on_chain};
 use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
@@ -6,9 +12,9 @@ use crate::config::BridgeCliConfig;
 use crate::errors::BridgeCliError;
 use crate::secure_types::SecureKeypair;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::structs::{TaprootAddressWithPrefix, WithdrawalParams};
 use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
+use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::wallet_utils::is_withdrawal_address_wallet_address;
 use crate::wallet::wallet_utils::{ensure_wallet_exists, validate_address_purpose};
 use alloy::network::EthereumWallet;
@@ -23,60 +29,6 @@ use eyre::Context;
 use secrecy::ExposeSecret;
 use serde_json::json;
 use urlencoding::encode;
-
-pub(crate) enum WithdrawStatusEnum {
-    New,
-    InProgress,
-    OptimisticPayoutFailed,
-    Completed,
-    Unknown,
-}
-
-#[derive(Debug)]
-pub struct WithdrawalUrl(pub String);
-
-#[derive(Debug)]
-pub struct TxJson(pub String);
-
-impl WithdrawStatusEnum {
-    pub(crate) fn from_backend_status(status: &str) -> Self {
-        match status {
-            "new" => WithdrawStatusEnum::New,
-            "completed" => WithdrawStatusEnum::Completed,
-            "sending-to-optimistic-payout"
-            | "sent-to-optimistic-payout"
-            | "sending-to-operator-withdraw"
-            | "sent-to-operator-withdraw" => WithdrawStatusEnum::InProgress,
-            "optimistic-payout-failed" => WithdrawStatusEnum::OptimisticPayoutFailed,
-            unknown_status => {
-                tracing::debug!("Returned unknown status: {}", unknown_status);
-                WithdrawStatusEnum::Unknown
-            }
-        }
-    }
-    pub fn as_string(&self) -> String {
-        match self {
-            WithdrawStatusEnum::New => "New".to_string(),
-            WithdrawStatusEnum::InProgress => "In Progress".to_string(),
-            WithdrawStatusEnum::OptimisticPayoutFailed => {
-                "Optimistic payout failed! Please proceed with operator paid withdrawal..."
-                    .to_string()
-            }
-            WithdrawStatusEnum::Completed => "Completed".to_string(),
-            WithdrawStatusEnum::Unknown => "Unknown".to_string(),
-        }
-    }
-}
-
-/// Parameters for safe withdrawal operations  
-#[derive(Debug)]
-pub struct SafeWithdrawalParams {
-    pub signer_address: TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
-    pub destination_address: BitcoinAddress,
-    pub withdrawal_outpoint: OutPoint,
-    pub withdrawal_amount: Amount,
-    pub signature: bitcoin::taproot::Signature,
-}
 
 fn create_bridge_contract(
     key: PrivateKeySigner,
