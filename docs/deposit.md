@@ -34,22 +34,22 @@ The deposit process consists of several stages:
 > [!IMPORTANT]
 > The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine wallet to be able to perform deposit specific signing operations in case the deposit fails, whereas the `DEPOSIT_ADDRESS` is the address you send Bitcoin to in order to perform the deposit operation. Your `RECOVERY_TAPROOT_ADDRESS` is used alongside the `N_of_N_ADDRESS` when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTINATION_ADDRESS`.
 
-## Step 1: Generate Deposit Address
+## Step 1: Start Deposit (Generate Deposit Address)
 
-### Online Device: Generate Deposit Address
+### Online Device: Start Deposit
 
 Create a deposit address using your Citrea (EVM) address and recovery taproot address:
 
 ```sh
-clementine-cli deposit get-deposit-address [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit start [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli deposit get-deposit-address depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
+clementine-cli deposit start depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 # For testnet4
-clementine-cli deposit get-deposit-address --network testnet depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
+clementine-cli deposit start --network testnet depbc1p... 0x742d35Cc6631C0532925a3b8D0dE4E8de4C837Be
 ```
 
 > [!IMPORTANT]

@@ -1111,7 +1111,7 @@ fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
     }
 }
 
-pub async fn cli_get_deposit_address(
+pub async fn cli_start_deposit(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
