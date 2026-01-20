@@ -1,4 +1,4 @@
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use bitcoin::Network;
 use eyre::{Context, eyre};
 use sqlx::{FromRow, Pool, Sqlite};

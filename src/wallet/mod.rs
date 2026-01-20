@@ -38,12 +38,12 @@ use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
-use crate::bitcoin_utils::SECP;
-use crate::errors::BridgeCliError;
-use crate::secure_types::SecureByteVec;
-use crate::secure_types::SecureKeypair;
-use crate::secure_types::SecureSecretKey;
-use crate::secure_types::SecureString;
+use crate::btc::utils::SECP;
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::SecureByteVec;
+use crate::core::secure_types::SecureKeypair;
+use crate::core::secure_types::SecureSecretKey;
+use crate::core::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};

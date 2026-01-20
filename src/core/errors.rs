@@ -18,7 +18,7 @@
 //!    use `eyre::Context::wrap_err` to add more context. This will not hinder
 //!    modules that are trying to match the error.
 
-use crate::{BitcoinAddress, config::ConfigErrors, wallet::Purpose};
+use crate::{BitcoinAddress, core::config::ConfigErrors, wallet::Purpose};
 use bitcoin::Network;
 use bitcoin::OutPoint;
 use bitcoin::address::ParseError;

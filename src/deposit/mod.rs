@@ -7,13 +7,13 @@ pub(crate) mod storage;
 pub use params::{RecoveryTxParams, VerifyRecoveryTxParams};
 pub use status::{DepositStatus, DepositStatusWithVout};
 
-use crate::api_utils::{get_tx_details, get_txout_details};
-use crate::backend::create_deposit_account;
-use crate::bitcoin_utils::{calculate_deposit_address, convert_btc_to_amount};
-use crate::config::BridgeCliConfig;
-use crate::errors::BridgeCliError;
-use crate::parameters::get_citrea_deposit_params;
-use crate::secure_types::SecureKeypair;
+use crate::btc::utils::{calculate_deposit_address, convert_btc_to_amount};
+use crate::core::config::BridgeCliConfig;
+use crate::core::errors::BridgeCliError;
+use crate::core::parameters::get_citrea_deposit_params;
+use crate::core::secure_types::SecureKeypair;
+use crate::services::api::{get_tx_details, get_txout_details};
+use crate::services::backend::create_deposit_account;
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::wallet::Purpose;
 use crate::wallet::TaprootAddressWithPrefix;
@@ -146,7 +146,7 @@ pub async fn create_signed_recovery_tx(
         .map(FeeRate::from_sat_per_vb_unchecked)
         .unwrap_or_else(|| FeeRate::from_sat_per_vb_unchecked(10)); // Default 10 sat/vbyte
 
-    let signed_tx = crate::bitcoin_utils::sign_recovery_tx(
+    let signed_tx = crate::btc::utils::sign_recovery_tx(
         &keypair,
         &params.citrea_addr,
         &params.recovery_taproot_address.address,
@@ -166,7 +166,7 @@ pub fn verify_recovery_tx(
 ) -> Result<(Txid, BitcoinAddress, Amount), BridgeCliError> {
     validate_address_purpose(&params.recovery_taproot_address, Purpose::Deposit)?;
 
-    let (txid, address, amount) = crate::bitcoin_utils::verify_recovery_tx(
+    let (txid, address, amount) = crate::btc::utils::verify_recovery_tx(
         &params.recovery_tx,
         &params.citrea_address,
         &params.recovery_taproot_address.address,

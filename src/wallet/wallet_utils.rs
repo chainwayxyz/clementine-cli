@@ -13,10 +13,10 @@
 //! - **Address derivation**: Confirms imported data matches addresses
 //!
 
-use crate::errors::BridgeCliError;
-use crate::secure_types::SecureKeypair;
-use crate::secure_types::SecureSecretKey;
-use crate::secure_types::SecureString;
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::SecureKeypair;
+use crate::core::secure_types::SecureSecretKey;
+use crate::core::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
 use crate::sqlite_db::wallet_db::WalletExport;
 use crate::sqlite_db::wallet_db::{WalletData, WalletTable};
@@ -144,7 +144,7 @@ pub(crate) fn validate_private_key_import(
                 Ok(private_key) => {
                     let secure_secret_key = SecureSecretKey::new(private_key);
                     let keypair = SecureKeypair::new(Keypair::from_secret_key(
-                        &crate::bitcoin_utils::SECP,
+                        &crate::btc::utils::SECP,
                         secure_secret_key.as_ref_inner(),
                     ));
                     let derived_address = calculate_taproot_address(&keypair, network);
@@ -301,13 +301,13 @@ pub(crate) async fn parse_and_validate_imported_wallet(
 pub(crate) async fn ensure_wallet_exists<T>(
     address: &TaprootAddressWithPrefix<T>,
     sqlite_client: Option<&SqliteDb>,
-) -> Result<(), crate::errors::BridgeCliError>
+) -> Result<(), crate::core::errors::BridgeCliError>
 where
     T: bitcoin::address::NetworkValidation,
     bitcoin::Address<T>: AddrDisplay,
 {
     if !address_exists(address, sqlite_client).await? {
-        return Err(crate::errors::BridgeCliError::WalletNotFound(
+        return Err(crate::core::errors::BridgeCliError::WalletNotFound(
             address.address_without_prefix(),
         ));
     }
@@ -351,7 +351,7 @@ where
 /// Check if a Bitcoin address is a withdrawal wallet address
 pub(crate) async fn is_withdrawal_address_wallet_address(
     address: &crate::BitcoinAddress,
-    config: &crate::config::BridgeCliConfig,
+    config: &crate::core::config::BridgeCliConfig,
 ) -> Result<bool, BridgeCliError> {
     if address.address_type() == Some(bitcoin::AddressType::P2tr) {
         let address = TaprootAddressWithPrefix::from_string_without_prefix(

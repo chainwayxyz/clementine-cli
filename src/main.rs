@@ -1,5 +1,6 @@
 use bitcoin::{Network, OutPoint, Txid, taproot::Signature};
 use clap::{Parser, Subcommand};
+use clementine_cli::cli::network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
     cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
@@ -9,12 +10,11 @@ use clementine_cli::cli::{
     cli_verify_recovery_tx_with_validation, deposit_create_signed_recovery_tx, deposit_status,
     send_withdrawal_signature, withdrawal_status,
 };
-use clementine_cli::cli_network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 
 use clementine_cli::wallet::should_not_have_purpose;
 use clementine_cli::{
     BitcoinAddress, broadcast_recovery_tx,
-    config::BridgeCliConfig,
+    core::config::BridgeCliConfig,
     deposit, get_deposit_params, handle_cli_command, parse_citrea_address,
     print_all_wallets_with_addresses,
     wallet::{Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address},

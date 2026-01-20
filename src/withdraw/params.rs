@@ -1,5 +1,5 @@
 use crate::BitcoinAddress;
-use crate::types::{MerkleProof, Transaction};
+use crate::core::types::{MerkleProof, Transaction};
 use crate::wallet::TaprootAddressWithPrefix;
 use bitcoin::taproot::Signature;
 use bitcoin::{Amount, OutPoint};

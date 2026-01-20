@@ -1,4 +1,4 @@
-use crate::{config::ConfigErrors, errors::BridgeCliError};
+use crate::{core::config::ConfigErrors, core::errors::BridgeCliError};
 use colored::Colorize;
 use std::{any::Any, error::Error};
 

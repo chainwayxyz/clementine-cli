@@ -24,9 +24,9 @@
 use std::str::FromStr;
 
 use crate::BitcoinAddress;
-use crate::bitcoin_utils::SECP;
-use crate::errors::BridgeCliError;
-use crate::secure_types::{SecureKeypair, SecureSecretKey};
+use crate::btc::utils::SECP;
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::{SecureKeypair, SecureSecretKey};
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::wallet_db::{MinimalWalletData, WalletTable};
 use crate::wallet::mnemonic::get_master_seed_from_mnemonic;

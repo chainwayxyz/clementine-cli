@@ -33,7 +33,7 @@ use bitcoin::address::{NetworkChecked, NetworkUnchecked, NetworkValidation};
 use std::fs;
 use std::path::Path;
 
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use crate::sqlite_db;
 use crate::sqlite_db::sqlite_client::SqliteDb;
 use crate::sqlite_db::sqlite_client::resolve_sqlite_client;

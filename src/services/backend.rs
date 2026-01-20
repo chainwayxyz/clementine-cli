@@ -1,6 +1,6 @@
-use crate::config::BridgeCliConfig;
+use crate::core::config::BridgeCliConfig;
+use crate::core::errors::BridgeCliError;
 use crate::deposit::DepositStatus;
-use crate::errors::BridgeCliError;
 use crate::wallet::address::parse_taproot_address;
 use crate::withdraw::WithdrawStatus;
 use crate::{BitcoinAddress, CitreaAddress};

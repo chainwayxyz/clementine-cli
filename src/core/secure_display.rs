@@ -14,7 +14,7 @@ use secrecy::ExposeSecret;
 use std::io::{self, IsTerminal, Write};
 use std::time::{Duration, Instant};
 
-use crate::secure_types::{SecureSecretKey, SecureString};
+use crate::core::secure_types::{SecureSecretKey, SecureString};
 use crossterm::{
     cursor::MoveTo,
     terminal::{Clear, ClearType},

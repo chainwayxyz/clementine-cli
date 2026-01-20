@@ -1,4 +1,4 @@
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use eyre::eyre;
 use sha2::{Digest, Sha256};
 
