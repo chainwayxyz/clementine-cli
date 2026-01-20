@@ -490,7 +490,7 @@ mod tests {
         imported: bool,
         import_method: Option<ImportMethod>,
     ) -> TaprootAddressWithPrefix<NetworkChecked> {
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let address = generate_address_from_mnemonic(mnemonic, network, purpose).unwrap();
         let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
         let private_key = derive_private_key_from_mnemonic(mnemonic).unwrap();
@@ -520,7 +520,7 @@ mod tests {
         let passphrase = sample_passphrase();
 
         let (address, _) = create_encrypted_wallet(
-            Network::Testnet,
+            Network::Testnet4,
             "label_create".to_string(),
             Purpose::Deposit,
             passphrase,
@@ -542,7 +542,7 @@ mod tests {
 
         let wallet = fetched.unwrap();
         assert_eq!(wallet.label, "label_create");
-        assert_eq!(wallet.network, Network::Testnet);
+        assert_eq!(wallet.network, Network::Testnet4);
         assert!(wallet.created_at.timestamp() > 0);
         assert!(!wallet.imported);
         assert_eq!(wallet.import_method, None);
@@ -554,7 +554,7 @@ mod tests {
         let db = fresh_db_with_test_name().await;
 
         create_encrypted_wallet(
-            Network::Testnet,
+            Network::Testnet4,
             "dup_label".to_string(),
             Purpose::Withdrawal,
             sample_passphrase(),
@@ -564,7 +564,7 @@ mod tests {
         .unwrap();
 
         let err = create_encrypted_wallet(
-            Network::Testnet,
+            Network::Testnet4,
             "dup_label".to_string(),
             Purpose::Withdrawal,
             sample_passphrase(),
@@ -596,7 +596,7 @@ mod tests {
         .await;
 
         let address =
-            generate_address_from_mnemonic(&mnemonic, Network::Testnet, Purpose::Deposit).unwrap();
+            generate_address_from_mnemonic(&mnemonic, Network::Testnet4, Purpose::Deposit).unwrap();
 
         let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
         let private_key = derive_private_key_from_mnemonic(&mnemonic).unwrap();
@@ -605,7 +605,7 @@ mod tests {
 
         let err = wallet_storage::store_wallet_data(
             &address,
-            Network::Testnet,
+            Network::Testnet4,
             Some(&encrypted_mnemonic),
             &encrypted_private_key,
             false,
@@ -627,7 +627,7 @@ mod tests {
         let passphrase = sample_passphrase();
 
         let address = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "import_label",
             Purpose::Deposit,
             mnemonic.clone(),
@@ -657,7 +657,7 @@ mod tests {
         let mnemonic = sample_mnemonic();
 
         import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "label_one",
             Purpose::Withdrawal,
             mnemonic.clone(),
@@ -668,7 +668,7 @@ mod tests {
         .unwrap();
 
         let err = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "label_two",
             Purpose::Withdrawal,
             mnemonic,
@@ -695,7 +695,7 @@ mod tests {
         let mnemonic_two = alt_mnemonic();
 
         import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "same_label",
             Purpose::Deposit,
             mnemonic_one,
@@ -706,7 +706,7 @@ mod tests {
         .unwrap();
 
         let err = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "same_label",
             Purpose::Deposit,
             mnemonic_two,
@@ -751,7 +751,7 @@ mod tests {
         let export: WalletExport = serde_json::from_str(&content).unwrap();
         assert_eq!(export.label, "backup_label");
         assert_eq!(export.address, address.address_with_prefix());
-        assert_eq!(export.network, Network::Testnet.to_string());
+        assert_eq!(export.network, Network::Testnet4.to_string());
         assert!(export.encrypted_mnemonic.is_some());
         assert!(!export.encrypted_private_key.ciphertext.is_empty());
 
@@ -782,7 +782,7 @@ mod tests {
         let db = fresh_db_with_test_name().await;
         let passphrase = sample_passphrase();
         let mnemonic = sample_mnemonic();
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let address = generate_address_from_mnemonic(&mnemonic, network, Purpose::Deposit).unwrap();
 
         let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
@@ -838,7 +838,7 @@ mod tests {
         let db = fresh_db_with_test_name().await;
         let passphrase = sample_passphrase();
         let mnemonic = sample_mnemonic();
-        let network = Network::Testnet;
+        let network = Network::Testnet4;
         let address = generate_address_from_mnemonic(&mnemonic, network, Purpose::Deposit).unwrap();
 
         let mnemonic_secure: SecureString = SecureString::init_with(|| mnemonic.to_string());
@@ -874,11 +874,54 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn import_wallet_from_file_rejects_missing_mnemonic_for_non_private_key() {
+        let db = fresh_db_with_test_name().await;
+        let passphrase = sample_passphrase();
+        let mnemonic = sample_mnemonic();
+        let network = Network::Testnet4;
+        let address = generate_address_from_mnemonic(&mnemonic, network, Purpose::Deposit).unwrap();
+
+        let private_key = derive_private_key_from_mnemonic(&mnemonic).unwrap();
+        let encrypted_private_key = aes_encrypt_secure(&private_key, &passphrase).unwrap();
+
+        let export = WalletExport {
+            label: "missing_mnemonic_label".to_string(),
+            address: address.address_with_prefix(),
+            network: network.to_string(),
+            encrypted_mnemonic: None,
+            encrypted_private_key: encrypted_data_to_hex(&encrypted_private_key),
+            created_at: chrono::Utc::now().to_rfc3339(),
+            encryption_method: "aes256_gcm_argon2id_secure".to_string(),
+            imported: true,
+            original_import_method: Some(ImportMethod::Mnemonic),
+            import_method: Some(ImportMethod::Mnemonic),
+        };
+
+        // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
+        // end to surface issues; if the test fails before close, the destructor will still attempt cleanup.
+        let dir = tempdir().unwrap();
+        let path = dir.path().join("wallet_missing_mnemonic.json");
+        std::fs::write(&path, serde_json::to_string(&export).unwrap()).unwrap();
+
+        let err = import_wallet_from_file(
+            &path,
+            None,
+            SecureString::init_with(|| passphrase.expose_secret().to_string()),
+            Some(&db),
+        )
+        .await
+        .unwrap_err();
+
+        dir.close().expect("Failed to close and delete temp dir");
+        assert!(matches!(err, BridgeCliError::MissingEncryptedMnemonicField));
+    }
+
+    #[tokio::test]
     async fn import_wallet_from_private_key_succeeds() {
         let db = fresh_db_with_test_name().await;
 
         let address = import_wallet_from_private_key(
-            Network::Testnet,
+            Network::Testnet4,
             "pk_label",
             Purpose::Withdrawal,
             sample_private_key_hex(),
@@ -901,7 +944,7 @@ mod tests {
     async fn import_wallet_from_private_key_rejects_invalid_length() {
         let db = fresh_db_with_test_name().await;
         let err = import_wallet_from_private_key(
-            Network::Testnet,
+            Network::Testnet4,
             "pk_bad",
             Purpose::Deposit,
             short_private_key_hex(),
@@ -915,13 +958,148 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn get_mnemonic_from_wallet_rejects_private_key_file_import() {
+        let test_name = std::thread::current()
+            .name()
+            .expect("Failed to get current thread name for test database")
+            .split(':')
+            .next_back()
+            .expect("Failed to get last segment of thread name")
+            .to_string();
+        let source_db = SqliteDb::open_in_memory_with_schema(&format!("{test_name}_source"))
+            .await
+            .expect("Failed to open in-memory test DB");
+        let target_db = SqliteDb::open_in_memory_with_schema(&format!("{test_name}_target"))
+            .await
+            .expect("Failed to open in-memory test DB");
+        let passphrase = sample_passphrase();
+        let passphrase_for_import =
+            SecureString::init_with(|| passphrase.expose_secret().to_string());
+        let passphrase_for_show =
+            SecureString::init_with(|| passphrase.expose_secret().to_string());
+
+        let address = import_wallet_from_private_key(
+            Network::Testnet4,
+            "pk_file_source",
+            Purpose::Deposit,
+            sample_private_key_hex(),
+            passphrase,
+            Some(&source_db),
+        )
+        .await
+        .unwrap();
+
+        let addr_unchecked: TaprootAddressWithPrefix<NetworkUnchecked> =
+            TaprootAddressWithPrefix::from(&address);
+
+        // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
+        // end to surface issues; if the test fails before close, the destructor will still attempt cleanup.
+        let dir = tempdir().unwrap();
+        let path = backup_wallet(&addr_unchecked, dir.path(), Some(&source_db))
+            .await
+            .unwrap();
+
+        let imported_address = import_wallet_from_file(
+            &path,
+            None,
+            passphrase_for_import,
+            Some(&target_db),
+        )
+        .await
+        .unwrap();
+
+        dir.close().expect("Failed to close and delete temp dir");
+
+        let wallet = WalletTable::get_wallet_by_address(target_db.pool(), imported_address.clone())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(wallet.import_method, Some(ImportMethod::File));
+        assert_eq!(wallet.original_import_method, Some(ImportMethod::PrivateKey));
+
+        let err = get_mnemonic_from_wallet(&imported_address, &passphrase_for_show, Some(&target_db))
+            .await
+            .unwrap_err();
+        assert!(matches!(err, BridgeCliError::NoMnemonicAvailable));
+    }
+
+    #[tokio::test]
+    async fn get_mnemonic_from_wallet_succeeds_after_mnemonic_file_import() {
+        let test_name = std::thread::current()
+            .name()
+            .expect("Failed to get current thread name for test database")
+            .split(':')
+            .next_back()
+            .expect("Failed to get last segment of thread name")
+            .to_string();
+        let source_db = SqliteDb::open_in_memory_with_schema(&format!("{test_name}_source"))
+            .await
+            .expect("Failed to open in-memory test DB");
+        let target_db = SqliteDb::open_in_memory_with_schema(&format!("{test_name}_target"))
+            .await
+            .expect("Failed to open in-memory test DB");
+        let passphrase = sample_passphrase();
+        let passphrase_for_import =
+            SecureString::init_with(|| passphrase.expose_secret().to_string());
+        let passphrase_for_show =
+            SecureString::init_with(|| passphrase.expose_secret().to_string());
+        let mnemonic = sample_mnemonic();
+        let expected_mnemonic = mnemonic.clone();
+
+        let address = import_wallet_from_mnemonic(
+            Network::Testnet4,
+            "mnemonic_file_source",
+            Purpose::Deposit,
+            mnemonic,
+            passphrase,
+            Some(&source_db),
+        )
+        .await
+        .unwrap();
+
+        let addr_unchecked: TaprootAddressWithPrefix<NetworkUnchecked> =
+            TaprootAddressWithPrefix::from(&address);
+
+        // TempDir note: destructor ignores deletion errors (possible leaks if cleanup fails). We close() at the
+        // end to surface issues; if the test fails before close, the destructor will still attempt cleanup.
+        let dir = tempdir().unwrap();
+        let path = backup_wallet(&addr_unchecked, dir.path(), Some(&source_db))
+            .await
+            .unwrap();
+
+        let imported_address = import_wallet_from_file(
+            &path,
+            None,
+            passphrase_for_import,
+            Some(&target_db),
+        )
+        .await
+        .unwrap();
+
+        dir.close().expect("Failed to close and delete temp dir");
+
+        let wallet = WalletTable::get_wallet_by_address(target_db.pool(), imported_address.clone())
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(wallet.import_method, Some(ImportMethod::File));
+        assert_eq!(wallet.original_import_method, Some(ImportMethod::Mnemonic));
+
+        let fetched =
+            get_mnemonic_from_wallet(&imported_address, &passphrase_for_show, Some(&target_db))
+                .await
+                .unwrap();
+        assert_eq!(fetched.to_string(), expected_mnemonic.to_string());
+    }
+
+    #[tokio::test]
     async fn get_mnemonic_from_wallet_returns_plaintext() {
         let db = fresh_db_with_test_name().await;
         let mnemonic = sample_mnemonic();
         let passphrase = sample_passphrase();
 
         let address = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "mnemonic_fetch",
             Purpose::Deposit,
             mnemonic.clone(),
@@ -943,7 +1121,7 @@ mod tests {
         let passphrase = sample_passphrase();
 
         let address = import_wallet_from_private_key(
-            Network::Testnet,
+            Network::Testnet4,
             "no_mnemonic",
             Purpose::Deposit,
             sample_private_key_hex(),
@@ -965,7 +1143,7 @@ mod tests {
         let mnemonic = sample_mnemonic();
 
         let address = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "mnemonic_wrong_pass",
             Purpose::Deposit,
             mnemonic,
@@ -988,7 +1166,7 @@ mod tests {
         let passphrase = sample_passphrase();
 
         let address = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "pk_fetch",
             Purpose::Deposit,
             mnemonic.clone(),
@@ -1015,7 +1193,7 @@ mod tests {
         let mnemonic = sample_mnemonic();
 
         let address = import_wallet_from_mnemonic(
-            Network::Testnet,
+            Network::Testnet4,
             "pk_wrong_pass",
             Purpose::Deposit,
             mnemonic,
