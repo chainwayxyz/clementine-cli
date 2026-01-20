@@ -59,8 +59,8 @@ clementine-cli --help
 clementine-cli wallet create my-deposit-wallet deposit # Mainnet
 clementine-cli wallet create --network testnet my-deposit-wallet deposit
 
-# Generate Deposit Address
-clementine-cli deposit get-deposit-address --network testnet <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+# Start deposit (generate deposit address)
+clementine-cli deposit start --network testnet <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Monitor deposits (online device)
 clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet

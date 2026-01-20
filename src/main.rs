@@ -3,12 +3,12 @@ use clap::{Parser, Subcommand};
 use clementine_cli::cli::network::{CliNetwork, NETWORK_HELP_MESSAGE, NetworkParser};
 use clementine_cli::cli::{
     cli_backup_wallet, cli_create_wallet, cli_generate_withdrawal_signatures,
-    cli_get_deposit_address, cli_get_deposit_address_details, cli_import_wallet_from_file,
-    cli_import_wallet_from_mnemonic, cli_import_wallet_from_private_key,
-    cli_list_all_deposit_addresses, cli_scan_withdrawals, cli_send_safe_withdrawal,
-    cli_show_mnemonic, cli_show_private_key, cli_start_withdrawal,
-    cli_verify_recovery_tx_with_validation, deposit_create_signed_recovery_tx, deposit_status,
-    send_withdrawal_signature, withdrawal_status,
+    cli_get_deposit_address_details, cli_import_wallet_from_file, cli_import_wallet_from_mnemonic,
+    cli_import_wallet_from_private_key, cli_list_all_deposit_addresses, cli_scan_withdrawals,
+    cli_send_safe_withdrawal, cli_show_mnemonic, cli_show_private_key, cli_start_deposit,
+    cli_start_withdrawal, cli_verify_recovery_tx_with_validation,
+    deposit_create_signed_recovery_tx, deposit_status, send_withdrawal_signature,
+    withdrawal_status,
 };
 
 use clementine_cli::wallet::should_not_have_purpose;
@@ -189,8 +189,8 @@ enum WalletCommands {
 
 #[derive(Subcommand)]
 enum DepositCommands {
-    /// Generate a deposit address for the given Citrea and recovery addresses.
-    GetDepositAddress {
+    /// Start a deposit by generating a deposit address for the given Citrea and recovery addresses.
+    Start {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
         /// Recovery taproot address (must be a Clementine deposit address, dep-prefixed, taproot)
@@ -464,7 +464,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             }
         },
         Commands::Deposit { command } => match command {
-            DepositCommands::GetDepositAddress {
+            DepositCommands::Start {
                 recovery_taproot_address,
                 citrea_address,
                 network,
@@ -477,7 +477,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         config.network,
                     ));
                 handle_cli_command!(async
-                    cli_get_deposit_address(&citrea_address, &recovery_taproot_address, &config),
+                    cli_start_deposit(&citrea_address, &recovery_taproot_address, &config),
                     deposit_address => {
                         println!("Deposit address: {}", deposit_address.to_string ().bold());
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
