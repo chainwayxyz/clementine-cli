@@ -32,9 +32,9 @@ use crate::secure_types::{
     SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
 };
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::structs::{AddrDisplay, TaprootAddressWithPrefix};
 use crate::wallet::encryption::{aes_decrypt_secure, encrypted_data_from_hex};
 use crate::wallet::wallet_storage::load_wallet_data;
+use crate::wallet::{AddrDisplay, TaprootAddressWithPrefix};
 use bitcoin::secp256k1::SecretKey;
 use colored::Colorize;
 

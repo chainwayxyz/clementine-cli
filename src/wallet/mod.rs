@@ -20,11 +20,10 @@ pub(crate) mod passphrase;
 pub(crate) mod wallet_storage;
 pub(crate) mod wallet_utils;
 
-pub use address::Purpose;
-pub use address::parse_address;
-pub use address::parse_taproot_address;
-pub use address::print_all_wallets_with_addresses;
-pub use address::should_not_have_purpose;
+pub use address::{
+    AddrDisplay, Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address,
+    print_all_wallets_with_addresses, should_not_have_purpose,
+};
 
 use bip39::Mnemonic;
 use bitcoin::Network;
@@ -34,19 +33,21 @@ use bitcoin::address::NetworkValidation;
 use eyre::eyre;
 use secrecy::ExposeSecret;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 use std::fs;
 use std::path::Path;
 use std::path::PathBuf;
 
 use crate::bitcoin_utils::SECP;
+use crate::errors::BridgeCliError;
 use crate::secure_types::SecureByteVec;
 use crate::secure_types::SecureKeypair;
 use crate::secure_types::SecureSecretKey;
 use crate::secure_types::SecureString;
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::structs::TaprootAddressWithPrefix;
 use crate::wallet::address::calculate_taproot_address;
 use crate::wallet::encryption::{aes_decrypt_secure, aes_encrypt_secure};
+use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::mnemonic::derive_private_key_from_mnemonic;
 use crate::wallet::mnemonic::generate_mnemonic;
 use crate::wallet::mnemonic::load_mnemonic;
@@ -55,14 +56,10 @@ use crate::wallet::wallet_utils::derive_and_validate_mnemonic_import;
 use crate::wallet::wallet_utils::ensure_wallet_exists;
 use crate::wallet::wallet_utils::load_key;
 use crate::wallet::wallet_utils::validate_wallet_availability;
-use bitcoin::secp256k1::{Keypair, SecretKey};
-use std::fmt;
-
-use crate::errors::BridgeCliError;
-use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
 use crate::wallet::wallet_utils::{
     parse_and_validate_imported_wallet, validate_mnemonic_import, validate_private_key_import,
 };
+use bitcoin::secp256k1::{Keypair, SecretKey};
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum ImportMethod {
@@ -395,7 +392,7 @@ pub async fn get_mnemonic_from_wallet<T>(
 ) -> Result<Mnemonic, BridgeCliError>
 where
     T: NetworkValidation + Clone,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
+    bitcoin::Address<T>: AddrDisplay,
 {
     let mnemonic = load_mnemonic(address, passphrase, sqlite_client).await?;
 
@@ -409,7 +406,7 @@ pub async fn get_private_key_from_wallet<T>(
 ) -> Result<SecureSecretKey, BridgeCliError>
 where
     T: NetworkValidation + Clone,
-    bitcoin::Address<T>: crate::structs::AddrDisplay,
+    bitcoin::Address<T>: AddrDisplay,
 {
     let keypair = load_key(address, passphrase, sqlite_client).await?;
 

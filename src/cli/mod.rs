@@ -34,12 +34,12 @@ use crate::{
     backup_wallet,
     config::BridgeCliConfig,
     create_encrypted_wallet, deposit,
+    deposit::DepositStatusWithVout,
     errors::BridgeCliError,
     generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
     import_wallet_from_private_key,
     secure_display::display_mnemonic_securely,
     secure_types::SecureString,
-    deposit::DepositStatusWithVout,
     wallet::TaprootAddressWithPrefix,
     wallet::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,

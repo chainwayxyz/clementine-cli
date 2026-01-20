@@ -107,7 +107,11 @@ impl Display for WithdrawStatus {
             "  Payout Deadline:       {}",
             display_option_or(&self.optimistic_payout_deadline_at)
         )?;
-        writeln!(f, "  Created:               {}", display_or(&self.created_at))?;
+        writeln!(
+            f,
+            "  Created:               {}",
+            display_or(&self.created_at)
+        )?;
         writeln!(f, "  Optimistic Payout Info")?;
         let (raw_tx, txid) = match &self.optimistic_payout_payment {
             Some(payout) => (display_or(&payout.tx_raw), display_or(&payout.txid)),
