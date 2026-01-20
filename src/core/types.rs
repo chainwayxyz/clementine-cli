@@ -1,5 +1,5 @@
 use crate::parameters::{CitreaMerkleProof, CitreaTransaction};
-use crate::structs::WithdrawalParams;
+use crate::withdraw::WithdrawalParams;
 use crate::types::BRIDGE_CONTRACT::BRIDGE_CONTRACTInstance;
 use alloy::network::EthereumWallet;
 use alloy::providers::RootProvider;

@@ -23,7 +23,7 @@ use bitcoin::Network;
 use bitcoin::OutPoint;
 use bitcoin::address::ParseError;
 use clap::builder::StyledStr;
-use core::fmt::Debug;
+use std::fmt::Debug;
 use hex::FromHexError;
 use thiserror::Error;
 
