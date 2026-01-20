@@ -999,14 +999,10 @@ mod tests {
             .await
             .unwrap();
 
-        let imported_address = import_wallet_from_file(
-            &path,
-            None,
-            passphrase_for_import,
-            Some(&target_db),
-        )
-        .await
-        .unwrap();
+        let imported_address =
+            import_wallet_from_file(&path, None, passphrase_for_import, Some(&target_db))
+                .await
+                .unwrap();
 
         dir.close().expect("Failed to close and delete temp dir");
 
@@ -1015,11 +1011,15 @@ mod tests {
             .unwrap()
             .unwrap();
         assert_eq!(wallet.import_method, Some(ImportMethod::File));
-        assert_eq!(wallet.original_import_method, Some(ImportMethod::PrivateKey));
+        assert_eq!(
+            wallet.original_import_method,
+            Some(ImportMethod::PrivateKey)
+        );
 
-        let err = get_mnemonic_from_wallet(&imported_address, &passphrase_for_show, Some(&target_db))
-            .await
-            .unwrap_err();
+        let err =
+            get_mnemonic_from_wallet(&imported_address, &passphrase_for_show, Some(&target_db))
+                .await
+                .unwrap_err();
         assert!(matches!(err, BridgeCliError::NoMnemonicAvailable));
     }
 
@@ -1067,14 +1067,10 @@ mod tests {
             .await
             .unwrap();
 
-        let imported_address = import_wallet_from_file(
-            &path,
-            None,
-            passphrase_for_import,
-            Some(&target_db),
-        )
-        .await
-        .unwrap();
+        let imported_address =
+            import_wallet_from_file(&path, None, passphrase_for_import, Some(&target_db))
+                .await
+                .unwrap();
 
         dir.close().expect("Failed to close and delete temp dir");
 
