@@ -2,8 +2,8 @@
 
 use std::str::FromStr;
 
-use crate::errors::BridgeCliError;
-use crate::{BitcoinAddress, config::BridgeCliConfig, parse_transaction_hex};
+use crate::core::errors::BridgeCliError;
+use crate::{BitcoinAddress, core::config::BridgeCliConfig, parse_transaction_hex};
 use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
 use bitcoincore_rpc::{Client, RpcApi};
@@ -475,7 +475,7 @@ async fn is_tx_on_chain_bitcoin_rpc(
 mod tests {
     use crate::{
         broadcast_recovery_tx,
-        config::{BitcoinConfig, BridgeCliConfig},
+        core::config::{BitcoinConfig, BridgeCliConfig},
         parse_transaction_hex,
     };
     use bitcoin::{

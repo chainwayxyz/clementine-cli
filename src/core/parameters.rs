@@ -1,8 +1,8 @@
 //! # Parameter Builder For Citrea Requests
 
-use crate::bitcoin_merkle::BitcoinMerkleTree;
-use crate::errors::BridgeCliError;
-use crate::types::encode_citrea_deposit_params;
+use crate::btc::merkle::BitcoinMerkleTree;
+use crate::core::errors::BridgeCliError;
+use crate::core::types::encode_citrea_deposit_params;
 
 use eyre::Result;
 

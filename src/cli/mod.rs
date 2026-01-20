@@ -23,23 +23,22 @@ use url::Url;
 use crate::deposit::{
     get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
 };
-use crate::{config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
+use crate::{core::config::NetworkConfigs, wallet::wallet_utils::ensure_wallet_exists};
 
 use crate::{
-    BitcoinAddress, CitreaAddress,
-    api_utils::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
-    backend::{
-        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
-    },
-    backup_wallet,
-    config::BridgeCliConfig,
+    BitcoinAddress, CitreaAddress, backup_wallet,
+    core::config::BridgeCliConfig,
+    core::errors::BridgeCliError,
+    core::secure_display::display_mnemonic_securely,
+    core::secure_types::SecureString,
     create_encrypted_wallet, deposit,
     deposit::DepositStatusWithVout,
-    errors::BridgeCliError,
     generate_withdrawal_signatures, import_wallet_from_file, import_wallet_from_mnemonic,
     import_wallet_from_private_key,
-    secure_display::display_mnemonic_securely,
-    secure_types::SecureString,
+    services::api::{MempoolTx, UtxoInfo, get_current_block_height, get_tx_details, get_utxos},
+    services::backend::{
+        backend_deposit_status, backend_withdrawal_status, send_withdrawal_signature_to_operators,
+    },
     wallet::TaprootAddressWithPrefix,
     wallet::{
         Purpose, get_mnemonic_from_wallet, get_private_key_from_wallet,
@@ -53,12 +52,12 @@ use crate::{
     withdraw::{self, start_withdrawal},
 };
 use crate::{
-    api_utils::{get_block_height_for_tx, get_mempool_txs},
-    deposit::DepositAddressStorageResult,
+    core::config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
+    get_clementine_home_dir_with_existence_check,
 };
 use crate::{
-    config, get_clementine_config_path_with_existence_check, get_clementine_home_dir,
-    get_clementine_home_dir_with_existence_check,
+    deposit::DepositAddressStorageResult,
+    services::api::{get_block_height_for_tx, get_mempool_txs},
 };
 
 use bitcoin::XOnlyPublicKey;
@@ -798,7 +797,7 @@ pub async fn cli_show_mnemonic(
     ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
     let mnemonic = get_mnemonic_from_wallet(address, &passphrase, None).await?;
-    crate::secure_display::display_mnemonic_securely(&mnemonic)?;
+    crate::core::secure_display::display_mnemonic_securely(&mnemonic)?;
     Ok(())
 }
 
@@ -810,7 +809,7 @@ pub async fn cli_show_private_key(
     ensure_wallet_exists(address, None).await?;
     let passphrase = prompt_unlock_passphrase()?;
     let private_key = get_private_key_from_wallet(address, &passphrase, None).await?;
-    crate::secure_display::display_private_key_securely(&private_key)?;
+    crate::core::secure_display::display_private_key_securely(&private_key)?;
     Ok(())
 }
 
@@ -1112,7 +1111,7 @@ fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
     }
 }
 
-pub async fn cli_get_deposit_address(
+pub async fn cli_start_deposit(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,

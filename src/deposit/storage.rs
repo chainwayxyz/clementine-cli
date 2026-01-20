@@ -1,4 +1,4 @@
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use crate::sqlite_db::deposit_db::{DepositRecord, DepositTable};
 use crate::sqlite_db::sqlite_client::{SqliteDb, resolve_sqlite_client};
 use crate::wallet::TaprootAddressWithPrefix;
@@ -127,7 +127,7 @@ pub async fn get_deposit_address_details_for_deposit_address(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::config::BridgeCliConfig;
+    use crate::core::config::BridgeCliConfig;
     use crate::deposit::get_deposit_address;
     use crate::sqlite_db::test_utils::fresh_db_with_test_name;
     use crate::wallet::Purpose;

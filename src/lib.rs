@@ -1,6 +1,6 @@
 #![allow(clippy::result_large_err)]
 
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -16,19 +16,10 @@ pub mod withdraw;
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 pub mod sqlite_db;
 
-pub use btc::merkle as bitcoin_merkle;
-pub use btc::script;
-pub use btc::utils as bitcoin_utils;
-pub use cli::macros as cli_macros;
-pub use cli::network as cli_network;
-pub use core::config;
-pub use core::errors;
-pub use core::parameters;
-pub use core::secure_display;
-pub use core::secure_types;
-pub use core::types;
-pub use services::api as api_utils;
-pub use services::backend;
+pub use btc::utils::SATS_TO_WEI_MULTIPLIER;
+pub use btc::utils::parse_transaction_hex;
+pub use cli::macros::handle_err;
+pub use services::api::broadcast_recovery_tx;
 
 // Wallet operations
 pub use wallet::{
@@ -44,17 +35,6 @@ pub use deposit::{
 
 // Withdrawal operations
 pub use withdraw::{generate_withdrawal_signatures, safe_withdraw, send_safe_withdrawal};
-
-// API utilities
-pub use api_utils::broadcast_recovery_tx;
-
-// Constants
-pub use bitcoin_utils::SATS_TO_WEI_MULTIPLIER;
-
-// A basic parser utility
-pub use bitcoin_utils::parse_transaction_hex;
-
-pub use cli_macros::handle_err;
 
 pub type BitcoinAddress<V = bitcoin::address::NetworkChecked> = bitcoin::Address<V>;
 pub type CitreaAddress = alloy::primitives::Address;

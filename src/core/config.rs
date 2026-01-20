@@ -2,7 +2,7 @@
 //!
 //! Configuration options provided here are used to make a request to Clementine.
 
-use crate::{errors::BridgeCliError, get_clementine_config_path_with_existence_check};
+use crate::{core::errors::BridgeCliError, get_clementine_config_path_with_existence_check};
 use bitcoin::{Amount, Network, XOnlyPublicKey};
 use bitcoincore_rpc::{Auth, Client, RpcApi};
 use eyre::{Context, Result};

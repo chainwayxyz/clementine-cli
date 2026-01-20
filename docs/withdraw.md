@@ -27,7 +27,7 @@ The withdrawal process follows these sequential steps:
 3. [**Send Bitcoin Transaction**](#step-3-send-required-bitcoin-transaction) - Send required transaction to signer address to create withdrawal UTXO
 4. [**Scan for Withdrawals**](#step-4-scan-for-withdrawals) - Find available withdrawal UTXOs
 5. [**Generate Withdrawal Signatures**](#step-5-generate-withdrawal-signatures) - Create signatures on airgapped device
-6. [**Safe Withdraw**](#step-6-safe-withdraw) - Submit withdrawal request with signature to Citrea for optimistic withdrawal
+6. [**Send**](#step-6-send) - Send withdrawal request with signature to Citrea for optimistic withdrawal
 7. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for optimistic withdrawal for 12 hours
 8. [**(Optional) Send Signature to Operators**](#step-8-send-the-signature-to-the-operators) - If Step 6 fails, submit signature to Clementine operators for processing
 9. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for operator-paid withdrawal
@@ -177,20 +177,20 @@ clementine-cli withdraw generate-withdrawal-signatures --network testnet wittb1p
 > [!CAUTION]
 > Save the generated signatures since they will be used to authorize the operations that will be done later.
 
-## Step 6: Safe Withdraw
+## Step 6: Send
 
 **ONLINE DEVICE OPERATION:** Execute the `optimistic` withdrawal with signature verification and submit to Citrea:
 
 ```sh
-clementine-cli withdraw safe-withdraw [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
+clementine-cli withdraw send [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>
 ```
 
 **Example:**
 
 ```sh
-clementine-cli withdraw safe-withdraw wittb1pf... tb1qg... abc123def456:0 807c42770...
+clementine-cli withdraw send wittb1pf... tb1qg... abc123def456:0 807c42770...
 # For testnet4
-clementine-cli withdraw safe-withdraw --network testnet wittb1pf... tb1qg... abc123def456:0 807c42770...
+clementine-cli withdraw send --network testnet wittb1pf... tb1qg... abc123def456:0 807c42770...
 ```
 
 **What this does:**
@@ -199,7 +199,7 @@ clementine-cli withdraw safe-withdraw --network testnet wittb1pf... tb1qg... abc
 - Provides final transaction confirmation
 - Prompts to Ethereum wallet to submit the withdrawal transaction to Citrea
 
-In case `safe-withdraw` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdraw`:
+In case `send` fails, you can send your withdrawal transaction directly to the bridge contract by using `send-safe-withdraw`:
 
 ```sh
 clementine-cli withdraw send-safe-withdraw [--network <BITCOIN_NETWORK>] <SIGNER_ADDRESS> <DESTINATION_ADDRESS> <WITHDRAWAL_UTXO> <OPTIMISTIC_SIGNATURE>

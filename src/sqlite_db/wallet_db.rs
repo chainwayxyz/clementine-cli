@@ -1,7 +1,7 @@
 use crate::wallet::AddrDisplay;
 use crate::wallet::ImportMethod;
 use crate::wallet::encryption::EncryptedDataHex;
-use crate::{errors::BridgeCliError, wallet::TaprootAddressWithPrefix};
+use crate::{core::errors::BridgeCliError, wallet::TaprootAddressWithPrefix};
 use bitcoin::address::{NetworkChecked, NetworkValidation};
 use bitcoin::{Address, Network};
 use chrono::{DateTime, TimeZone, Utc};

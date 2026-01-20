@@ -45,8 +45,8 @@ use colored::Colorize;
 use secrecy::ExposeSecret;
 
 use crate::{
-    errors::BridgeCliError,
-    secure_types::{SecureByteSlice, SecureString},
+    core::errors::BridgeCliError,
+    core::secure_types::{SecureByteSlice, SecureString},
 };
 
 /// Derives a 256-bit AES key from passphrase using Argon2id

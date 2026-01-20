@@ -27,8 +27,8 @@ use bip39::{Language, Mnemonic};
 use bitcoin::address::NetworkValidation;
 use secrecy::ExposeSecret;
 
-use crate::errors::BridgeCliError;
-use crate::secure_types::{
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::{
     SecureByteSlice, SecureSecretKey, SecureSeed, SecureString, SecureWordVec,
 };
 use crate::sqlite_db::sqlite_client::SqliteDb;

@@ -6,13 +6,13 @@ pub use params::{SafeWithdrawalParams, TxJson, WithdrawalParams, WithdrawalUrl};
 pub use status::{OptimisticPayoutStatus, WithdrawStatus};
 
 use crate::BitcoinAddress;
-use crate::api_utils::{get_tx_details, get_utxos, is_tx_on_chain};
-use crate::bitcoin_utils::{sign_withdrawal_signature, verify_withdrawal_signature};
-use crate::config::BridgeCliConfig;
-use crate::errors::BridgeCliError;
-use crate::secure_types::SecureKeypair;
+use crate::btc::utils::{sign_withdrawal_signature, verify_withdrawal_signature};
+use crate::core::config::BridgeCliConfig;
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::SecureKeypair;
+use crate::core::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
+use crate::services::api::{get_tx_details, get_utxos, is_tx_on_chain};
 use crate::sqlite_db::sqlite_client::SqliteDb;
-use crate::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::wallet::Purpose;
 use crate::wallet::TaprootAddressWithPrefix;
 use crate::wallet::wallet_utils::is_withdrawal_address_wallet_address;
@@ -145,7 +145,7 @@ pub async fn safe_withdraw(
     let tx_json = json!({
         "to": config.bridge_contract_address,
         "data": hex::encode(calldata_hex),
-        "value": format!("0x{:X}", config.bridge_amount.to_sat() * crate::bitcoin_utils::SATS_TO_WEI_MULTIPLIER),
+        "value": format!("0x{:X}", config.bridge_amount.to_sat() * crate::btc::utils::SATS_TO_WEI_MULTIPLIER),
         "chainId": config.citrea_chain_id,
     })
     .to_string();
@@ -163,7 +163,7 @@ pub async fn safe_withdraw(
 
 pub async fn send_safe_withdrawal(
     params: SafeWithdrawalParams,
-    secret_key: crate::secure_types::SecureString,
+    secret_key: crate::core::secure_types::SecureString,
     config: &BridgeCliConfig,
 ) -> Result<TransactionReceipt, BridgeCliError> {
     // Parse the secret key with improved error handling
@@ -213,7 +213,7 @@ pub async fn send_safe_withdrawal(
             withdrawal_params.output_script_pk,
         )
         .value(U256::from(
-            config.bridge_amount.to_sat() * crate::bitcoin_utils::SATS_TO_WEI_MULTIPLIER,
+            config.bridge_amount.to_sat() * crate::btc::utils::SATS_TO_WEI_MULTIPLIER,
         ))
         .send()
         .await?;
@@ -242,7 +242,7 @@ pub async fn scan_withdrawal(
     signer_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     _destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<Vec<crate::api_utils::UtxoInfo>, BridgeCliError> {
+) -> Result<Vec<crate::services::api::UtxoInfo>, BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
     let utxos = get_utxos(&signer_address.address, config).await?;
@@ -267,7 +267,7 @@ pub async fn prepare_withdrawal_params(
     let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
         get_tx_details(&withdrawal_outpoint.txid, config).await?;
 
-    let params = crate::parameters::get_citrea_safe_withdraw_params(
+    let params = crate::core::parameters::get_citrea_safe_withdraw_params(
         withdrawal_outpoint,
         payout_output,
         sig,
@@ -276,7 +276,7 @@ pub async fn prepare_withdrawal_params(
         prepare_tx_block_height,
     )?;
 
-    Ok(crate::types::prepare_safe_withdraw_params(
+    Ok(crate::core::types::prepare_safe_withdraw_params(
         &params.prepare_tx,
         &params.prepare_proof,
         &params.payout_tx,

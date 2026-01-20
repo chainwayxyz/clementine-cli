@@ -1,9 +1,9 @@
 // Bitcoin utility functions for Clementine CLI
 
-use crate::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
-use crate::errors::BridgeCliError;
-use crate::script::{deposit_script, recover_script};
-use crate::secure_types::SecureKeypair;
+use crate::btc::script::{deposit_script, recover_script};
+use crate::core::config::{BridgeCliConfig, UNSPENDABLE_XONLY_PUBKEY};
+use crate::core::errors::BridgeCliError;
+use crate::core::secure_types::SecureKeypair;
 use crate::{BitcoinAddress, CitreaAddress};
 use bitcoin::consensus::deserialize;
 use bitcoin::hashes::Hash;
@@ -474,7 +474,7 @@ mod tests {
     }
 
     fn create_test_config() -> BridgeCliConfig {
-        use crate::config::{BridgeCliConfig, NetworkConfigs};
+        use crate::core::config::{BridgeCliConfig, NetworkConfigs};
 
         // Use default regtest config from NetworkConfigs
         let network_configs = NetworkConfigs {
@@ -483,7 +483,7 @@ mod tests {
             signet: Some(BridgeCliConfig::default()),
             regtest: Some(BridgeCliConfig {
                 network: Network::Regtest,
-                aggregated_public_key: *crate::config::UNSPENDABLE_XONLY_PUBKEY,
+                aggregated_public_key: *crate::core::config::UNSPENDABLE_XONLY_PUBKEY,
                 esplora_rest_api: Some(reqwest::Url::parse("http://localhost:3006").unwrap()),
                 citrea_chain_id: 5115,
                 citrea_rpc_url: Some(reqwest::Url::parse("http://localhost:8545").unwrap()),

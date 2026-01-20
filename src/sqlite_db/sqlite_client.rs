@@ -6,7 +6,7 @@ use sqlx::migrate::Migrator;
 use sqlx::sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
 
-use crate::errors::BridgeCliError;
+use crate::core::errors::BridgeCliError;
 use crate::get_clementine_home_dir;
 
 pub fn sqlite_db_path() -> Result<PathBuf, BridgeCliError> {
