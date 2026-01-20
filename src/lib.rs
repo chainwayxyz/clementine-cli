@@ -5,27 +5,30 @@ use eyre::Result;
 use std::path::PathBuf;
 use std::str::FromStr;
 
-mod api_utils;
-mod backend;
-mod bitcoin_merkle;
-mod bitcoin_utils;
+pub mod btc;
 pub mod cli;
-pub mod cli_macros;
-pub mod cli_network;
-pub mod config;
+pub mod core;
 pub mod deposit;
-pub mod errors;
-mod parameters;
-mod script;
-mod secure_display;
-mod secure_types;
-pub mod structs;
-pub mod types;
+pub mod services;
 pub mod wallet;
 pub mod withdraw;
 // Re-export essential public API functions only
 pub use bitcoin::address::{NetworkChecked, NetworkUnchecked};
 pub mod sqlite_db;
+
+pub use btc::merkle as bitcoin_merkle;
+pub use btc::script;
+pub use btc::utils as bitcoin_utils;
+pub use cli::macros as cli_macros;
+pub use cli::network as cli_network;
+pub use core::config;
+pub use core::errors;
+pub use core::parameters;
+pub use core::secure_display;
+pub use core::secure_types;
+pub use core::types;
+pub use services::api as api_utils;
+pub use services::backend;
 
 // Wallet operations
 pub use wallet::{
