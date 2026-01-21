@@ -373,3 +373,123 @@ pub(crate) async fn is_withdrawal_address_wallet_address(
     }
     Ok(false)
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::sqlite_db::test_utils::fresh_db_with_test_name;
+    use crate::sqlite_db::wallet_db::WalletExport;
+    use crate::wallet::ImportMethod;
+    use crate::wallet::address::generate_address_from_mnemonic;
+    use crate::wallet::encryption::{aes_encrypt_secure, encrypted_data_to_hex};
+    use crate::wallet::mnemonic::MNEMONIC_WORD_COUNT;
+    use bip39::Language;
+    use bip39::Mnemonic;
+    use tempfile::tempdir;
+
+    fn sample_encrypted_data() -> crate::wallet::encryption::EncryptedDataHex {
+        let plaintext = SecureString::init_with(|| "dummy secret".to_string());
+        let passphrase = SecureString::init_with(|| "passphrase".to_string());
+        let encrypted = aes_encrypt_secure(&plaintext, &passphrase).expect("encrypt");
+        encrypted_data_to_hex(&encrypted)
+    }
+
+    fn sample_wallet_export(
+        import_method: ImportMethod,
+        include_mnemonic: bool,
+    ) -> (
+        WalletExport,
+        TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
+    ) {
+        let network = Network::Testnet4;
+        let mnemonic =
+            Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT).expect("mnemonic");
+        let address =
+            generate_address_from_mnemonic(&mnemonic, network, Purpose::Deposit).expect("address");
+
+        let encrypted_private_key = sample_encrypted_data();
+        let encrypted_mnemonic = if include_mnemonic {
+            Some(sample_encrypted_data())
+        } else {
+            None
+        };
+
+        let export = WalletExport {
+            label: "test-wallet".to_string(),
+            address: address.address_with_prefix(),
+            network: network.to_string(),
+            encrypted_mnemonic,
+            encrypted_private_key,
+            created_at: chrono::Utc::now().to_rfc3339(),
+            encryption_method: "aes256_gcm_argon2id_secure".to_string(),
+            imported: true,
+            original_import_method: Some(import_method.clone()),
+            import_method: Some(import_method),
+        };
+
+        (export, address)
+    }
+
+    #[test]
+    fn parse_network_accepts_expected_values() {
+        assert_eq!(
+            parse_network("testnet4").expect("testnet4"),
+            Network::Testnet4
+        );
+        assert_eq!(parse_network("regtest").expect("regtest"), Network::Regtest);
+        assert_eq!(parse_network("signet").expect("signet"), Network::Signet);
+        assert_eq!(parse_network("bitcoin").expect("bitcoin"), Network::Bitcoin);
+    }
+
+    #[test]
+    fn parse_network_rejects_testnet() {
+        let err = parse_network("testnet").expect_err("unsupported network");
+        assert!(matches!(
+            err,
+            BridgeCliError::UnsupportedNetwork(Network::Testnet)
+        ));
+    }
+
+    #[tokio::test]
+    async fn parse_and_validate_imported_wallet_allows_private_key_without_mnemonic() {
+        let db = fresh_db_with_test_name().await;
+        let (export, address) = sample_wallet_export(ImportMethod::PrivateKey, false);
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("wallet.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&export).expect("serialize"),
+        )
+        .expect("write");
+
+        let wallet_data = parse_and_validate_imported_wallet(&path, None, Some(&db))
+            .await
+            .expect("parse");
+
+        assert_eq!(
+            wallet_data.address.address_with_prefix(),
+            address.address_with_prefix()
+        );
+        assert!(wallet_data.encrypted_mnemonic.is_none());
+        dir.close().expect("close tempdir");
+    }
+
+    #[tokio::test]
+    async fn parse_and_validate_imported_wallet_requires_mnemonic_for_non_private_key() {
+        let db = fresh_db_with_test_name().await;
+        let (export, _address) = sample_wallet_export(ImportMethod::Mnemonic, false);
+        let dir = tempdir().expect("tempdir");
+        let path = dir.path().join("wallet.json");
+        std::fs::write(
+            &path,
+            serde_json::to_string_pretty(&export).expect("serialize"),
+        )
+        .expect("write");
+
+        let err = parse_and_validate_imported_wallet(&path, None, Some(&db))
+            .await
+            .expect_err("error");
+        assert!(matches!(err, BridgeCliError::MissingEncryptedMnemonicField));
+        dir.close().expect("close tempdir");
+    }
+}
