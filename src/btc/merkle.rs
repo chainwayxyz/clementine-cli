@@ -149,4 +149,30 @@ mod tests {
         let calculated_root = tree.calculate_root_with_merkle_proof(transactions[0], 0, idx_path);
         assert_eq!(root, calculated_root);
     }
+
+    #[test]
+    fn test_merkle_tree_odd_leaf_count() {
+        let transactions: Vec<[u8; 32]> = vec![[1u8; 32], [2u8; 32], [3u8; 32]];
+        let tree = BitcoinMerkleTree::new(transactions.clone()).unwrap();
+        let root = tree.root();
+        let idx_path = tree.get_idx_path(2);
+        let calculated_root = tree.calculate_root_with_merkle_proof(transactions[2], 2, idx_path);
+        assert_eq!(root, calculated_root);
+    }
+
+    #[test]
+    fn test_merkle_tree_rejects_empty() {
+        let err = BitcoinMerkleTree::new(vec![]).expect_err("empty transactions");
+        assert!(err
+            .to_string()
+            .contains("Merkle tree requires at least one transaction"));
+    }
+
+    #[test]
+    #[should_panic(expected = "Index out of bounds")]
+    fn test_get_idx_path_panics_on_oob_index() {
+        let transactions: Vec<[u8; 32]> = vec![[1u8; 32], [2u8; 32]];
+        let tree = BitcoinMerkleTree::new(transactions).unwrap();
+        tree.get_idx_path(2);
+    }
 }

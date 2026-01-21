@@ -659,6 +659,101 @@ mod tests {
     }
 
     #[test]
+    fn test_parse_transaction_hex_roundtrip() {
+        let config = create_test_config();
+        let outpoint = create_test_outpoint();
+        let destination_address =
+            create_destination_address(AddressType::P2wpkh, config.network, 7);
+        let tx = create_withdrawal_transaction(
+            &outpoint,
+            &destination_address,
+            Amount::from_sat(50_000),
+        );
+
+        let tx_hex = hex::encode(bitcoin::consensus::serialize(&tx));
+        let parsed = parse_transaction_hex(&tx_hex).expect("parse");
+
+        assert_eq!(parsed, tx);
+    }
+
+    #[test]
+    fn test_parse_transaction_hex_rejects_invalid_hex() {
+        let err = parse_transaction_hex("not-hex").expect_err("invalid hex");
+        assert!(matches!(err, BridgeCliError::HexDecodeError { .. }));
+    }
+
+    #[test]
+    fn test_extract_xonly_pubkey_from_address_requires_taproot() {
+        let config = create_test_config();
+        let address = create_destination_address(AddressType::P2wpkh, config.network, 8);
+        let err = extract_xonly_pubkey_from_address(&address).expect_err("not taproot");
+        assert!(matches!(err, BridgeCliError::NotTaprootAddress(_)));
+    }
+
+    #[test]
+    fn test_withdrawal_signature_round_trip() {
+        let config = create_test_config();
+        let keypair = create_test_keypair();
+        let signer_address = calculate_taproot_address(&keypair, config.network);
+        let destination_address =
+            create_destination_address(AddressType::P2wpkh, config.network, 9);
+        let outpoint = create_test_outpoint();
+        let amount = Amount::from_sat(42_000);
+
+        let sig = sign_withdrawal_signature(
+            &keypair,
+            &signer_address,
+            &outpoint,
+            &destination_address,
+            amount,
+            &config,
+        )
+        .expect("sign");
+
+        verify_withdrawal_signature(
+            &sig,
+            &signer_address,
+            &outpoint,
+            &destination_address,
+            amount,
+            &config,
+        )
+        .expect("verify");
+    }
+
+    #[test]
+    fn test_withdrawal_signature_rejects_modified_amount() {
+        let config = create_test_config();
+        let keypair = create_test_keypair();
+        let signer_address = calculate_taproot_address(&keypair, config.network);
+        let destination_address =
+            create_destination_address(AddressType::P2wpkh, config.network, 10);
+        let outpoint = create_test_outpoint();
+        let amount = Amount::from_sat(42_000);
+
+        let sig = sign_withdrawal_signature(
+            &keypair,
+            &signer_address,
+            &outpoint,
+            &destination_address,
+            amount,
+            &config,
+        )
+        .expect("sign");
+
+        let tampered_amount = Amount::from_sat(amount.to_sat() + 1);
+        assert!(verify_withdrawal_signature(
+            &sig,
+            &signer_address,
+            &outpoint,
+            &destination_address,
+            tampered_amount,
+            &config,
+        )
+        .is_err());
+    }
+
+    #[test]
     fn test_sign_recovery_tx_p2tr_fee_rate_correctness() {
         test_fee_rate_correctness_for_address_type(AddressType::P2tr, 2);
     }
