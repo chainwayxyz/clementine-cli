@@ -204,3 +204,61 @@ pub(crate) fn encrypted_data_from_hex(
             .map_err(|e: Vec<u8>| BridgeCliError::InvalidSaltLength(e.len()))?,
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::core::secure_types::SecureString;
+    use secrecy::ExposeSecret;
+
+    fn secure_string(value: &str) -> SecureString {
+        SecureString::init_with(|| value.to_string())
+    }
+
+    #[test]
+    fn encrypt_decrypt_round_trip() {
+        let plaintext = secure_string("secret message");
+        let passphrase = secure_string("passphrase");
+
+        let encrypted = aes_encrypt_secure(&plaintext, &passphrase).expect("encrypt");
+        let decrypted = aes_decrypt_secure(&encrypted, &passphrase).expect("decrypt");
+
+        assert_eq!(decrypted.expose_secret(), "secret message");
+    }
+
+    #[test]
+    fn decrypt_with_wrong_passphrase_fails() {
+        let plaintext = secure_string("secret message");
+        let passphrase = secure_string("passphrase");
+        let wrong_passphrase = secure_string("wrong-passphrase");
+
+        let encrypted = aes_encrypt_secure(&plaintext, &passphrase).expect("encrypt");
+        let result = aes_decrypt_secure(&encrypted, &wrong_passphrase);
+
+        assert!(matches!(result, Err(BridgeCliError::DecryptionError)));
+    }
+
+    #[test]
+    fn encrypted_data_hex_round_trip() {
+        let plaintext = secure_string("secret message");
+        let passphrase = secure_string("passphrase");
+
+        let encrypted = aes_encrypt_secure(&plaintext, &passphrase).expect("encrypt");
+        let hex = encrypted_data_to_hex(&encrypted);
+        let decoded = encrypted_data_from_hex(&hex).expect("decode");
+
+        assert_eq!(decoded, encrypted);
+    }
+
+    #[test]
+    fn encrypted_data_from_hex_rejects_invalid_nonce_length() {
+        let bad = EncryptedDataHex {
+            ciphertext: "00".to_string(),
+            nonce: "00".repeat(11),
+            salt: "00".repeat(32),
+        };
+
+        let err = encrypted_data_from_hex(&bad).expect_err("invalid nonce length");
+        assert!(matches!(err, BridgeCliError::InvalidNonceLength(11)));
+    }
+}
