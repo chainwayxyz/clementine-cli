@@ -163,9 +163,10 @@ mod tests {
     #[test]
     fn test_merkle_tree_rejects_empty() {
         let err = BitcoinMerkleTree::new(vec![]).expect_err("empty transactions");
-        assert!(err
-            .to_string()
-            .contains("Merkle tree requires at least one transaction"));
+        assert!(
+            err.to_string()
+                .contains("Merkle tree requires at least one transaction")
+        );
     }
 
     #[test]

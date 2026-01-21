@@ -630,34 +630,6 @@ mod tests {
         );
     }
 
-    fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
-        let setup = TestSetup::new();
-        let destination_address =
-            create_destination_address(address_type, setup.config.network, key_offset);
-
-        for fee_rate in get_test_fee_rates() {
-            let result = sign_recovery_tx(
-                &setup.recovery_keypair,
-                &setup.citrea_address,
-                &setup.recovery_address,
-                &setup.deposit_outpoint,
-                setup.deposit_amount,
-                &destination_address,
-                fee_rate,
-                &setup.config,
-            );
-
-            assert!(
-                result.is_ok(),
-                "Failed to sign recovery tx with fee rate {:?} for address type",
-                fee_rate
-            );
-
-            let signed_tx = result.unwrap();
-            assert_fee_rate_correctness(&signed_tx, fee_rate, setup.deposit_amount);
-        }
-    }
-
     #[test]
     fn test_parse_transaction_hex_roundtrip() {
         let config = create_test_config();
@@ -742,15 +714,45 @@ mod tests {
         .expect("sign");
 
         let tampered_amount = Amount::from_sat(amount.to_sat() + 1);
-        assert!(verify_withdrawal_signature(
-            &sig,
-            &signer_address,
-            &outpoint,
-            &destination_address,
-            tampered_amount,
-            &config,
-        )
-        .is_err());
+        assert!(
+            verify_withdrawal_signature(
+                &sig,
+                &signer_address,
+                &outpoint,
+                &destination_address,
+                tampered_amount,
+                &config,
+            )
+            .is_err()
+        );
+    }
+
+    fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
+        let setup = TestSetup::new();
+        let destination_address =
+            create_destination_address(address_type, setup.config.network, key_offset);
+
+        for fee_rate in get_test_fee_rates() {
+            let result = sign_recovery_tx(
+                &setup.recovery_keypair,
+                &setup.citrea_address,
+                &setup.recovery_address,
+                &setup.deposit_outpoint,
+                setup.deposit_amount,
+                &destination_address,
+                fee_rate,
+                &setup.config,
+            );
+
+            assert!(
+                result.is_ok(),
+                "Failed to sign recovery tx with fee rate {:?} for address type",
+                fee_rate
+            );
+
+            let signed_tx = result.unwrap();
+            assert_fee_rate_correctness(&signed_tx, fee_rate, setup.deposit_amount);
+        }
     }
 
     #[test]
