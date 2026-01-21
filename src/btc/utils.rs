@@ -790,9 +790,10 @@ mod tests {
         )
         .expect_err("invalid witness count");
 
-        assert!(err
-            .to_string()
-            .contains("Recovery transaction input witness must have exactly 3 items"));
+        assert!(
+            err.to_string()
+                .contains("Recovery transaction input witness must have exactly 3 items")
+        );
     }
 
     fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
