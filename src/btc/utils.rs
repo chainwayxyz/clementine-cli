@@ -727,6 +727,74 @@ mod tests {
         );
     }
 
+    #[test]
+    fn test_verify_recovery_tx_round_trip() {
+        let setup = TestSetup::new();
+        let destination_address =
+            create_destination_address(AddressType::P2wpkh, setup.config.network, 11);
+
+        let signed_tx = sign_recovery_tx(
+            &setup.recovery_keypair,
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.deposit_outpoint,
+            setup.deposit_amount,
+            &destination_address,
+            FeeRate::from_sat_per_vb(10).unwrap(),
+            &setup.config,
+        )
+        .expect("sign recovery tx");
+
+        let (txid, output_address, output_amount) = verify_recovery_tx(
+            &signed_tx,
+            &setup.citrea_address,
+            &setup.recovery_address,
+            Some(setup.deposit_amount),
+            &setup.config,
+        )
+        .expect("verify recovery tx");
+
+        assert_eq!(txid, setup.deposit_outpoint.txid);
+        assert_eq!(output_address, destination_address);
+        assert_eq!(output_amount, signed_tx.output[0].value);
+    }
+
+    #[test]
+    fn test_verify_recovery_tx_rejects_wrong_witness_count() {
+        let setup = TestSetup::new();
+        let destination_address =
+            create_destination_address(AddressType::P2wpkh, setup.config.network, 12);
+
+        let mut signed_tx = sign_recovery_tx(
+            &setup.recovery_keypair,
+            &setup.citrea_address,
+            &setup.recovery_address,
+            &setup.deposit_outpoint,
+            setup.deposit_amount,
+            &destination_address,
+            FeeRate::from_sat_per_vb(10).unwrap(),
+            &setup.config,
+        )
+        .expect("sign recovery tx");
+
+        let mut witness_items = signed_tx.input[0].witness.to_vec();
+        witness_items.pop();
+        signed_tx.input[0].witness = Witness::from_slice(&witness_items);
+
+        let err = verify_recovery_tx(
+            &signed_tx,
+            &setup.citrea_address,
+            &setup.recovery_address,
+            Some(setup.deposit_amount),
+            &setup.config,
+        )
+        .expect_err("invalid witness count");
+
+        assert!(err
+            .to_string()
+            .contains("Recovery transaction input witness must have exactly 3 items"));
+    }
+
     fn test_fee_rate_correctness_for_address_type(address_type: AddressType, key_offset: u8) {
         let setup = TestSetup::new();
         let destination_address =
