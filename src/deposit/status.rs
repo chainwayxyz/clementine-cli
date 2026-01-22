@@ -55,7 +55,7 @@ impl DepositStatusEnum {
                 "Deposit detected on Bitcoin network, waiting for confirmations."
             }
             DepositStatusEnum::InProgress => {
-                "The deposit is sent to clementine aggregator, waiting for pre-signature collection from Clementine verifiers."
+                "The deposit is sent to Clementine aggregator, waiting for pre-signature collection from Clementine verifiers."
             }
             DepositStatusEnum::MoveTxSent => {
                 "Move transaction broadcasted, waiting for confirmation and minting."
