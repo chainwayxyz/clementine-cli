@@ -397,7 +397,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "{} Backup files require the wallet passphrase to import.",
                             "WARNING".bold()
                         );
-                        println!("  Store the passphrase securely; without it, the backup cannot be restored.");
                     }
                 );
             }
