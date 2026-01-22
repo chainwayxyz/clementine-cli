@@ -764,11 +764,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config,
                     ),
                     (withdrawal_ui_url, tx_json, params) => {
-                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
-                            tracing::error!("Failed to read input: {}", e);
-                            eyre::eyre!("Failed to read input.")
-                        })?;
-
                         println!("\n{} Please verify the transaction details below while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
 
 
