@@ -93,7 +93,6 @@ pub struct DepositStatusWithVout<'a> {
 #[allow(clippy::too_many_arguments)]
 fn format_deposit_status(
     f: &mut std::fmt::Formatter<'_>,
-    id: u64,
     status: &str,
     raw_status: &str,
     txid: &str,
@@ -112,10 +111,6 @@ fn format_deposit_status(
 
     writeln!(f, "\nDeposit Info")?;
     let mut rows = Vec::new();
-    rows.push(Row {
-        label: "ID:",
-        value: id.to_string(),
-    });
     rows.push(Row {
         label: "Status:",
         value: status.to_string(),
@@ -214,7 +209,6 @@ fn format_deposit_status(
 #[allow(clippy::too_many_arguments)]
 fn format_deposit_status_default(
     f: &mut std::fmt::Formatter<'_>,
-    id: u64,
     status: &str,
     raw_status: &str,
     txid: &str,
@@ -225,7 +219,6 @@ fn format_deposit_status_default(
 ) -> std::fmt::Result {
     format_deposit_status(
         f,
-        id,
         status,
         raw_status,
         txid,
@@ -248,7 +241,6 @@ impl Display for DepositStatus {
         };
         format_deposit_status_default(
             f,
-            self.id,
             &status,
             &self.status, // Pass raw status for progress bar
             &self.txid,
@@ -269,7 +261,6 @@ impl Display for DepositStatusWithVout<'_> {
         };
         format_deposit_status(
             f,
-            self.deposit_status.id,
             &status,
             &self.deposit_status.status, // Pass raw status for progress bar
             &self.deposit_status.txid,
