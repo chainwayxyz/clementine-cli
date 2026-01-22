@@ -42,7 +42,7 @@ pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT).map_err(|e| {
-        tracing::error!(error = ?e, "Error generating mnemonic");
+        tracing::error!("Error generating mnemonic: {}", e);
         BridgeCliError::MnemonicGenerationError
     })?;
 

@@ -268,7 +268,7 @@ pub async fn broadcast_recovery_tx(
             let rpc = config.connect_to_bitcoin_rpc().await?;
             let tx: Transaction = parse_transaction_hex(&raw_tx)?;
             rpc.send_raw_transaction(&tx).await.map_err(|e| {
-                tracing::error!(error = ?e, "Failed to broadcast transaction via RPC");
+                tracing::error!("Failed to broadcast transaction via RPC: {}", e);
                 BridgeCliError::Eyre(eyre!("Failed to broadcast transaction via RPC"))
             })
         }
@@ -334,7 +334,7 @@ pub async fn get_utxos(
             let mut utxo_infos = Vec::new();
             for utxo in utxos {
                 let txid = Txid::from_str(&utxo.txid).map_err(|e| {
-                    tracing::error!(error = ?e, txid = %utxo.txid, "Failed to parse txid");
+                    tracing::error!("Failed to parse txid '{}': {}", utxo.txid, e);
                     BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}", utxo.txid))
                 })?;
                 utxo_infos.push(UtxoInfo {
@@ -423,7 +423,7 @@ async fn get_current_block_height_from_esplora_api(
         .expect("Checked above")
         .join("blocks/tip/height")
         .map_err(|e| {
-            tracing::error!(error = ?e, "Failed to join esplora_rest_api");
+            tracing::error!("Failed to join esplora_rest_api: {}", e);
             BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
         })?;
     let resp = reqwest::get(url).await?.error_for_status()?;
@@ -436,7 +436,7 @@ async fn get_current_block_height_from_rpc(
 ) -> Result<u64, BridgeCliError> {
     let rpc = config.connect_to_bitcoin_rpc().await?;
     rpc.get_block_count().await.map_err(|e| {
-        tracing::error!(error = ?e, "Failed to get block count from RPC");
+        tracing::error!("Failed to get block count from RPC: {}", e);
         BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC"))
     })
 }

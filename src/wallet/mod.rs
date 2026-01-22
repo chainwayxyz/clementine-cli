@@ -116,7 +116,7 @@ pub async fn create_encrypted_wallet(
     // Generate address from mnemonic using helper function
     let address =
         address::generate_address_from_mnemonic(&mnemonic, network, purpose).map_err(|e| {
-            tracing::error!(error = ?e, "Error generating address from mnemonic");
+            tracing::error!("Error generating address from mnemonic: {}", e);
             BridgeCliError::AddressGenerationFromMnemonicFailed
         })?;
 
