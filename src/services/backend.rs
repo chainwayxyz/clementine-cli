@@ -67,7 +67,7 @@ pub(crate) async fn create_deposit_account(
         tracing::error!("Deposit address request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!("Backend request failed with status: {}", status).into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -107,7 +107,7 @@ pub async fn backend_deposit_status(
         tracing::error!("Deposit status request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!("Backend request failed with status: {}", status).into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -147,7 +147,7 @@ pub async fn backend_withdrawal_status(
         tracing::error!("Withdrawal status request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!("Backend request failed with status: {}", status).into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -222,7 +222,7 @@ pub async fn send_withdrawal_signature_to_operators(
             )
             .into())
         } else {
-            Err(eyre::eyre!("Internal Error while sending withdrawal signature").into())
+            Err(eyre::eyre!("Internal Error while sending withdrawal signature. Re-run with --verbose to see the full response.").into())
         }
     }
 }
