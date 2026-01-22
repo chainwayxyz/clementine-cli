@@ -147,12 +147,7 @@ fn parse_import_method(
     value
         .map(|s| {
             ImportMethod::from_str(s).map_err(|e| {
-                tracing::error!(
-                    "Invalid import method {} '{}': {}",
-                    field,
-                    s,
-                    e
-                );
+                tracing::error!("Invalid import method {} '{}': {}", field, s, e);
                 BridgeCliError::Eyre(eyre!("Invalid {} '{}' stored in wallets table", field, s))
             })
         })
@@ -164,11 +159,7 @@ impl TryFrom<WalletRaw> for WalletData {
 
     fn try_from(row: WalletRaw) -> Result<Self, Self::Error> {
         let network = Network::from_str(&row.network).map_err(|e| {
-            tracing::error!(
-                "Invalid network '{}' in wallets table: {}",
-                row.network,
-                e
-            );
+            tracing::error!("Invalid network '{}' in wallets table: {}", row.network, e);
             BridgeCliError::Eyre(eyre!(
                 "Invalid network '{}' stored in wallets table",
                 row.network
@@ -177,11 +168,7 @@ impl TryFrom<WalletRaw> for WalletData {
 
         let address = TaprootAddressWithPrefix::from_string_with_prefix(&row.address, network)
             .map_err(|e| {
-                tracing::error!(
-                    "Invalid address '{}' in wallets table: {}",
-                    row.address,
-                    e
-                );
+                tracing::error!("Invalid address '{}' in wallets table: {}", row.address, e);
                 BridgeCliError::Eyre(eyre!(
                     "Invalid address '{}' stored in wallets table",
                     row.address

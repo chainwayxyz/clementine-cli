@@ -337,11 +337,10 @@ pub async fn import_wallet_from_private_key(
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     let private_key_bytes = SecureByteVec::new(Box::new(
-        hex::decode(private_key.expose_secret())
-            .map_err(|e| {
-                tracing::error!("Invalid private key hex format: {}", e);
-                BridgeCliError::Eyre(eyre!("Invalid private key hex format"))
-            })?,
+        hex::decode(private_key.expose_secret()).map_err(|e| {
+            tracing::error!("Invalid private key hex format: {}", e);
+            BridgeCliError::Eyre(eyre!("Invalid private key hex format"))
+        })?,
     ));
 
     if private_key_bytes.expose_secret().len() != 32 {

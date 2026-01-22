@@ -31,11 +31,7 @@ impl TryFrom<DepositRow> for DepositRecord {
 
     fn try_from(row: DepositRow) -> Result<Self, Self::Error> {
         let network = Network::from_str(&row.network).map_err(|e| {
-            tracing::error!(
-                "Invalid network '{}' in deposits table: {}",
-                row.network,
-                e
-            );
+            tracing::error!("Invalid network '{}' in deposits table: {}", row.network, e);
             BridgeCliError::Eyre(eyre!(
                 "Invalid network '{}' stored in deposits table",
                 row.network

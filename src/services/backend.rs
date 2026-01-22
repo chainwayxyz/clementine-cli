@@ -203,7 +203,10 @@ pub async fn send_withdrawal_signature_to_operators(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Send withdrawal signatures request failed. Status: {}", status);
+        tracing::error!(
+            "Send withdrawal signatures request failed. Status: {}",
+            status
+        );
         tracing::error!("Error response: {}", error_text);
 
         if error_text.contains("Withdrawal not found") {

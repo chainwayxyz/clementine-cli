@@ -235,12 +235,10 @@ pub(crate) fn calculate_taproot_address(
 
 /// Parse a Bitcoin address string into a proper Address object
 pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
-    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
-        .parse()
-        .map_err(|e| {
-            tracing::error!("Failed to parse Bitcoin address '{}': {}", address, e);
-            BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address"))
-        })?;
+    let unchecked_address: BitcoinAddress<NetworkUnchecked> = address.parse().map_err(|e| {
+        tracing::error!("Failed to parse Bitcoin address '{}': {}", address, e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address"))
+    })?;
 
     let address = unchecked_address.require_network(network).map_err(|e| {
         tracing::error!(

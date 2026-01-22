@@ -130,12 +130,10 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         io::stdout().flush().ok();
 
         let mut answer = String::new();
-        io::stdin()
-            .read_line(&mut answer)
-            .map_err(|e| {
-                tracing::error!("Failed to read input. Error: {}", e);
-                BridgeCliError::Eyre(eyre!("Failed to read input"))
-            })?;
+        io::stdin().read_line(&mut answer).map_err(|e| {
+            tracing::error!("Failed to read input. Error: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to read input"))
+        })?;
 
         let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
 
@@ -252,12 +250,10 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
                 let custom_url: String = Input::with_theme(&theme)
                     .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
                     .validate_with(|input: &String| -> Result<(), String> {
-                        Url::parse(input)
-                            .map(|_| ())
-                            .map_err(|e| {
-                                tracing::error!("Invalid URL {}. Error: {}", input, e);
-                                "Invalid URL".to_string()
-                            })
+                        Url::parse(input).map(|_| ()).map_err(|e| {
+                            tracing::error!("Invalid URL {}. Error: {}", input, e);
+                            "Invalid URL".to_string()
+                        })
                     })
                     .interact_text()?;
 
@@ -275,17 +271,14 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             url_str.push('/');
         }
 
-        net.esplora_rest_api = Some(
-            Url::parse(&url_str)
-                .map_err(|e| {
-                    tracing::error!(
-                        "Failed to parse URL with trailing slash. Url: {} Error: {}",
-                        url_str,
-                        e
-                    );
-                    eyre!("Failed to parse URL with trailing slash")
-                })?,
-        );
+        net.esplora_rest_api = Some(Url::parse(&url_str).map_err(|e| {
+            tracing::error!(
+                "Failed to parse URL with trailing slash. Url: {} Error: {}",
+                url_str,
+                e
+            );
+            eyre!("Failed to parse URL with trailing slash")
+        })?);
 
         println!(
             "{} {} Bitcoin Esplora API set to: {}",
@@ -328,10 +321,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
         tracing::error!("Failed to set permissions for {}: {}", path.display(), e);
-        BridgeCliError::Eyre(eyre!(
-            "Failed to set permissions for {}",
-            path.display()
-        ))
+        BridgeCliError::Eyre(eyre!("Failed to set permissions for {}", path.display()))
     })?;
     Ok(())
 }
@@ -451,12 +441,10 @@ fn prompt_confirm(
     );
     io::stdout().flush().ok();
     let mut answer = String::new();
-        io::stdin()
-            .read_line(&mut answer)
-            .map_err(|e| {
-                tracing::error!("Failed to read input: {}", e);
-                BridgeCliError::Eyre(eyre!("Failed to read input"))
-            })?;
+    io::stdin().read_line(&mut answer).map_err(|e| {
+        tracing::error!("Failed to read input: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to read input"))
+    })?;
     Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
 }
 
@@ -465,28 +453,18 @@ fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), Bridg
     let clementine_home_dir = get_clementine_home_dir_with_existence_check()?;
     let dir = clementine_home_dir;
     let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
-        tracing::error!(
-            "Failed to create temp file in '{}': {}",
-            dir.display(),
-            e
-        );
-        BridgeCliError::Eyre(eyre!(
-            "Failed to create temp file in {}",
-            dir.display()
-        ))
+        tracing::error!("Failed to create temp file in '{}': {}", dir.display(), e);
+        BridgeCliError::Eyre(eyre!("Failed to create temp file in {}", dir.display()))
     })?;
 
-    tmp.write_all(doc.to_string().as_bytes())
-        .map_err(|e| {
-            tracing::error!("Failed to write to temp config file: {}", e);
-            BridgeCliError::Eyre(eyre!("Failed to write to temp config file"))
-        })?;
-    tmp.as_file()
-        .sync_all()
-        .map_err(|e| {
-            tracing::error!("Failed to flush temp config file: {}", e);
-            BridgeCliError::Eyre(eyre!("Failed to flush temp config file"))
-        })?;
+    tmp.write_all(doc.to_string().as_bytes()).map_err(|e| {
+        tracing::error!("Failed to write to temp config file: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to write to temp config file"))
+    })?;
+    tmp.as_file().sync_all().map_err(|e| {
+        tracing::error!("Failed to flush temp config file: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to flush temp config file"))
+    })?;
 
     tmp.persist(config_path).map_err(|e| {
         tracing::error!(
@@ -1116,7 +1094,8 @@ pub async fn send_withdrawal_signature(
     let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|e| {
         tracing::error!(
             "Failed to parse withdrawal UTXO outpoint '{}': {}",
-            withdrawal_utxo_outpoint, e
+            withdrawal_utxo_outpoint,
+            e
         );
         BridgeCliError::Eyre(eyre!(
             "Failed to parse withdrawal UTXO outpoint '{}'",

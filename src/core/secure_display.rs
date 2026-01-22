@@ -156,13 +156,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 if poll(POLL_INTERVAL).map_err(|e| {
                     tracing::error!("Failed to poll for input: {}", e);
                     eyre!("Failed to poll for input")
-                })?
-                    && let Event::Key(key_event) =
-                        event::read().map_err(|e| {
-                            tracing::error!("Failed to read user input: {}", e);
-                            eyre!("Failed to read user input")
-                        })?
-                    && key_event.kind == KeyEventKind::Press
+                })? && let Event::Key(key_event) = event::read().map_err(|e| {
+                    tracing::error!("Failed to read user input: {}", e);
+                    eyre!("Failed to read user input")
+                })? && key_event.kind == KeyEventKind::Press
                 {
                     match key_event.code {
                         KeyCode::Enter => {
@@ -198,13 +195,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 if poll(POLL_INTERVAL).map_err(|e| {
                     tracing::error!("Failed to poll for input: {}", e);
                     eyre!("Failed to poll for input")
-                })?
-                    && let Event::Key(key_event) =
-                        event::read().map_err(|e| {
-                            tracing::error!("Failed to read user input: {}", e);
-                            eyre!("Failed to read user input")
-                        })?
-                    && key_event.kind == KeyEventKind::Press
+                })? && let Event::Key(key_event) = event::read().map_err(|e| {
+                    tracing::error!("Failed to read user input: {}", e);
+                    eyre!("Failed to read user input")
+                })? && key_event.kind == KeyEventKind::Press
                 {
                     match key_event.code {
                         KeyCode::Enter => {
@@ -346,12 +340,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 eyre!("Failed to display word {}", word_num)
             })?;
 
-            let resp = self
-                .wait_for_word_confirmation()
-                .map_err(|e| {
-                    tracing::error!("Error during word display: {}", e);
-                    eyre!("Error during word display")
-                })?;
+            let resp = self.wait_for_word_confirmation().map_err(|e| {
+                tracing::error!("Error during word display: {}", e);
+                eyre!("Error during word display")
+            })?;
 
             if UserInput::Exit == resp {
                 return Ok(MnemomicDisplayResult::EarlyExit);
@@ -381,13 +373,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
             if poll(POLL_INTERVAL).map_err(|e| {
                 tracing::error!("Failed to poll for input: {}", e);
                 eyre!("Failed to poll for input")
-            })?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| {
-                        tracing::error!("Failed to read user input: {}", e);
-                        eyre!("Failed to read user input")
-                    })?
-                && key_event.kind == KeyEventKind::Press
+            })? && let Event::Key(key_event) = event::read().map_err(|e| {
+                tracing::error!("Failed to read user input: {}", e);
+                eyre!("Failed to read user input")
+            })? && key_event.kind == KeyEventKind::Press
             {
                 match key_event.code {
                     KeyCode::Enter => {
@@ -453,13 +442,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
             if poll(POLL_INTERVAL).map_err(|e| {
                 tracing::error!("Failed to poll for input: {}", e);
                 eyre!("Failed to poll for input")
-            })?
-                && let Event::Key(key_event) =
-                    event::read().map_err(|e| {
-                        tracing::error!("Failed to read user input: {}", e);
-                        eyre!("Failed to read user input")
-                    })?
-                && key_event.kind == KeyEventKind::Press
+            })? && let Event::Key(key_event) = event::read().map_err(|e| {
+                tracing::error!("Failed to read user input: {}", e);
+                eyre!("Failed to read user input")
+            })? && key_event.kind == KeyEventKind::Press
             {
                 return Ok(());
             }
@@ -520,12 +506,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
             println!("   Remember: Anyone with your complete mnemonic can access your funds!");
 
             // Use the same confirmation logic as alternate screen
-            let resp = self
-                .fallback_word_timeout_wait()
-                .map_err(|e| {
-                    tracing::error!("Error during word display: {}", e);
-                    eyre!("Error during word display")
-                })?;
+            let resp = self.fallback_word_timeout_wait().map_err(|e| {
+                tracing::error!("Error during word display: {}", e);
+                eyre!("Error during word display")
+            })?;
 
             // Clear the screen after each word
             let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
@@ -546,12 +530,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
         println!("Press Enter to exit...");
 
         let mut input = String::new();
-        io::stdin()
-            .read_line(&mut input)
-            .map_err(|e| {
-                tracing::error!("Failed to read user input: {}", e);
-                eyre!("Failed to read user input")
-            })?;
+        io::stdin().read_line(&mut input).map_err(|e| {
+            tracing::error!("Failed to read user input: {}", e);
+            eyre!("Failed to read user input")
+        })?;
         // Do NOT clear scrollback here, just clear visible screen
         let _ = execute!(io::stdout(), Clear(ClearType::All), MoveTo(0, 0));
         let _ = io::stdout().flush();
@@ -567,12 +549,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
         let _ = crossterm::terminal::enable_raw_mode();
 
         println!();
-        io::stdout()
-            .flush()
-            .map_err(|e| {
-                tracing::error!("Failed to flush stdout: {}", e);
-                eyre!("Failed to flush stdout")
-            })?;
+        io::stdout().flush().map_err(|e| {
+            tracing::error!("Failed to flush stdout: {}", e);
+            eyre!("Failed to flush stdout")
+        })?;
 
         loop {
             let elapsed = start_time.elapsed();
@@ -610,12 +590,10 @@ impl<'a> SecureMnemonicDisplay<'a> {
             print!(
                 "\r⏰ Auto-advance in {seconds_left} seconds - Press Enter to continue... (ESC to cancel) "
             );
-            io::stdout()
-                .flush()
-                .map_err(|e| {
-                    tracing::error!("Failed to flush stdout: {}", e);
-                    eyre!("Failed to flush stdout")
-                })?;
+            io::stdout().flush().map_err(|e| {
+                tracing::error!("Failed to flush stdout: {}", e);
+                eyre!("Failed to flush stdout")
+            })?;
         }
     }
 }
