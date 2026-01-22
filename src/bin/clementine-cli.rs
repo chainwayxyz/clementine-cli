@@ -769,7 +769,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eyre::eyre!("Failed to read input.")
                         })?;
 
-                        println!("\n{} Please verify the transaction details below against the information shown on the web page that will be opened.\n", "IMPORTANT:".bold());
+                        println!("\n{} Please verify the transaction details below while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
 
 
                         let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
