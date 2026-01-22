@@ -241,7 +241,8 @@ impl<'a> SecureMnemonicDisplay<'a> {
                 self.alternate_screen_active = true;
                 Ok(())
             }
-            Err(_) => {
+            Err(e) => {
+                tracing::error!("Failed to enter alternate screen: {}", e);
                 // Clean up raw mode if alternate screen failed
                 let _ = terminal::disable_raw_mode();
                 Err(eyre!("Failed to enter alternate screen"))
