@@ -51,7 +51,7 @@ impl DepositStatusEnum {
     pub fn step_description(&self) -> &str {
         match self {
             DepositStatusEnum::New => "Deposit detected on Bitcoin network",
-            DepositStatusEnum::InProgress => "The deposit is being processed",
+            DepositStatusEnum::InProgress => "The deposit is in progress.",
             DepositStatusEnum::MoveTxSent => {
                 "Move transaction broadcasted, waiting for confirmation and minting"
             }
