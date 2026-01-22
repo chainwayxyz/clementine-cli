@@ -97,6 +97,7 @@ struct Cli {
 enum Commands {
     // Init
     Init {},
+    #[command(hide = true)]
     // Update config
     UpdateConfig {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
@@ -392,6 +393,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             "Backup completed for address {} to destination {}",
                             addr.address_with_prefix(),
                             dest.display()
+                        );
+                        println!(
+                            "{} Backup files require the wallet passphrase to import.",
+                            "WARNING".bold()
                         );
                     }
                 );
