@@ -394,6 +394,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             addr.address_with_prefix(),
                             dest.display()
                         );
+                        println!(
+                            "{} Backup files require the wallet passphrase to import.",
+                            "WARNING".bold()
+                        );
                     }
                 );
             }
