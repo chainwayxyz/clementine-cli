@@ -24,9 +24,9 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
 
 #[derive(Debug, Error)]
 pub enum ConfigErrors {
-    #[error("Can't read configuration file: {0}")]
+    #[error("Can't read configuration file.")]
     FileReadFailure(#[from] std::io::Error),
-    #[error("Can't parse TOML file: {0}")]
+    #[error("Can't parse TOML file.")]
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
     UnsupportedNetwork(Network),
@@ -35,7 +35,7 @@ pub enum ConfigErrors {
     )]
     InvalidApiConfiguration,
 
-    #[error(transparent)]
+    #[error("Configuration error.")]
     Other(#[from] eyre::Report),
 }
 
@@ -202,7 +202,8 @@ impl BridgeCliConfig {
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
         tracing::debug!("Trying to read and parse configuration file from home directory...");
-        let config_path = get_clementine_config_path_with_existence_check().map_err(|_| {
+        let config_path = get_clementine_config_path_with_existence_check().map_err(|e| {
+            tracing::error!("Failed to locate config file: {}", e);
             ConfigErrors::FileReadFailure(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Config file not found in home directory. Please run 'clementine-cli init' to create one.",

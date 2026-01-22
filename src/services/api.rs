@@ -96,11 +96,21 @@ async fn get_block_info_for_tx_from_esplora_api(
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
-        .wrap_err("Failed to fetch transaction data: {}")?;
+        .map_err(|e| {
+            tracing::error!("Failed to fetch transaction data. TxID: {}, Error: {}", txid, e);
+            eyre!(
+                "Failed to fetch transaction data. TxID: {}", txid
+            )
+        })?;
     let tx_data: Value = response
         .json()
         .await
-        .wrap_err("Failed to parse transaction data: {}")?;
+        .map_err(|e| {
+            tracing::error!("Failed to parse transaction data response. TxID: {}, Error: {}", txid, e);
+            eyre!(
+                "Failed to parse transaction data response. TxID: {}", txid
+            )
+        })?;
     tracing::debug!("tx_data: {:?}", tx_data);
     let block_hash = tx_data["status"]["block_hash"]
         .as_str()
@@ -147,11 +157,17 @@ pub async fn get_tx_details_from_esplora_api(
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
-        .map_err(|e| eyre!("Failed to fetch transaction hex for {txid}: {e}"))?;
+        .map_err(|e| {
+            tracing::error!("Failed to fetch transaction hex. TxID: {}, Error: {}", txid, e);
+            eyre!("Failed to fetch transaction hex for {txid}")
+        })?;
     let tx_hex = response
         .text()
         .await
-        .map_err(|e| eyre!("Failed to read transaction hex response for {txid}: {e}"))?;
+        .map_err(|e| {
+            tracing::error!("Failed to read transaction hex response. TxID: {}, Error: {}", txid, e);
+            eyre!("Failed to read transaction hex response for {txid}")
+        })?;
     let tx: Transaction = parse_transaction_hex(&tx_hex)?;
     tracing::debug!("tx: {:?}", tx);
 
@@ -167,11 +183,21 @@ pub async fn get_tx_details_from_esplora_api(
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
     let response = reqwest::get(url)
         .await
-        .map_err(|e| eyre!("Failed to fetch block raw data for {block_hash}: {e}"))?;
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to fetch block raw data. Block hash: {}, Error: {}", block_hash, e
+            );
+            eyre!("Failed to fetch block raw data for {block_hash}")
+        })?;
     let block_raw = response
         .bytes()
         .await
-        .map_err(|e| eyre!("Failed to read block raw bytes for {block_hash}: {e}"))?;
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to read block raw bytes. Block hash: {}, Error: {}", block_hash, e
+            );
+            eyre!("Failed to read block raw bytes for {block_hash}")
+        })?;
     tracing::debug!("block_raw: {:?}", block_raw);
     let block: Block = bitcoin::consensus::deserialize(&block_raw)?;
     tracing::debug!("block: {:?}", block);
@@ -243,7 +269,8 @@ pub async fn broadcast_recovery_tx(
             let rpc = config.connect_to_bitcoin_rpc().await?;
             let tx: Transaction = parse_transaction_hex(&raw_tx)?;
             rpc.send_raw_transaction(&tx).await.map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to broadcast transaction via RPC: {}", e))
+                tracing::error!("Failed to broadcast transaction via RPC. Error: {}", e);
+                BridgeCliError::Eyre(eyre!("Failed to broadcast transaction via RPC"))
             })
         }
     )
@@ -290,15 +317,10 @@ async fn broadcast_recovery_tx_with_esplora_api(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Deposit address request failed: {}", status);
+        tracing::error!("Deposit address request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Can't send raw tx\nError Status: {}\nError Text: {}",
-            status,
-            error_text
-        )
-        .into())
+        Err(eyre::eyre!("Can't send raw tx. Error status: {}", status).into())
     }
 }
 
@@ -313,7 +335,8 @@ pub async fn get_utxos(
             let mut utxo_infos = Vec::new();
             for utxo in utxos {
                 let txid = Txid::from_str(&utxo.txid).map_err(|e| {
-                    BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}: {}", utxo.txid, e))
+                    tracing::error!("Failed to parse txid. TxID: {}, Error: {}", utxo.txid, e);
+                    BridgeCliError::Eyre(eyre::eyre!("Failed to parse txid {}", utxo.txid))
                 })?;
                 utxo_infos.push(UtxoInfo {
                     txid,
@@ -365,7 +388,12 @@ pub(crate) async fn get_utxos_from_esplora_api(
         .clone()
         .expect("Checked above")
         .join(&format!("address/{taproot_address}/utxo"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to join esplora_rest_api. Address: {}, Error: {}", taproot_address, e
+            );
+            BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
+        })?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let utxos: Vec<EsploraUtxo> = resp.json().await?;
     Ok(utxos)
@@ -393,7 +421,10 @@ async fn get_current_block_height_from_esplora_api(
         .clone()
         .expect("Checked above")
         .join("blocks/tip/height")
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Failed to join esplora_rest_api. Error: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
+        })?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let height: u64 = resp.json().await?;
     Ok(height)
@@ -405,7 +436,10 @@ async fn get_current_block_height_from_rpc(
     let rpc = config.connect_to_bitcoin_rpc().await?;
     rpc.get_block_count()
         .await
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC: {e}")))
+        .map_err(|e| {
+            tracing::error!("Failed to get block count from RPC. Error: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to get block count from RPC"))
+        })
 }
 
 pub async fn get_mempool_txs(
@@ -423,7 +457,12 @@ pub async fn get_mempool_txs(
         .clone()
         .expect("Checked above")
         .join(&format!("address/{address}/txs/mempool"))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
+        .map_err(|e| {
+            tracing::error!(
+                "Failed to join esplora_rest_api. Address: {}, Error: {}", address, e
+            );
+            BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
+        })?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     let txs: Vec<MempoolTx> = resp.json().await?;
     Ok(txs)
@@ -452,7 +491,10 @@ async fn is_tx_on_chain_with_esplora_api(
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{}/status", txid))
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Failed to join esplora_rest_api. TxID: {}, Error: {}", txid, e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
+        })?;
     let resp = reqwest::get(url).await?.error_for_status()?;
     tracing::debug!("Is tx on chain from esplora api response: {:?}", resp);
     let status: UtxoStatus = resp.json().await?;

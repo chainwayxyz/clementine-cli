@@ -31,20 +31,35 @@ impl TryFrom<DepositRow> for DepositRecord {
 
     fn try_from(row: DepositRow) -> Result<Self, Self::Error> {
         let network = Network::from_str(&row.network).map_err(|e| {
+            tracing::error!(
+                "Invalid network '{}' in deposits table: {}",
+                row.network,
+                e
+            );
             BridgeCliError::Eyre(eyre!(
-                "Invalid network '{}' stored in deposits table: {e}",
+                "Invalid network '{}' stored in deposits table",
                 row.network
             ))
         })?;
 
-        let user_takes_after = u64::try_from(row.user_takes_after).map_err(|_| {
+        let user_takes_after = u64::try_from(row.user_takes_after).map_err(|e| {
+            tracing::error!(
+                "Invalid user_takes_after '{}' in deposits table: {}",
+                row.user_takes_after,
+                e
+            );
             BridgeCliError::Eyre(eyre!(
                 "Invalid user_takes_after '{}' stored in deposits table",
                 row.user_takes_after
             ))
         })?;
 
-        let created_at = u64::try_from(row.created_at).map_err(|_| {
+        let created_at = u64::try_from(row.created_at).map_err(|e| {
+            tracing::error!(
+                "Invalid created_at '{}' in deposits table: {}",
+                row.created_at,
+                e
+            );
             BridgeCliError::Eyre(eyre!(
                 "Invalid created_at '{}' stored in deposits table",
                 row.created_at
@@ -70,13 +85,23 @@ impl DepositTable {
         pool: &Pool<Sqlite>,
         deposit: &DepositRecord,
     ) -> Result<(), BridgeCliError> {
-        let user_takes_after = i64::try_from(deposit.user_takes_after).map_err(|_| {
+        let user_takes_after = i64::try_from(deposit.user_takes_after).map_err(|e| {
+            tracing::error!(
+                "Invalid user_takes_after '{}' for deposits table: {}",
+                deposit.user_takes_after,
+                e
+            );
             BridgeCliError::Eyre(eyre!(
                 "Invalid user_takes_after '{}' for deposits table",
                 deposit.user_takes_after
             ))
         })?;
-        let created_at = i64::try_from(deposit.created_at).map_err(|_| {
+        let created_at = i64::try_from(deposit.created_at).map_err(|e| {
+            tracing::error!(
+                "Invalid created_at '{}' for deposits table: {}",
+                deposit.created_at,
+                e
+            );
             BridgeCliError::Eyre(eyre!(
                 "Invalid created_at '{}' for deposits table",
                 deposit.created_at

@@ -58,7 +58,8 @@ where
     let encrypted_private_data =
         crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
             .map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
+                tracing::error!("Failed to parse encrypted private key. Error: {}", e);
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key"))
             })?;
 
     let decrypted_key = match aes_decrypt_secure(&encrypted_private_data, passphrase) {
@@ -131,7 +132,8 @@ pub(crate) fn validate_private_key_import(
     let encrypted_private_data =
         crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
             .map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key: {}", e))
+                tracing::error!("Failed to parse encrypted private key: {}", e);
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key"))
             })?;
 
     // Decrypt and validate the private key
@@ -260,10 +262,14 @@ pub(crate) async fn parse_and_validate_imported_wallet(
     // Read and parse the wallet file
     let wallet_content = fs::read_to_string(file_path)?;
     let wallet_export: WalletExport = serde_json::from_str(&wallet_content).map_err(|e| {
-        BridgeCliError::Eyre(eyre::eyre!(
+        tracing::error!(
             "Failed to parse wallet file '{}': {}",
             file_path.display(),
             e
+        );
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Failed to parse wallet file '{}'",
+            file_path.display()
         ))
     })?;
 

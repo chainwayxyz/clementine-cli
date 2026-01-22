@@ -33,7 +33,10 @@ use storage::store_deposit_address;
 
 pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, BridgeCliError> {
     CitreaAddress::from_str(citrea_address)
-        .map_err(|_| BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format")))
+        .map_err(|e| {
+            tracing::error!("Invalid Citrea address format: {} Error: {}", citrea_address, e);
+            BridgeCliError::Eyre(eyre::eyre!("Invalid Citrea address format: {}", citrea_address))
+        })
 }
 
 /// Get deposit address from backend

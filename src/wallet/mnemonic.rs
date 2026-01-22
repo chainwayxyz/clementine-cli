@@ -42,7 +42,7 @@ pub const MNEMONIC_WORD_COUNT: usize = 12;
 
 pub(crate) fn generate_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let mnemonic = Mnemonic::generate_in(Language::English, MNEMONIC_WORD_COUNT).map_err(|e| {
-        tracing::error!("Error generating mnemonic: {}", e);
+        tracing::error!("Error generating mnemonic. Error: {}", e);
         BridgeCliError::MnemonicGenerationError
     })?;
 
@@ -152,7 +152,10 @@ pub fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
 
     loop {
         let word_input = rpassword::prompt_password(format!("Word {}: ", word_index))
-            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
+            .map_err(|e| {
+                tracing::error!("Failed to read mnemonic input: {}", e);
+                BridgeCliError::Eyre(eyre::eyre!("Failed to read mnemonic input"))
+            })?;
 
         let word = word_input.trim().to_lowercase();
 

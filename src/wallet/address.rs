@@ -132,7 +132,8 @@ impl TaprootAddressWithPrefix<NetworkUnchecked> {
 
         let unchecked_address: BitcoinAddress<NetworkUnchecked> =
             addr_str.parse().map_err(|e| {
-                BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e))
+                tracing::error!("Failed to parse Bitcoin address '{}': {}", addr_str, e);
+                BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address"))
             })?;
 
         let taproot_address_with_prefix = Self {
@@ -236,13 +237,22 @@ pub(crate) fn calculate_taproot_address(
 pub fn parse_address(address: &str, network: Network) -> Result<BitcoinAddress, BridgeCliError> {
     let unchecked_address: BitcoinAddress<NetworkUnchecked> = address
         .parse()
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address: {}", e)))?;
+        .map_err(|e| {
+            tracing::error!("Failed to parse Bitcoin address '{}': {}", address, e);
+            BridgeCliError::Eyre(eyre::eyre!("Failed to parse Bitcoin address"))
+        })?;
 
-    let address = unchecked_address.require_network(network).map_err(|_| {
-        BridgeCliError::Eyre(eyre::eyre!(
-            "Address network mismatch: {}, address: {}",
+    let address = unchecked_address.require_network(network).map_err(|e| {
+        tracing::error!(
+            "Address '{}' does not belong to network {}: {}",
+            address,
             network,
-            address
+            e
+        );
+        BridgeCliError::Eyre(eyre::eyre!(
+            "Address '{}' does not belong to the expected network ({}). Please verify the address is correct for this network.",
+            address,
+            network
         ))
     })?;
     Ok(address)

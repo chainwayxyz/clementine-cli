@@ -97,7 +97,11 @@ pub(crate) fn sign_recovery_tx(
     let recovery_script =
         create_recovery_script_for_address(recovery_taproot_address, config.user_takes_after)?;
 
-    let sequence_height = u16::try_from(config.user_takes_after).map_err(|_| {
+    let sequence_height = u16::try_from(config.user_takes_after).map_err(|e| {
+        tracing::error!(
+            "user_takes_after exceeds CSV limit user_takes_after: {} error: {}",
+            config.user_takes_after, e
+        );
         BridgeCliError::Eyre(eyre::eyre!(
             "user_takes_after exceeds CSV limit of 65535 blocks"
         ))
@@ -423,7 +427,10 @@ fn extract_xonly_pubkey_from_address(
     }
 
     XOnlyPublicKey::from_slice(&script_bytes[2..34])
-        .map_err(|e| eyre::eyre!("Failed to extract XOnly public key: {e}").into())
+        .map_err(|e| {
+            tracing::error!("Failed to extract XOnly public key: {}", e);
+            eyre::eyre!("Failed to extract XOnly public key").into()
+        })
 }
 
 /// Create recovery script from taproot address (reduces duplication)

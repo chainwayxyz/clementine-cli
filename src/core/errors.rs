@@ -176,12 +176,12 @@ pub enum BridgeCliError {
     TransactionNotOnChain(bitcoin::Txid),
 
     // Transaction parsing errors
-    #[error("Failed to decode hex string '{hex_string}': {source}")]
+    #[error("Failed to decode hex string '{hex_string}'.")]
     HexDecodeError {
         source: hex::FromHexError,
         hex_string: String,
     },
-    #[error("Failed to deserialize transaction from hex '{tx_hex}': {source}")]
+    #[error("Failed to deserialize transaction from hex '{tx_hex}'.")]
     TransactionDeserializeError {
         source: bitcoin::consensus::encode::Error,
         tx_hex: String,
@@ -192,35 +192,35 @@ pub enum BridgeCliError {
     ConfigError(ConfigErrors),
 
     // External crate error wrappers
-    #[error("Failed to convert hex string: {0}")]
+    #[error("Failed to convert hex string.")]
     FromHexError(#[from] FromHexError),
-    #[error("Failed to convert to hash from slice: {0}")]
+    #[error("Failed to convert hash from slice.")]
     FromSliceError(#[from] bitcoin::hashes::FromSliceError),
-    #[error("Error while calling EVM contract: {0}")]
+    #[error("Error while calling EVM contract.")]
     AlloyContract(#[from] alloy::contract::Error),
-    #[error("Error while calling EVM RPC function: {0}")]
+    #[error("Error while calling EVM RPC function.")]
     AlloyRpc(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
-    #[error("Error while encoding/decoding EVM type: {0}")]
+    #[error("Error while encoding/decoding EVM type.")]
     AlloySolTypes(#[from] alloy::sol_types::Error),
     #[error("{0}")]
     CLIDisplayAndExit(StyledStr),
-    #[error("Can't make a request: {0}")]
+    #[error("Can't make a request.")]
     ReqwestError(#[from] reqwest::Error),
-    #[error("Can't serialize/deserialize data: {0}")]
+    #[error("Can't serialize/deserialize data.")]
     SerializationError(#[from] serde_json::Error),
-    #[error("{0}")]
+    #[error("Bitcoin RPC error.")]
     BitcoinRpcError(#[from] bitcoincore_rpc::Error),
-    #[error("{0}")]
+    #[error("Secp256k1 error.")]
     BitcoinSecp256k1Error(#[from] bitcoin::secp256k1::Error),
     #[error("{0}")]
     BitcoinParseError(String),
-    #[error("{0}")]
+    #[error("Invalid hex value.")]
     BitcoinHexParseError(#[from] bitcoin::hex::HexToArrayError),
-    #[error("{0}")]
+    #[error("Invalid Bitcoin amount.")]
     BitcoinAmountParseError(#[from] bitcoin::amount::ParseAmountError),
-    #[error("{0}")]
+    #[error("Bitcoin encoding error.")]
     BitcoinEncodeError(#[from] bitcoin::consensus::encode::Error),
-    #[error("{0}")]
+    #[error("Invalid Bitcoin outpoint.")]
     BitcoinParseOutPointError(#[from] bitcoin::transaction::ParseOutPointError),
     #[error(
         "Wallet address purpose mismatch: expected {:?}, found {:?}. Please use {:?} wallet address(es) (addresses with \"{}\" prefix) for {:?} operations.",
@@ -237,7 +237,7 @@ pub enum BridgeCliError {
     InvalidPrefix(String),
 
     // IO errors (from rpassword and file operations)
-    #[error("IO error: {0}")]
+    #[error("IO error.")]
     IoError(#[from] std::io::Error),
 
     // Base wrapper for eyre
@@ -251,8 +251,8 @@ impl From<bitcoin::address::ParseError> for BridgeCliError {
             ParseError::NetworkValidation(_) => {
                 Self::BitcoinParseError("Address network doesn't match expected network. You might have forgotten to specify the network. Please check your configuration and your address.".to_string())
             },
-            // For other variants, use the default error message
-            _ => Self::BitcoinParseError(err.to_string())
+            // For other variants, use a generic error message
+            _ => Self::BitcoinParseError("Invalid Bitcoin address.".to_string())
         }
     }
 }
