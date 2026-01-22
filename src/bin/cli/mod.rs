@@ -15,6 +15,7 @@ use bitcoin::{
     address::{NetworkChecked, NetworkUnchecked},
     taproot::Signature,
 };
+use chrono::{TimeZone, Utc};
 use colored::Colorize;
 use eyre::eyre;
 
@@ -916,7 +917,7 @@ pub async fn deposit_status(
 
     let deposit_statuses_message = if deposit_statuses_backend.is_empty() {
         format!(
-            "{} No deposits found for address {}",
+            "{} No confirmed deposits found for address {}",
             "INFO".bold(),
             taproot_address.to_string().bold()
         )
@@ -1483,7 +1484,12 @@ pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<()
             println!("  Citrea address: {}", d.citrea_address);
             println!("  User takes after: {} blocks", d.user_takes_after);
             println!("  Network: {:?}", d.network);
-            println!("  Created at (unix timestamp): {}", d.created_at);
+            let created_at = Utc
+                .timestamp_opt(d.created_at as i64, 0)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| format!("{} (invalid timestamp)", d.created_at));
+            println!("  Created at: {}", created_at);
         }
     }
 
