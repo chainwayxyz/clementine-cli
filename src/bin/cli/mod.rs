@@ -878,7 +878,7 @@ pub async fn deposit_status(
 
     let deposit_statuses_message = if deposit_statuses_backend.is_empty() {
         format!(
-            "{} No deposits found for address {}",
+            "{} No confirmed deposits found for address {}",
             "INFO".bold(),
             taproot_address.to_string().bold()
         )
