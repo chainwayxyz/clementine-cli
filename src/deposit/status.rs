@@ -16,11 +16,12 @@ pub(crate) enum DepositStatusEnum {
 impl DepositStatusEnum {
     pub(crate) fn from_status(status: &str) -> Self {
         match status {
-            "new" => DepositStatusEnum::New,
+            "new" | "cleared" => DepositStatusEnum::New,
             "minted" => DepositStatusEnum::Completed,
-            "flushing_initiating" | "flushing_initiated" | "flushing_broadcasting" => {
-                DepositStatusEnum::InProgress
-            }
+            "flushing_initiating"
+            | "flushing_initiated"
+            | "flushing_broadcasting"
+            | "sanctioned" => DepositStatusEnum::InProgress,
             "sent" => DepositStatusEnum::MoveTxSent,
             _ => DepositStatusEnum::Unknown,
         }
@@ -50,13 +51,17 @@ impl DepositStatusEnum {
     /// Returns a description of the current step
     pub fn step_description(&self) -> &str {
         match self {
-            DepositStatusEnum::New => "Deposit detected on Bitcoin network",
-            DepositStatusEnum::InProgress => "The deposit is in progress.",
-            DepositStatusEnum::MoveTxSent => {
-                "Move transaction broadcasted, waiting for confirmation and minting"
+            DepositStatusEnum::New => {
+                "Deposit detected on Bitcoin network, waiting for confirmations."
             }
-            DepositStatusEnum::Completed => "Funds minted on Citrea network",
-            DepositStatusEnum::Unknown => "Status unknown",
+            DepositStatusEnum::InProgress => {
+                "The deposit is sent to Clementine aggregator, waiting for pre-signature collection from Clementine verifiers."
+            }
+            DepositStatusEnum::MoveTxSent => {
+                "Move transaction broadcasted, waiting for confirmation and minting."
+            }
+            DepositStatusEnum::Completed => "Deposit completed! Funds minted on Citrea network.",
+            DepositStatusEnum::Unknown => "Unknown",
         }
     }
 }
