@@ -61,7 +61,10 @@ impl SqliteDb {
         use std::str::FromStr;
         let uri = format!("file:{db_name}?mode=memory&cache=shared");
         let options = SqliteConnectOptions::from_str(&uri)
-            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Failed to parse SQLite URI: {e}")))?
+            .map_err(|e| {
+                tracing::error!("Failed to parse SQLite URI {}: {}", uri, e);
+                BridgeCliError::Eyre(eyre::eyre!("Failed to parse SQLite URI"))
+            })?
             .create_if_missing(true)
             .shared_cache(true);
 

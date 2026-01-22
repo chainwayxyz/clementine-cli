@@ -24,9 +24,9 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
 
 #[derive(Debug, Error)]
 pub enum ConfigErrors {
-    #[error("Can't read configuration file: {0}")]
+    #[error("Can't read configuration file.")]
     FileReadFailure(#[from] std::io::Error),
-    #[error("Can't parse TOML file: {0}")]
+    #[error("Can't parse TOML file.")]
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
     UnsupportedNetwork(Network),
@@ -35,7 +35,7 @@ pub enum ConfigErrors {
     )]
     InvalidApiConfiguration,
 
-    #[error(transparent)]
+    #[error("Configuration error.")]
     Other(#[from] eyre::Report),
 }
 
@@ -72,7 +72,7 @@ impl BridgeCliConfig {
             Network::Bitcoin => Self {
                 network,
                 aggregated_public_key: XOnlyPublicKey::from_str(
-                    "24280baf12b3532692fe42f41852b3122a509731c8f5462f88bc22391d7d7376",
+                    "70458db6f75b129ad93878e7781eeb9ba24bf4bbd498d6a9d3f27827b25c8f81",
                 )
                 .unwrap(),
                 esplora_rest_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
@@ -202,7 +202,8 @@ impl BridgeCliConfig {
     /// Tries to parse config file from home directory.
     pub fn try_parse_config(network: Network) -> Result<Self, ConfigErrors> {
         tracing::debug!("Trying to read and parse configuration file from home directory...");
-        let config_path = get_clementine_config_path_with_existence_check().map_err(|_| {
+        let config_path = get_clementine_config_path_with_existence_check().map_err(|e| {
+            tracing::error!("Failed to locate config file: {}", e);
             ConfigErrors::FileReadFailure(std::io::Error::new(
                 std::io::ErrorKind::NotFound,
                 "Config file not found in home directory. Please run 'clementine-cli init' to create one.",
@@ -222,7 +223,7 @@ impl BridgeCliConfig {
             }
             Err(e) => {
                 tracing::error!(
-                    "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
+                    "Configuration file is not parsable at path {config_path:?}: {}",
                     e
                 );
                 Err(ConfigErrors::FileReadFailure(std::io::Error::new(

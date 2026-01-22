@@ -239,7 +239,8 @@ pub async fn import_wallet_from_file(
     if let Some(encrypted_mnemonic_hex) = &wallet_data.encrypted_mnemonic {
         let encrypted_data =
             encryption::encrypted_data_from_hex(encrypted_mnemonic_hex).map_err(|e| {
-                BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic: {}", e))
+                tracing::error!("Failed to parse encrypted mnemonic: {}", e);
+                BridgeCliError::Eyre(eyre!("Failed to parse encrypted mnemonic"))
             })?;
 
         // Try to decrypt mnemonic to verify passphrase; map auth failure to incorrect passphrase
@@ -281,7 +282,8 @@ pub async fn import_wallet_from_file(
     // Convert encrypted data from the original wallet
     let encrypted_mnemonic_data = if let Some(hex) = wallet_data.encrypted_mnemonic.as_ref() {
         Some(encryption::encrypted_data_from_hex(hex).map_err(|e| {
-            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic: {}", e))
+            tracing::error!("Failed to convert encrypted mnemonic: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted mnemonic"))
         })?)
     } else {
         None
@@ -289,7 +291,8 @@ pub async fn import_wallet_from_file(
 
     let encrypted_private_key_data =
         encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key).map_err(|e| {
-            BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key: {}", e))
+            tracing::error!("Failed to convert encrypted private key: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to convert encrypted private key"))
         })?;
 
     let network = wallet_data.network;
@@ -334,8 +337,10 @@ pub async fn import_wallet_from_private_key(
     sqlite_client: Option<&SqliteDb>,
 ) -> Result<TaprootAddressWithPrefix<NetworkChecked>, BridgeCliError> {
     let private_key_bytes = SecureByteVec::new(Box::new(
-        hex::decode(private_key.expose_secret())
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Invalid private key hex format: {}", e)))?,
+        hex::decode(private_key.expose_secret()).map_err(|e| {
+            tracing::error!("Invalid private key hex format: {}", e);
+            BridgeCliError::Eyre(eyre!("Invalid private key hex format"))
+        })?,
     ));
 
     if private_key_bytes.expose_secret().len() != 32 {

@@ -151,8 +151,11 @@ pub fn prompt_mnemonic() -> Result<Mnemonic, BridgeCliError> {
     let wordlist = Language::English.word_list();
 
     loop {
-        let word_input = rpassword::prompt_password(format!("Word {}: ", word_index))
-            .map_err(|e| BridgeCliError::Eyre(eyre::eyre!(e)))?;
+        let word_input =
+            rpassword::prompt_password(format!("Word {}: ", word_index)).map_err(|e| {
+                tracing::error!("Failed to read mnemonic input: {}", e);
+                BridgeCliError::Eyre(eyre::eyre!("Failed to read mnemonic input"))
+            })?;
 
         let word = word_input.trim().to_lowercase();
 
