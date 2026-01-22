@@ -64,15 +64,10 @@ pub(crate) async fn create_deposit_account(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Deposit address request failed: {}", status);
+        tracing::error!("Deposit address request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -109,15 +104,10 @@ pub async fn backend_deposit_status(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Deposit status request failed: {}", status);
+        tracing::error!("Deposit status request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -154,15 +144,10 @@ pub async fn backend_withdrawal_status(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Withdrawal status request failed: {}", status);
+        tracing::error!("Withdrawal status request failed. Status: {}", status);
         tracing::error!("Error response: {}", error_text);
 
-        Err(eyre::eyre!(
-            "Backend request failed with status: {} {}",
-            status,
-            error_text
-        )
-        .into())
+        Err(eyre::eyre!("Backend request failed with status: {}. Re-run with --verbose to see the full response.", status).into())
     }
 }
 
@@ -218,7 +203,10 @@ pub async fn send_withdrawal_signature_to_operators(
     } else {
         let status = response.status();
         let error_text = response.text().await?;
-        tracing::error!("Send withdrawal signatures request failed: {}", status);
+        tracing::error!(
+            "Send withdrawal signatures request failed. Status: {}",
+            status
+        );
         tracing::error!("Error response: {}", error_text);
 
         if error_text.contains("Withdrawal not found") {
@@ -234,7 +222,7 @@ pub async fn send_withdrawal_signature_to_operators(
             )
             .into())
         } else {
-            Err(eyre::eyre!("Internal Error while sending withdrawal signature").into())
+            Err(eyre::eyre!("Internal Error while sending withdrawal signature. Re-run with --verbose to see the full response.").into())
         }
     }
 }
