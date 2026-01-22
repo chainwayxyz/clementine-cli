@@ -15,6 +15,7 @@ use bitcoin::{
     address::{NetworkChecked, NetworkUnchecked},
     taproot::Signature,
 };
+use chrono::{TimeZone, Utc};
 use colored::Colorize;
 use eyre::eyre;
 
@@ -71,7 +72,8 @@ fn parse_and_validate_aggregated_key(
     }
 
     let key = XOnlyPublicKey::from_str(key_hex).map_err(|e| {
-        BridgeCliError::Eyre(eyre::eyre!("Failed to parse aggregated_public_key: {}", e))
+        tracing::error!("Failed to parse aggregated_public_key: {}", e);
+        BridgeCliError::Eyre(eyre::eyre!("Failed to parse aggregated_public_key"))
     })?;
 
     if key != config_key {
@@ -129,9 +131,10 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
         io::stdout().flush().ok();
 
         let mut answer = String::new();
-        io::stdin()
-            .read_line(&mut answer)
-            .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+        io::stdin().read_line(&mut answer).map_err(|e| {
+            tracing::error!("Failed to read input: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to read input"))
+        })?;
 
         let overwrite = matches!(answer.trim().to_lowercase().as_str(), "y" | "yes");
 
@@ -143,18 +146,26 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
     let mut cfgs = if config_file.exists() {
         let contents = fs::read_to_string(&config_file).map_err(|e| {
-            BridgeCliError::Eyre(eyre!(
-                "Failed to read existing configuration '{}': {}",
+            tracing::error!(
+                "Failed to read existing configuration, {}: {}",
                 config_file.display(),
                 e
+            );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to read existing configuration '{}'",
+                config_file.display()
             ))
         })?;
 
         toml::from_str::<NetworkConfigs>(&contents).map_err(|e| {
-            BridgeCliError::Eyre(eyre!(
-                "Failed to parse existing configuration '{}': {}",
+            tracing::error!(
+                "Failed to parse existing configuration, {}: {}",
                 config_file.display(),
                 e
+            );
+            BridgeCliError::Eyre(eyre!(
+                "Failed to parse existing configuration '{}'",
+                config_file.display()
             ))
         })?
     } else {
@@ -224,7 +235,10 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
         let api_url = match choice {
             0 => {
                 // Blockstream.info
-                Url::parse(blockstream_url).map_err(|e| eyre!("Invalid Blockstream URL: {}", e))?
+                Url::parse(blockstream_url).map_err(|e| {
+                    tracing::error!("Invalid Blockstream URL {}: {}", blockstream_url, e);
+                    eyre!("Invalid Blockstream URL")
+                })?
             }
             1 => {
                 // Mempool.space (keep existing default)
@@ -237,13 +251,17 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
                 let custom_url: String = Input::with_theme(&theme)
                     .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
                     .validate_with(|input: &String| -> Result<(), String> {
-                        Url::parse(input)
-                            .map(|_| ())
-                            .map_err(|e| format!("Invalid URL: {}", e))
+                        Url::parse(input).map(|_| ()).map_err(|e| {
+                            tracing::error!("Invalid URL {}: {}", input, e);
+                            "Invalid URL".to_string()
+                        })
                     })
                     .interact_text()?;
 
-                Url::parse(&custom_url).map_err(|e| eyre!("Invalid custom URL: {}", e))?
+                Url::parse(&custom_url).map_err(|e| {
+                    tracing::error!("Invalid custom URL {}: {}", custom_url, e);
+                    eyre!("Invalid custom URL")
+                })?
             }
             _ => unreachable!(),
         };
@@ -254,10 +272,14 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             url_str.push('/');
         }
 
-        net.esplora_rest_api = Some(
-            Url::parse(&url_str)
-                .map_err(|e| eyre!("Failed to parse URL with trailing slash: {}", e))?,
-        );
+        net.esplora_rest_api = Some(Url::parse(&url_str).map_err(|e| {
+            tracing::error!(
+                "Failed to parse URL with trailing slash, {}: {}",
+                url_str,
+                e
+            );
+            eyre!("Failed to parse URL with trailing slash")
+        })?);
 
         println!(
             "{} {} Bitcoin Esplora API set to: {}",
@@ -300,11 +322,7 @@ fn set_permissions(path: &Path, mode: u32) -> Result<(), BridgeCliError> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(mode)).map_err(|e| {
         tracing::error!("Failed to set permissions for {}: {}", path.display(), e);
-        BridgeCliError::Eyre(eyre!(
-            "Failed to set permissions for {}: {}",
-            path.display(),
-            e
-        ))
+        BridgeCliError::Eyre(eyre!("Failed to set permissions for {}", path.display()))
     })?;
     Ok(())
 }
@@ -318,9 +336,8 @@ fn parse_config_to_doc(config_path: &Path) -> Result<DocumentMut, BridgeCliError
             e
         );
         BridgeCliError::Eyre(eyre!(
-            "Failed to read config file {}: {}",
-            config_path.display(),
-            e
+            "Failed to read config file {}",
+            config_path.display()
         ))
     })?;
 
@@ -331,9 +348,8 @@ fn parse_config_to_doc(config_path: &Path) -> Result<DocumentMut, BridgeCliError
             e
         );
         BridgeCliError::Eyre(eyre!(
-            "Failed to parse TOML config {}: {}",
-            config_path.display(),
-            e
+            "Failed to parse TOML config {}",
+            config_path.display()
         ))
     })?;
 
@@ -348,7 +364,13 @@ fn create_item_from_existing(
 ) -> Result<Item, BridgeCliError> {
     let new_item: Item = match existing_val {
         Value::Boolean(_) => {
-            let parsed = new_val_str.parse::<bool>().map_err(|_| {
+            let parsed = new_val_str.parse::<bool>().map_err(|e| {
+                tracing::error!(
+                    "Failed to parse boolean value '{}' for path '{}': {}",
+                    new_val_str,
+                    item_path,
+                    e
+                );
                 BridgeCliError::Eyre(eyre!(
                     "Failed to parse '{}' as boolean for {}",
                     new_val_str,
@@ -358,7 +380,13 @@ fn create_item_from_existing(
             value(parsed)
         }
         Value::Integer(_) => {
-            let parsed = new_val_str.parse::<i64>().map_err(|_| {
+            let parsed = new_val_str.parse::<i64>().map_err(|e| {
+                tracing::error!(
+                    "Failed to parse integer value '{}' for path '{}': {}",
+                    new_val_str,
+                    item_path,
+                    e
+                );
                 BridgeCliError::Eyre(eyre!(
                     "Failed to parse '{}' as integer for {}",
                     new_val_str,
@@ -368,7 +396,13 @@ fn create_item_from_existing(
             value(parsed)
         }
         Value::Float(_) => {
-            let parsed = new_val_str.parse::<f64>().map_err(|_| {
+            let parsed = new_val_str.parse::<f64>().map_err(|e| {
+                tracing::error!(
+                    "Failed to parse float value '{}' for path '{}': {}",
+                    new_val_str,
+                    item_path,
+                    e
+                );
                 BridgeCliError::Eyre(eyre!(
                     "Failed to parse '{}' as float for {}",
                     new_val_str,
@@ -408,9 +442,10 @@ fn prompt_confirm(
     );
     io::stdout().flush().ok();
     let mut answer = String::new();
-    io::stdin()
-        .read_line(&mut answer)
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read input: {}", e)))?;
+    io::stdin().read_line(&mut answer).map_err(|e| {
+        tracing::error!("Failed to read input: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to read input"))
+    })?;
     Ok(matches!(answer.trim().to_lowercase().as_str(), "y" | "yes"))
 }
 
@@ -419,24 +454,28 @@ fn persist_doc_atomic(doc: &DocumentMut, config_path: &Path) -> Result<(), Bridg
     let clementine_home_dir = get_clementine_home_dir_with_existence_check()?;
     let dir = clementine_home_dir;
     let mut tmp = NamedTempFile::new_in(&dir).map_err(|e| {
-        BridgeCliError::Eyre(eyre!(
-            "Failed to create temp file in {}: {}",
-            dir.display(),
-            e
-        ))
+        tracing::error!("Failed to create temp file in '{}': {}", dir.display(), e);
+        BridgeCliError::Eyre(eyre!("Failed to create temp file in {}", dir.display()))
     })?;
 
-    tmp.write_all(doc.to_string().as_bytes())
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to write to temp config file: {}", e)))?;
-    tmp.as_file()
-        .sync_all()
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to flush temp config file: {}", e)))?;
+    tmp.write_all(doc.to_string().as_bytes()).map_err(|e| {
+        tracing::error!("Failed to write to temp config file: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to write to temp config file"))
+    })?;
+    tmp.as_file().sync_all().map_err(|e| {
+        tracing::error!("Failed to flush temp config file: {}", e);
+        BridgeCliError::Eyre(eyre!("Failed to flush temp config file"))
+    })?;
 
     tmp.persist(config_path).map_err(|e| {
-        BridgeCliError::Eyre(eyre!(
-            "Failed to persist temp config file to {}: {}",
+        tracing::error!(
+            "Failed to persist temp config file: {}: {}",
             config_path.display(),
             e.error
+        );
+        BridgeCliError::Eyre(eyre!(
+            "Failed to persist temp config file to {}",
+            config_path.display()
         ))
     })?;
 
@@ -581,9 +620,8 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
             e
         );
         BridgeCliError::Eyre(eyre!(
-            "Failed to read config file {}: {}",
-            config_path.display(),
-            e
+            "Failed to read config file {}",
+            config_path.display()
         ))
     })?;
 
@@ -594,9 +632,8 @@ pub fn cli_show_config(network: Network) -> Result<(), BridgeCliError> {
             e
         );
         BridgeCliError::Eyre(eyre!(
-            "Failed to parse TOML config {}: {}",
-            config_path.display(),
-            e
+            "Failed to parse TOML config {}",
+            config_path.display()
         ))
     })?;
 
@@ -757,7 +794,10 @@ pub async fn cli_import_wallet_from_private_key(
     validate_wallet_availability(Some(label), None, None).await?;
 
     let private_key_input = rpassword::prompt_password("Enter your private key (hex format): ")
-        .map_err(|e| BridgeCliError::Eyre(eyre!("Failed to read private key: {}", e)))?;
+        .map_err(|e| {
+            tracing::error!("Failed to read private key: {}", e);
+            BridgeCliError::Eyre(eyre!("Failed to read private key"))
+        })?;
 
     let secure_private_key = SecureString::init_with(|| private_key_input);
 
@@ -814,8 +854,8 @@ pub async fn deposit_status(
 ) -> Result<(), BridgeCliError> {
     let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
-        Err(e) => {
-            eprintln!("ERROR Failed to fetch UTXOs from Esplora API: {}", e);
+        Err(_) => {
+            eprintln!("ERROR Failed to fetch UTXOs from Esplora API");
             vec![]
         }
     };
@@ -869,15 +909,15 @@ pub async fn deposit_status(
 
     let deposit_statuses_backend = match backend_deposit_status(&taproot_address, config).await {
         Ok(statuses) => statuses,
-        Err(e) => {
-            eprintln!("ERROR Failed to fetch deposit statuses from backend: {}", e);
+        Err(_) => {
+            eprintln!("ERROR Failed to fetch deposit statuses from backend");
             vec![]
         }
     };
 
     let deposit_statuses_message = if deposit_statuses_backend.is_empty() {
         format!(
-            "{} No deposits found for address {}",
+            "{} No confirmed deposits found for address {}",
             "INFO".bold(),
             taproot_address.to_string().bold()
         )
@@ -951,8 +991,8 @@ pub async fn deposit_status(
     if config.esplora_rest_api.is_some() {
         let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
             Ok(txs) => txs,
-            Err(e) => {
-                eprintln!("ERROR Failed to fetch mempool transactions: {}", e);
+            Err(_) => {
+                eprintln!("ERROR Failed to fetch mempool transactions");
                 vec![]
             }
         };
@@ -1052,7 +1092,12 @@ pub async fn send_withdrawal_signature(
     signature: &str,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|_| {
+    let withdrawal_outpoint = OutPoint::from_str(withdrawal_utxo_outpoint).map_err(|e| {
+        tracing::error!(
+            "Failed to parse withdrawal UTXO outpoint '{}': {}",
+            withdrawal_utxo_outpoint,
+            e
+        );
         BridgeCliError::Eyre(eyre!(
             "Failed to parse withdrawal UTXO outpoint '{}'",
             withdrawal_utxo_outpoint,
@@ -1154,8 +1199,9 @@ pub async fn cli_scan_withdrawals(
 
     let utxos = withdraw::scan_withdrawal(signer_address, destination_address, config).await;
 
-    let mut utxos =
-        utxos.inspect_err(|e| eprintln!("{} Failed to scan withdrawals: {}", "ERROR".bold(), e))?;
+    let mut utxos = utxos.inspect_err(|_| {
+        eprintln!("{} Failed to scan withdrawals", "ERROR".bold());
+    })?;
 
     utxos.sort_by_key(|utxo| utxo.block_height.unwrap_or(u64::MAX));
 
@@ -1438,7 +1484,12 @@ pub async fn cli_get_deposit_address_details(deposit_address: &str) -> Result<()
             println!("  Citrea address: {}", d.citrea_address);
             println!("  User takes after: {} blocks", d.user_takes_after);
             println!("  Network: {:?}", d.network);
-            println!("  Created at (unix timestamp): {}", d.created_at);
+            let created_at = Utc
+                .timestamp_opt(d.created_at as i64, 0)
+                .single()
+                .map(|dt| dt.to_rfc3339())
+                .unwrap_or_else(|| format!("{} (invalid timestamp)", d.created_at));
+            println!("  Created at: {}", created_at);
         }
     }
 

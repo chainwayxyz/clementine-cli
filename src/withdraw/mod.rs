@@ -170,7 +170,10 @@ pub async fn send_safe_withdrawal(
     let signer = secret_key
         .expose_secret()
         .parse::<PrivateKeySigner>()
-        .map_err(|e| BridgeCliError::Eyre(eyre::eyre!("Invalid secret key format: {}", e)))?;
+        .map_err(|e| {
+            tracing::error!("Invalid secret key format: {}", e);
+            BridgeCliError::Eyre(eyre::eyre!("Invalid secret key format"))
+        })?;
     let chain_id: u64 = config.citrea_chain_id;
     let key = signer.with_chain_id(Some(chain_id));
     let wallet_address = key.address();

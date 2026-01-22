@@ -90,10 +90,6 @@ impl Display for WithdrawStatus {
         writeln!(f, "\nWithdrawal Info")?;
         let rows = [
             Row {
-                label: "Index:",
-                value: self.idx.to_string(),
-            },
-            Row {
                 label: "Status:",
                 value: status.to_string(),
             },
