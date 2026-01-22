@@ -76,9 +76,9 @@ impl BridgeCliConfig {
                 )
                 .unwrap(),
                 esplora_rest_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
-                citrea_chain_id: 0,
+                citrea_chain_id: 4114,
                 citrea_rpc_url: None,
-                citrea_backend_endpoint: Url::parse("https://api.citrea.xyz/").unwrap(),
+                citrea_backend_endpoint: Url::parse("https://api.mainnet.citrea.xyz/").unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
                 optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
