@@ -209,7 +209,6 @@ pub async fn send_withdrawal_signature_to_operators(
         );
         tracing::error!("Error response: {}", error_text);
 
-        // TODO: Improve error handling based on error codes
         if error_text.contains("Withdrawal not found") {
             Err(eyre::eyre!(
                 "Withdrawal not found for outpoint: {}, maybe wait for confirmation.",
