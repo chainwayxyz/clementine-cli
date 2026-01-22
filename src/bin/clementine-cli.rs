@@ -97,6 +97,7 @@ struct Cli {
 enum Commands {
     // Init
     Init {},
+    #[command(hide = true)]
     // Update config
     UpdateConfig {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
