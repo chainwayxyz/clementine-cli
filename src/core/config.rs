@@ -223,7 +223,7 @@ impl BridgeCliConfig {
             }
             Err(e) => {
                 tracing::error!(
-                    "Configuration file is not parsable at path: {config_path:?}, Error: {:?}",
+                    "Configuration file is not parsable at path {config_path:?}: {}",
                     e
                 );
                 Err(ConfigErrors::FileReadFailure(std::io::Error::new(

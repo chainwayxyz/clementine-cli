@@ -58,7 +58,7 @@ where
     let encrypted_private_data =
         crate::wallet::encryption::encrypted_data_from_hex(&wallet_data.encrypted_private_key)
             .map_err(|e| {
-                tracing::error!("Failed to parse encrypted private key. Error: {}", e);
+                tracing::error!("Failed to parse encrypted private key: {}", e);
                 BridgeCliError::Eyre(eyre!("Failed to parse encrypted private key"))
             })?;
 

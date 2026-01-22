@@ -99,7 +99,7 @@ pub(crate) fn sign_recovery_tx(
 
     let sequence_height = u16::try_from(config.user_takes_after).map_err(|e| {
         tracing::error!(
-            "user_takes_after exceeds CSV limit user_takes_after: {} error: {}",
+            "user_takes_after: {} exceeds CSV limit: {}",
             config.user_takes_after,
             e
         );

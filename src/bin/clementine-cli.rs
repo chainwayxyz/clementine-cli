@@ -801,7 +801,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         })?;
 
                         if let Err(e) = open::that(&withdrawal_ui_url.0) {
-                            tracing::error!("Failed to open browser for URL: {} Error: {}", withdrawal_ui_url.0, e);
+                            tracing::error!("Failed to open browser for URL: {} {}", withdrawal_ui_url.0, e);
                             return Err(eyre::eyre!(
                                 "Failed to open browser. Please visit the following URL manually: {}",
                                 withdrawal_ui_url.0

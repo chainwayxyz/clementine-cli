@@ -171,7 +171,7 @@ pub async fn send_safe_withdrawal(
         .expose_secret()
         .parse::<PrivateKeySigner>()
         .map_err(|e| {
-            tracing::error!("Invalid secret key format. Error: {}", e);
+            tracing::error!("Invalid secret key format: {}", e);
             BridgeCliError::Eyre(eyre::eyre!("Invalid secret key format"))
         })?;
     let chain_id: u64 = config.citrea_chain_id;

@@ -71,7 +71,7 @@ fn parse_and_validate_aggregated_key(
     }
 
     let key = XOnlyPublicKey::from_str(key_hex).map_err(|e| {
-        tracing::error!("Failed to parse aggregated_public_key. Error: {}", e);
+        tracing::error!("Failed to parse aggregated_public_key: {}", e);
         BridgeCliError::Eyre(eyre::eyre!("Failed to parse aggregated_public_key"))
     })?;
 
@@ -131,7 +131,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
         let mut answer = String::new();
         io::stdin().read_line(&mut answer).map_err(|e| {
-            tracing::error!("Failed to read input. Error: {}", e);
+            tracing::error!("Failed to read input: {}", e);
             BridgeCliError::Eyre(eyre!("Failed to read input"))
         })?;
 
@@ -146,7 +146,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
     let mut cfgs = if config_file.exists() {
         let contents = fs::read_to_string(&config_file).map_err(|e| {
             tracing::error!(
-                "Failed to read existing configuration. File Path: {} Error: {}",
+                "Failed to read existing configuration, {}: {}",
                 config_file.display(),
                 e
             );
@@ -158,7 +158,7 @@ pub fn cli_init() -> Result<(), BridgeCliError> {
 
         toml::from_str::<NetworkConfigs>(&contents).map_err(|e| {
             tracing::error!(
-                "Failed to parse existing configuration. File Path: {} Error: {}",
+                "Failed to parse existing configuration, {}: {}",
                 config_file.display(),
                 e
             );
@@ -235,7 +235,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
             0 => {
                 // Blockstream.info
                 Url::parse(blockstream_url).map_err(|e| {
-                    tracing::error!("Invalid Blockstream URL {}. Error: {}", blockstream_url, e);
+                    tracing::error!("Invalid Blockstream URL {}: {}", blockstream_url, e);
                     eyre!("Invalid Blockstream URL")
                 })?
             }
@@ -251,7 +251,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
                     .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
                     .validate_with(|input: &String| -> Result<(), String> {
                         Url::parse(input).map(|_| ()).map_err(|e| {
-                            tracing::error!("Invalid URL {}. Error: {}", input, e);
+                            tracing::error!("Invalid URL {}: {}", input, e);
                             "Invalid URL".to_string()
                         })
                     })
@@ -273,7 +273,7 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
 
         net.esplora_rest_api = Some(Url::parse(&url_str).map_err(|e| {
             tracing::error!(
-                "Failed to parse URL with trailing slash. Url: {} Error: {}",
+                "Failed to parse URL with trailing slash, {}: {}",
                 url_str,
                 e
             );
