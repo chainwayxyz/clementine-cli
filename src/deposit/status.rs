@@ -16,12 +16,11 @@ pub(crate) enum DepositStatusEnum {
 impl DepositStatusEnum {
     pub(crate) fn from_status(status: &str) -> Self {
         match status {
-            "new" => DepositStatusEnum::New,
+            "new" | "cleared" => DepositStatusEnum::New,
             "minted" => DepositStatusEnum::Completed,
             "flushing_initiating"
             | "flushing_initiated"
             | "flushing_broadcasting"
-            | "cleared"
             | "sanctioned" => DepositStatusEnum::InProgress,
             "sent" => DepositStatusEnum::MoveTxSent,
             _ => DepositStatusEnum::Unknown,
@@ -62,7 +61,7 @@ impl DepositStatusEnum {
                 "Move transaction broadcasted, waiting for confirmation and minting."
             }
             DepositStatusEnum::Completed => "Deposit completed! Funds minted on Citrea network.",
-            DepositStatusEnum::Unknown => "Status unknown",
+            DepositStatusEnum::Unknown => "Unknown",
         }
     }
 }

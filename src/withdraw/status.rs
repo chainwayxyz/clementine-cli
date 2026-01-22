@@ -13,7 +13,9 @@ const SUB_KV_GAP: &str = " ";
 pub(crate) enum WithdrawStatusEnum {
     New,
     InProgress,
+    SendingToOptimisticPayout,
     OptimisticPayoutFailed,
+    SendingToOperatorWithdraw,
     Completed,
     Unknown,
 }
@@ -21,12 +23,15 @@ pub(crate) enum WithdrawStatusEnum {
 impl WithdrawStatusEnum {
     pub(crate) fn from_backend_status(status: &str) -> Self {
         match status {
-            "new" => WithdrawStatusEnum::New,
+            "new" | "cleared" => WithdrawStatusEnum::New,
             "completed" => WithdrawStatusEnum::Completed,
-            "sending-to-optimistic-payout"
-            | "sent-to-optimistic-payout"
-            | "sending-to-operator-withdraw"
-            | "sent-to-operator-withdraw" => WithdrawStatusEnum::InProgress,
+            "sanctioned" => WithdrawStatusEnum::InProgress,
+            "sending-to-optimistic-payout" | "sent-to-optimistic-payout" => {
+                WithdrawStatusEnum::SendingToOptimisticPayout
+            }
+            "sending-to-operator-withdraw" | "sent-to-operator-withdraw" => {
+                WithdrawStatusEnum::SendingToOperatorWithdraw
+            }
             "optimistic-payout-failed" => WithdrawStatusEnum::OptimisticPayoutFailed,
             unknown_status => {
                 tracing::debug!("Returned unknown status: {}", unknown_status);
@@ -37,13 +42,24 @@ impl WithdrawStatusEnum {
 
     pub fn as_string(&self) -> String {
         match self {
-            WithdrawStatusEnum::New => "New".to_string(),
+            WithdrawStatusEnum::New => {
+                "Withdrawal detected on Citrea, initiating withdrawal.".to_string()
+            }
             WithdrawStatusEnum::InProgress => "In Progress".to_string(),
+            WithdrawStatusEnum::SendingToOptimisticPayout => {
+                "Sending optimistic payout request to Clementine verifiers.".to_string()
+            }
             WithdrawStatusEnum::OptimisticPayoutFailed => {
-                "Optimistic payout failed! Please proceed with operator paid withdrawal..."
+                "Optimistic payout failed! Please proceed with operator paid withdrawal."
                     .to_string()
             }
-            WithdrawStatusEnum::Completed => "Completed".to_string(),
+            WithdrawStatusEnum::SendingToOperatorWithdraw => {
+                "Sending payout request to operators.".to_string()
+            }
+            WithdrawStatusEnum::Completed => {
+                "Withdrawal completed! Please check your funds on your receiving address."
+                    .to_string()
+            }
             WithdrawStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
