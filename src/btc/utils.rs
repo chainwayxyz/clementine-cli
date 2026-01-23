@@ -496,6 +496,7 @@ mod tests {
                 citrea_chain_id: 5115,
                 citrea_rpc_url: Some(reqwest::Url::parse("http://localhost:8545").unwrap()),
                 citrea_backend_endpoint: reqwest::Url::parse("http://localhost:8080").unwrap(),
+                withdrawal_sign_url: reqwest::Url::parse("http://127.0.0.1:12345/").unwrap(),
                 user_takes_after: 4320,
                 bridge_amount: Amount::from_sat(100000),
                 optimistic_withdrawal_amount: Amount::from_sat(50000),
