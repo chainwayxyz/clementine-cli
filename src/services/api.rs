@@ -5,6 +5,7 @@ use std::str::FromStr;
 use crate::btc::utils::parse_transaction_hex;
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
+use crate::services::{http_client, map_request_error};
 use crate::wallet::BitcoinAddress;
 use bitcoin::{Amount, Block, Transaction, TxOut, Txid};
 use bitcoincore_rpc::json::{ScanTxOutRequest, Utxo};
@@ -94,10 +95,12 @@ async fn get_block_info_for_tx_from_esplora_api(
         .expect("Checked above")
         .join(&format!("tx/{txid}"))
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
-    let response = reqwest::get(url).await.map_err(|e| {
-        tracing::error!("Failed to fetch transaction data for TxID {}: {}", txid, e);
-        eyre!("Failed to fetch transaction data for TxID {}", txid)
-    })?;
+    let client = http_client()?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch transaction data", e))?;
     let tx_data: Value = response.json().await.map_err(|e| {
         tracing::error!(
             "Failed to parse transaction data response for TxID {}: {}",
@@ -147,16 +150,18 @@ pub async fn get_tx_details_from_esplora_api(
         )));
     }
 
+    let client = http_client()?;
     let url = config
         .esplora_rest_api
         .clone()
         .expect("Checked above")
         .join(&format!("tx/{txid}/hex"))
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
-    let response = reqwest::get(url).await.map_err(|e| {
-        tracing::error!("Failed to fetch transaction hex for TxID {}: {}", txid, e);
-        eyre!("Failed to fetch transaction hex for TxID {}", txid)
-    })?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch transaction hex", e))?;
     let tx_hex = response.text().await.map_err(|e| {
         tracing::error!(
             "Failed to read transaction hex response for TxID {}: {}",
@@ -178,14 +183,11 @@ pub async fn get_tx_details_from_esplora_api(
         .expect("Checked above")
         .join(&format!("block/{block_hash}/raw"))
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
-    let response = reqwest::get(url).await.map_err(|e| {
-        tracing::error!(
-            "Failed to fetch block raw data for Block hash {}: {}",
-            block_hash,
-            e
-        );
-        eyre!("Failed to fetch block raw data for {block_hash}")
-    })?;
+    let response = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch block raw data", e))?;
     let block_raw = response.bytes().await.map_err(|e| {
         tracing::error!(
             "Failed to read block raw bytes for Block hash {}: {}",
@@ -285,14 +287,19 @@ async fn broadcast_recovery_tx_with_esplora_api(
         )));
     }
 
-    let client = reqwest::Client::new();
+    let client = http_client()?;
 
     let url = esplora_api
         .expect("Checked above")
         .join("tx")
         .wrap_err("Can't join url in get_tx_details_from_esplora_api")?;
 
-    let response = client.post(url.as_str()).body(raw_tx).send().await?;
+    let response = client
+        .post(url.as_str())
+        .body(raw_tx)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to broadcast recovery transaction", e))?;
 
     if response.status().is_success() {
         let response_body = response.text().await?;
@@ -395,7 +402,14 @@ pub(crate) async fn get_utxos_from_esplora_api(
             );
             BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
         })?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
+    let client = http_client()?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch UTXOs", e))?
+        .error_for_status()
+        .map_err(|e| map_request_error("Failed to fetch UTXOs", e))?;
     let utxos: Vec<EsploraUtxo> = resp.json().await?;
     Ok(utxos)
 }
@@ -426,7 +440,14 @@ async fn get_current_block_height_from_esplora_api(
             tracing::error!("Failed to join esplora_rest_api: {}", e);
             BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
         })?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
+    let client = http_client()?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch current block height", e))?
+        .error_for_status()
+        .map_err(|e| map_request_error("Failed to fetch current block height", e))?;
     let height: u64 = resp.json().await?;
     Ok(height)
 }
@@ -464,7 +485,14 @@ pub async fn get_mempool_txs(
             );
             BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
         })?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
+    let client = http_client()?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch mempool transactions", e))?
+        .error_for_status()
+        .map_err(|e| map_request_error("Failed to fetch mempool transactions", e))?;
     let txs: Vec<MempoolTx> = resp.json().await?;
     Ok(txs)
 }
@@ -496,7 +524,14 @@ async fn is_tx_on_chain_with_esplora_api(
             tracing::error!("Failed to join esplora_rest_api for TxID {}: {}", txid, e);
             BridgeCliError::Eyre(eyre::eyre!("Failed to join esplora_rest_api"))
         })?;
-    let resp = reqwest::get(url).await?.error_for_status()?;
+    let client = http_client()?;
+    let resp = client
+        .get(url)
+        .send()
+        .await
+        .map_err(|e| map_request_error("Failed to fetch transaction status", e))?
+        .error_for_status()
+        .map_err(|e| map_request_error("Failed to fetch transaction status", e))?;
     tracing::debug!("Is tx on chain from esplora api response: {:?}", resp);
     let status: UtxoStatus = resp.json().await?;
     tracing::debug!("Is tx on chain from esplora api status: {:?}", status);

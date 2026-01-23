@@ -2,6 +2,7 @@ use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
 use crate::deposit::CitreaAddress;
 use crate::deposit::DepositStatus;
+use crate::services::{http_client, map_request_error};
 use crate::wallet::BitcoinAddress;
 use crate::wallet::address::parse_taproot_address;
 use crate::withdraw::WithdrawStatus;
@@ -34,7 +35,7 @@ pub(crate) async fn create_deposit_account(
     );
 
     // Create HTTP client
-    let client = reqwest::Client::new();
+    let client = http_client()?;
 
     // Make POST request
     let response = client
@@ -42,7 +43,8 @@ pub(crate) async fn create_deposit_account(
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
-        .await?;
+        .await
+        .map_err(|e| map_request_error("Failed to make deposit address request", e))?;
 
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json().await?;
@@ -83,7 +85,7 @@ pub async fn backend_deposit_status(
     tracing::debug!("Making request to: {}", url);
 
     // Create HTTP client
-    let client = reqwest::Client::new();
+    let client = http_client()?;
 
     // Make GET request
     let response = client
@@ -91,7 +93,8 @@ pub async fn backend_deposit_status(
         .header("Content-Type", "application/json")
         .query(&[("taproot_addrs", taproot_address.to_string())])
         .send()
-        .await?;
+        .await
+        .map_err(|e| map_request_error("Failed to make deposit status request", e))?;
 
     if response.status().is_success() {
         let response_body: Vec<DepositStatus> = response.json().await?;
@@ -123,7 +126,7 @@ pub async fn backend_withdrawal_status(
     tracing::debug!("Making request to: {}", url);
 
     // Create HTTP client
-    let client = reqwest::Client::new();
+    let client = http_client()?;
 
     // Make GET request
     let response = client
@@ -131,7 +134,8 @@ pub async fn backend_withdrawal_status(
         .header("Content-Type", "application/json")
         .query(&[("user_dust_outpoint", withdrawal_outpoint.to_string())])
         .send()
-        .await?;
+        .await
+        .map_err(|e| map_request_error("Failed to make withdrawal status request", e))?;
 
     if response.status().is_success() {
         let response_body: Vec<WithdrawStatus> = response.json().await?;
@@ -179,7 +183,7 @@ pub async fn send_withdrawal_signature_to_operators(
     );
 
     // Create HTTP client
-    let client = reqwest::Client::new();
+    let client = http_client()?;
 
     // Make POST request
     let response = client
@@ -187,7 +191,8 @@ pub async fn send_withdrawal_signature_to_operators(
         .header("Content-Type", "application/json")
         .json(&request_body)
         .send()
-        .await?;
+        .await
+        .map_err(|e| map_request_error("Failed to send withdrawal signatures request", e))?;
 
     if response.status().is_success() {
         let response_body: serde_json::Value = response.json().await?;
