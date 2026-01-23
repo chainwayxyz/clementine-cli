@@ -769,19 +769,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config,
                     ),
                     (withdrawal_ui_url, tx_json, params) => {
-                        println!(
-                            "\n{} Opening withdrawal page {} in your default browser...",
-                            "INFO".bold(),
-                            withdrawal_ui_url.0
-                        );
-
-                        println!("\nPress a key to continue...");
-                        std::io::stdin().read_line(&mut String::new()).map_err(|e| {
-                            tracing::error!("Failed to read input: {}", e);
-                            eyre::eyre!("Failed to read input.")
-                        })?;
-
-                        println!("\nPlease review the transaction details below:\n");
+                        println!("\n{} You will be redirected to a browser to sign the withdrawal transaction. Please verify that the transaction details below match while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
 
 
                         let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
@@ -795,9 +783,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
                         println!("{:#?}\n", params);
 
-                        println!("Please double check the transaction details before proceeding in the browser.\n");
+                        println!("Please double-check the transaction details before continuing in the browser.\n");
 
-                        println!("Press a key to continue...");
+                        println!("Press Enter to continue...");
                         let mut input = String::new();
 
                         std::io::stdin().read_line(&mut input).map_err(|e| {
@@ -805,10 +793,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             eyre::eyre!("Failed to read input.")
                         })?;
 
+                        println!("Opening the browser at: {}", withdrawal_ui_url.0);
+
                         if let Err(e) = open::that(&withdrawal_ui_url.0) {
                             tracing::error!("Failed to open browser for URL: {} {}", withdrawal_ui_url.0, e);
                             return Err(eyre::eyre!(
-                                "Failed to open browser. Please visit the following URL manually: {}",
+                                "Unable to open the browser automatically. Please visit the following URL manually: {}",
                                 withdrawal_ui_url.0
                             )
                             .into());
