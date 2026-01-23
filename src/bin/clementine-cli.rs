@@ -769,7 +769,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config,
                     ),
                     (withdrawal_ui_url, tx_json, params) => {
-                        println!("\n{} Please verify the transaction details below while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
+                        println!("\n{} You will be redirected to a browser to sign the withdrawal transaction. Please verify that the transaction details below match while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
 
 
                         let pretty_json = serde_json::from_str::<serde_json::Value>(&tx_json.0)
