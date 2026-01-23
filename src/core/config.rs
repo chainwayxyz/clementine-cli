@@ -24,9 +24,9 @@ pub static UNSPENDABLE_XONLY_PUBKEY: LazyLock<XOnlyPublicKey> = LazyLock::new(||
 
 #[derive(Debug, Error)]
 pub enum ConfigErrors {
-    #[error("Can't read configuration file.")]
+    #[error("Can't read configuration file: {0}")]
     FileReadFailure(#[from] std::io::Error),
-    #[error("Can't parse TOML file.")]
+    #[error("Can't parse TOML file: {0}")]
     TomlError(#[from] toml::de::Error),
     #[error("Network {0} is not supported!")]
     UnsupportedNetwork(Network),
@@ -35,7 +35,7 @@ pub enum ConfigErrors {
     )]
     InvalidApiConfiguration,
 
-    #[error("Configuration error.")]
+    #[error(transparent)]
     Other(#[from] eyre::Report),
 }
 
