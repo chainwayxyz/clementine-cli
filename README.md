@@ -1,80 +1,93 @@
 # Clementine CLI
 
-A wallet-agnostic command-line tool for interacting with Citrea, supporting secure Bitcoin deposits and withdrawals without requiring wallet connection.
+A wallet agnostic command line tool for depositing 10 BTC from Bitcoin to Citrea and withdrawing 10 cBTC from Citrea to Bitcoin.
 
-## Features
+If you are looking for bridging smaller amounts, you can use third party bridges, visit [https://citrea.xyz/bridge](https://citrea.xyz/bridge) for more information.
 
-- **Bridge Operations**: Deposit to and withdraw from Citrea network
-- **Airgapped Security**: Key generation and signing in secure environments
-- **Wallet Management**: Create, import, and manage Clementine wallets locally
-- **Wallet-agnostic**: No external wallet connection required
-- **Recovery Support**: Built-in fund recovery mechanisms
+If you encounter any issues, email us at [clementine-cli@citrea.xyz](mailto:clementine-cli@citrea.xyz).
 
 ## Installation
 
 1. Install Rust:
 
-   ```sh
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
 2. Install Clementine CLI:
 
-   ```sh
-   cargo install --path .
-   ```
+```sh
+cargo install --git https://github.com/chainwayxyz/clementine-cli --tag v0.1.0-rc.1 --locked --force
+```
 
 3. Install the default configuration by running the CLI init command which
    creates the `~/.clementine/bridge_cli_config.toml` file for you:
 
-   ```sh
-   clementine-cli init
-   ```
+```sh
+clementine-cli init
+```
 
-4. Show and update configuration
+4. Show configuration:
 
-   ```sh
-   # Show current config for a network
-   clementine-cli show-config --network testnet
+```sh
+clementine-cli show-config
+```
 
-   # Update one or more keys (interactive confirmation). Use -y to skip confirmation prompts.
-   clementine-cli update-config --network testnet bitcoin_config.user=admin bitcoin_config.password=admin
-   clementine-cli update-config --network testnet -y bitcoin_config.user=admin bitcoin_config.password=admin
-   ```
+5. Show help:
 
-> [!CAUTION]
-> Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
+```sh
+clementine-cli --help
+```
 
 ## Quick Usage
 
 By default, `clementine-cli` uses `bitcoin` (mainnet) network. If you wish to
-make deposits and withdrawals on other networks, please provide `--network` flag
+make deposits and withdrawals on testnet, please provide `--network ` flag
 every time you invoke `clementine-cli`.
+
+### Deposit
 
 ```sh
 # Get help
 clementine-cli --help
 
 # Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
-clementine-cli wallet create my-deposit-wallet deposit # Mainnet
-clementine-cli wallet create --network testnet my-deposit-wallet deposit
+clementine-cli wallet create my-deposit-wallet deposit
 
 # Start deposit (generate deposit address)
-clementine-cli deposit start --network testnet <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+clementine-cli deposit start <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
+
+# Send 10 BTC to the shown address as prompted by the start command
 
 # Monitor deposits (online device)
-clementine-cli deposit status <DEPOSIT_ADDRESS> # Mainnet
-clementine-cli deposit status --network testnet <DEPOSIT_ADDRESS>
+clementine-cli deposit status <DEPOSIT_ADDRESS>
+```
+
+### Withdrawal
+
+```sh
+# Create wallet for withdrawal (Withdrawal Taproot Address) (airgapped device only)
+clementine-cli wallet create my-withdrawal-wallet withdrawal
+
+# Start withdrawal (generate withdrawal address)
+clementine-cli withdraw start <WITHDRAWAL_TAPROOT_ADDRESS> <DESTINATION_ADDRESS>
+
+# Send 330 sats to the shown address as prompted by the start command
+# Then run withdrawal scan command to find available withdrawal UTXOs
+clementine-cli withdraw scan <WITHDRAWAL_TAPROOT_ADDRESS> <DESTINATION_ADDRESS>
+
+# Run the prompted commands to generate withdrawal signatures and send withdrawal request to Citrea for optimistic withdrawal
+
+# Monitor withdrawals (online device)
+clementine-cli withdraw status <WITHDRAWAL_ADDRESS>
 ```
 
 ## Two-Device Security
 
-Clementine CLI requires two devices for maximum security:
+Clementine CLI can be used with two devices for maximum security:
 
-- **Airgapped Device**: All wallet creation, key generation, and signing operations
+- **Offline device**: All wallet creation, key generation, and signing operations.
 - **Online Device**: Status monitoring, address generation, broadcasting
-- **Never**: Connect airgapped device to internet
-- **Always**: Verify the correctness of operations before interacting with Citrea or Bitcoin to prevent loss of funds
 
 ## Documentation
 
