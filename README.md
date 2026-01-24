@@ -1,6 +1,8 @@
 # Clementine CLI
 
-A wallet agnostic command line tool for depositing 10 BTC from Bitcoin to Citrea and withdrawing 10 cBTC from Citrea to Bitcoin.
+A wallet-agnostic command-line tool for depositing 10 BTC from Bitcoin to Citrea and withdrawing 10 cBTC from Citrea to Bitcoin.
+
+For more information about the Clementine bridge, visit [https://docs.citrea.xyz/essentials/clementine-trust-minimized-bitcoin-bridge](https://docs.citrea.xyz/essentials/clementine-trust-minimized-bitcoin-bridge).
 
 If you are looking for bridging smaller amounts, you can use third party bridges, visit [https://citrea.xyz/bridge](https://citrea.xyz/bridge) for more information.
 
@@ -42,7 +44,7 @@ clementine-cli --help
 ## Quick Usage
 
 By default, `clementine-cli` uses `bitcoin` (mainnet) network. If you wish to
-make deposits and withdrawals on testnet, please provide `--network ` flag
+make deposits and withdrawals on testnet, please provide `--network testnet` flag
 every time you invoke `clementine-cli`.
 
 ### Deposit
@@ -86,7 +88,7 @@ clementine-cli withdraw status <WITHDRAWAL_ADDRESS>
 
 Clementine CLI can be used with two devices for maximum security:
 
-- **Offline device**: All wallet creation, key generation, and signing operations.
+- **Offline device**: All wallet creation, key generation, and signing operations
 - **Online Device**: Status monitoring, address generation, broadcasting
 
 ## Documentation
@@ -94,6 +96,6 @@ Clementine CLI can be used with two devices for maximum security:
 See [docs/README.md](docs/README.md) for an overview of how to use this CLI to
 deposit to and withdraw from Citrea.
 
-- [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
-- [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
-- [Withdrawal Guide](docs/withdraw.md) - Withdrawal from Citrea to Bitcoin
+- [Wallet Guide](docs/wallet.md) - Wallet operations
+- [Deposit Guide](docs/deposit.md) - Deposit from Bitcoin to Citrea
+- [Withdrawal Guide](docs/withdraw.md) - Withdraw from Citrea to Bitcoin
