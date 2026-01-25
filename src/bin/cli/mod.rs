@@ -23,10 +23,11 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use clementine_cli::config::{self, BridgeCliConfig, NetworkConfigs};
+use clementine_cli::config::{self, BridgeCliConfig, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY};
 use clementine_cli::deposit::{
     self, CitreaAddress, DepositAddressStorageResult, DepositStatusWithVout,
-    get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
+    GetDepositAddressResult, get_all_deposit_address_details,
+    get_deposit_address_details_for_deposit_address,
 };
 use clementine_cli::errors::BridgeCliError;
 use clementine_cli::secure_display::{display_mnemonic_securely, display_private_key_securely};
@@ -1141,14 +1142,27 @@ fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
     }
 }
 
+/// Result of starting a deposit, including TapTree data
+pub struct StartDepositResult {
+    /// The deposit address
+    pub deposit_address: BitcoinAddress,
+    /// PSBT_OUT_TAP_TREE serialized in BIP-371 format (hex-encoded)
+    pub tap_tree_hex: String,
+    /// Internal key (unspendable) used in the TapTree (hex-encoded)
+    pub internal_key_hex: String,
+}
+
 pub async fn cli_start_deposit(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-) -> Result<BitcoinAddress, BridgeCliError> {
-    let (deposit_address, storage_result) =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
-            .await?;
+) -> Result<StartDepositResult, BridgeCliError> {
+    let GetDepositAddressResult {
+        deposit_address,
+        storage_result,
+        tap_tree_hex,
+    } = deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
+        .await?;
 
     if storage_result == DepositAddressStorageResult::Exists {
         println!(
@@ -1159,7 +1173,14 @@ pub async fn cli_start_deposit(
         println!();
     }
 
-    Ok(deposit_address)
+    // Get the internal key hex (unspendable key used in TapTree)
+    let internal_key_hex = hex::encode(UNSPENDABLE_XONLY_PUBKEY.serialize());
+
+    Ok(StartDepositResult {
+        deposit_address,
+        tap_tree_hex,
+        internal_key_hex,
+    })
 }
 
 pub async fn cli_start_withdrawal(

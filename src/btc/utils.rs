@@ -6,13 +6,13 @@ use crate::core::errors::BridgeCliError;
 use crate::core::secure_types::SecureKeypair;
 use crate::deposit::CitreaAddress;
 use crate::wallet::BitcoinAddress;
-use bitcoin::consensus::deserialize;
+use bitcoin::consensus::{Encodable, deserialize};
 use bitcoin::hashes::Hash;
 use bitcoin::secp256k1::{Secp256k1, schnorr};
 use bitcoin::taproot::{LeafVersion, TaprootBuilder, TaprootSpendInfo};
 use bitcoin::{
     Amount, FeeRate, OutPoint, ScriptBuf, Sequence, TapLeafHash, TapNodeHash, TapSighash,
-    TapTweakHash, Transaction, TxIn, TxOut, Txid, Weight, Witness, XOnlyPublicKey,
+    TapTweakHash, Transaction, TxIn, TxOut, Txid, VarInt, Weight, Witness, XOnlyPublicKey,
 };
 use eyre::{Context, Result};
 use std::sync::LazyLock;
@@ -30,20 +30,61 @@ pub fn convert_btc_to_amount(btc_amount: Option<f64>) -> Result<Option<Amount>, 
     }
 }
 
+/// Serialize a TapTree leaf in BIP-371 PSBT_OUT_TAP_TREE format
+/// Format: {<8-bit depth> <8-bit leaf version> <compact size scriptlen> <script>}
+fn serialize_tap_tree_leaf(depth: u8, script: &ScriptBuf) -> Vec<u8> {
+    let mut buf = Vec::new();
+    // 8-bit depth
+    buf.push(depth);
+    // 8-bit leaf version (TapScript = 0xc0)
+    buf.push(LeafVersion::TapScript.to_consensus());
+    // Script with compact size prefix
+    let script_bytes = script.as_bytes();
+    VarInt::from(script_bytes.len())
+        .consensus_encode(&mut buf)
+        .expect("Vec doesn't fail");
+    buf.extend_from_slice(script_bytes);
+    buf
+}
+
+/// Result of calculating a deposit address, including TapTree data
+pub struct DepositAddressResult {
+    /// The deposit address
+    pub address: BitcoinAddress,
+    /// The taproot spend info
+    pub spend_info: TaprootSpendInfo,
+    /// PSBT_OUT_TAP_TREE serialized in BIP-371 format (hex-encoded)
+    pub tap_tree_hex: String,
+}
+
 /// Calculate the deposit address and taproot spend info for a given Citrea address and recovery taproot address
 pub(crate) fn calculate_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
-    let deposit_script = deposit_script(*citrea_address, config.aggregated_public_key);
+    let result = calculate_deposit_address_with_tap_tree(
+        citrea_address,
+        recovery_taproot_address,
+        config,
+    )?;
+    Ok((result.address, result.spend_info))
+}
+
+/// Calculate the deposit address, taproot spend info, and PSBT_OUT_TAP_TREE for a given Citrea address and recovery taproot address
+pub(crate) fn calculate_deposit_address_with_tap_tree(
+    citrea_address: &CitreaAddress,
+    recovery_taproot_address: &BitcoinAddress,
+    config: &BridgeCliConfig,
+) -> Result<DepositAddressResult, BridgeCliError> {
+    let deposit_script_buf = deposit_script(*citrea_address, config.aggregated_public_key);
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
-    let recover_script = recover_script(recovery_key, config.user_takes_after);
+    let recover_script_buf = recover_script(recovery_key, config.user_takes_after);
 
     let taproot_spend_info = TaprootBuilder::new()
-        .add_leaf(1, deposit_script)
+        .add_leaf(1, deposit_script_buf.clone())
         .expect("deposit script is valid")
-        .add_leaf(1, recover_script)
+        .add_leaf(1, recover_script_buf.clone())
         .expect("recover script is valid")
         .finalize(&SECP, *UNSPENDABLE_XONLY_PUBKEY)
         .expect("finalized script is valid");
@@ -54,7 +95,18 @@ pub(crate) fn calculate_deposit_address(
         taproot_spend_info.merkle_root(),
         config.network,
     );
-    Ok((deposit_address, taproot_spend_info))
+
+    // Serialize PSBT_OUT_TAP_TREE in BIP-371 format
+    // Both leaves are at depth 1 in DFS order (deposit_script first, then recover_script)
+    let mut tap_tree_bytes = Vec::new();
+    tap_tree_bytes.extend(serialize_tap_tree_leaf(1, &deposit_script_buf));
+    tap_tree_bytes.extend(serialize_tap_tree_leaf(1, &recover_script_buf));
+
+    Ok(DepositAddressResult {
+        address: deposit_address,
+        spend_info: taproot_spend_info,
+        tap_tree_hex: hex::encode(tap_tree_bytes),
+    })
 }
 
 fn sign_with_tweak(
@@ -855,5 +907,51 @@ mod tests {
     #[test]
     fn test_sign_recovery_tx_p2wsh_fee_rate_correctness() {
         test_fee_rate_correctness_for_address_type(AddressType::P2wsh, 6);
+    }
+
+    #[test]
+    fn test_serialize_tap_tree_leaf_format() {
+        // Create a simple script
+        let script = ScriptBuf::from_hex("51").unwrap(); // OP_TRUE
+        let serialized = serialize_tap_tree_leaf(1, &script);
+
+        // Expected format: [depth=1][version=0xc0][varInt=1][script=51]
+        assert_eq!(serialized.len(), 4);
+        assert_eq!(serialized[0], 1); // depth
+        assert_eq!(serialized[1], 0xc0); // TapScript leaf version
+        assert_eq!(serialized[2], 1); // compact size (script length = 1)
+        assert_eq!(serialized[3], 0x51); // script byte (OP_TRUE)
+    }
+
+    #[test]
+    fn test_calculate_deposit_address_with_tap_tree_returns_valid_hex() {
+        let config = create_test_config();
+        let keypair = create_test_keypair();
+        let recovery_address = calculate_taproot_address(&keypair, config.network);
+        let citrea_address = CitreaAddress::from([0u8; 20]);
+
+        let result = calculate_deposit_address_with_tap_tree(
+            &citrea_address,
+            &recovery_address,
+            &config,
+        )
+        .expect("should calculate deposit address");
+
+        // Verify the tap_tree_hex is valid hex
+        let tap_tree_bytes = hex::decode(&result.tap_tree_hex).expect("should be valid hex");
+
+        // The serialization should contain two leaves at depth 1
+        // Each leaf starts with depth (1 byte) + version (1 byte) + varInt length + script
+        assert!(!tap_tree_bytes.is_empty());
+
+        // First leaf should start with depth=1, version=0xc0
+        assert_eq!(tap_tree_bytes[0], 1); // depth of first leaf
+        assert_eq!(tap_tree_bytes[1], 0xc0); // TapScript version
+
+        // Verify the address matches
+        let (simple_address, _) =
+            calculate_deposit_address(&citrea_address, &recovery_address, &config)
+                .expect("should calculate deposit address");
+        assert_eq!(result.address, simple_address);
     }
 }

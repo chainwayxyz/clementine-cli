@@ -14,7 +14,8 @@ pub mod withdraw;
 
 pub mod config {
     pub use crate::core::config::{
-        BridgeCliConfig, ConfigErrors, NetworkConfigs, default_networks, write_config_to,
+        BridgeCliConfig, ConfigErrors, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY, default_networks,
+        write_config_to,
     };
 }
 

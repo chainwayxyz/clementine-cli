@@ -480,15 +480,36 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ));
                 handle_cli_command!(async
                     cli_start_deposit(&citrea_address, &recovery_taproot_address, &config),
-                    deposit_address => {
-                        println!("Deposit address: {}", deposit_address.to_string ().bold());
+                    result => {
+                        println!("Deposit address: {}", result.deposit_address.to_string().bold());
+                        println!();
+
+                        // Generate Mempool Space URL with TapTree visualization
+                        let mempool_base = match config.network {
+                            Network::Bitcoin => "https://mempool.space",
+                            Network::Testnet4 => "https://mempool.space/testnet4",
+                            Network::Signet => "https://mempool.space/signet",
+                            Network::Regtest => "http://localhost:8080", // Local mempool for regtest
+                            _ => "https://mempool.space",
+                        };
+                        let mempool_url = format!(
+                            "{}/address/{}#taptree={}&ikey={}",
+                            mempool_base,
+                            result.deposit_address,
+                            result.tap_tree_hex,
+                            result.internal_key_hex
+                        );
+                        println!("Inspect deposit address in Mempool Space:");
+                        println!("{}", mempool_url);
+                        println!();
+
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
+                        println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), result.deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
                         print_terms_notice();
                         println!("After sending the funds, you can monitor the deposit status using:");
-                        println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
+                        println!("clementine-cli deposit status --network {} {}", config.network, result.deposit_address.to_string());
                     }
                 );
             }

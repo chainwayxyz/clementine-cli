@@ -260,12 +260,13 @@ mod tests {
         let config = BridgeCliConfig::defaults_for(Network::Regtest);
         let citrea_address = CitreaAddress::from([5u8; 20]);
 
-        let (deposit_address, result) =
+        let result =
             get_deposit_address(&citrea_address, &recovery_taproot, &config, Some(&db))
                 .await
                 .expect("get deposit address");
 
-        assert_eq!(result, DepositAddressStorageResult::NewlyStored);
+        let deposit_address = result.deposit_address;
+        assert_eq!(result.storage_result, DepositAddressStorageResult::NewlyStored);
 
         let stored = get_deposit_address_details_for_deposit_address(
             &deposit_address.to_string(),
