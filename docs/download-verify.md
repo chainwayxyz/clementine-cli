@@ -217,9 +217,11 @@ If the signer differs from your trusted set, treat it as untrusted and stop.
 
 You may also see warnings:
 
-- `gpg: Can't check signature: No public key` means you have not imported that
-  signer. If you trust only a subset of signers and have their keys, this can
-  be ignored.
+- `gpg: Can't check signature: No public key` means GPG could not verify that
+  signer's signature. If this appears for a signer you already imported, stop
+  and fix the key import. Your download is only verified when you see at least
+  one `gpg: Good signature` from a trusted signer whose fingerprint matches
+  [FINGERPRINTS.md](https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md).
 - `gpg: WARNING: This key is not certified with a trusted signature!` or
   `WARNING: The key's User ID is not certified with a trusted signature!`
   means GPG cannot establish trust. Confirm the fingerprint matches a trusted
