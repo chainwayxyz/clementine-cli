@@ -248,9 +248,9 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
         let api_url = if choice < providers.len() {
             // Selected a predefined provider
             let provider = providers[choice];
-            net.esplora_rest_api.clone().unwrap_or_else(|| {
-                Url::parse(provider.url).expect("Provider URL should be valid")
-            })
+            net.esplora_rest_api
+                .clone()
+                .unwrap_or_else(|| Url::parse(provider.url).expect("Provider URL should be valid"))
         } else {
             let custom_url: String = Input::with_theme(&theme)
                 .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
