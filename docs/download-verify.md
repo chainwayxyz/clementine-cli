@@ -14,7 +14,7 @@ Each GitHub release includes these assets:
 - `SHA256SUMS.asc` which is the PGP-signed checksum file.
 
 Example release:
-`https://github.com/chainwayxyz/clementine-cli/releases/tag/v0.1.0-rc.1`
+[Clementine CLI v0.1.0-rc.1](https://github.com/chainwayxyz/clementine-cli/releases/tag/v0.1.0-rc.1)
 
 ## Download
 
@@ -34,16 +34,16 @@ Only trust a key after validating the **full fingerprint** out-of-band.
 
 If GPG is not installed, install it before proceeding:
 
-- macOS: `https://gpgtools.org`
+- macOS: [GPGTools](https://gpgtools.org)
 - Linux: your package manager
-- Windows: Gpg4win (`https://gpg4win.org/download.html`)
+- Windows: [Gpg4win](https://gpg4win.org/download.html)
 
 References:
 
 - Keyserver: `hkps://keyserver.ubuntu.com`
-- Public key repository: `https://github.com/chainwayxyz/pgp-keys`
-- Full fingerprints: `https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md`
-- Signer keys: `https://github.com/chainwayxyz/pgp-keys/tree/main/clementine-cli-builder`
+- Public key repository: [chainwayxyz/pgp-keys](https://github.com/chainwayxyz/pgp-keys)
+- Full fingerprints: [FINGERPRINTS.md](https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md)
+- Signer keys: [clementine-cli-builder](https://github.com/chainwayxyz/pgp-keys/tree/main/clementine-cli-builder)
 
 ### macOS/Linux
 
@@ -212,7 +212,7 @@ Expected output:
 - A line that includes: `Primary key fingerprint: ...`
 
 The fingerprint shown by GPG must match one of the trusted fingerprints you
-validated from `https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md`.
+validated from [FINGERPRINTS.md](https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md).
 If the signer differs from your trusted set, treat it as untrusted and stop.
 
 You may also see warnings:
