@@ -101,7 +101,8 @@ impl BridgeCliConfig {
                 citrea_chain_id: 5115,
                 citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://api.testnet.citrea.xyz/").unwrap(),
-                withdrawal_sign_url: Url::parse("https://testnet.citrea.xyz/withdrawal/sign").unwrap(),
+                withdrawal_sign_url: Url::parse("https://testnet.citrea.xyz/withdrawal/sign")
+                    .unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
                 optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
@@ -124,7 +125,8 @@ impl BridgeCliConfig {
                 citrea_chain_id: 62298,
                 citrea_rpc_url: None,
                 citrea_backend_endpoint: Url::parse("https://api.devnet.citrea.xyz/").unwrap(),
-                withdrawal_sign_url: Url::parse("https://devnet.citrea.xyz/withdrawal/sign").unwrap(),
+                withdrawal_sign_url: Url::parse("https://devnet.citrea.xyz/withdrawal/sign")
+                    .unwrap(),
                 user_takes_after: 200,
                 bridge_amount: Amount::from_sat(1_000_000_000),
                 optimistic_withdrawal_amount: Amount::from_sat(999_999_760),
