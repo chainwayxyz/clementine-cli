@@ -47,6 +47,11 @@ If GPG is not installed, install it before proceeding:
 - Linux: your package manager
 - Windows: [Gpg4win](https://gpg4win.org/download.html)
 
+> [!NOTE] 
+> Windows users: the GPG executable path shown in this guide assumes Gpg4win is
+> installed under `C:\Program Files\GnuPG\bin\gpg.exe`. If your installation
+> uses a different path, update the commands to match your actual location.
+
 References:
 
 - Keyserver: `hkps://keyserver.ubuntu.com`
@@ -106,15 +111,15 @@ Expected output:
 #### From a keyserver
 
 ```powershell
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --keyserver hkps://keyserver.ubuntu.com --recv-keys <KEY_FINGERPRINT>
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
+& "C:\Program Files\GnuPG\bin\gpg.exe" --keyserver hkps://keyserver.ubuntu.com --recv-keys <KEY_FINGERPRINT>
+& "C:\Program Files\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
 ```
 
 Command Prompt:
 
 ```cmd
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --keyserver hkps://keyserver.ubuntu.com --recv-keys <KEY_FINGERPRINT>
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
+"C:\Program Files\GnuPG\bin\gpg.exe" --keyserver hkps://keyserver.ubuntu.com --recv-keys <KEY_FINGERPRINT>
+"C:\Program Files\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
 ```
 
 Use the fingerprint or key ID with no spaces in the `recv-keys` command.
@@ -133,16 +138,16 @@ multiple trusted signers and compare fingerprints before trusting a key.
 
 ```powershell
 curl.exe -fsSL https://raw.githubusercontent.com/chainwayxyz/pgp-keys/main/clementine-cli-builder/<KEY_FILENAME> -o clementine-cli-release.pgp
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --import clementine-cli-release.pgp
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
+& "C:\Program Files\GnuPG\bin\gpg.exe" --import clementine-cli-release.pgp
+& "C:\Program Files\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
 ```
 
 Command Prompt:
 
 ```cmd
 curl -fsSL https://raw.githubusercontent.com/chainwayxyz/pgp-keys/main/clementine-cli-builder/<KEY_FILENAME> -o clementine-cli-release.pgp
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --import clementine-cli-release.pgp
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
+"C:\Program Files\GnuPG\bin\gpg.exe" --import clementine-cli-release.pgp
+"C:\Program Files\GnuPG\bin\gpg.exe" --fingerprint <KEY_FINGERPRINT>
 ```
 
 Expected output:
@@ -158,14 +163,14 @@ Replace `<KEY_FILENAME>` with the specific signer key file (for example,
 
 ```powershell
 git clone https://github.com/chainwayxyz/pgp-keys.git
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --import pgp-keys\clementine-cli-builder\*.pgp
+& "C:\Program Files\GnuPG\bin\gpg.exe" --import pgp-keys\clementine-cli-builder\*.pgp
 ```
 
 Command Prompt:
 
 ```cmd
 git clone https://github.com/chainwayxyz/pgp-keys.git
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --import pgp-keys\clementine-cli-builder\*.pgp
+"C:\Program Files\GnuPG\bin\gpg.exe" --import pgp-keys\clementine-cli-builder\*.pgp
 ```
 
 Expected output:
@@ -203,18 +208,14 @@ gpg --verify SHA256SUMS.asc SHA256SUMS
 - Verify the checksum signature:
 
 ```powershell
-& "C:\Program Files (x86)\GnuPG\bin\gpg.exe" --verify SHA256SUMS.asc SHA256SUMS
+& "C:\Program Files\GnuPG\bin\gpg.exe" --verify SHA256SUMS.asc SHA256SUMS
 ```
 
 Command Prompt:
 
 ```cmd
-"C:\Program Files (x86)\GnuPG\bin\gpg.exe" --verify SHA256SUMS.asc SHA256SUMS
+"C:\Program Files\GnuPG\bin\gpg.exe" --verify SHA256SUMS.asc SHA256SUMS
 ```
-
-If Gpg4win installed to a different path (for example,
-`C:\Program Files\GnuPG\bin\gpg.exe`), adjust the command accordingly.
-
 Expected output:
 
 - A line that starts with: `gpg: Good signature`
