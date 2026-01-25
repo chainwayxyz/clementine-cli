@@ -16,6 +16,15 @@ Each GitHub release includes these assets:
 Example release:
 [Clementine CLI v0.1.0-rc.1](https://github.com/chainwayxyz/clementine-cli/releases/tag/v0.1.0-rc.1)
 
+Whenever you see placeholders like `<RELEASE_TAG>-<OS>-<ARCH>` in the commands below,
+replace them with the values for your download. Example values:
+
+- `<RELEASE_TAG>`: `v0.1.0-rc.1`
+- `<OS>`: `darwin`, `linux`, or `windows`
+- `<ARCH>`: `aarch64` or `x86_64`
+
+Example filename: `clementine-cli-v0.1.0-rc.1-darwin-aarch64`
+
 ## Download
 
 - Download the release binary for your platform.
