@@ -156,7 +156,7 @@ pub async fn safe_withdraw(
         encode(&tx_json),
         encode(&destination_address.to_string())
     );
-    let withdrawal_ui_url = format!("{}{}", config.get_withdrawal_sign_url(), query);
+    let withdrawal_ui_url = format!("{}{}", config.withdrawal_sign_url, query);
 
     Ok((WithdrawalUrl(withdrawal_ui_url), TxJson(tx_json), params))
 }
