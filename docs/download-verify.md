@@ -13,8 +13,8 @@ Each GitHub release includes these assets:
 - `SHA256SUMS` file with checksums for all release binaries.
 - `SHA256SUMS.asc` which is the PGP-signed checksum file.
 
-Example release:
-[Clementine CLI v0.1.0-rc.1](https://github.com/chainwayxyz/clementine-cli/releases/tag/v0.1.0-rc.1)
+Download the latest release binary for your platform from the
+[Releases](https://github.com/chainwayxyz/clementine-cli/releases) page.
 
 Whenever you see placeholders like `<RELEASE_TAG>-<OS>-<ARCH>` in the commands below,
 replace them with the values for your download. Example values:
@@ -218,7 +218,11 @@ If Gpg4win installed to a different path (for example,
 Expected output:
 
 - A line that starts with: `gpg: Good signature`
-- A line that includes: `Primary key fingerprint: ...`
+- A fingerprint line that matches one of the trusted fingerprints in `FINGERPRINTS.md`
+
+> [!NOTE]
+> Depending on your OS and GPG version, you might not see a `Primary key fingerprint:`
+> line. Some builds print the fingerprint without a label.
 
 The fingerprint shown by GPG must match one of the trusted fingerprints you
 validated from [FINGERPRINTS.md](https://github.com/chainwayxyz/pgp-keys/blob/main/FINGERPRINTS.md).
