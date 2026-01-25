@@ -278,9 +278,9 @@ Expected output:
 From the folder where the release artifacts were downloaded, run:
 
 ```powershell
-$pattern = '^[0-9a-fA-F]{64}\s+\*?clementine-cli-<RELEASE_TAG>-<OS>-<ARCH>\.exe$'
-$expected = ((Select-String -Path SHA256SUMS -Pattern $pattern).Line -split '\s+')[0]
-$actual = (Get-FileHash .\clementine-cli-<RELEASE_TAG>-<OS>-<ARCH>.exe -Algorithm SHA256).Hash
+$file = "clementine-cli-<RELEASE_TAG>-<OS>-<ARCH>.exe"
+$expected = (Select-String -Path SHA256SUMS -SimpleMatch $file).Line.Split()[0]
+$actual = (Get-FileHash $file -Algorithm SHA256).Hash
 $expected -eq $actual
 ```
 
@@ -301,6 +301,8 @@ Expected output:
 
 - The SHA256 value from `certutil` matches the corresponding line in
   `SHA256SUMS` (compare every character).
+
+### Windows (PowerShell)
 
 To compute a hash directly for auditing or tooling and compare it to the
 matching line in `SHA256SUMS`:
