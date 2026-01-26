@@ -23,7 +23,7 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 Install Clementine CLI:
 
 ```sh
-cargo install --git https://github.com/chainwayxyz/clementine-cli --tag v0.1.0-rc.1 --locked --force
+cargo install --git https://github.com/chainwayxyz/clementine-cli --tag v0.1.0 --locked --force
 ```
 
 ### Option B: Download a pre-built binary and verify it
@@ -42,7 +42,6 @@ clementine-cli init
 Show configuration:
 
 ```sh
-# Show current config for a network
 clementine-cli show-config
 ```
 
@@ -96,10 +95,16 @@ clementine-cli withdraw status <WITHDRAWAL_ADDRESS>
 
 ## Two-Device Security
 
-Clementine CLI can be used with two devices for maximum security:
+We suggest using Clementine CLI with two devices for maximum security:
 
-- **Offline device**: All wallet creation, key generation, and signing operations
-- **Online Device**: Status monitoring, address generation, broadcasting
+- **Airgapped device**:  
+  All wallet creation, key generation, and signing operations  
+  &nbsp;&nbsp;&nbsp;`clementine-cli wallet create`  
+  &nbsp;&nbsp;&nbsp;`clementine-cli deposit create-signed-recovery-tx`  
+  &nbsp;&nbsp;&nbsp;`clementine-cli withdraw generate-withdrawal-signatures`
+
+- **Online device**:  
+  Status monitoring, address generation, broadcasting
 
 ## Documentation
 
@@ -107,7 +112,7 @@ See [docs/README.md](docs/README.md) for an overview of how to use this CLI to
 deposit to and withdraw from Citrea.
 
 - [Download & Verify](docs/download-verify.md) - Download pre-built binaries and verify signatures
-- [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
+- [Wallet Guide](docs/wallet.md) - Wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
 - [Withdrawal Guide](docs/withdraw.md) - Withdrawal from Citrea to Bitcoin
 - [Advanced Usage](docs/advanced.md) - Advanced users only: signet/regtest config, API/RPC selection, hidden CLI commands

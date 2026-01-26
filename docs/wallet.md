@@ -1,6 +1,7 @@
 # Wallet Operations
 
-Clementine CLI provides comprehensive wallet management capabilities with strong security features. All wallet operations can be performed offline for maximum security.
+Clementine CLI wallet doesn't provide a usual Bitcoin wallet functionality. It is a specialized tool for singing transactions for doing Clementine deposits and withdrawals.
+
 
 > [!CAUTION]
 > Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
@@ -9,7 +10,7 @@ Clementine CLI provides comprehensive wallet management capabilities with strong
 
 ## About Clementine Wallets
 
-Clementine wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine wallet corresponds to a single Bitcoin address with its associated private key. Clementine wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds.
+Clementine CLI wallets are specialized Bitcoin key managers designed for secure bridge operations with Citrea. Unlike Bitcoin Core wallets that manage multiple addresses, each Clementine CLI wallet corresponds to a single Bitcoin address with its associated private key. Clementine CLI wallets generate addresses with specific prefixes that indicate their intended bridge use case and prevent accidental misuse of funds.
 
 ### Address Prefixes and Purpose Field
 
@@ -46,19 +47,28 @@ View all wallet commands: `clementine-cli wallet --help`
 > [!IMPORTANT]
 > It is strongly advised to perform all wallet-related operations on an air-gapped device.
 
-## Create Wallet
+## Create Wallet for Deposits
+
+Create a wallet for deposits:
+
+This command will create a wallet for deposits and will prompt you to enter a passphrase.
+The generated `dep` prefixed address will be used as the `recovery taproot address` for the deposit operation.
+Don't send any funds to your Clementine wallet addresses unless otherwise specified.
 
 ```sh
-clementine-cli wallet create [--network <BITCOIN_NETWORK>] <WALLET-LABEL> <PURPOSE>
+clementine-cli wallet create <WALLET-LABEL> deposit
 ```
 
-**Example:**
+## Create Wallet for Withdrawals
+
+Create a wallet for withdrawals:
+
+This command will create a wallet for withdrawals and will prompt you to enter a passphrase.
+The generated `wit` prefixed address will be used as the `signer address` for the withdrawal operation.
+Don't send any funds to your Clementine wallet addresses unless otherwise specified.
 
 ```sh
-# For mainnet:
-clementine-cli wallet create my-wallet deposit
-# For a different network:
-clementine-cli wallet create --network testnet my-wallet deposit
+clementine-cli wallet create <WALLET-LABEL> withdrawal
 ```
 
 > [!WARNING]
