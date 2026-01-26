@@ -889,19 +889,16 @@ pub async fn deposit_status(
             .map(|h| h.to_string())
             .unwrap_or_else(|| "N/A".to_string())
     };
-    let refund_in_blocks = |block_height: Option<u64>| {
-        if block_height.is_none() {
-            return Some(config.user_takes_after);
-        }
-
-        block_height.and_then(|h| {
-            h.checked_add(config.user_takes_after)
-                .map(|target| target.saturating_sub(current_block_height))
-        })
-    };
+    let recovery_blocks_remaining =
+        |block_height: Option<u64>, fallback_to_full: bool| match block_height {
+            Some(h) => h
+                .checked_add(config.user_takes_after)
+                .map(|target| target.saturating_sub(current_block_height)),
+            None => fallback_to_full.then_some(config.user_takes_after),
+        };
 
     for utxo in &deposits_with_incorrect_amount {
-        let refund_command = format_refund_command(
+        let recovery_command = format_recovery_tx_command(
             None,
             None,
             Some(format_outpoint(utxo.txid, utxo.vout)),
@@ -909,13 +906,9 @@ pub async fn deposit_status(
             network_arg,
             &aggregated_key,
         );
-        let refund_msg = refund_info(
-            refund_in_blocks(utxo.block_height),
-            false,
-            config.user_takes_after,
-            &refund_command,
-        );
-        print_incorrect_deposit(utxo, &refund_msg, &block_display(utxo.block_height));
+        let remaining_blocks = recovery_blocks_remaining(utxo.block_height, true);
+        let recovery_msg = recovery_tx_message(remaining_blocks, true, true, &recovery_command);
+        print_incorrect_deposit(utxo, &recovery_msg, &block_display(utxo.block_height));
     }
 
     if !deposits_with_incorrect_amount.is_empty() {
@@ -1007,7 +1000,7 @@ pub async fn deposit_status(
         } else {
             Some(format_outpoint(&status.txid, status.vout))
         };
-        let refund_command = format_refund_command(
+        let recovery_command = format_recovery_tx_command(
             Some(&status.recovery_taproot_addr),
             Some(&status.evm_addr),
             deposit_outpoint,
@@ -1016,15 +1009,23 @@ pub async fn deposit_status(
             &aggregated_key,
         );
 
-        let refund_threshold = config.user_takes_after / 4;
-
-        let refund_msg = refund_info(
-            refund_in_blocks(block_height),
-            move_txid.is_some(),
-            refund_threshold,
-            &refund_command,
-        );
-        println!("{} {}", deposit_status_with_vout, refund_msg);
+        let recovery_countdown_threshold = config.user_takes_after.saturating_mul(3) / 4;
+        let remaining_blocks = recovery_blocks_remaining(block_height, false);
+        let show_countdown = remaining_blocks
+            .map(|blocks| blocks <= recovery_countdown_threshold)
+            .unwrap_or(false);
+        let show_command = remaining_blocks == Some(0);
+        let recovery_msg = if move_txid.is_none() {
+            recovery_tx_message(
+                remaining_blocks,
+                show_countdown,
+                show_command,
+                &recovery_command,
+            )
+        } else {
+            String::new()
+        };
+        println!("{} {}", deposit_status_with_vout, recovery_msg);
     }
 
     // Mempool transaction checking is only available with Esplora API
@@ -1170,11 +1171,11 @@ pub async fn send_withdrawal_signature(
     Ok(())
 }
 
-fn print_incorrect_deposit(utxo: &UtxoInfo, refund_message: &str, block_display: &str) {
+fn print_incorrect_deposit(utxo: &UtxoInfo, recovery_message: &str, block_display: &str) {
     let outpoint = format!("{}:{}", utxo.txid, utxo.vout);
     println!(
         "\nIncorrect Deposit\n  TxID:        {}\n  VOut:        {}\n  OutPoint:    {}\n  Value:       {}\n  Block:       {}{}",
-        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, refund_message
+        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, recovery_message
     );
 }
 
@@ -1203,7 +1204,7 @@ fn print_mempool_tx(tx: &MempoolTx, value: u64) {
     );
 }
 
-fn format_refund_command(
+fn format_recovery_tx_command(
     recovery_taproot_address: Option<&str>,
     citrea_address: Option<&str>,
     deposit_outpoint: Option<String>,
@@ -1242,26 +1243,35 @@ fn format_refund_command(
     )
 }
 
-fn refund_info(
-    refund_in_blocks: Option<u64>,
-    move_tx_on_chain: bool,
-    refund_threshold: u64,
-    refund_command: &str,
+fn recovery_tx_message(
+    remaining_blocks: Option<u64>,
+    show_countdown: bool,
+    show_command: bool,
+    recovery_command: &str,
 ) -> String {
-    if !move_tx_on_chain {
-        match refund_in_blocks {
-            Some(0) => format!(
-                "\n  You can refund your deposit now using:\n  {}",
-                refund_command
-            ),
-            Some(blocks) if blocks <= refund_threshold => {
-                format!("\n  Refund in (approx.) blocks: {}", blocks)
-            }
-            Some(_) => String::new(),
-            None => "\n  Refund information not available.".to_string(),
+    let mut lines = Vec::new();
+
+    if show_command {
+        if remaining_blocks == Some(0) {
+            lines.push("You can send the recovery tx now using:".to_string());
+        } else {
+            lines.push("Recovery tx command:".to_string());
         }
-    } else {
+        lines.push(recovery_command.to_string());
+    }
+
+    if show_countdown {
+        let countdown_line = match remaining_blocks {
+            Some(blocks) => format!("Recovery tx can be sent in (approx.) blocks: {}", blocks),
+            None => "Recovery tx information not available.".to_string(),
+        };
+        lines.push(countdown_line);
+    }
+
+    if lines.is_empty() {
         String::new()
+    } else {
+        format!("\n  {}", lines.join("\n  "))
     }
 }
 
