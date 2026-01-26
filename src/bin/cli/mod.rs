@@ -1143,7 +1143,7 @@ fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
 }
 
 /// Result of starting a deposit, including TapTree data
-pub struct StartDepositResult {
+pub struct DepositAddressDetails {
     /// The deposit address
     pub deposit_address: BitcoinAddress,
     /// PSBT_OUT_TAP_TREE serialized in BIP-371 format (hex-encoded)
@@ -1156,7 +1156,7 @@ pub async fn cli_start_deposit(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-) -> Result<StartDepositResult, BridgeCliError> {
+) -> Result<DepositAddressDetails, BridgeCliError> {
     let GetDepositAddressResult {
         deposit_address,
         storage_result,
@@ -1176,7 +1176,7 @@ pub async fn cli_start_deposit(
     // Get the internal key hex (unspendable key used in TapTree)
     let internal_key_hex = hex::encode(UNSPENDABLE_XONLY_PUBKEY.serialize());
 
-    Ok(StartDepositResult {
+    Ok(DepositAddressDetails {
         deposit_address,
         tap_tree_hex,
         internal_key_hex,
