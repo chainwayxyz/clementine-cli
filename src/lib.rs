@@ -32,6 +32,10 @@ pub mod secure_display {
     };
 }
 
+pub mod musig2 {
+    pub use crate::core::musig2::{aggregate_public_keys, aggregate_public_keys_from_str};
+}
+
 pub use crate::btc::utils::parse_transaction_hex;
 pub use crate::services::api::{
     MempoolTx, UtxoInfo, broadcast_recovery_tx, get_block_height_for_tx, get_current_block_height,
