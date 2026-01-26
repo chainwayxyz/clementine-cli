@@ -856,7 +856,8 @@ pub async fn deposit_status(
 ) -> Result<(), BridgeCliError> {
     let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!("Failed to fetch UTXOs from Esplora API: {}", err);
             eprintln!("ERROR Failed to fetch UTXOs from Esplora API");
             vec![]
         }
@@ -921,7 +922,8 @@ pub async fn deposit_status(
 
     let deposit_statuses_backend = match backend_deposit_status(&taproot_address, config).await {
         Ok(statuses) => statuses,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!("Failed to fetch deposit statuses from backend: {}", err);
             eprintln!("ERROR Failed to fetch deposit statuses from backend");
             vec![]
         }
@@ -967,7 +969,10 @@ pub async fn deposit_status(
                     }
                 }
             }
-            Err(_) => (0, false),
+            Err(err) => {
+                tracing::error!("Failed to fetch transaction details: {}", err);
+                (0, false)
+            }
         };
 
         let move_txid = status
@@ -1021,7 +1026,8 @@ pub async fn deposit_status(
     if config.esplora_rest_api.is_some() {
         let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
             Ok(txs) => txs,
-            Err(_) => {
+            Err(err) => {
+                tracing::error!("Failed to fetch mempool transactions: {}", err);
                 eprintln!("ERROR Failed to fetch mempool transactions");
                 vec![]
             }
