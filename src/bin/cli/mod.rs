@@ -879,10 +879,7 @@ pub async fn deposit_status(
     let current_block_height = get_current_block_height(config).await?;
     let refund_threshold = config.user_takes_after / 4;
 
-    let network_arg = match network_table_name(config.network) {
-        Ok(name) => name,
-        Err(_) => "<BITCOIN_NETWORK>",
-    };
+    let network_arg = network_table_name(config.network).unwrap_or("<BITCOIN_NETWORK>");
     let aggregated_key = config.aggregated_public_key.to_string();
 
     fn format_outpoint<T: std::fmt::Display>(txid: T, vout: u32) -> String {
@@ -904,7 +901,7 @@ pub async fn deposit_status(
         let refund_command = format_refund_command(
             None,
             None,
-            Some(format_outpoint(&utxo.txid, utxo.vout)),
+            Some(format_outpoint(utxo.txid, utxo.vout)),
             Some(utxo.value),
             network_arg,
             &aggregated_key,
