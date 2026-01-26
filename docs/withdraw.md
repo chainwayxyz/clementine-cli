@@ -4,6 +4,11 @@ This guide covers the withdrawal process from Citrea back to Bitcoin using Cleme
 
 All available withdrawal commands can be viewed using `clementine-cli withdraw --help` command and `clementine-cli withdraw <subcommand> --help`.
 
+> [!CAUTION]
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
+> network other than mainnet. Mainnet is selected implicitly for every
+> command.
+
 ## Prerequisites
 
 Before starting a withdrawal, ensure you have:

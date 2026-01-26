@@ -1,6 +1,6 @@
 # Deposit Operations
 
-This guide covers the complete process for depositing 10 BTC to Citrea using Clementine CLI. The deposit process involves generating a deposit address, sending 10 BTC, and monitoring the bridging process.
+This guide covers the complete process for depositing 10 BTC to Citrea using Clementine CLI. The deposit process involves creating a wallet, generating a deposit address, sending 10 BTC, and monitoring the bridging process.
 
 View all deposit commands:
 
@@ -17,7 +17,7 @@ clementine-cli deposit --help
 
 Before starting a deposit, ensure you have:
 
-- A Citrea address (Ethereum format)
+- A Citrea address
 - A Clementine CLI wallet with `deposit` purpose ("dep" prefix address) which will be used as the `recovery taproot address`
 - Access to a Bitcoin wallet for sending 10 BTC to the deposit address
 
