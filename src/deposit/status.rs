@@ -201,7 +201,7 @@ fn format_deposit_status(
     };
 
     rows.push(Row {
-        label: "EVM Addr:",
+        label: "Citrea Addr:",
         value: display_or(Some(evm_addr)),
     });
     rows.push(Row {
