@@ -1025,7 +1025,12 @@ pub async fn deposit_status(
         } else {
             String::new()
         };
-        println!("{} {}", deposit_status_with_vout, recovery_msg);
+        println!(
+            "{} {}",
+            deposit_status_with_vout
+                .display_with_confirmations(Some(config.move_tx_finalization_blocks,)),
+            recovery_msg
+        );
     }
 
     // Mempool transaction checking is only available with Esplora API
