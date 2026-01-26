@@ -208,3 +208,9 @@ clementine-cli withdraw send-withdrawal-signature-to-operators --network testnet
 
 > [!NOTE]
 > After sending the `operator-paid` signature, Clementine Operators will validate and process the withdrawal. Use Step 6 to monitor the status.
+
+## Troubleshooting
+
+- **Address rejected**: `DESTINATION_ADDRESS` must be a normal Bitcoin address without the `wit`/`dep` prefix and not one of your Clementine wallet addresses.
+- **No valid UTXOs found in `withdraw scan`**: the dust UTXO must be confirmed and match `dust_utxo_amount`.
+- **Signature rejected**: regenerate signatures with the exact `WITHDRAWAL_UTXO` from scan and use the optimistic signature for `withdraw send` or the operator-paid signature for `send-withdrawal-signature-to-operators`.
