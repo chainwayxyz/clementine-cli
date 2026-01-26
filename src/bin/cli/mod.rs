@@ -1379,9 +1379,6 @@ pub async fn cli_scan_withdrawals(
             config.dust_utxo_amount.to_btc()
         );
 
-        // sleep for 2 seconds to ensure user sees the warning
-        std::thread::sleep(std::time::Duration::from_secs(2));
-
         println!();
     }
 
