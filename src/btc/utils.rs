@@ -48,7 +48,7 @@ fn serialize_tap_tree_leaf(depth: u8, script: &ScriptBuf) -> Vec<u8> {
 }
 
 /// Result of calculating a deposit address, including TapTree data
-pub struct DepositAddressResult {
+pub struct DepositAddressInfo {
     /// The deposit address
     pub address: BitcoinAddress,
     /// The taproot spend info
@@ -73,7 +73,7 @@ pub(crate) fn calculate_deposit_address_with_tap_tree(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
-) -> Result<DepositAddressResult, BridgeCliError> {
+) -> Result<DepositAddressInfo, BridgeCliError> {
     let deposit_script_buf = deposit_script(*citrea_address, config.aggregated_public_key);
     let recovery_key = extract_xonly_pubkey_from_address(recovery_taproot_address)?;
     let recover_script_buf = recover_script(recovery_key, config.user_takes_after);
@@ -99,7 +99,7 @@ pub(crate) fn calculate_deposit_address_with_tap_tree(
     tap_tree_bytes.extend(serialize_tap_tree_leaf(1, &deposit_script_buf));
     tap_tree_bytes.extend(serialize_tap_tree_leaf(1, &recover_script_buf));
 
-    Ok(DepositAddressResult {
+    Ok(DepositAddressInfo {
         address: deposit_address,
         spend_info: taproot_spend_info,
         tap_tree_hex: hex::encode(tap_tree_bytes),

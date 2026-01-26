@@ -14,7 +14,7 @@ pub use storage::{
 };
 
 use crate::btc::utils::{
-    DepositAddressResult, calculate_deposit_address_with_tap_tree, convert_btc_to_amount,
+    DepositAddressInfo, calculate_deposit_address_with_tap_tree, convert_btc_to_amount,
 };
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
@@ -65,7 +65,7 @@ pub async fn get_deposit_address(
         Purpose::Deposit,
     )?;
 
-    let DepositAddressResult {
+    let DepositAddressInfo {
         address: calculated_deposit_address,
         tap_tree_hex,
         ..
