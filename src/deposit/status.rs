@@ -183,7 +183,7 @@ fn format_deposit_status(
     }
 
     let remaining_blocks_msg = match move_tx_finalization_blocks {
-        Some(0) => "Finalized".to_string(),
+        Some(0) => "Finalization block is reached".to_string(),
         Some(blocks) => format!("Approx. {} blocks remaining", blocks),
         None => "N/A".to_string(),
     };
