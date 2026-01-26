@@ -12,35 +12,45 @@ A wallet-agnostic command-line tool for interacting with Citrea, supporting secu
 
 ## Installation
 
-1. Install Rust:
+Choose one of the following installation paths.
 
-   ```sh
-   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-   ```
+### Option A: Build from source
 
-2. Install Clementine CLI:
+Install Rust:
 
-   ```sh
-   cargo install --path .
-   ```
+```sh
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
 
-3. Install the default configuration by running the CLI init command which
-   creates the `~/.clementine/bridge_cli_config.toml` file for you:
+Install Clementine CLI:
 
-   ```sh
-   clementine-cli init
-   ```
+```sh
+cargo install --path .
+```
 
-4. Show and update configuration
+### Option B: Download a pre-built binary and verify it
 
-   ```sh
-   # Show current config for a network
-   clementine-cli show-config --network testnet
+- [Download & Verify](docs/download-verify.md)
 
-   # Update one or more keys (interactive confirmation). Use -y to skip confirmation prompts.
-   clementine-cli update-config --network testnet bitcoin_config.user=admin bitcoin_config.password=admin
-   clementine-cli update-config --network testnet -y bitcoin_config.user=admin bitcoin_config.password=admin
-   ```
+### Initialize and configure
+
+Install the default configuration by running the CLI init command which creates
+the `~/.clementine/bridge_cli_config.toml` file for you:
+
+```sh
+clementine-cli init
+```
+
+Show and update configuration:
+
+```sh
+# Show current config for a network
+clementine-cli show-config --network testnet
+
+# Update one or more keys (interactive confirmation). Use -y to skip confirmation prompts.
+clementine-cli update-config --network testnet bitcoin_config.user=admin bitcoin_config.password=admin
+clementine-cli update-config --network testnet -y bitcoin_config.user=admin bitcoin_config.password=admin
+```
 
 > [!CAUTION]
 > Please make sure that you did not rename the file, as this will prevent the CLI from detecting the file.
@@ -81,6 +91,7 @@ Clementine CLI requires two devices for maximum security:
 See [docs/README.md](docs/README.md) for an overview of how to use this CLI to
 deposit to and withdraw from Citrea.
 
+- [Download & Verify](docs/download-verify.md) - Download pre-built binaries and verify signatures
 - [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
 - [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
 - [Withdrawal Guide](docs/withdraw.md) - Withdrawal from Citrea to Bitcoin
