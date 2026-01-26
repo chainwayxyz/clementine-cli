@@ -74,10 +74,10 @@ clementine-cli deposit status <DEPOSIT_ADDRESS>
 ### Withdrawal
 
 ```sh
-# Create wallet for withdrawal (Withdrawal Taproot Address)
+# Create wallet for withdrawal (Withdrawal Signer Address)
 clementine-cli wallet create my-withdrawal-wallet withdrawal
 
-# Start withdrawal (generate withdrawal address)
+# Start withdrawal (Generate Withdrawal Address)
 clementine-cli withdraw start <WITHDRAWAL_TAPROOT_ADDRESS> <DESTINATION_ADDRESS>
 
 # Send 330 sats to the shown address as prompted by the start command
