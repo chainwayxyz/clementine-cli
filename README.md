@@ -59,9 +59,6 @@ every time you invoke `clementine-cli`.
 ### Deposit
 
 ```sh
-# Get help
-clementine-cli --help
-
 # Create wallet for deposit (Recovery Taproot Address)
 clementine-cli wallet create my-deposit-wallet deposit
 
