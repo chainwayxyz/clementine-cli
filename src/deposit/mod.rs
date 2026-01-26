@@ -13,7 +13,9 @@ pub use storage::{
     get_deposit_address_details_for_deposit_address,
 };
 
-use crate::btc::utils::{calculate_deposit_address, convert_btc_to_amount};
+use crate::btc::utils::{
+    DepositAddressInfo, calculate_deposit_address_with_tap_tree, convert_btc_to_amount,
+};
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;
 use crate::core::parameters::get_citrea_deposit_params;
@@ -41,20 +43,37 @@ pub fn parse_citrea_address(citrea_address: &str) -> Result<CitreaAddress, Bridg
     })
 }
 
+/// Result of getting a deposit address, including TapTree data for PSBT construction
+pub struct GetDepositAddressResult {
+    /// The deposit address
+    pub deposit_address: BitcoinAddress,
+    /// Storage result indicating if the address was new or already existed
+    pub storage_result: DepositAddressStorageResult,
+    /// PSBT_OUT_TAP_TREE serialized in BIP-371 format (hex-encoded)
+    pub tap_tree_hex: String,
+}
+
 /// Get deposit address from backend
 pub async fn get_deposit_address(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
     sqlite_client: Option<&SqliteDb>,
-) -> Result<(BitcoinAddress, DepositAddressStorageResult), BridgeCliError> {
+) -> Result<GetDepositAddressResult, BridgeCliError> {
     crate::wallet::wallet_utils::validate_address_purpose(
         recovery_taproot_address,
         Purpose::Deposit,
     )?;
 
-    let (calculated_deposit_address, _) =
-        calculate_deposit_address(citrea_address, &recovery_taproot_address.address, config)?;
+    let DepositAddressInfo {
+        address: calculated_deposit_address,
+        tap_tree_hex,
+        ..
+    } = calculate_deposit_address_with_tap_tree(
+        citrea_address,
+        &recovery_taproot_address.address,
+        config,
+    )?;
 
     // Because backend is not available for regtest, don't cross check.
     let calculated_deposit_address = if config.network == bitcoin::Network::Regtest {
@@ -85,7 +104,11 @@ pub async fn get_deposit_address(
     )
     .await?;
 
-    Ok((calculated_deposit_address, storage_result))
+    Ok(GetDepositAddressResult {
+        deposit_address: calculated_deposit_address,
+        storage_result,
+        tap_tree_hex,
+    })
 }
 
 async fn store_deposit_record(
