@@ -168,7 +168,6 @@ clementine-cli wallet show-private-key <WALLET_ADDRESS>
 
 **Wallet not found:**
 
-- Check wallet name spelling
 - Verify wallet exists with `wallet list`
 - Ensure correct network parameter
 
