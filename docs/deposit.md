@@ -90,6 +90,28 @@ Gather all necessary information:
 - `CITREA_ADDRESS`: Your Citrea address used for the deposit (`0x...`)
 - `DEPOSIT_UTXO_OUTPOINT`: Your deposit Outpoint (`txid:vout`)
 - `DESTINATION_ADDRESS`: Bitcoin address where recovered funds will be sent
+- `CLEMENTINE_AGGREGATED_KEY`: MuSig2 aggregated x-only public key for the bridge signers
+
+You can check `CLEMENTINE_AGGREGATED_KEY` with:
+`clementine-cli show-config --network <BITCOIN_NETWORK>` 
+or
+`clementine-cli deposit get-deposit-address-details <DEPOSIT_ADDRESS>`.
+
+Use MuSig2 key aggregation if you need to compute `CLEMENTINE_AGGREGATED_KEY` from signer pubkeys.
+Signer pubkeys are listed in [Clementine signers](https://docs.citrea.xyz/advanced/clementine-signers).
+Check the aggregated key with the command below:
+
+```sh
+clementine-cli musig2-key-aggregation <PUBKEYS>
+```
+
+`PUBKEYS` is a comma-separated list of hex-encoded public keys.
+
+Example:
+
+```sh
+clementine-cli musig2-key-aggregation 02abc...123,03def...456
+```
 
 ### Create Recovery Transaction
 
