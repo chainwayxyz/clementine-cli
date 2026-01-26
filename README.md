@@ -62,7 +62,7 @@ every time you invoke `clementine-cli`.
 # Get help
 clementine-cli --help
 
-# Create wallet for deposit (Recovery Taproot Address) (airgapped device only)
+# Create wallet for deposit (Recovery Taproot Address)
 clementine-cli wallet create my-deposit-wallet deposit
 
 # Start deposit (generate deposit address)
@@ -70,14 +70,14 @@ clementine-cli deposit start <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS>
 
 # Send 10 BTC to the shown address as prompted by the start command
 
-# Monitor deposits (online device)
+# Monitor deposits
 clementine-cli deposit status <DEPOSIT_ADDRESS>
 ```
 
 ### Withdrawal
 
 ```sh
-# Create wallet for withdrawal (Withdrawal Taproot Address) (airgapped device only)
+# Create wallet for withdrawal (Withdrawal Taproot Address)
 clementine-cli wallet create my-withdrawal-wallet withdrawal
 
 # Start withdrawal (generate withdrawal address)
@@ -89,7 +89,7 @@ clementine-cli withdraw scan <WITHDRAWAL_TAPROOT_ADDRESS> <DESTINATION_ADDRESS>
 
 # Run the prompted commands to generate withdrawal signatures and send withdrawal request to Citrea for optimistic withdrawal
 
-# Monitor withdrawals (online device)
+# Monitor withdrawals
 clementine-cli withdraw status <WITHDRAWAL_ADDRESS>
 ```
 

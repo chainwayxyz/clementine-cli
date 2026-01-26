@@ -82,7 +82,7 @@ clementine-cli deposit status --network testnet tb1pd...
 
 If 200 blocks have passed and the deposit status shows the Move to Vault transaction has not been broadcasted, you can recover your funds using the recovery mechanism. Recovery is done by signing a recovery transaction with your Clementine CLI wallet and broadcasting it to the Bitcoin network.
 
-### Prepare Recovery Data (Online Device)
+### Prepare Recovery Data
 
 Gather all necessary information:
 

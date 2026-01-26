@@ -284,7 +284,7 @@ enum WithdrawCommands {
         /// Destination address for withdrawn BTC
         destination_address: String,
     },
-    /// Generate a withdrawal signature (for air-gapped use).
+    /// Generate a withdrawal signature.
     GenerateWithdrawalSignatures {
         #[arg(long, default_value_t = CliNetwork::Bitcoin, help = NETWORK_HELP_MESSAGE, value_parser = NetworkParser)]
         network: CliNetwork,
@@ -721,7 +721,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         println!("$ clementine-cli withdraw send --network {} {} {} {} {}",
                             network, &signer_address.address_with_prefix(), destination_address, withdrawal_utxo_outpoint, serialize_and_encode(optimistic_signature));
                         println!();
-                        println!("on your online device to initiate optimistic withdrawal process on the Citrea network");
+                        println!("to initiate optimistic withdrawal process on the Citrea network");
                         println!("Then monitor withdrawal status for 12 hours using:");
                         println!();
                         println!("$ clementine-cli withdraw status --network {} {}", network, &withdrawal_outpoint);

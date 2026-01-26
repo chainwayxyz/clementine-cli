@@ -45,7 +45,7 @@ Clementine CLI wallets are specialized Bitcoin key managers designed for secure 
 View all wallet commands: `clementine-cli wallet --help`
 
 > [!IMPORTANT]
-> It is strongly advised to perform all wallet-related operations on an air-gapped device.
+> It is advised to perform all wallet-related operations on an air-gapped device.
 
 ## Create Wallet for Deposits
 
