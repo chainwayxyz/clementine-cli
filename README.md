@@ -10,33 +10,43 @@ If you encounter any issues, email us at [clementine-cli@citrea.xyz](mailto:clem
 
 ## Installation
 
-1. Install Rust:
+Choose one of the following installation paths.
+
+### Option A: Build from source
+
+Install Rust:
 
 ```sh
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
-2. Install Clementine CLI:
+Install Clementine CLI:
 
 ```sh
 cargo install --git https://github.com/chainwayxyz/clementine-cli --tag v0.1.0-rc.1 --locked --force
 ```
 
-3. Install the default configuration by running the CLI init command which
-   creates the `~/.clementine/bridge_cli_config.toml` file for you:
+### Option B: Download a pre-built binary and verify it
+
+- [Download & Verify](docs/download-verify.md)
+
+### Initialize and configure
+
+Install the default configuration by running the CLI init command which creates
+the `~/.clementine/bridge_cli_config.toml` file for you:
 
 ```sh
 clementine-cli init
 ```
 
-4. Show configuration:
+Show configuration:
 
 ```sh
+# Show current config for a network
 clementine-cli show-config
 ```
 
-5. Show help:
-
+Show help:
 ```sh
 clementine-cli --help
 ```
@@ -96,6 +106,8 @@ Clementine CLI can be used with two devices for maximum security:
 See [docs/README.md](docs/README.md) for an overview of how to use this CLI to
 deposit to and withdraw from Citrea.
 
-- [Wallet Guide](docs/wallet.md) - Wallet operations
-- [Deposit Guide](docs/deposit.md) - Deposit from Bitcoin to Citrea
-- [Withdrawal Guide](docs/withdraw.md) - Withdraw from Citrea to Bitcoin
+- [Download & Verify](docs/download-verify.md) - Download pre-built binaries and verify signatures
+- [Wallet Guide](docs/wallet.md) - Airgapped wallet operations
+- [Deposit Guide](docs/deposit.md) - Deposit Bitcoin to Citrea
+- [Withdrawal Guide](docs/withdraw.md) - Withdrawal from Citrea to Bitcoin
+- [Advanced Usage](docs/advanced.md) - Advanced users only: signet/regtest config, API/RPC selection, hidden CLI commands
