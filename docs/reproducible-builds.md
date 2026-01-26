@@ -77,7 +77,7 @@ nix build .#linux-x86_64            # Intel/AMD 64-bit
 nix build .#linux-aarch64           # ARM 64-bit
 
 # macOS (Apple Silicon)
-nix build .#darwin-aarch64          # Apple Silicon (M1/M2/M3/M4)
+nix build .#darwin-aarch64          # Apple Silicon
 
 # Windows (cross-compile from Linux)
 nix build .#windows-x86_64          # 64-bit
@@ -117,7 +117,7 @@ uname -m  # "x86_64" = Intel, "arm64" = Apple Silicon
 nix build                           # Automatically selects your architecture
 
 # Apple Silicon Macs can build:
-nix build .#darwin-aarch64          # macOS Apple Silicon (M1/M2/M3/M4)
+nix build .#darwin-aarch64          # macOS Apple Silicon
 ```
 
 > [!NOTE]
