@@ -1236,7 +1236,7 @@ fn format_recovery_tx_command(
     let fee_rate = "<FEE_RATE>";
 
     format!(
-        "clementine-cli deposit create-signed-recovery-tx --network {} {} {} {} {} {} {} {}",
+        "$ clementine-cli deposit create-signed-recovery-tx --network {} {} {} {} {} {} {} {}",
         network_arg,
         recovery_taproot_address,
         citrea_address,
