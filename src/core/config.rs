@@ -87,7 +87,7 @@ impl BridgeCliConfig {
                 operator_withdrawal_amount: Amount::from_sat(997_000_000),
                 dust_utxo_amount: Amount::from_sat(330),
                 bridge_contract_address: "0x3100000000000000000000000000000000000002".into(),
-                move_tx_finalization_blocks: 6,
+                move_tx_finalization_blocks: 7,
                 bitcoin_config: None,
             },
 

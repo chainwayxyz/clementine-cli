@@ -86,7 +86,7 @@ fn print_terms_notice() {
 #[command(about = "Clementine CLI - wallet-agnostic Citrea bridge CLI", long_about = None, version)]
 struct Cli {
     /// Turns verbose logging on
-    #[arg(long, action = clap::ArgAction::SetTrue)]
+    #[arg(long, action = clap::ArgAction::SetTrue, global = true)]
     verbose: bool,
 
     #[command(subcommand)]

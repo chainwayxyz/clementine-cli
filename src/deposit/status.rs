@@ -48,20 +48,31 @@ impl DepositStatusEnum {
         }
     }
 
-    /// Returns a description of the current step
-    pub fn step_description(&self) -> &str {
+    /// Returns a description of the current step.
+    pub fn step_description_with_confirmations(
+        &self,
+        required_confirmations: Option<u64>,
+    ) -> String {
         match self {
-            DepositStatusEnum::New => {
-                "Deposit detected on Bitcoin network, waiting for confirmations."
-            }
+            DepositStatusEnum::New => match required_confirmations {
+                Some(blocks) => format!(
+                    "Deposit detected on Bitcoin network, waiting for {} blocks for confirmations.",
+                    blocks
+                ),
+                None => "Deposit detected on Bitcoin network, waiting for confirmations."
+                    .to_string(),
+            },
             DepositStatusEnum::InProgress => {
                 "The deposit is sent to Clementine aggregator, waiting for pre-signature collection from Clementine verifiers."
+                    .to_string()
             }
             DepositStatusEnum::MoveTxSent => {
                 "Move transaction broadcasted, waiting for confirmation and minting."
+                    .to_string()
             }
-            DepositStatusEnum::Completed => "Deposit completed! Funds minted on Citrea network.",
-            DepositStatusEnum::Unknown => "Unknown",
+            DepositStatusEnum::Completed => "Deposit completed! Funds minted on Citrea network."
+                .to_string(),
+            DepositStatusEnum::Unknown => "Unknown".to_string(),
         }
     }
 }
@@ -69,6 +80,18 @@ impl DepositStatusEnum {
 const PROGRESS_BAR_WIDTH: usize = 40;
 const KV_INDENT: &str = "  ";
 const KV_GAP: &str = " ";
+
+#[derive(Debug, Deserialize, Serialize)]
+pub struct DepositLog {
+    pub block_hash: String,
+    pub block_number: u64,
+    pub idx: u64,
+    pub recipient: String,
+    pub timestamp: u64,
+    pub tx_hash: String,
+    pub txid: String,
+    pub wtxid: String,
+}
 
 #[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
@@ -86,7 +109,7 @@ pub struct DepositStatus {
     pub taproot_addr: String,
     pub recovery_taproot_addr: String,
     pub move_wtxid: Option<String>,
-    pub deposit_log: Option<String>,
+    pub deposit_log: Option<DepositLog>,
 }
 
 pub struct DepositStatusWithVout<'a> {
@@ -105,6 +128,7 @@ fn format_deposit_status(
     evm_addr: &str,
     move_txid: Option<&str>,
     move_tx_finalization_blocks: Option<u64>,
+    required_confirmations: Option<u64>,
     move_tx_raw: Option<&str>,
     mint_txid: Option<&str>,
     print_na_for_vout: bool,
@@ -149,7 +173,7 @@ fn format_deposit_status(
         });
         rows.push(Row {
             label: "Current Step:",
-            value: status_enum.step_description().to_string(),
+            value: status_enum.step_description_with_confirmations(required_confirmations),
         });
     }
 
@@ -183,13 +207,13 @@ fn format_deposit_status(
     }
 
     let remaining_blocks_msg = match move_tx_finalization_blocks {
-        Some(0) => "Finalized".to_string(),
+        Some(0) => "Finalization block is reached".to_string(),
         Some(blocks) => format!("Approx. {} blocks remaining", blocks),
         None => "N/A".to_string(),
     };
 
     rows.push(Row {
-        label: "EVM Addr:",
+        label: "Citrea Addr:",
         value: display_or(Some(evm_addr)),
     });
     rows.push(Row {
@@ -230,6 +254,7 @@ fn format_deposit_status_default(
         None,
         evm_addr,
         move_txid,
+        None,
         None,
         move_tx_raw,
         mint_txid,
@@ -273,8 +298,52 @@ impl Display for DepositStatusWithVout<'_> {
             &self.deposit_status.evm_addr,
             self.deposit_status.move_txid.as_deref(),
             self.remaining_finalization_blocks,
+            None,
             self.deposit_status.move_tx_raw.as_deref(),
             self.deposit_status.mint_txid.as_deref(),
+            true,
+        )
+    }
+}
+
+pub struct DepositStatusWithVoutDisplay<'a> {
+    status: &'a DepositStatusWithVout<'a>,
+    required_confirmations: Option<u64>,
+}
+
+impl<'a> DepositStatusWithVout<'a> {
+    pub fn display_with_confirmations(
+        &'a self,
+        required_confirmations: Option<u64>,
+    ) -> DepositStatusWithVoutDisplay<'a> {
+        DepositStatusWithVoutDisplay {
+            status: self,
+            required_confirmations,
+        }
+    }
+}
+
+impl Display for DepositStatusWithVoutDisplay<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let status = if self.status.deposit_status.status.is_empty() {
+            Cow::Borrowed("--")
+        } else {
+            Cow::Owned(
+                DepositStatusEnum::from_status(&self.status.deposit_status.status).as_string(),
+            )
+        };
+        format_deposit_status(
+            f,
+            &status,
+            &self.status.deposit_status.status, // Pass raw status for progress bar
+            &self.status.deposit_status.txid,
+            self.status.vout,
+            &self.status.deposit_status.evm_addr,
+            self.status.deposit_status.move_txid.as_deref(),
+            self.status.remaining_finalization_blocks,
+            self.required_confirmations,
+            self.status.deposit_status.move_tx_raw.as_deref(),
+            self.status.deposit_status.mint_txid.as_deref(),
             true,
         )
     }

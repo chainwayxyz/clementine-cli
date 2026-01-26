@@ -149,9 +149,3 @@ jobs:
             echo "No binary found at $BINARY"
             exit 1
           fi
-          
-      - name: Upload binary
-        uses: actions/upload-artifact@v4
-        with:
-          name: clementine-cli-darwin-aarch64
-          path: result/bin/clementine-cli

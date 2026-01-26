@@ -856,7 +856,8 @@ pub async fn deposit_status(
 ) -> Result<(), BridgeCliError> {
     let mut utxos = match get_utxos(&taproot_address, config).await {
         Ok(utxos) => utxos,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!("Failed to fetch UTXOs from Esplora API: {}", err);
             eprintln!("ERROR Failed to fetch UTXOs from Esplora API");
             vec![]
         }
@@ -877,32 +878,37 @@ pub async fn deposit_status(
     }
 
     let current_block_height = get_current_block_height(config).await?;
+    let network_arg = network_table_name(config.network).unwrap_or("<BITCOIN_NETWORK>");
+    let aggregated_key = config.aggregated_public_key.to_string();
 
-    let refund_info = |block_height: Option<u64>, move_tx_on_chain: bool| {
-        let refund_in_blocks = block_height.and_then(|h| {
-            h.checked_add(config.user_takes_after)
-                .map(|target| target.saturating_sub(current_block_height))
-        });
-        if move_tx_on_chain {
-            match refund_in_blocks {
-                Some(0) => "\n  You can refund your deposit now using 'deposit create-signed-recovery-tx' subcommand.".to_string(),
-                Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
-                None => "\n  Refund information not available.".to_string(),
-            }
-        } else {
-            String::new()
-        }
-    };
-
+    fn format_outpoint<T: std::fmt::Display>(txid: T, vout: u32) -> String {
+        format!("{txid}:{vout}")
+    }
     let block_display = |block_height: Option<u64>| {
         block_height
             .map(|h| h.to_string())
             .unwrap_or_else(|| "N/A".to_string())
     };
+    let recovery_blocks_remaining =
+        |block_height: Option<u64>, fallback_to_full: bool| match block_height {
+            Some(h) => h
+                .checked_add(config.user_takes_after)
+                .map(|target| target.saturating_sub(current_block_height)),
+            None => fallback_to_full.then_some(config.user_takes_after),
+        };
 
     for utxo in &deposits_with_incorrect_amount {
-        let refund_msg = refund_info(utxo.block_height, true);
-        print_incorrect_deposit(utxo, &refund_msg, &block_display(utxo.block_height));
+        let recovery_command = format_recovery_tx_command(
+            None,
+            None,
+            Some(format_outpoint(utxo.txid, utxo.vout)),
+            Some(utxo.value),
+            network_arg,
+            &aggregated_key,
+        );
+        let remaining_blocks = recovery_blocks_remaining(utxo.block_height, true);
+        let recovery_msg = recovery_tx_message(remaining_blocks, true, true, &recovery_command);
+        print_incorrect_deposit(utxo, &recovery_msg, &block_display(utxo.block_height));
     }
 
     if !deposits_with_incorrect_amount.is_empty() {
@@ -911,7 +917,8 @@ pub async fn deposit_status(
 
     let deposit_statuses_backend = match backend_deposit_status(&taproot_address, config).await {
         Ok(statuses) => statuses,
-        Err(_) => {
+        Err(err) => {
+            tracing::error!("Failed to fetch deposit statuses from backend: {}", err);
             eprintln!("ERROR Failed to fetch deposit statuses from backend");
             vec![]
         }
@@ -957,7 +964,10 @@ pub async fn deposit_status(
                     }
                 }
             }
-            Err(_) => (0, false),
+            Err(err) => {
+                tracing::error!("Failed to fetch transaction details: {}", err);
+                (0, false)
+            }
         };
 
         let move_txid = status
@@ -985,29 +995,78 @@ pub async fn deposit_status(
             remaining_finalization_blocks,
         };
 
-        let refund_msg = refund_info(block_height, move_txid.is_some());
-        println!("{} {}", deposit_status_with_vout, refund_msg);
+        let deposit_outpoint = if found {
+            Some(format_outpoint(&status.txid, vout))
+        } else {
+            Some(format_outpoint(&status.txid, status.vout))
+        };
+        let recovery_command = format_recovery_tx_command(
+            Some(&status.recovery_taproot_addr),
+            Some(&status.evm_addr),
+            deposit_outpoint,
+            corresponding_utxo.map(|utxo| utxo.value),
+            network_arg,
+            &aggregated_key,
+        );
+
+        let recovery_countdown_threshold = config.user_takes_after.saturating_mul(3) / 4;
+        let remaining_blocks = recovery_blocks_remaining(block_height, false);
+        let show_countdown = remaining_blocks
+            .map(|blocks| blocks <= recovery_countdown_threshold)
+            .unwrap_or(false);
+        let show_command = remaining_blocks == Some(0);
+        let recovery_msg = if move_txid.is_none() {
+            recovery_tx_message(
+                remaining_blocks,
+                show_countdown,
+                show_command,
+                &recovery_command,
+            )
+        } else {
+            String::new()
+        };
+        println!(
+            "{} {}",
+            deposit_status_with_vout
+                .display_with_confirmations(Some(config.move_tx_finalization_blocks,)),
+            recovery_msg
+        );
     }
 
     // Mempool transaction checking is only available with Esplora API
     if config.esplora_rest_api.is_some() {
         let mempool_txs = match get_mempool_txs(&taproot_address, config).await {
             Ok(txs) => txs,
-            Err(_) => {
+            Err(err) => {
+                tracing::error!("Failed to fetch mempool transactions: {}", err);
                 eprintln!("ERROR Failed to fetch mempool transactions");
                 vec![]
             }
         };
 
-        if !mempool_txs.is_empty() {
+        let matching_mempool_txs: Vec<_> = mempool_txs
+            .iter()
+            .filter_map(|tx| {
+                let values = mempool_tx_values_for_address(&taproot_address, tx);
+                if values.is_empty() {
+                    None
+                } else {
+                    Some((tx, values))
+                }
+            })
+            .collect();
+
+        if !matching_mempool_txs.is_empty() {
             println!(
                 "\n{} Deposit transactions in mempool for address {}:",
                 "INFO".bold(),
                 taproot_address
             );
 
-            for tx in &mempool_txs {
-                print_mempool_tx(&taproot_address, tx);
+            for (tx, values) in matching_mempool_txs {
+                for value in values {
+                    print_mempool_tx(tx, value);
+                }
             }
         }
     }
@@ -1117,29 +1176,107 @@ pub async fn send_withdrawal_signature(
     Ok(())
 }
 
-fn print_incorrect_deposit(utxo: &UtxoInfo, refund_message: &str, block_display: &str) {
+fn print_incorrect_deposit(utxo: &UtxoInfo, recovery_message: &str, block_display: &str) {
     let outpoint = format!("{}:{}", utxo.txid, utxo.vout);
     println!(
         "\nIncorrect Deposit\n  TxID:        {}\n  VOut:        {}\n  OutPoint:    {}\n  Value:       {}\n  Block:       {}{}",
-        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, refund_message
+        utxo.txid, utxo.vout, outpoint, utxo.value, block_display, recovery_message
     );
 }
 
-fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
-    for out in &tx.vout {
-        if let Some(addr_str) = out
-            .get("scriptpubkey_address")
-            .and_then(|addr| addr.as_str())
-            && addr_str == address.to_string()
-        {
-            let value = out.get("value").and_then(|v| v.as_u64()).unwrap_or(0);
-            println!("\nDeposit in Mempool");
-            println!(
-                "  TxID:       {}\n  Value:      {}",
-                tx.txid,
-                Amount::from_sat(value)
-            );
+fn mempool_tx_values_for_address(address: &BitcoinAddress, tx: &MempoolTx) -> Vec<u64> {
+    let address_str = address.to_string();
+    tx.vout
+        .iter()
+        .filter_map(|out| {
+            let addr_str = out
+                .get("scriptpubkey_address")
+                .and_then(|addr| addr.as_str())?;
+            if addr_str != address_str.as_str() {
+                return None;
+            }
+            out.get("value").and_then(|v| v.as_u64())
+        })
+        .collect()
+}
+
+fn print_mempool_tx(tx: &MempoolTx, value: u64) {
+    println!("\nDeposit in Mempool");
+    println!(
+        "  TxID:       {}\n  Value:      {}",
+        tx.txid,
+        Amount::from_sat(value)
+    );
+}
+
+fn format_recovery_tx_command(
+    recovery_taproot_address: Option<&str>,
+    citrea_address: Option<&str>,
+    deposit_outpoint: Option<String>,
+    amount: Option<Amount>,
+    network_arg: &str,
+    aggregated_key: &str,
+) -> String {
+    let recovery_taproot_address = match recovery_taproot_address {
+        Some(value) if !value.trim().is_empty() => value,
+        _ => "<RECOVERY_TAPROOT_ADDRESS>",
+    };
+    let citrea_address = match citrea_address {
+        Some(value) if !value.trim().is_empty() => value,
+        _ => "<CITREA_ADDRESS>",
+    };
+    let deposit_outpoint = match deposit_outpoint {
+        Some(value) if !value.trim().is_empty() => value,
+        _ => "<DEPOSIT_OUTPOINT>".to_string(),
+    };
+    let amount = amount
+        .map(|value| format!("{:.8}", value.to_btc()))
+        .unwrap_or_else(|| "<AMOUNT>".to_string());
+    let destination_address = "<DESTINATION_ADDRESS>";
+    let fee_rate = "<FEE_RATE>";
+
+    format!(
+        "$ clementine-cli deposit create-signed-recovery-tx --network {} {} {} {} {} {} {} {}",
+        network_arg,
+        recovery_taproot_address,
+        citrea_address,
+        deposit_outpoint,
+        destination_address,
+        fee_rate,
+        amount,
+        aggregated_key
+    )
+}
+
+fn recovery_tx_message(
+    remaining_blocks: Option<u64>,
+    show_countdown: bool,
+    show_command: bool,
+    recovery_command: &str,
+) -> String {
+    let mut lines = Vec::new();
+
+    if show_command {
+        if remaining_blocks == Some(0) {
+            lines.push("You can send the recovery tx now using:".to_string());
+        } else {
+            lines.push("Recovery tx command:".to_string());
+        }
+        lines.push(recovery_command.to_string());
+    }
+
+    if show_countdown {
+        let countdown_line = match remaining_blocks {
+            Some(blocks) => format!("Recovery tx can be sent in (approx.) blocks: {}", blocks),
+            None => "Recovery tx information not available.".to_string(),
         };
+        lines.push(countdown_line);
+    }
+
+    if lines.is_empty() {
+        String::new()
+    } else {
+        format!("\n  {}", lines.join("\n  "))
     }
 }
 
@@ -1256,9 +1393,6 @@ pub async fn cli_scan_withdrawals(
             "Please ensure you send exactly {} BTC to the signer address for each withdrawal operation.",
             config.dust_utxo_amount.to_btc()
         );
-
-        // sleep for 2 seconds to ensure user sees the warning
-        std::thread::sleep(std::time::Duration::from_secs(2));
 
         println!();
     }
