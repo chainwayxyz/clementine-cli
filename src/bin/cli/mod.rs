@@ -884,9 +884,13 @@ pub async fn deposit_status(
                 .map(|target| target.saturating_sub(current_block_height))
         });
         if move_tx_on_chain {
+            let refund_threshold = config.user_takes_after / 4;
             match refund_in_blocks {
                 Some(0) => "\n  You can refund your deposit now using 'deposit create-signed-recovery-tx' subcommand.".to_string(),
-                Some(blocks) => format!("\n  Refund in (approx.) blocks: {}", blocks),
+                Some(blocks) if blocks <= refund_threshold => {
+                    format!("\n  Refund in (approx.) blocks: {}", blocks)
+                }
+                Some(_) => String::new(),
                 None => "\n  Refund information not available.".to_string(),
             }
         } else {
