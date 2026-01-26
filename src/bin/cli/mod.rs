@@ -23,10 +23,11 @@ use dialoguer::{Input, Select, theme::ColorfulTheme};
 use eyre::Result;
 use url::Url;
 
-use clementine_cli::config::{self, BridgeCliConfig, NetworkConfigs};
+use clementine_cli::config::{self, BridgeCliConfig, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY};
 use clementine_cli::deposit::{
     self, CitreaAddress, DepositAddressStorageResult, DepositStatusWithVout,
-    get_all_deposit_address_details, get_deposit_address_details_for_deposit_address,
+    GetDepositAddressResult, get_all_deposit_address_details,
+    get_deposit_address_details_for_deposit_address,
 };
 use clementine_cli::errors::BridgeCliError;
 use clementine_cli::secure_display::{display_mnemonic_securely, display_private_key_securely};
@@ -200,73 +201,74 @@ pub fn setup_networks(cfgs: &mut NetworkConfigs) -> Result<()> {
         net.bitcoin_config = None;
     }
 
-    // Only prompt for mainnet and testnet4 configurations
-    let networks = [
+    struct ApiProvider {
+        name: &'static str,
+        url: &'static str,
+    }
+
+    const BLOCKSTREAM_MAINNET: ApiProvider = ApiProvider {
+        name: "Blockstream.info",
+        url: "https://blockstream.info/api/",
+    };
+    const MEMPOOL_MAINNET: ApiProvider = ApiProvider {
+        name: "Mempool.space",
+        url: "https://mempool.space/api/",
+    };
+    const MEMPOOL_TESTNET4: ApiProvider = ApiProvider {
+        name: "Mempool.space",
+        url: "https://mempool.space/testnet4/api/",
+    };
+
+    let networks: Vec<(&str, &mut BridgeCliConfig, Vec<&ApiProvider>)> = vec![
         (
             "mainnet",
             &mut cfgs.bitcoin,
-            "https://blockstream.info/api/",
-            "https://mempool.space/api/",
+            vec![&BLOCKSTREAM_MAINNET, &MEMPOOL_MAINNET],
         ),
-        (
-            "testnet4",
-            &mut cfgs.testnet4,
-            "https://blockstream.info/testnet4/api/",
-            "https://mempool.space/testnet4/api/",
-        ),
+        ("testnet4", &mut cfgs.testnet4, vec![&MEMPOOL_TESTNET4]),
     ];
 
-    for (name, net, blockstream_url, mempool_url) in networks {
+    for (name, net, providers) in networks {
         println!(
             "\n== Configure Bitcoin Esplora API for '{}' network ==",
             name
         );
 
+        let mut menu_items: Vec<String> = providers
+            .iter()
+            .map(|p| format!("{} ({})", p.name, p.url))
+            .collect();
+        menu_items.push("Custom URL".to_string());
+
         let choice = Select::with_theme(&theme)
             .with_prompt(format!("Choose Bitcoin Esplora API provider for {}", name))
-            .items([
-                &format!("Blockstream.info ({})", blockstream_url),
-                &format!("Mempool.space ({})", mempool_url),
-                "Custom URL",
-            ])
-            .default(1) // Default to Mempool.space
+            .items(&menu_items)
+            .default(0)
             .interact()?;
 
-        let api_url = match choice {
-            0 => {
-                // Blockstream.info
-                Url::parse(blockstream_url).map_err(|e| {
-                    tracing::error!("Invalid Blockstream URL {}: {}", blockstream_url, e);
-                    eyre!("Invalid Blockstream URL")
-                })?
-            }
-            1 => {
-                // Mempool.space (keep existing default)
-                net.esplora_rest_api.clone().unwrap_or_else(|| {
-                    Url::parse(mempool_url).expect("Default mempool URL should be valid")
-                })
-            }
-            2 => {
-                // Custom URL
-                let custom_url: String = Input::with_theme(&theme)
-                    .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
-                    .validate_with(|input: &String| -> Result<(), String> {
-                        Url::parse(input).map(|_| ()).map_err(|e| {
-                            tracing::error!("Invalid URL {}: {}", input, e);
-                            "Invalid URL".to_string()
-                        })
+        let api_url = if choice < providers.len() {
+            // Selected a predefined provider
+            let provider = providers[choice];
+            net.esplora_rest_api
+                .clone()
+                .unwrap_or_else(|| Url::parse(provider.url).expect("Provider URL should be valid"))
+        } else {
+            let custom_url: String = Input::with_theme(&theme)
+                .with_prompt(format!("[{}] Custom Bitcoin Esplora API URL", name))
+                .validate_with(|input: &String| -> Result<(), String> {
+                    Url::parse(input).map(|_| ()).map_err(|e| {
+                        tracing::error!("Invalid URL {}: {}", input, e);
+                        "Invalid URL".to_string()
                     })
-                    .interact_text()?;
+                })
+                .interact_text()?;
 
-                Url::parse(&custom_url).map_err(|e| {
-                    tracing::error!("Invalid custom URL {}: {}", custom_url, e);
-                    eyre!("Invalid custom URL")
-                })?
-            }
-            _ => unreachable!(),
+            Url::parse(&custom_url).map_err(|e| {
+                tracing::error!("Invalid custom URL {}: {}", custom_url, e);
+                eyre!("Invalid custom URL")
+            })?
         };
 
-        // Ensure the URL ends with a slash
         let mut url_str = api_url.to_string();
         if !url_str.ends_with('/') {
             url_str.push('/');
@@ -1141,14 +1143,27 @@ fn print_mempool_tx(address: &BitcoinAddress, tx: &MempoolTx) {
     }
 }
 
+/// Result of starting a deposit, including TapTree data
+pub struct DepositAddressDetails {
+    /// The deposit address
+    pub deposit_address: BitcoinAddress,
+    /// PSBT_OUT_TAP_TREE serialized in BIP-371 format (hex-encoded)
+    pub tap_tree_hex: String,
+    /// Internal key (unspendable) used in the TapTree (hex-encoded)
+    pub internal_key_hex: String,
+}
+
 pub async fn cli_start_deposit(
     citrea_address: &CitreaAddress,
     recovery_taproot_address: &TaprootAddressWithPrefix<bitcoin::address::NetworkChecked>,
     config: &BridgeCliConfig,
-) -> Result<BitcoinAddress, BridgeCliError> {
-    let (deposit_address, storage_result) =
-        deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
-            .await?;
+) -> Result<DepositAddressDetails, BridgeCliError> {
+    let GetDepositAddressResult {
+        deposit_address,
+        storage_result,
+        tap_tree_hex,
+    } = deposit::get_deposit_address(citrea_address, recovery_taproot_address, config, None)
+        .await?;
 
     if storage_result == DepositAddressStorageResult::Exists {
         println!(
@@ -1159,7 +1174,14 @@ pub async fn cli_start_deposit(
         println!();
     }
 
-    Ok(deposit_address)
+    // Get the internal key hex (unspendable key used in TapTree)
+    let internal_key_hex = hex::encode(UNSPENDABLE_XONLY_PUBKEY.serialize());
+
+    Ok(DepositAddressDetails {
+        deposit_address,
+        tap_tree_hex,
+        internal_key_hex,
+    })
 }
 
 pub async fn cli_start_withdrawal(

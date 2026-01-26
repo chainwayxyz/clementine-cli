@@ -19,7 +19,7 @@ use clementine_cli::wallet::{
     BitcoinAddress, Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address,
     print_all_wallets_with_addresses, should_not_have_purpose,
 };
-use clementine_cli::{broadcast_recovery_tx, parse_transaction_hex};
+use clementine_cli::{broadcast_recovery_tx, musig2, parse_transaction_hex};
 use clementine_cli::{deposit, withdraw};
 use colored::Colorize;
 use std::str::FromStr;
@@ -62,7 +62,7 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
         Network::Testnet4 => command.push_str(" -testnet4"),
         Network::Signet => command.push_str(" -signet"),
         Network::Regtest => command.push_str(" -regtest"),
-        Network::Testnet => panic!("Statically not possible to get here"),
+        _ => panic!("Unsupported network {:?}", config.network),
     }
 
     command.push_str(" -rpcport=<rpcport>");
@@ -128,6 +128,11 @@ enum Commands {
     Withdraw {
         #[command(subcommand)]
         command: WithdrawCommands,
+    },
+    /// Aggregate multiple public keys using MuSig2 key aggregation.
+    Musig2KeyAggregation {
+        /// Comma-separated list of public keys (hex-encoded, 33 bytes compressed or 65 bytes uncompressed)
+        public_keys: String,
     },
 }
 
@@ -480,15 +485,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     ));
                 handle_cli_command!(async
                     cli_start_deposit(&citrea_address, &recovery_taproot_address, &config),
-                    deposit_address => {
-                        println!("Deposit address: {}", deposit_address.to_string ().bold());
+                    result => {
+                        println!("Deposit address: {}", result.deposit_address.to_string().bold());
+                        println!();
+
+                        // Generate Mempool Space URL with TapTree visualization
+                        let mempool_base = match config.network {
+                            Network::Bitcoin => "https://mempool.space",
+                            Network::Testnet4 => "https://mempool.space/testnet4",
+                            Network::Signet => "https://mempool.space/signet",
+                            Network::Regtest => "http://localhost:8080", // Local mempool for regtest
+                            _ => panic!("Unsupported network {:?}", config.network),
+                        };
+
+                        let mempool_url = format!(
+                            "{}/address/{}#taptree={}&ikey={}",
+                            mempool_base,
+                            result.deposit_address,
+                            result.tap_tree_hex,
+                            result.internal_key_hex
+                        );
+                        println!("Inspect deposit address in Mempool Space:");
+                        println!("{}", mempool_url);
+                        println!();
+
                         println!("{} Send exactly {} BTC to the address above to initiate the deposit.", "INFO".bold(), config.bridge_amount.to_btc());
                         println!("For Bitcoin Core users, you can send your deposit using the following command (add any parameters as needed): ");
-                        println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), deposit_address.to_string(), config.bridge_amount.to_btc());
+                        println!("$ {} sendtoaddress {} {}", get_bitcoin_cli_command(&config), result.deposit_address.to_string(), config.bridge_amount.to_btc());
                         println!();
                         print_terms_notice();
                         println!("After sending the funds, you can monitor the deposit status using:");
-                        println!("clementine-cli deposit status --network {} {}", config.network, deposit_address.to_string());
+                        println!("clementine-cli deposit status --network {} {}", config.network, result.deposit_address.to_string());
                     }
                 );
             }
@@ -880,6 +907,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         },
+        Commands::Musig2KeyAggregation { public_keys } => {
+            let aggregated_key =
+                handle_simple_call!(musig2::aggregate_public_keys_from_str(&public_keys));
+            println!("{}", aggregated_key);
+        }
     }
     Ok(())
 }

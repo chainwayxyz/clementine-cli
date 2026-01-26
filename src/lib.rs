@@ -14,7 +14,8 @@ pub mod withdraw;
 
 pub mod config {
     pub use crate::core::config::{
-        BridgeCliConfig, ConfigErrors, NetworkConfigs, default_networks, write_config_to,
+        BridgeCliConfig, ConfigErrors, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY, default_networks,
+        write_config_to,
     };
 }
 
@@ -30,6 +31,10 @@ pub mod secure_display {
     pub use crate::core::secure_display::{
         display_mnemonic_securely, display_private_key_securely,
     };
+}
+
+pub mod musig2 {
+    pub use crate::core::musig2::{aggregate_public_keys, aggregate_public_keys_from_str};
 }
 
 pub use crate::btc::utils::parse_transaction_hex;
