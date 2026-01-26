@@ -878,8 +878,6 @@ pub async fn deposit_status(
     }
 
     let current_block_height = get_current_block_height(config).await?;
-    let refund_threshold = config.user_takes_after / 4;
-
     let network_arg = network_table_name(config.network).unwrap_or("<BITCOIN_NETWORK>");
     let aggregated_key = config.aggregated_public_key.to_string();
 
@@ -892,6 +890,10 @@ pub async fn deposit_status(
             .unwrap_or_else(|| "N/A".to_string())
     };
     let refund_in_blocks = |block_height: Option<u64>| {
+        if block_height.is_none() {
+            return Some(config.user_takes_after);
+        }
+
         block_height.and_then(|h| {
             h.checked_add(config.user_takes_after)
                 .map(|target| target.saturating_sub(current_block_height))
@@ -910,7 +912,7 @@ pub async fn deposit_status(
         let refund_msg = refund_info(
             refund_in_blocks(utxo.block_height),
             false,
-            refund_threshold,
+            config.user_takes_after,
             &refund_command,
         );
         print_incorrect_deposit(utxo, &refund_msg, &block_display(utxo.block_height));
@@ -1013,6 +1015,9 @@ pub async fn deposit_status(
             network_arg,
             &aggregated_key,
         );
+
+        let refund_threshold = config.user_takes_after / 4;
+
         let refund_msg = refund_info(
             refund_in_blocks(block_height),
             move_txid.is_some(),
