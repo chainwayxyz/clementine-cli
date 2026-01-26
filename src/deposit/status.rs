@@ -71,6 +71,18 @@ const KV_INDENT: &str = "  ";
 const KV_GAP: &str = " ";
 
 #[derive(Debug, Deserialize, Serialize)]
+pub struct DepositLog {
+    pub block_hash: String,
+    pub block_number: u64,
+    pub idx: u64,
+    pub recipient: String,
+    pub timestamp: u64,
+    pub tx_hash: String,
+    pub txid: String,
+    pub wtxid: String,
+}
+
+#[derive(Debug, Deserialize, Serialize)]
 pub struct DepositStatus {
     pub id: u64,
     pub status: String,
@@ -86,7 +98,7 @@ pub struct DepositStatus {
     pub taproot_addr: String,
     pub recovery_taproot_addr: String,
     pub move_wtxid: Option<String>,
-    pub deposit_log: Option<String>,
+    pub deposit_log: Option<DepositLog>,
 }
 
 pub struct DepositStatusWithVout<'a> {
