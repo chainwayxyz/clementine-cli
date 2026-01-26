@@ -14,7 +14,7 @@ pub use storage::{
 };
 
 use crate::btc::utils::{
-    calculate_deposit_address_with_tap_tree, convert_btc_to_amount, DepositAddressResult,
+    DepositAddressResult, calculate_deposit_address_with_tap_tree, convert_btc_to_amount,
 };
 use crate::core::config::BridgeCliConfig;
 use crate::core::errors::BridgeCliError;

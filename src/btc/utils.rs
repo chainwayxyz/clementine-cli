@@ -63,11 +63,8 @@ pub(crate) fn calculate_deposit_address(
     recovery_taproot_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(BitcoinAddress, TaprootSpendInfo), BridgeCliError> {
-    let result = calculate_deposit_address_with_tap_tree(
-        citrea_address,
-        recovery_taproot_address,
-        config,
-    )?;
+    let result =
+        calculate_deposit_address_with_tap_tree(citrea_address, recovery_taproot_address, config)?;
     Ok((result.address, result.spend_info))
 }
 
@@ -930,12 +927,9 @@ mod tests {
         let recovery_address = calculate_taproot_address(&keypair, config.network);
         let citrea_address = CitreaAddress::from([0u8; 20]);
 
-        let result = calculate_deposit_address_with_tap_tree(
-            &citrea_address,
-            &recovery_address,
-            &config,
-        )
-        .expect("should calculate deposit address");
+        let result =
+            calculate_deposit_address_with_tap_tree(&citrea_address, &recovery_address, &config)
+                .expect("should calculate deposit address");
 
         // Verify the tap_tree_hex is valid hex
         let tap_tree_bytes = hex::decode(&result.tap_tree_hex).expect("should be valid hex");
