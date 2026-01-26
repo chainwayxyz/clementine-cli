@@ -62,7 +62,7 @@ fn get_bitcoin_cli_command(config: &BridgeCliConfig) -> String {
         Network::Testnet4 => command.push_str(" -testnet4"),
         Network::Signet => command.push_str(" -signet"),
         Network::Regtest => command.push_str(" -regtest"),
-        Network::Testnet => panic!("Statically not possible to get here"),
+        _ => panic!("Unsupported network {:?}", config.network),
     }
 
     command.push_str(" -rpcport=<rpcport>");
@@ -490,8 +490,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             Network::Testnet4 => "https://mempool.space/testnet4",
                             Network::Signet => "https://mempool.space/signet",
                             Network::Regtest => "http://localhost:8080", // Local mempool for regtest
-                            _ => "https://mempool.space",
+                            _ => panic!("Unsupported network {:?}", config.network),
                         };
+
                         let mempool_url = format!(
                             "{}/address/{}#taptree={}&ikey={}",
                             mempool_base,
