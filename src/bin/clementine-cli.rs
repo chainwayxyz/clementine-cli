@@ -19,7 +19,7 @@ use clementine_cli::wallet::{
     BitcoinAddress, Purpose, TaprootAddressWithPrefix, parse_address, parse_taproot_address,
     print_all_wallets_with_addresses, should_not_have_purpose,
 };
-use clementine_cli::{broadcast_recovery_tx, parse_transaction_hex};
+use clementine_cli::{broadcast_recovery_tx, musig2, parse_transaction_hex};
 use clementine_cli::{deposit, withdraw};
 use colored::Colorize;
 use std::str::FromStr;
@@ -128,6 +128,11 @@ enum Commands {
     Withdraw {
         #[command(subcommand)]
         command: WithdrawCommands,
+    },
+    /// Aggregate multiple public keys using MuSig2 key aggregation.
+    Musig2KeyAggregation {
+        /// Comma-separated list of public keys (hex-encoded, 33 bytes compressed or 65 bytes uncompressed)
+        public_keys: String,
     },
 }
 
@@ -902,6 +907,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 );
             }
         },
+        Commands::Musig2KeyAggregation { public_keys } => {
+            let aggregated_key =
+                handle_simple_call!(musig2::aggregate_public_keys_from_str(&public_keys));
+            println!("{}", aggregated_key);
+        }
     }
     Ok(())
 }
