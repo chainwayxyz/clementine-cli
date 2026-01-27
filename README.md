@@ -52,9 +52,7 @@ clementine-cli --help
 
 ## Quick Usage
 
-By default, `clementine-cli` uses `bitcoin` (mainnet) network. If you wish to
-make deposits and withdrawals on testnet, please provide `--network testnet` flag
-every time you invoke `clementine-cli`.
+By default, `clementine-cli` uses `bitcoin` (mainnet) network. If you wish to make deposits and withdrawals on testnet, please provide `--network testnet` flag every time you invoke `clementine-cli`. Throughout the docs, network aliases are used interchangeably: `bitcoin`/`mainnet`, `testnet4`/`testnet`, `signet`/`devnet`, and `regtest`.
 
 ### Deposit
 

@@ -9,9 +9,9 @@ clementine-cli deposit --help
 ```
 
 > [!CAUTION]
-> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
-> network other than mainnet. Mainnet is selected implicitly for every
-> command.
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin network other than mainnet. Mainnet is selected implicitly 
+> for every command. Network aliases are used interchangeably throughout the docs: `bitcoin`/`mainnet`, `testnet4`/`testnet`, `signet`/`devnet`, 
+> and `regtest`.
 
 ## Prerequisites
 
@@ -29,7 +29,7 @@ The deposit process consists of several stages:
 2. [**Start Deposit**](#step-2-start-deposit-generate-deposit-address) - Create a unique deposit address using your Citrea (EVM) address and recovery taproot address
 3. [**Send 10 BTC to the Deposit Address**](#step-3-send-10-btc-to-the-deposit-address) - Transfer 10 BTC to the deposit address and rest will be automatically handled by the Clementine, and you will receive your 10 cBTC on your Citrea address.
 4. [**Monitor Deposit Status**](#step-4-monitor-deposit-status) - Track the bridging process
-5. [**Fund Recovery (If Needed)**](#step-5-recovery-if-needed) - Recover funds if bridging fails
+5. [**Fund Recovery (If Needed)**](deposit.md#step-5-fund-recovery-if-needed) - Recover funds if bridging fails
 
 > [!IMPORTANT]
 > The `RECOVERY_TAPROOT_ADDRESS` and the `DEPOSIT_ADDRESS` are different. The `RECOVERY_TAPROOT_ADDRESS` will belong to your Clementine CLI wallet to be able to sign the recovery transaction in case the deposit fails, whereas the `DEPOSIT_ADDRESS` is the address you send Bitcoin to in order to perform the deposit operation. Your `RECOVERY_TAPROOT_ADDRESS` is used alongside the `N_of_N_ADDRESS` when creating the `DEPOSIT_ADDRESS` to make sure if the deposit fails, you can recover your funds back to your `DESTINATION_ADDRESS`.
@@ -129,7 +129,7 @@ clementine-cli musig2-key-aggregation 02abc...123,03def...456
 Generate signed recovery transaction:
 
 ```sh
-clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT> <CLEMENTINE_AGGREGATED_KEY>
+clementine-cli deposit create-signed-recovery-tx [--network <BITCOIN_NETWORK>] <RECOVERY_TAPROOT_ADDRESS> <CITREA_ADDRESS> <DEPOSIT_UTXO_OUTPOINT> <DESTINATION_ADDRESS> <FEE_RATE> <AMOUNT> <CLEMENTINE_AGGREGATED_KEY>
 ```
 
 **Example:**
