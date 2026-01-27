@@ -1,12 +1,12 @@
 # Wallet Operations
 
-Clementine CLI wallet doesn't provide a usual Bitcoin wallet functionality. It is a specialized tool for singing transactions for doing Clementine deposits and withdrawals.
+Clementine CLI wallet doesn't provide typical Bitcoin wallet functionality. It is a specialized tool for signing transactions for Clementine deposits and withdrawals.
 
 
 > [!CAUTION]
-> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
-> network other than mainnet. Mainnet is selected implicitly for every
-> command.
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin network other than mainnet. Mainnet is selected implicitly 
+> for every command. Network aliases are used interchangeably throughout the docs: `bitcoin`/`mainnet`, `testnet4`/`testnet`, `signet`/`devnet`, 
+> and `regtest`.
 
 ## About Clementine Wallets
 

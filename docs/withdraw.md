@@ -5,9 +5,9 @@ This guide covers the withdrawal process from Citrea back to Bitcoin using Cleme
 All available withdrawal commands can be viewed using `clementine-cli withdraw --help` command and `clementine-cli withdraw <subcommand> --help`.
 
 > [!CAUTION]
-> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin
-> network other than mainnet. Mainnet is selected implicitly for every
-> command.
+> Don't forget to specify the `--network` flag if you plan to use a different Bitcoin network other than mainnet. Mainnet is selected implicitly 
+> for every command. Network aliases are used interchangeably throughout the docs: `bitcoin`/`mainnet`, `testnet4`/`testnet`, `signet`/`devnet`, 
+> and `regtest`.
 
 ## Prerequisites
 
@@ -26,7 +26,7 @@ The withdrawal process follows these sequential steps:
 3. [**Send Bitcoin Transaction**](#step-3-send-required-bitcoin-transaction) - Send 330 sats to the signer address to create withdrawal UTXO
 4. [**Scan for Withdrawals**](#step-4-scan-for-withdrawals) - Find available withdrawal UTXOs
 5. [**Generate Withdrawal Signatures**](#step-5-generate-withdrawal-signatures) - Create signatures for optimistic and operator-paid withdrawals
-6. [**Send**](#step-6-send) - Send withdrawal request with signature to Citrea for optimistic withdrawal along with sending 10 cBTC to the bridge contract for registration of the withdrawal operation. After successful optimistic withdrawal, you will receive your 10 BTC on your Bitcoin address.
+6. [**Send**](#step-6-send) - Send withdrawal request with signature to Citrea for optimistic withdrawal along with sending 10 cBTC to the bridge contract for registration of the withdrawal operation. After successful optimistic withdrawal, you will receive your ~10 BTC on your Bitcoin address.
 7. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for optimistic withdrawal for 12 hours
 8. [**Send Signature to Operators**](#step-8-send-the-signature-to-the-operators) - If Step 6 fails, submit signature to Clementine operators for operator-paid withdrawal
 9. [**Check Status**](#step-7-check-withdrawal-status) - Monitor withdrawal progress for operator-paid withdrawal
@@ -71,7 +71,7 @@ clementine-cli withdraw start wittb1pf... tb1qg...
 clementine-cli withdraw start --network testnet wittb1pf... tb1qg...
 ```
 
-This command will prompt the user to send 330 sats to the signer address to create the 0-value UTXO needed for the withdrawal operation.
+This command will prompt the user to send 330 sats to the signer address to create the dust UTXO needed for the withdrawal operation.
 
 > [!IMPORTANT]
 > **About the "wit" prefix:** The signer address must belong to a Clementine wallet with `withdrawal` purpose and should be prefixed with "wit" to indicate it's being used for withdrawal operations. This ensures proper cryptographic derivation for withdrawal bridge operations.
@@ -152,7 +152,7 @@ clementine-cli withdraw generate-withdrawal-signatures --network testnet wittb1p
 
 ## Step 6: Send 10 cBTC to the Bridge Contract
 
-Send 10 cBTC to the bridge contract for registration of the withdrawal operation. After successful optimistic withdrawal, you will receive your 10 BTC on your Bitcoin address.
+Send 10 cBTC to the bridge contract for registration of the withdrawal operation. After successful optimistic withdrawal, you will receive your ~10 BTC on your Bitcoin address.
 
 Run the following command to open the webpage where you can send the 10 cBTC to the bridge contract along with the generated withdrawal signature that will be used for optimistic withdrawal.
 
