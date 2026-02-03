@@ -227,6 +227,5 @@ impl TestCase for DepositTest {
 #[tokio::test]
 async fn test_deposit() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
-    println!("Starting deposit test...");
     TestCaseRunner::new(DepositTest).run().await
 }
