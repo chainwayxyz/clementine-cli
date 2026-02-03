@@ -225,7 +225,7 @@ pub trait BitcoinRpcExt: RpcApi {
         }
     }
 
-    /// Wait for a transaction to be in the mempool and than mines a block to make
+    /// Wait for a transaction to be in the mempool and then mines a block to make
     /// sure that it is included in the next block.
     ///
     /// # Parameters
