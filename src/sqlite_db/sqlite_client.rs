@@ -54,7 +54,7 @@ impl SqliteDb {
         Ok(db)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     pub async fn open_in_memory_with_schema(db_name: &str) -> Result<Self, BridgeCliError> {
         // Use an isolated in-memory database for each pool
 
