@@ -1,0 +1,40 @@
+[package]
+name = "clementine-e2e-tests"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+alloy = { version = "1.0.41" }
+alloy-primitives = "0.8"
+alloy-rpc-types = "1.0.41"
+anyhow = "1.0"
+async-trait = "0.1.83"
+bitcoincore-rpc = "0.18.0"
+bitcoin = { version = "0.32.5", features = ["serde", "base64"] }
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2", features = [
+  "clementine",
+] }
+eyre = "0.6.12"
+hex = "0.4"
+jsonrpsee = { version = "0.24", features = ["http-client", "client"] }
+clementine-cli = { path = "..", features = ["test-utils"] }
+rand = "0.8"
+reqwest = { version = "0.11", features = ["json"] }
+secp256k1 = { version = "0.31.0", features = [
+  "serde",
+  "rand",
+  "std",
+  "global-context",
+] }
+serde = { version = "=1.0.226", features = ["derive"] }
+serde_json = "1.0.128"
+sha2 = "0.10"
+tempfile = "3.8"
+tokio = { version = "1.40.0", features = ["full"] }
+tracing = "0.1.40"
+tracing-subscriber = { version = "0.3.18", features = ["json"] }
+
+[patch.crates-io]
+secp256k1 = { git = "https://github.com/rust-bitcoin/rust-secp256k1", rev = "4d36fefdddb118425bb9bcf611bb6e4dff306cfc" }
+bitcoincore-rpc = { version = "0.18.0", git = "https://github.com/chainwayxyz/rust-bitcoincore-rpc.git", rev = "5da45109a2de352472a6056ef90a517b66bc106f" }
