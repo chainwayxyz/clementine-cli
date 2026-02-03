@@ -12,7 +12,7 @@ anyhow = "1.0"
 async-trait = "0.1.83"
 bitcoincore-rpc = "0.18.0"
 bitcoin = { version = "0.32.5", features = ["serde", "base64"] }
-citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "10ff3e2", features = [
+citrea-e2e = { git = "https://github.com/chainwayxyz/citrea-e2e", rev = "b052479", features = [
   "clementine",
 ] }
 eyre = "0.6.12"
