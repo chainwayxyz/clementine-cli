@@ -22,7 +22,7 @@ use clementine_cli::{
 
 use clementine_cli::wallet::{Purpose, create_encrypted_wallet};
 use clementine_e2e_tests::{
-    constants::TEST_EVM_ADDRESS,
+    constants::TEST_EVM_ADDRESS_DEPOSIT,
     helper::{
         deposit_to_citrea, ensure_bridge_contract_deployed, get_citrea_balance,
         get_default_bridge_params, regtest_bridge_cli_config_from_bitcoin_config,
@@ -75,7 +75,7 @@ impl TestCase for DepositTest {
     fn light_client_prover_config() -> LightClientProverConfig {
         LightClientProverConfig {
             enable_recovery: false,
-            initial_da_height: 60,
+            initial_da_height: 175,
             ..Default::default()
         }
     }
@@ -153,7 +153,7 @@ impl TestCase for DepositTest {
         info!("Aggregated public key: {}", aggregated_pubkey);
 
         // Check initial balance on Citrea
-        let initial_balance = get_citrea_balance(sequencer, TEST_EVM_ADDRESS).await?;
+        let initial_balance = get_citrea_balance(sequencer, TEST_EVM_ADDRESS_DEPOSIT).await?;
 
         let passphrase = SecureString::init_with(|| "test-passphrase".to_string());
 
@@ -175,7 +175,7 @@ impl TestCase for DepositTest {
         // Update config with the aggregated public key
         config.aggregated_public_key = aggregated_pubkey;
 
-        let test_evm_address = Address::from_hex(TEST_EVM_ADDRESS)?;
+        let test_evm_address = Address::from_hex(TEST_EVM_ADDRESS_DEPOSIT)?;
         let deposit_address = get_deposit_address(
             &test_evm_address,
             &recovery_address,
@@ -207,7 +207,7 @@ impl TestCase for DepositTest {
         // Wait for balance change on Citrea
         info!("Waiting for balance change on Citrea...");
         let final_balance =
-            wait_for_balance_change(sequencer, TEST_EVM_ADDRESS, initial_balance).await?;
+            wait_for_balance_change(sequencer, TEST_EVM_ADDRESS_DEPOSIT, initial_balance).await?;
 
         // Verify the deposit was successful
         assert!(
