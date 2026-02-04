@@ -1,4 +1,7 @@
+use std::time::Duration;
+
 use crate::bitcoin::BitcoinRpcExt;
+use alloy::primitives::U256;
 use anyhow::{Context, Result, anyhow};
 use bitcoin::Txid;
 use bitcoincore_rpc::Client;
@@ -9,6 +12,8 @@ use clementine_cli::config::BridgeCliConfig;
 use clementine_cli::deposit::get_deposit_params;
 use jsonrpsee::core::client::ClientT;
 use jsonrpsee::rpc_params;
+use tokio::time::{sleep, timeout};
+use tracing::info;
 
 use crate::citrea_bridge;
 
@@ -83,6 +88,25 @@ pub async fn get_citrea_balance(sequencer: &Node<SequencerConfig>, address: &str
     Ok(balance)
 }
 
+/// Get the balance of an address on Citrea (returns U256 for withdraw test compatibility)
+pub async fn get_citrea_balance_u256(
+    sequencer: &Node<SequencerConfig>,
+    address: &str,
+) -> Result<U256> {
+    use jsonrpsee::core::client::ClientT;
+    use jsonrpsee::rpc_params;
+
+    let client = sequencer.client.http_client();
+    let balance_hex: String = client
+        .request("eth_getBalance", rpc_params![address, "latest"])
+        .await
+        .map_err(|e| anyhow!("Failed to get balance: {}", e))?;
+
+    let balance = U256::from_str_radix(balance_hex.trim_start_matches("0x"), 16)
+        .map_err(|e| anyhow!("Failed to parse balance: {}", e))?;
+    Ok(balance)
+}
+
 /// Wait for a balance change on Citrea and return the updated balance.
 pub async fn wait_for_balance_change(
     sequencer: &Node<SequencerConfig>,
@@ -102,6 +126,39 @@ pub async fn wait_for_balance_change(
     Err(anyhow!(
         "Citrea balance did not change after multiple attempts"
     ))
+}
+
+/// Wait for balance to change from initial value (U256 version for withdraw test)
+pub async fn wait_for_balance_change_u256(
+    sequencer: &Node<SequencerConfig>,
+    address: &str,
+    initial_balance: U256,
+) -> Result<U256> {
+    let max_wait_time = Duration::from_secs(120);
+    let check_interval = Duration::from_secs(2);
+
+    timeout(max_wait_time, async {
+        loop {
+            let current_balance = get_citrea_balance_u256(sequencer, address).await?;
+
+            if current_balance != initial_balance {
+                info!(
+                    "Balance changed from {} to {} wei",
+                    initial_balance, current_balance
+                );
+                return Ok(current_balance);
+            }
+
+            sleep(check_interval).await;
+        }
+    })
+    .await
+    .map_err(|_| {
+        anyhow!(
+            "Timeout waiting for balance change after {} seconds",
+            max_wait_time.as_secs()
+        )
+    })?
 }
 
 pub async fn deposit_to_citrea(
