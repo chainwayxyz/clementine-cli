@@ -35,6 +35,7 @@
                   "docs"
                   "README.md"
                   ".github"
+                  "e2e-tests"
                 ];
               in
               isGitIgnored && !isManualExcluded;
