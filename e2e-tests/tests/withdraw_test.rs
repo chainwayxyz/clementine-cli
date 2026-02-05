@@ -287,8 +287,7 @@ impl TestCase for WithdrawalTest {
         );
 
         // Aggregate the verifier public keys
-        let verifier_keys_hex: Vec<String> =
-            verifier_keys.iter().map(|key| hex::encode(key)).collect();
+        let verifier_keys_hex: Vec<String> = verifier_keys.iter().map(hex::encode).collect();
         let verifier_keys_str = verifier_keys_hex.join(",");
         let aggregated_pubkey = aggregate_public_keys_from_str(&verifier_keys_str)
             .map_err(|e| anyhow::anyhow!("Failed to aggregate public keys: {}", e))?;

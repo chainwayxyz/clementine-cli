@@ -135,7 +135,7 @@ impl TestCase for DepositRecoveryTest {
 
         wait_for_citrea(sequencer).await?;
 
-        ensure_bridge_contract_deployed(&sequencer).await?;
+        ensure_bridge_contract_deployed(sequencer).await?;
 
         info!("Setting up Clementine aggregator...");
 
@@ -154,8 +154,7 @@ impl TestCase for DepositRecoveryTest {
         );
 
         // Aggregate the verifier public keys
-        let verifier_keys_hex: Vec<String> =
-            verifier_keys.iter().map(|key| hex::encode(key)).collect();
+        let verifier_keys_hex: Vec<String> = verifier_keys.iter().map(hex::encode).collect();
         let verifier_keys_str = verifier_keys_hex.join(",");
         let aggregated_pubkey = aggregate_public_keys_from_str(&verifier_keys_str)
             .map_err(|e| anyhow::anyhow!("Failed to aggregate public keys: {}", e))?;
@@ -220,7 +219,7 @@ impl TestCase for DepositRecoveryTest {
         for (index, output) in tx_bytes.output.iter().enumerate() {
             if let Ok(address) =
                 bitcoin::Address::from_script(&output.script_pubkey, bitcoin::Network::Regtest)
-                && &address == &deposit_address.deposit_address
+                && address == deposit_address.deposit_address
             {
                 deposit_vout = Some(index as u32);
                 break;
@@ -285,7 +284,7 @@ impl TestCase for DepositRecoveryTest {
 
         let recovery_tx_weight = recovery_tx.weight();
         let recovery_tx_wu = recovery_tx_weight.to_wu();
-        let expected_fee_sat = (fee_rate.saturating_mul(recovery_tx_wu) + 3) / 4;
+        let expected_fee_sat = fee_rate.saturating_mul(recovery_tx_wu).div_ceil(4);
         let expected_received_sat = deposit_amount.to_sat().saturating_sub(expected_fee_sat);
 
         info!(
