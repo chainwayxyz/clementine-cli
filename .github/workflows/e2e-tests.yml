@@ -15,6 +15,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Clementine  E2E Tests Build Services
+        uses: ./.github/actions/clementine-build-services
+
       - name: Cache bitvm cache files
         uses: actions/cache@v4
         id: cache-bitvm
