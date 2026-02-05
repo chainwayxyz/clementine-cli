@@ -319,14 +319,17 @@ impl TestCase for DepositRecoveryTest {
         );
 
         // fetch broadcasted tx details
-        let tx = bitcoin_node.get_transaction(&broadcast_txid, None).await?.transaction().expect("Tx not found");
+        let tx = bitcoin_node
+            .get_transaction(&broadcast_txid, None)
+            .await?
+            .transaction()
+            .expect("Tx not found");
 
-        info!(
-            "Broadcasted recovery tx details: {:?}",
-            tx
-        );
+        info!("Broadcasted recovery tx details: {:?}", tx);
 
-        let delta_sat = dest_balance.to_sat().saturating_sub(dest_initial_balance.to_sat());
+        let delta_sat = dest_balance
+            .to_sat()
+            .saturating_sub(dest_initial_balance.to_sat());
         anyhow::ensure!(
             delta_sat == expected_received_sat,
             "Destination received {} sats but expected {} sats",
