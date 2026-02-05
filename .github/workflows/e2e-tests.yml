@@ -35,4 +35,4 @@ jobs:
       - name: Run e2e tests
         shell: bash
         working-directory: e2e-tests
-        run: BITVM_CACHE_PATH="$GITHUB_WORKSPACE/e2e-tests/bitvm_cache_dev.bin" cargo test
+        run: BITVM_CACHE_PATH="$GITHUB_WORKSPACE/e2e-tests/bitvm_cache_dev.bin" cargo test -- --test-threads=1
