@@ -110,8 +110,31 @@ async fn verify_withdrawal_completion(
     Ok(())
 }
 
+/// Determines which withdrawal test variant to run.
+#[derive(Debug, Clone, Copy)]
+pub enum WithdrawalTestVariant {
+    DefaultDust,
+    DustAmount(Amount),
+}
+
 /// Initializes the Citrea/Clementine test framework and node topology.
-pub struct WithdrawalTest;
+pub struct WithdrawalTest {
+    variant: WithdrawalTestVariant,
+}
+
+impl WithdrawalTest {
+    pub fn new_default() -> Self {
+        Self {
+            variant: WithdrawalTestVariant::DefaultDust,
+        }
+    }
+
+    pub fn new_with_dust(dust_amount: Amount) -> Self {
+        Self {
+            variant: WithdrawalTestVariant::DustAmount(dust_amount),
+        }
+    }
+}
 
 #[async_trait]
 impl TestCase for WithdrawalTest {
@@ -300,6 +323,11 @@ impl TestCase for WithdrawalTest {
 
         let mut config = regtest_bridge_cli_config_from_bitcoin_config(&bitcoin_node.config)?;
 
+        if let WithdrawalTestVariant::DustAmount(dust_amount) = self.variant {
+            info!("Setting dust UTXO amount to {} sats", dust_amount.to_sat());
+            config.dust_utxo_amount = dust_amount;
+        }
+
         // Update config with the aggregated public key
         config.aggregated_public_key = aggregated_pubkey;
 
@@ -404,9 +432,20 @@ impl TestCase for WithdrawalTest {
                 BitcoinAddress::from_script(&output.script_pubkey, bitcoin::Network::Regtest)
                     .ok()
                     .filter(|addr| addr == &withdrawal_signer_address.address)
-                    .map(|_| index as u32)
+                    .and_then(|_| {
+                        if output.value == config.dust_utxo_amount {
+                            Some(index as u32)
+                        } else {
+                            None
+                        }
+                    })
             })
-            .ok_or_else(|| anyhow::anyhow!("No output found for withdrawal signer address"))?;
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No output found for withdrawal signer address with dust amount {} sats",
+                    config.dust_utxo_amount.to_sat()
+                )
+            })?;
 
         let withdrawal_outpoint = OutPoint {
             txid: dust_txid,
@@ -625,5 +664,16 @@ impl TestCase for WithdrawalTest {
 async fn test_withdrawal() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
     unsafe { std::env::set_var("RISC0_DEV_MODE", "1") };
-    TestCaseRunner::new(WithdrawalTest).run().await
+    TestCaseRunner::new(WithdrawalTest::new_default())
+        .run()
+        .await
+}
+
+#[tokio::test]
+async fn test_withdrawal_dust_1000() -> Result<()> {
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+    unsafe { std::env::set_var("RISC0_DEV_MODE", "1") };
+    TestCaseRunner::new(WithdrawalTest::new_with_dust(Amount::from_sat(1000)))
+        .run()
+        .await
 }
