@@ -800,11 +800,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     handle_simple_call!(bitcoin::taproot::Signature::from_slice(&signature_bytes));
 
                 let precomputed = match (tx_hex, block_txids, block_header_hex, block_height) {
-                    (Some(tx_hex), Some(btxids_json), Some(bh_hex), Some(bh)) => {
-                        let txid_strings: Vec<String> = serde_json::from_str(&btxids_json)
-                            .map_err(|e| eyre::eyre!(
-                                "Invalid --block-txids JSON array: {}. Expected format: [\"txid1\",\"txid2\",...]", e
-                            ))?;
+                    (Some(tx_hex), Some(btxids_raw), Some(bh_hex), Some(bh)) => {
+                        // Try JSON first; fall back to bracket-delimited comma-separated
+                        // to handle shells that strip inner double-quotes.
+                        let txid_strings: Vec<String> =
+                            serde_json::from_str::<Vec<String>>(&btxids_raw).unwrap_or_else(|_| {
+                                btxids_raw
+                                    .trim_matches(|c: char| c == '[' || c == ']' || c.is_whitespace())
+                                    .split(',')
+                                    .map(|s| s.trim().trim_matches('"').trim_matches('\'').to_string())
+                                    .filter(|s| !s.is_empty())
+                                    .collect()
+                            });
                         let parsed_txids: Vec<bitcoin::Txid> = txid_strings
                             .iter()
                             .map(|s| bitcoin::Txid::from_str(s))
