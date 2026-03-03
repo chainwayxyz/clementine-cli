@@ -29,7 +29,8 @@ use clementine_cli::{
     sqlite_db::test_utils::fresh_db_with_test_name,
     wallet::{get_private_key_from_wallet, import_wallet_from_private_key},
     withdraw::{
-        SafeWithdrawalParams, generate_withdrawal_signatures, scan_withdrawal, send_safe_withdrawal,
+        PrecomputedWithdrawalData, SafeWithdrawalParams, generate_withdrawal_signatures,
+        scan_withdrawal, send_safe_withdrawal,
     },
 };
 use clementine_e2e_tests::bitcoin::BitcoinRpcExt;
@@ -504,6 +505,7 @@ impl TestCase for WithdrawalTest {
             withdrawal_outpoint,
             withdrawal_amount: config.optimistic_withdrawal_amount,
             signature: optimistic_sig,
+            precomputed: None,
         };
 
         let l2_secret = SecureString::init_with(|| DEFAULT_EVM_PRIVATE_KEY.to_string());
@@ -673,6 +675,432 @@ async fn test_withdrawal_dust_1000() -> Result<()> {
     let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
     unsafe { std::env::set_var("RISC0_DEV_MODE", "1") };
     TestCaseRunner::new(WithdrawalTest::new_with_dust(Amount::from_sat(1000)))
+        .run()
+        .await
+}
+
+/// Tests that `send_safe_withdrawal` works with precomputed Bitcoin data,
+/// proving no Bitcoin network GET calls are needed.
+pub struct PrecomputedWithdrawalTest;
+
+#[async_trait]
+impl TestCase for PrecomputedWithdrawalTest {
+    fn bitcoin_config() -> BitcoinConfig {
+        WithdrawalTest::bitcoin_config()
+    }
+
+    fn test_config() -> TestCaseConfig {
+        WithdrawalTest::test_config()
+    }
+
+    fn sequencer_config() -> SequencerConfig {
+        WithdrawalTest::sequencer_config()
+    }
+
+    fn batch_prover_config() -> BatchProverConfig {
+        WithdrawalTest::batch_prover_config()
+    }
+
+    fn light_client_prover_config() -> LightClientProverConfig {
+        WithdrawalTest::light_client_prover_config()
+    }
+
+    fn scan_l1_start_height() -> Option<u64> {
+        WithdrawalTest::scan_l1_start_height()
+    }
+
+    fn clementine_aggregator_config() -> ClementineConfig<AggregatorConfig> {
+        WithdrawalTest::clementine_aggregator_config()
+    }
+
+    fn clementine_verifier_config(idx: u8) -> ClementineConfig<VerifierConfig> {
+        WithdrawalTest::clementine_verifier_config(idx)
+    }
+
+    fn clementine_operator_config(idx: u8) -> ClementineConfig<OperatorConfig> {
+        WithdrawalTest::clementine_operator_config(idx)
+    }
+
+    async fn run_test(&mut self, framework: &mut TestFramework) -> Result<()> {
+        let bitcoin_node = framework
+            .bitcoin_nodes
+            .get(0)
+            .expect("No Bitcoin node found");
+
+        let clementine_cluster = framework
+            .clementine_nodes
+            .as_mut()
+            .expect("No Clementine nodes found");
+
+        let sequencer = framework.sequencer.as_mut().expect("No Sequencer found");
+        let sequencer = Arc::new(sequencer);
+
+        bitcoin_node.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        wait_for_citrea(&sequencer).await?;
+        ensure_bridge_contract_deployed(&sequencer).await?;
+
+        let verifier_public_keys_response = clementine_cluster
+            .aggregator
+            .client
+            .setup()
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to setup Clementine aggregator: {}", e))?;
+
+        let verifier_keys = verifier_public_keys_response.verifier_public_keys;
+        let verifier_keys_hex: Vec<String> = verifier_keys.iter().map(hex::encode).collect();
+        let verifier_keys_str = verifier_keys_hex.join(",");
+        let aggregated_pubkey = aggregate_public_keys_from_str(&verifier_keys_str)
+            .map_err(|e| anyhow::anyhow!("Failed to aggregate public keys: {}", e))?;
+
+        let initial_balance =
+            get_citrea_balance_u256(&sequencer, TEST_EVM_ADDRESS_WITHDRAW).await?;
+
+        let db_client = fresh_db_with_test_name().await;
+        let (recovery_address, _mnemonic) = create_encrypted_wallet(
+            bitcoin::Network::Regtest,
+            "e2e-recovery-wallet".to_string(),
+            Purpose::Deposit,
+            create_test_passphrase(),
+            Some(&db_client),
+        )
+        .await?;
+
+        let mut config = regtest_bridge_cli_config_from_bitcoin_config(&bitcoin_node.config)?;
+        config.aggregated_public_key = aggregated_pubkey;
+
+        let test_evm_address = AlloyAddress::from_hex(TEST_EVM_ADDRESS_WITHDRAW)?;
+        let deposit_address = get_deposit_address(
+            &test_evm_address,
+            &recovery_address,
+            &config,
+            Some(&db_client),
+        )
+        .await?;
+
+        let deposit_amount = Amount::from_btc(10.0)?;
+        let submitted = submit_deposit_and_move(
+            bitcoin_node,
+            &mut clementine_cluster.aggregator.client,
+            &deposit_address.deposit_address,
+            deposit_amount,
+            test_evm_address.0.into(),
+            recovery_address.address_without_prefix(),
+        )
+        .await?;
+
+        deposit_to_citrea(
+            bitcoin_node.client(),
+            &sequencer,
+            submitted.move_txid,
+            &config,
+        )
+        .await?;
+
+        let final_balance =
+            wait_for_balance_change_u256(&sequencer, TEST_EVM_ADDRESS_WITHDRAW, initial_balance)
+                .await?;
+        assert!(final_balance > initial_balance);
+        let balance_after_deposit = final_balance;
+
+        // ========== WITHDRAWAL PHASE ==========
+        info!("=== Starting precomputed withdrawal test ===");
+
+        let signer_private_key_hex = SecureString::init_with(|| hex::encode([13u8; 32]));
+        let withdrawal_signer_address = import_wallet_from_private_key(
+            bitcoin::Network::Regtest,
+            "e2e-withdrawal-signer",
+            Purpose::Withdrawal,
+            signer_private_key_hex,
+            create_test_passphrase(),
+            Some(&db_client),
+        )
+        .await?;
+
+        let signer_secret_key = get_private_key_from_wallet(
+            &withdrawal_signer_address,
+            &create_test_passphrase(),
+            Some(&db_client),
+        )
+        .await?;
+        let signer_keypair = SecureKeypair::new(bitcoin::secp256k1::Keypair::from_secret_key(
+            &Secp256k1::new(),
+            signer_secret_key.as_ref_inner(),
+        ));
+
+        let user_withdrawal_address = bitcoin_node
+            .get_new_address(Some("withdrawal_address"), None)
+            .await?;
+        let user_withdrawal_address = user_withdrawal_address.assume_checked();
+
+        let dust_txid = bitcoin_node
+            .send_to_address(
+                &withdrawal_signer_address.address,
+                config.dust_utxo_amount,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .await?;
+
+        bitcoin_node.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        let dust_tx = bitcoin_node.get_transaction(&dust_txid, None).await?;
+        let dust_tx: bitcoin::Transaction = bitcoin::consensus::encode::deserialize(&dust_tx.hex)?;
+        let dust_vout = dust_tx
+            .output
+            .iter()
+            .enumerate()
+            .find_map(|(index, output)| {
+                BitcoinAddress::from_script(&output.script_pubkey, bitcoin::Network::Regtest)
+                    .ok()
+                    .filter(|addr| addr == &withdrawal_signer_address.address)
+                    .and_then(|_| {
+                        if output.value == config.dust_utxo_amount {
+                            Some(index as u32)
+                        } else {
+                            None
+                        }
+                    })
+            })
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "No output found for withdrawal signer address with dust amount {} sats",
+                    config.dust_utxo_amount.to_sat()
+                )
+            })?;
+
+        let withdrawal_outpoint = OutPoint {
+            txid: dust_txid,
+            vout: dust_vout,
+        };
+
+        let (optimistic_sig, _operator_sig) = generate_withdrawal_signatures(
+            signer_keypair,
+            &withdrawal_signer_address,
+            &user_withdrawal_address,
+            &withdrawal_outpoint,
+            &config.optimistic_withdrawal_amount,
+            &config.operator_withdrawal_amount,
+            &config,
+            Some(&db_client),
+        )
+        .await?;
+
+        config.citrea_rpc_url = Some(Url::parse(&format!(
+            "http://{}:{}",
+            sequencer.config.rollup.rpc.bind_host, sequencer.config.rollup.rpc.bind_port
+        ))?);
+
+        force_sequencer_to_commit(&sequencer).await?;
+        bitcoin_node.generate(DEFAULT_FINALITY_DEPTH).await?;
+
+        // ========== EXTRACT PRECOMPUTED DATA FROM RPC ==========
+        info!("Extracting precomputed data from regtest RPC...");
+
+        let rpc = bitcoin_node.client();
+
+        let raw_tx = rpc
+            .get_raw_transaction(&dust_txid, None)
+            .await
+            .context("Failed to get raw transaction")?;
+        let tx_hex = hex::encode(bitcoin::consensus::encode::serialize(&raw_tx));
+
+        let tx_info = rpc
+            .get_raw_transaction_info(&dust_txid, None)
+            .await
+            .context("Failed to get raw transaction info")?;
+        let block_hash = tx_info
+            .blockhash
+            .ok_or_else(|| anyhow::anyhow!("Transaction not in a block"))?;
+
+        let block = rpc
+            .get_block(&block_hash)
+            .await
+            .context("Failed to get block")?;
+        let block_txids: Vec<bitcoin::Txid> =
+            block.txdata.iter().map(|tx| tx.compute_txid()).collect();
+
+        let block_header_bytes = bitcoin::consensus::encode::serialize(&block.header);
+        let block_header_hex = hex::encode(&block_header_bytes);
+
+        let block_info = rpc
+            .get_block_header_info(&block_hash)
+            .await
+            .context("Failed to get block header info")?;
+        let block_height = block_info.height as u32;
+
+        info!(
+            "Precomputed data: tx_hex len={}, block_txids count={}, block_height={}",
+            tx_hex.len(),
+            block_txids.len(),
+            block_height
+        );
+
+        // ========== SEND WITH PRECOMPUTED DATA (no Bitcoin API) ==========
+        // Clear Bitcoin API config to prove no GET calls are made.
+        let mut precomputed_config = config.clone();
+        precomputed_config.bitcoin_config = None;
+        precomputed_config.esplora_rest_api = None;
+
+        let precomputed = PrecomputedWithdrawalData {
+            tx_hex,
+            block_txids,
+            block_header_hex,
+            block_height,
+        };
+
+        let safe_params = SafeWithdrawalParams {
+            signer_address: withdrawal_signer_address.clone(),
+            destination_address: user_withdrawal_address.clone(),
+            withdrawal_outpoint,
+            withdrawal_amount: precomputed_config.optimistic_withdrawal_amount,
+            signature: optimistic_sig,
+            precomputed: Some(precomputed),
+        };
+
+        let l2_secret = SecureString::init_with(|| DEFAULT_EVM_PRIVATE_KEY.to_string());
+
+        info!("Calling send_safe_withdrawal with precomputed data (no Bitcoin API)...");
+
+        let mut tick = tokio::time::interval(Duration::from_secs(5));
+        let mut wait = Box::pin(send_safe_withdrawal(
+            safe_params,
+            l2_secret,
+            &precomputed_config,
+        ));
+
+        let res = loop {
+            tokio::select! {
+                r = &mut wait => break r,
+                _ = tick.tick() => {
+                    let _ = force_sequencer_to_commit(&sequencer).await;
+                }
+            }
+        };
+
+        let receipt = res.map_err(|e| {
+            anyhow::anyhow!("Failed to send safeWithdraw with precomputed data: {}", e)
+        })?;
+
+        anyhow::ensure!(
+            receipt.status(),
+            "safeWithdraw with precomputed data reverted"
+        );
+
+        info!("safeWithdraw with precomputed data successful!");
+
+        force_sequencer_to_commit(&sequencer).await?;
+
+        let payout_txout = TxOut {
+            value: config.optimistic_withdrawal_amount,
+            script_pubkey: user_withdrawal_address.script_pubkey(),
+        };
+
+        let mut attempts = 0;
+        let opt_payout = loop {
+            attempts += 1;
+
+            let input_outpoint = withdrawal_outpoint;
+            let res = clementine_cluster
+                .aggregator
+                .client
+                .optimistic_payout(OptimisticWithdrawParams {
+                    withdrawal: WithdrawParams {
+                        withdrawal_id: 0,
+                        input_signature: optimistic_sig.serialize().to_vec(),
+                        input_outpoint: ClementineOutpoint {
+                            txid: ClementineTxid {
+                                txid: bitcoin::consensus::encode::serialize(&input_outpoint.txid),
+                            }
+                            .into(),
+                            vout: input_outpoint.vout,
+                        }
+                        .into(),
+                        output_script_pubkey: payout_txout.script_pubkey.to_bytes(),
+                        output_amount: payout_txout.value.to_sat(),
+                    }
+                    .into(),
+                    verification_signature: None,
+                })
+                .await
+                .context("optimistic_payout failed");
+
+            match res {
+                Ok(res) => break res,
+                Err(_) => {
+                    if attempts > 120 {
+                        res.context(format!(
+                            "Timeout waiting for optimistic payout after {} attempts",
+                            attempts
+                        ))?;
+                    }
+                    bitcoin_node.generate(DEFAULT_FINALITY_DEPTH).await?;
+                    wait_until_all_state_managers_synced(
+                        bitcoin_node.client(),
+                        &mut clementine_cluster.aggregator,
+                    )
+                    .await?;
+                }
+            }
+        };
+
+        let opt_payout_tx = bitcoin::consensus::deserialize(&opt_payout.raw_tx)
+            .context("Failed to deserialize optimistic payout transaction")?;
+
+        bitcoin_node
+            .client()
+            .send_cpfp_tx(&opt_payout_tx, None)
+            .await
+            .context("Failed to send CPFP transaction")?;
+
+        bitcoin_node
+            .client()
+            .mine_once_after_in_mempool(
+                opt_payout_tx.compute_txid(),
+                Some("Optimistic payout"),
+                None,
+            )
+            .await
+            .context("Failed to mine optimistic payout transaction")?;
+
+        anyhow::ensure!(
+            opt_payout_tx.output[0].script_pubkey == payout_txout.script_pubkey,
+            "Output script pubkey mismatch"
+        );
+        anyhow::ensure!(
+            opt_payout_tx.output[0].value == payout_txout.value,
+            "Output value mismatch"
+        );
+
+        let final_citrea_balance =
+            get_citrea_balance_u256(&sequencer, TEST_EVM_ADDRESS_WITHDRAW).await?;
+        assert!(
+            final_citrea_balance < balance_after_deposit,
+            "Citrea balance did not decrease after withdrawal"
+        );
+
+        verify_withdrawal_completion(
+            bitcoin_node.client(),
+            &user_withdrawal_address,
+            config.optimistic_withdrawal_amount,
+        )
+        .await?;
+
+        info!("Precomputed withdrawal test successful!");
+
+        Ok(())
+    }
+}
+
+#[tokio::test]
+async fn test_withdrawal_with_precomputed_data() -> Result<()> {
+    let _ = tracing_subscriber::fmt().with_env_filter("info").try_init();
+    unsafe { std::env::set_var("RISC0_DEV_MODE", "1") };
+    TestCaseRunner::new(PrecomputedWithdrawalTest)
         .run()
         .await
 }

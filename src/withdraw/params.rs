@@ -2,13 +2,23 @@ use crate::core::types::{MerkleProof, Transaction};
 use crate::wallet::BitcoinAddress;
 use crate::wallet::TaprootAddressWithPrefix;
 use bitcoin::taproot::Signature;
-use bitcoin::{Amount, OutPoint};
+use bitcoin::{Amount, OutPoint, Txid};
 
 #[derive(Debug)]
 pub struct WithdrawalUrl(pub String);
 
 #[derive(Debug)]
 pub struct TxJson(pub String);
+
+/// Pre-fetched Bitcoin data that allows skipping all network GET calls
+/// during withdrawal parameter preparation.
+#[derive(Debug, Clone)]
+pub struct PrecomputedWithdrawalData {
+    pub tx_hex: String,
+    pub block_txids: Vec<Txid>,
+    pub block_header_hex: String,
+    pub block_height: u32,
+}
 
 /// Parameters for safe withdrawal operations
 #[derive(Debug)]
@@ -18,6 +28,7 @@ pub struct SafeWithdrawalParams {
     pub withdrawal_outpoint: OutPoint,
     pub withdrawal_amount: Amount,
     pub signature: Signature,
+    pub precomputed: Option<PrecomputedWithdrawalData>,
 }
 
 #[derive(Debug, Clone)]

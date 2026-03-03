@@ -311,3 +311,105 @@ pub(crate) fn get_citrea_safe_withdraw_params(
         output_script_pk: output_script_pk_bytes.to_vec(),
     })
 }
+
+/// Computes a merkle proof from a pre-supplied ordered list of txids,
+/// without needing the full block.
+fn get_merkle_proof_from_txids(
+    txids: &[Txid],
+    target_txid: Txid,
+) -> Result<(usize, Vec<u8>), BridgeCliError> {
+    let mut txid_index = None;
+    let txid_arrays: Vec<[u8; 32]> = txids
+        .iter()
+        .enumerate()
+        .map(|(i, txid)| {
+            if *txid == target_txid {
+                txid_index = Some(i);
+            }
+            txid.as_byte_array().to_owned()
+        })
+        .collect();
+
+    let txid_index = txid_index.ok_or_else(|| {
+        BridgeCliError::Eyre(eyre::eyre!("Transaction {target_txid} not found in txids list"))
+    })?;
+
+    let merkle_tree = BitcoinMerkleTree::new(txid_arrays.clone())?;
+    let idx_path = merkle_tree.get_idx_path(txid_index.try_into().unwrap());
+
+    let _root = merkle_tree.calculate_root_with_merkle_proof(
+        txid_arrays[txid_index],
+        txid_index.try_into().unwrap(),
+        idx_path.clone(),
+    );
+
+    Ok((txid_index, idx_path.into_iter().flatten().collect()))
+}
+
+/// Same as [`get_citrea_safe_withdraw_params`] but accepts decomposed parts
+/// (txids, block header bytes) instead of a full `Block`, so no network
+/// fetches are required.
+pub(crate) fn get_citrea_safe_withdraw_params_from_parts(
+    withdrawal_utxo: &OutPoint,
+    payout_output: &bitcoin::TxOut,
+    sig: &bitcoin::taproot::Signature,
+    prepare_tx: &Transaction,
+    block_txids: &[Txid],
+    block_header_bytes: &[u8],
+    block_height: u32,
+) -> Result<SafeWithdrawParams, BridgeCliError> {
+    let prepare_tx_struct = get_transaction_details_for_citrea(prepare_tx)?;
+
+    let (index, merkle_proof) = get_merkle_proof_from_txids(block_txids, withdrawal_utxo.txid)?;
+    let prepare_tx_mp = CitreaMerkleProof {
+        intermediate_nodes: merkle_proof,
+        block_height,
+        index,
+    };
+
+    let txin = TxIn {
+        previous_output: *withdrawal_utxo,
+        script_sig: ScriptBuf::default(),
+        sequence: Sequence::ENABLE_RBF_NO_LOCKTIME,
+        witness: Witness::default(),
+    };
+
+    let mut payout_tx = Transaction {
+        version: bitcoin::transaction::Version::non_standard(3),
+        lock_time: bitcoin::absolute::LockTime::ZERO,
+        input: vec![txin],
+        output: vec![payout_output.clone()],
+    };
+
+    let mut witness = bitcoin::Witness::new();
+    witness.push(sig.serialize());
+
+    payout_tx.input[0].witness = witness;
+
+    let payout_tx_params = get_transaction_details_for_citrea(&payout_tx)?;
+
+    let output_script_pk_bytes = &bitcoin::consensus::serialize(&payout_tx.output[0].script_pubkey)
+        .iter()
+        .skip(1)
+        .copied()
+        .collect::<Vec<u8>>();
+
+    tracing::debug!(
+        "{:#?}",
+        (
+            prepare_tx_struct.clone(),
+            prepare_tx_mp.clone(),
+            payout_tx_params.clone(),
+            hex::encode(block_header_bytes),
+            hex::encode(output_script_pk_bytes.clone()),
+        )
+    );
+
+    Ok(SafeWithdrawParams {
+        prepare_tx: prepare_tx_struct,
+        prepare_proof: prepare_tx_mp,
+        payout_tx: payout_tx_params,
+        block_header: block_header_bytes.to_vec(),
+        output_script_pk: output_script_pk_bytes.to_vec(),
+    })
+}

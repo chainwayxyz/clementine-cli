@@ -2,7 +2,9 @@
 mod params;
 mod status;
 
-pub use params::{SafeWithdrawalParams, TxJson, WithdrawalParams, WithdrawalUrl};
+pub use params::{
+    PrecomputedWithdrawalData, SafeWithdrawalParams, TxJson, WithdrawalParams, WithdrawalUrl,
+};
 pub use status::{OptimisticPayoutStatus, WithdrawStatus};
 
 use crate::btc::utils::{sign_withdrawal_signature, verify_withdrawal_signature};
@@ -12,6 +14,7 @@ use crate::core::secure_types::{SecureKeypair, SecureString};
 use crate::core::types::{BRIDGE_CONTRACT, CitreaContract, encode_safe_withdraw_params};
 use crate::services::api::{UtxoInfo, get_tx_details, get_utxos, is_tx_on_chain};
 use crate::sqlite_db::sqlite_client::SqliteDb;
+use crate::btc::utils::parse_transaction_hex;
 use crate::wallet::BitcoinAddress;
 use crate::wallet::Purpose;
 use crate::wallet::TaprootAddressWithPrefix;
@@ -113,6 +116,7 @@ pub async fn safe_withdraw(
     withdrawal_amount: &Amount,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
+    precomputed: Option<&PrecomputedWithdrawalData>,
 ) -> Result<(WithdrawalUrl, TxJson, WithdrawalParams), BridgeCliError> {
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
 
@@ -132,7 +136,8 @@ pub async fn safe_withdraw(
     )?;
 
     let params =
-        prepare_withdrawal_params(withdrawal_outpoint, &payout_output, sig, config).await?;
+        prepare_withdrawal_params(withdrawal_outpoint, &payout_output, sig, config, precomputed)
+            .await?;
 
     let calldata_hex = encode_safe_withdraw_params(
         &params.transaction,
@@ -208,6 +213,7 @@ pub async fn send_safe_withdrawal(
         &payout_output,
         &params.signature,
         config,
+        params.precomputed.as_ref(),
     )
     .await?;
 
@@ -268,31 +274,49 @@ pub async fn scan_withdrawal(
     Ok(utxos)
 }
 
-/// Common withdrawal parameter preparation pattern (reduces major duplication)  
+/// Common withdrawal parameter preparation pattern (reduces major duplication).
+/// When `precomputed` is provided, all Bitcoin network calls are skipped.
 pub async fn prepare_withdrawal_params(
     withdrawal_outpoint: &OutPoint,
     payout_output: &TxOut,
     sig: &bitcoin::taproot::Signature,
     config: &BridgeCliConfig,
+    precomputed: Option<&PrecomputedWithdrawalData>,
 ) -> Result<WithdrawalParams, BridgeCliError> {
-    if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
-        return Err(BridgeCliError::TransactionNotOnChain(
-            withdrawal_outpoint.txid,
-        ));
-    }
+    let params = if let Some(pre) = precomputed {
+        let prepare_tx = parse_transaction_hex(&pre.tx_hex)?;
+        let block_header_bytes = hex::decode(&pre.block_header_hex).map_err(|e| {
+            BridgeCliError::Eyre(eyre::eyre!("Invalid block header hex: {}", e))
+        })?;
 
-    // Get the prepare tx details
-    let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
-        get_tx_details(&withdrawal_outpoint.txid, config).await?;
+        crate::core::parameters::get_citrea_safe_withdraw_params_from_parts(
+            withdrawal_outpoint,
+            payout_output,
+            sig,
+            &prepare_tx,
+            &pre.block_txids,
+            &block_header_bytes,
+            pre.block_height,
+        )?
+    } else {
+        if !is_tx_on_chain(&withdrawal_outpoint.txid, config).await? {
+            return Err(BridgeCliError::TransactionNotOnChain(
+                withdrawal_outpoint.txid,
+            ));
+        }
 
-    let params = crate::core::parameters::get_citrea_safe_withdraw_params(
-        withdrawal_outpoint,
-        payout_output,
-        sig,
-        &prepare_tx,
-        &prepare_tx_block,
-        prepare_tx_block_height,
-    )?;
+        let (prepare_tx, prepare_tx_block, prepare_tx_block_height) =
+            get_tx_details(&withdrawal_outpoint.txid, config).await?;
+
+        crate::core::parameters::get_citrea_safe_withdraw_params(
+            withdrawal_outpoint,
+            payout_output,
+            sig,
+            &prepare_tx,
+            &prepare_tx_block,
+            prepare_tx_block_height,
+        )?
+    };
 
     Ok(crate::core::types::prepare_safe_withdraw_params(
         &params.prepare_tx,

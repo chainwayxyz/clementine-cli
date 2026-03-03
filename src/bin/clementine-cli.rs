@@ -312,6 +312,14 @@ enum WithdrawCommands {
         withdrawal_utxo_outpoint: String,
         /// Withdrawal signature (hex-encoded)
         signature: String,
+        #[arg(long, hide = true)]
+        tx_hex: Option<String>,
+        #[arg(long, hide = true)]
+        block_txids: Option<String>,
+        #[arg(long, hide = true)]
+        block_header_hex: Option<String>,
+        #[arg(long, hide = true)]
+        block_height: Option<u32>,
     },
     /// Send a safe withdrawal transaction directly to the bridge contract.
     #[command(hide = true)]
@@ -768,6 +776,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 withdrawal_utxo_outpoint,
                 signature,
                 network,
+                tx_hex,
+                block_txids,
+                block_header_hex,
+                block_height,
             } => {
                 let config = handle_simple_call!(BridgeCliConfig::try_parse_config(network.into()));
 
@@ -786,6 +798,33 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 let signature_bytes = handle_simple_call!(hex::decode(signature));
                 let sig =
                     handle_simple_call!(bitcoin::taproot::Signature::from_slice(&signature_bytes));
+
+                let precomputed = match (tx_hex, block_txids, block_header_hex, block_height) {
+                    (Some(tx_hex), Some(btxids_json), Some(bh_hex), Some(bh)) => {
+                        let txid_strings: Vec<String> = serde_json::from_str(&btxids_json)
+                            .map_err(|e| eyre::eyre!(
+                                "Invalid --block-txids JSON array: {}. Expected format: [\"txid1\",\"txid2\",...]", e
+                            ))?;
+                        let parsed_txids: Vec<bitcoin::Txid> = txid_strings
+                            .iter()
+                            .map(|s| bitcoin::Txid::from_str(s))
+                            .collect::<Result<Vec<_>, _>>()
+                            .map_err(|e| eyre::eyre!("Invalid block txid: {}", e))?;
+                        Some(withdraw::PrecomputedWithdrawalData {
+                            tx_hex,
+                            block_txids: parsed_txids,
+                            block_header_hex: bh_hex,
+                            block_height: bh,
+                        })
+                    }
+                    (None, None, None, None) => None,
+                    _ => {
+                        return Err(eyre::eyre!(
+                            "All of --tx-hex, --block-txids, --block-header-hex, and --block-height must be provided together, or none of them."
+                        ).into());
+                    }
+                };
+
                 handle_cli_command!(async
                     withdraw::safe_withdraw(
                         &signer_address,
@@ -794,6 +833,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         &config.optimistic_withdrawal_amount,
                         &sig,
                         &config,
+                        precomputed.as_ref(),
                     ),
                     (withdrawal_ui_url, tx_json, params) => {
                         println!("\n{} You will be redirected to a browser to sign the withdrawal transaction. Please verify that the transaction details below match while signing the withdrawal transaction.\n", "IMPORTANT:".bold());
@@ -865,6 +905,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                             withdrawal_outpoint,
                             withdrawal_amount: config.optimistic_withdrawal_amount,
                             signature: sig,
+                            precomputed: None,
                         },
                         &config,
                     ),
