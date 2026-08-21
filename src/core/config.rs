@@ -94,7 +94,7 @@ impl BridgeCliConfig {
             Network::Testnet4 => Self {
                 network,
                 aggregated_public_key: XOnlyPublicKey::from_str(
-                    "1e0f48f81dfa14d114f5d942f1e2d50771a4b019fa942606bb1f258b4b326bf7",
+                    "1e8efd48c4fd27b3fe65ec8913add29dd9f0b001987f081e6a0f781e96a11589",
                 )
                 .unwrap(),
                 esplora_rest_api: Some(Url::parse("https://mempool.space/testnet4/api/").unwrap()),
