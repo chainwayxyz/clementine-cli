@@ -1,0 +1,38 @@
+name: E2E Tests
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  e2e-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Clementine  E2E Tests Build Services
+        uses: ./.github/actions/clementine-build-services
+
+      - name: Cache bitvm cache files
+        uses: actions/cache@v4
+        id: cache-bitvm
+        with:
+          path: |
+            e2e-tests/bitvm_cache_dev.bin
+          key: bitvm-cache-dev-2025-10-23
+
+      - name: Download bitvm cache dev bin
+        if: steps.cache-bitvm.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          wget https://static.citrea.xyz/dev-net/clementine/conf/bitvm_cache_dev.bin -O e2e-tests/bitvm_cache_dev.bin
+
+      - name: Run e2e tests
+        shell: bash
+        working-directory: e2e-tests
+        run: BITVM_CACHE_PATH="$GITHUB_WORKSPACE/e2e-tests/bitvm_cache_dev.bin" cargo test -- --test-threads=1
