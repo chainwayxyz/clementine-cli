@@ -73,7 +73,7 @@ impl BridgeCliConfig {
             Network::Bitcoin => Self {
                 network,
                 aggregated_public_key: XOnlyPublicKey::from_str(
-                    "70458db6f75b129ad93878e7781eeb9ba24bf4bbd498d6a9d3f27827b25c8f81",
+                    "67951411385138004e082a07c45f30dc387a78220d639f33c829c5a12a436055",
                 )
                 .unwrap(),
                 esplora_rest_api: Some(Url::parse("https://mempool.space/api/").unwrap()),
