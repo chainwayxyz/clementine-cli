@@ -8,14 +8,14 @@ mod btc;
 mod core;
 pub mod deposit;
 mod services;
-mod sqlite_db;
+pub mod sqlite_db;
 pub mod wallet;
 pub mod withdraw;
 
 pub mod config {
     pub use crate::core::config::{
-        BridgeCliConfig, ConfigErrors, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY, default_networks,
-        write_config_to,
+        BitcoinConfig, BridgeCliConfig, ConfigErrors, NetworkConfigs, UNSPENDABLE_XONLY_PUBKEY,
+        default_networks, write_config_to,
     };
 }
 

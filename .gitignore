@@ -1,5 +1,4 @@
 /target
-./bridge_cli_config.toml
 
 # Nix build artifacts
 result
@@ -11,3 +10,6 @@ result-*
 artifacts
 
 scripts
+
+e2e-tests/target
+e2e-tests/bitvm_cache.bin

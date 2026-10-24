@@ -368,6 +368,7 @@ where
 pub(crate) async fn is_withdrawal_address_wallet_address(
     address: &crate::wallet::BitcoinAddress,
     config: &crate::core::config::BridgeCliConfig,
+    sqlite_client: Option<&SqliteDb>,
 ) -> Result<bool, BridgeCliError> {
     if address.address_type() == Some(bitcoin::AddressType::P2tr) {
         let address = TaprootAddressWithPrefix::from_string_without_prefix(
@@ -375,7 +376,7 @@ pub(crate) async fn is_withdrawal_address_wallet_address(
             Purpose::Withdrawal,
             config.network,
         )?;
-        return address_exists(&address, None).await;
+        return address_exists(&address, sqlite_client).await;
     }
     Ok(false)
 }

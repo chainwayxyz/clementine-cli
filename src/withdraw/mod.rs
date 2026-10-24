@@ -78,7 +78,7 @@ pub async fn generate_withdrawal_signatures(
     }
 
     // If the claim address is a Taproot address, ensure it is not a Clementine wallet address
-    if is_withdrawal_address_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config, sqlite_client).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
 
@@ -180,12 +180,16 @@ pub async fn send_safe_withdrawal(
 
     tracing::debug!("Wallet address: {}", wallet_address);
 
+    tracing::info!("Preparing safe withdrawal transaction...");
+
     validate_address_purpose(&params.signer_address, Purpose::Withdrawal)?;
 
     let payout_output = TxOut {
         value: params.withdrawal_amount,
         script_pubkey: params.destination_address.script_pubkey(),
     };
+
+    tracing::info!("Verifying withdrawal signature...");
 
     // verify signature
     verify_withdrawal_signature(
@@ -197,6 +201,8 @@ pub async fn send_safe_withdrawal(
         config,
     )?;
 
+    tracing::info!("Withdrawal signature verified successfully.");
+
     let withdrawal_params = prepare_withdrawal_params(
         &params.withdrawal_outpoint,
         &payout_output,
@@ -205,7 +211,11 @@ pub async fn send_safe_withdrawal(
     )
     .await?;
 
+    tracing::info!("Withdrawal parameters prepared successfully.");
+
     let contract = create_bridge_contract(key, config)?;
+
+    tracing::info!("Sending safe withdrawal transaction to the bridge contract...");
 
     let citrea_withdrawal_tx = contract
         .safeWithdraw(
@@ -221,6 +231,11 @@ pub async fn send_safe_withdrawal(
         .send()
         .await?;
 
+    tracing::info!(
+        "Safe withdrawal transaction sent. Tx hash: {:?}",
+        citrea_withdrawal_tx.tx_hash()
+    );
+
     let receipt = citrea_withdrawal_tx
         .get_receipt()
         .await
@@ -234,7 +249,7 @@ pub async fn start_withdrawal(
     destination_address: &BitcoinAddress,
     config: &BridgeCliConfig,
 ) -> Result<(), BridgeCliError> {
-    if is_withdrawal_address_wallet_address(destination_address, config).await? {
+    if is_withdrawal_address_wallet_address(destination_address, config, None).await? {
         return Err(BridgeCliError::DestinationAddressIsWalletAddress);
     }
     validate_address_purpose(signer_address, Purpose::Withdrawal)?;
