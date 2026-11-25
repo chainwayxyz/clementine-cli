@@ -32,7 +32,7 @@ sha2 = "0.10.9"
 bitcoincore-rpc = { version = "0.18.0" }
 rand = { version = "0.9.5", features = ["os_rng"] }
 getrandom = "0.3.3"
-bip39 = { version = "2.0", features = ["zeroize", "rand"] }
+bip39 = { version = "3.0", features = ["zeroize", "rand"] }
 aes-gcm = { version = "0.10", features = ["zeroize"] }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 rpassword = "7.5.5"
