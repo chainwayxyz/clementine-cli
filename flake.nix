@@ -210,6 +210,8 @@
 
               dontUseCmakeConfigure = isWindows;
               buildInputs = staticNativeBuildInputs
+                # AWS-LC uses sched.h when building jitterentropy with MinGW.
+                ++ pkgs.lib.optionals isWindows [ crossPkgs.windows.mingw_w64_pthreads ]
                 ++ pkgs.lib.optionals isTargetDarwin [
                   pkgs.darwin.apple_sdk.frameworks.Security
                   pkgs.darwin.apple_sdk.frameworks.CoreFoundation
