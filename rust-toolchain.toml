@@ -1,5 +1,5 @@
 [toolchain]
-# Exact version pinned for reproducible builds (must match flake.nix)
-channel = "1.89"
+# Shared with the reproducible Nix builds.
+channel = "1.100.0"
 components = ["rustfmt", "rust-src"]
 profile = "minimal"

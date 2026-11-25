@@ -140,7 +140,7 @@ Enter a development shell with all dependencies:
 nix develop
 ```
 
-This provides a shell with Rust 1.89.0 and all required build dependencies.
+The release builds use the exact Rust version in `rust-toolchain.toml`.
 
 ## Verifying Reproducibility
 

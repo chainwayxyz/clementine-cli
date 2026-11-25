@@ -20,7 +20,7 @@
 
           staticPkgs = pkgs.pkgsStatic;
 
-          rustVersion = "1.89.0";
+          rustVersion = (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml)).toolchain.channel;
 
           srcFiltered = pkgs.lib.cleanSourceWith {
             name = "clementine-src";
@@ -205,9 +205,17 @@
 
               nativeBuildInputs =
                 [ buildPkgs.pkg-config ]
+                ++ pkgs.lib.optionals isWindows [ buildPkgs.cmake buildPkgs.nasm ]
                 ++ pkgs.lib.optionals isHostDarwin [ buildPkgs.libiconv ];
 
-              buildInputs = staticNativeBuildInputs;
+              dontUseCmakeConfigure = isWindows;
+              buildInputs = staticNativeBuildInputs
+                # AWS-LC uses sched.h when building jitterentropy with MinGW.
+                ++ pkgs.lib.optionals isWindows [ crossPkgs.windows.mingw_w64_pthreads ]
+                ++ pkgs.lib.optionals isTargetDarwin [
+                  pkgs.darwin.apple_sdk.frameworks.Security
+                  pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+                ];
 
               cargoBuildFlags = [
                 "--target=${targetTriple}"
