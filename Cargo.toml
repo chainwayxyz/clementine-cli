@@ -48,7 +48,7 @@ secrecy = { version = "0.10.0", features = ["serde"] }
 urlencoding = "2.1"
 subtle = "2.6.1"
 thiserror = "2.0.21"
-toml_edit = "0.22.27"
+toml_edit = "0.23.10"
 tempfile = "3.6"
 dialoguer = "0.12.0"
 
