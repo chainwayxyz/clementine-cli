@@ -1490,7 +1490,7 @@ pub async fn cli_scan_withdrawals(
             println!(
                 "$ clementine-cli withdraw generate-withdrawal-signatures --network {} {} {} {}",
                 config.network,
-                &signer_address.address_with_prefix(),
+                signer_address.address_with_prefix(),
                 destination_address,
                 outpoint,
             );

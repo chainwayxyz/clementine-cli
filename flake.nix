@@ -20,7 +20,7 @@
 
           staticPkgs = pkgs.pkgsStatic;
 
-          rustVersion = "1.89.0";
+          rustVersion = (builtins.fromTOML (builtins.readFile ./rust-toolchain.toml)).toolchain.channel;
 
           srcFiltered = pkgs.lib.cleanSourceWith {
             name = "clementine-src";
@@ -205,8 +205,10 @@
 
               nativeBuildInputs =
                 [ buildPkgs.pkg-config ]
+                ++ pkgs.lib.optionals isWindows [ buildPkgs.cmake buildPkgs.nasm ]
                 ++ pkgs.lib.optionals isHostDarwin [ buildPkgs.libiconv ];
 
+              dontUseCmakeConfigure = isWindows;
               buildInputs = staticNativeBuildInputs;
 
               cargoBuildFlags = [

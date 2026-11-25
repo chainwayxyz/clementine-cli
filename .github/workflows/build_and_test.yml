@@ -1,5 +1,8 @@
 name: Build And Test
 
+permissions:
+  contents: read
+
 on:
   push:
     branches:
@@ -16,60 +19,22 @@ concurrency:
 env:
   CARGO_TERM_COLOR: always
 
-  CARGOFLAGS: --workspace --all-targets
-  CARGOFLAGS_ALL_FEATURES: --workspace --all-targets --all-features
-
 jobs:
   debug_tests_all_features:
     name: Debug | All features | Test
     runs-on: ubicloud-standard-16
-
-    env:
-      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create test log directories
-        run: mkdir -p test-logs/debug
-
-      - name: Run tests
+      - name: Test on the minimum supported Rust version
         run: |
-          set -o pipefail
-          cargo test $CARGOFLAGS_ALL_FEATURES
-
-      - name: Upload deposit state artifact
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deposit-state-debug
-          path: core/src/test/data/deposit_state_debug.bincode
-          if-no-files-found: ignore
-          retention-days: 1
+          minimum_rust=$(cargo metadata --no-deps --format-version 1 | jq -er '.packages[] | select(.name == "clementine-cli") | .rust_version')
+          rustup toolchain install "$minimum_rust" --profile minimal
+          cargo +"$minimum_rust" test --locked --workspace --all-targets --all-features
 
   release_tests_all_features:
     name: Release | All features | Test
     runs-on: ubicloud-standard-16
-
-    env:
-      INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
-
     steps:
       - uses: actions/checkout@v4
-
-      - name: Create test log directories
-        run: mkdir -p test-logs/debug
-
-      - name: Run tests
-        run: |
-          set -o pipefail
-          cargo test --release $CARGOFLAGS_ALL_FEATURES
-
-      - name: Upload deposit state artifact
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: deposit-state-debug
-          path: core/src/test/data/deposit_state_debug.bincode
-          if-no-files-found: ignore
-          retention-days: 1
+      - name: Test on the release toolchain
+        run: cargo test --release --locked --workspace --all-targets --all-features

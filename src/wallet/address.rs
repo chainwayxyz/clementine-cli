@@ -307,7 +307,7 @@ pub async fn print_all_wallets_with_addresses() -> Result<(), BridgeCliError> {
             let network = format!("Network: {}", wallet.network);
             println!(
                 "Label: {} -> Address: {}, {}{}",
-                &wallet.label, &wallet.address, network, import_info,
+                wallet.label, wallet.address, network, import_info,
             );
         }
         println!();
