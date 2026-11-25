@@ -1566,7 +1566,7 @@ dependencies = [
  "dialoguer",
  "dirs",
  "eyre",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "hex",
  "open",
  "rand 0.9.5",
