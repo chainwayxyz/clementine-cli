@@ -22,7 +22,7 @@ jobs:
     runs-on: ubicloud-standard-2
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Run Cargo fmt
         run: cargo fmt --check
 
@@ -31,7 +31,7 @@ jobs:
     runs-on: ubicloud-standard-2
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Install Clippy
         run: rustup component add clippy
       - name: Run Cargo clippy
@@ -42,7 +42,7 @@ jobs:
     runs-on: ubicloud-standard-2
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Toolchain
         uses: actions-rs/toolchain@v1
@@ -63,7 +63,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -82,7 +82,7 @@ jobs:
     runs-on: ubicloud-standard-2
     if: github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Check for TODOs
         run: |

@@ -24,7 +24,7 @@ jobs:
     name: Debug | All features | Test
     runs-on: ubicloud-standard-16
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test on the minimum supported Rust version
         run: |
           minimum_rust=$(cargo metadata --no-deps --format-version 1 | jq -er '.packages[] | select(.name == "clementine-cli") | .rust_version')
@@ -35,6 +35,6 @@ jobs:
     name: Release | All features | Test
     runs-on: ubicloud-standard-16
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Test on the release toolchain
         run: cargo test --release --locked --workspace --all-targets --all-features
