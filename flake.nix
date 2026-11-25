@@ -209,7 +209,11 @@
                 ++ pkgs.lib.optionals isHostDarwin [ buildPkgs.libiconv ];
 
               dontUseCmakeConfigure = isWindows;
-              buildInputs = staticNativeBuildInputs;
+              buildInputs = staticNativeBuildInputs
+                ++ pkgs.lib.optionals isTargetDarwin [
+                  pkgs.darwin.apple_sdk.frameworks.Security
+                  pkgs.darwin.apple_sdk.frameworks.CoreFoundation
+                ];
 
               cargoBuildFlags = [
                 "--target=${targetTriple}"
