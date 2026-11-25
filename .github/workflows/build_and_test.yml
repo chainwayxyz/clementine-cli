@@ -28,11 +28,6 @@ jobs:
       INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
 
     steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
       - uses: actions/checkout@v4
 
       - name: Create test log directories
@@ -60,11 +55,6 @@ jobs:
       INFO_LOG_FILE: ${{ github.workspace }}/test-logs/debug/debug-all-features-test.log
 
     steps:
-      - name: Collect Workflow Telemetry
-        uses: catchpoint/workflow-telemetry-action@v2
-        with:
-          comment_on_pr: false
-
       - uses: actions/checkout@v4
 
       - name: Create test log directories
